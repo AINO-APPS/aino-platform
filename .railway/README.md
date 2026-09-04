@@ -1,12 +1,18 @@
-# Railway configuration
+# Railway configuration — MIG-0401..MIG-0404
 
-This project defines its Railway infrastructure in code.
+`.railway/railway.ts` is a configuration-only definition for a fresh, isolated
+`aino-platform-next` project. It has not been applied by this change.
 
-```txt
-.railway/railway.ts
-```
+The target contains fresh Postgres, Redis, and private PgBouncer resources plus
+`aino-next-web`, `aino-next-realtime`, `aino-next-worker`, and the cold
+(zero-replica) `aino-next-rollback` service. All application services source
+`AINO-APPS/aino-platform`; no public or custom domain is declared. Worker,
+rollback, databases, and PgBouncer therefore have no public ingress.
 
-Use this file to describe the Railway project you want: services, databases, buckets, custom domains, replicas, groups, and environment variables.
+Bootstrap values are intentionally non-production: external integrations are
+empty/disabled and required secrets use sealed `MIG-040_REPLACE_*` placeholders.
+Rotate those placeholders and review all integration settings before enabling
+production mode, public networking, or nonzero rollback replicas.
 
 The TypeScript file imports `railway/iac`. Install the SDK from the repository root:
 

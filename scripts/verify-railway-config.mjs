@@ -1,84 +1,68 @@
-/**
- * Validate Railway Infrastructure as Code fields that gate automatic production
- * deploys. Static source checks only — this must run in CI without Railway auth,
- * so it does not shell out to `railway config plan` (that needs a linked project).
- */
+/** Static MIG-0401..0404 checks. No Railway auth, plan, or apply is used. */
 import fs from "node:fs";
 
 const path = ".railway/railway.ts";
 const src = fs.readFileSync(path, "utf8");
 const errors = [];
+const requireMatch = (pattern, message) => { if (!pattern.test(src)) errors.push(message); };
+const rejectMatch = (pattern, message) => { if (pattern.test(src)) errors.push(message); };
 
-// Isolate the WorkPulse service block so checks cannot accidentally match one
-// of the aino-web/aino-realtime/aino-worker blocks instead.
-const workPulseMatch = src.match(/const WorkPulse = service\("WorkPulse",\s*\{([\s\S]*?)\n {2}\}\);/);
-if (!workPulseMatch) errors.push(`Could not find the WorkPulse service block in ${path}`);
-const workPulse = workPulseMatch?.[1] ?? "";
-
-// D4.5: health check must point at /readyz, not /healthz or /api/health.
-// Railway (dashboard) settings lose to config-as-code, so this is the one
-// place that matters.
-if (!/healthcheck:\s*"\/readyz"/.test(workPulse)) {
-  errors.push('WorkPulse healthcheck must be "/readyz"');
-}
-const healthcheckTimeoutMatch = workPulse.match(/healthcheckTimeout:\s*(\d+)/);
-if (!healthcheckTimeoutMatch || Number(healthcheckTimeoutMatch[1]) < 60) {
-  errors.push("WorkPulse healthcheckTimeout is missing or too short (must be >= 60)");
+// MIG-0401: an isolated project with fresh data-plane declarations.
+requireMatch(/project\("aino-platform-next"/, "Project must be aino-platform-next");
+for (const resource of ["Postgres", "Redis", "PgBouncer"]) {
+  requireMatch(new RegExp(`[\\"']${resource}[\\"']`), `Missing fresh ${resource} resource`);
 }
 
-// E3.2: DB migrations run once in pre-deploy, never at runtime from N replicas.
-const preDeployMatch = workPulse.match(/preDeployCommand:\s*\[([^\]]*)\]/);
-const preDeployArgs = preDeployMatch?.[1] ?? "";
-// Railway's schema caps preDeployCommand at one array item (a single shell
-// command string), not an argv-split array — ["node", "migrate.js"] fails
-// apply with "too_big: expected array to have <=1 items".
-if (!/"node migrate\.js"/.test(preDeployArgs)) {
-  errors.push('WorkPulse preDeployCommand must run ["node migrate.js"] (single string, not argv-split)');
-}
+// MIG-0402: no legacy project/repository or production-domain coupling.
+requireMatch(/SOURCE\s*=\s*"AINO-APPS\/aino-platform"/, "Source must be AINO-APPS/aino-platform");
+for (const forbidden of [
+  /renewed-fascination/i,
+  /vvronline\/WorkPulse/i,
+  /aino\.org\.in/i,
+  /workpulse-prod\.up\.railway\.app/i,
+  /customDomains\s*:/,
+  /serviceDomains\s*:/,
+  /tcpProxies\s*:/,
+  /domains\s*:/,
+]) rejectMatch(forbidden, `Forbidden active-IaC reference: ${forbidden}`);
 
-// The start command (if the service overrides one) must not re-run DATABASE
-// migrations — that is pre-deploy's job. Running DDL from N replicas is the
-// failure mode this guards against. WorkPulse currently has no startCommand
-// override (it uses the Dockerfile CMD), so absence is fine; only flag it if
-// present and wrong.
-const startCommandMatch = workPulse.match(/(?<!pre)[Ss]tartCommand:\s*"([^"]*)"/);
-if (startCommandMatch) {
-  const startCommand = startCommandMatch[1];
-  const runsDbMigrations = /(^|[\s;&|"'/])migrate\.js(\s|$|["';&|])/.test(startCommand);
-  if (runsDbMigrations) {
-    errors.push("WorkPulse startCommand must not run node migrate.js — migrations belong in preDeployCommand");
-  }
+// MIG-0403: exact fresh role topology and role assignment.
+const expected = {
+  "aino-next-web": "web",
+  "aino-next-realtime": "realtime",
+  "aino-next-worker": "worker",
+  "aino-next-rollback": "all",
+};
+for (const [name, role] of Object.entries(expected)) {
+  requireMatch(new RegExp(`appService\\("${name}",\\s*"${role}"\\)`), `${name} must have ROLE=${role}`);
 }
+requireMatch(/preDeployCommand:\s*role === "web" \? \["node migrate\.js"\] : undefined/,
+  "Only the web service may run pre-deploy migrations");
 
-if (!/restartPolicyType:\s*"ON_FAILURE"/.test(workPulse)) {
-  errors.push("WorkPulse restartPolicyType must be ON_FAILURE");
-}
-const maxRetriesMatch = workPulse.match(/restartPolicyMaxRetries:\s*(\d+)/);
-if (!maxRetriesMatch) errors.push("WorkPulse restartPolicyMaxRetries is missing");
-
-// ── Field TYPES, not just values ────────────────────────────────────────────
-// A prior incident: "overlapSeconds": "30" (string, in the old railway.json)
-// passed value checks but Railway's own schema rejects a string here — the
-// build never starts and the error is only visible in the Railway UI. Guard
-// against the same mistake by requiring bare numeric literals (no quotes) for
-// every numeric deploy field actually present in the WorkPulse block.
-const numericFields = ["healthcheckTimeout", "restartPolicyMaxRetries", "overlapSeconds", "drainingSeconds", "numReplicas"];
-for (const field of numericFields) {
-  const quoted = new RegExp(`${field}:\\s*"`);
-  if (quoted.test(workPulse)) {
-    errors.push(`WorkPulse deploy.${field} must be a bare number, not a quoted string`);
-  }
-}
-if (!/overlapSeconds:\s*\d+/.test(workPulse)) errors.push("WorkPulse overlapSeconds is missing");
-if (!/drainingSeconds:\s*\d+/.test(workPulse)) errors.push("WorkPulse drainingSeconds is missing");
+// MIG-0404: private-only exposure and side-effect-safe bootstrap defaults.
+requireMatch(/networking:\s*\{\s*privateNetworkEndpoint:\s*name\s*\}/,
+  "App services must be private-only by default");
+for (const setting of [
+  /NODE_ENV:\s*"development"/,
+  /STORAGE_DRIVER:\s*"local"/,
+  /DISABLE_PUBLIC_TURN:\s*"true"/,
+  /CORS_ORIGIN:\s*""/,
+  /SERVE_SPA:\s*role === "web" \|\| role === "all" \? "true" : "false"/,
+  /numReplicas:\s*role === "all" \? 0 : 1/,
+  /isSealed:\s*true/,
+  /JWT_SECRET:\s*sealedPlaceholder/,
+  /SMTP_HOST:\s*""/,
+  /FIREBASE_SERVICE_ACCOUNT_KEY:\s*""/,
+  /R2_ACCESS_KEY_ID:\s*""/,
+]) requireMatch(setting, `Missing safe bootstrap setting: ${setting}`);
 
 const dockerfile = fs.readFileSync("Dockerfile", "utf8");
-if (/node migrate\.js\s*&&/.test(dockerfile)) errors.push("Dockerfile still runs migrations at startup");
+if (/node migrate\.js\s*&&/.test(dockerfile)) errors.push("Dockerfile runs migrations at startup");
 const pkg = JSON.parse(fs.readFileSync("server/package.json", "utf8"));
-if (/migrate/.test(pkg.scripts?.start || "")) errors.push("server start script still runs migrations");
+if (/migrate/.test(pkg.scripts?.start || "")) errors.push("Server start script runs migrations");
 
 if (errors.length) {
   console.error("Railway config verification failed:\n" + errors.map((e) => `  ${e}`).join("\n"));
   process.exit(1);
 }
-console.log("Railway config verified: fatal pre-deploy migrations, /readyz, no runtime migration duplication.");
+console.log("Railway config verified: MIG-0401..0404 isolated, private-only, and side-effect-safe.");

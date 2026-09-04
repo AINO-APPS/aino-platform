@@ -1,39 +1,22 @@
-import { defineRailway, github, image, postgres, preserve, project, redis, service, volume } from "railway/iac";
+import { defineRailway, github, image, postgres, project, redis, service } from "railway/iac";
+
+const REGION = "asia-southeast1-eqsg3a";
+const SOURCE = "AINO-APPS/aino-platform";
+const BRANCH = "master";
+
+// Fresh-project placeholders are sealed in Railway. They are deliberately inert
+// and must be rotated before changing NODE_ENV to production or adding a domain.
+const sealedPlaceholder = (name: string) => ({
+  value: `MIG-040_REPLACE_${name}_BEFORE_USE`,
+  isSealed: true,
+  description: "Non-secret bootstrap placeholder; replace before enabling external access.",
+});
 
 export default defineRailway(() => {
-  const Postgres = postgres("Postgres", { region: "europe-west4-drams3a" });
-  const Redis = redis("Redis", { region: "europe-west4-drams3a" });
-  Redis.deploy = { startCommand: "/bin/sh -c \"rm -rf $RAILWAY_VOLUME_MOUNT_PATH/lost+found/ && exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --save 60 1 --dir $RAILWAY_VOLUME_MOUNT_PATH\"" };
-  const redisVolume = volume("redis-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
-  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
-  const WorkPulse = service("WorkPulse", {
-    source: github("vvronline/WorkPulse", { branch: "master" }),
-    // D4.2/D4.5: readiness (not liveness) gates promotion — checks DB + Redis PING
-    // (+ Pub/Sub for realtime, jobs for worker) before Railway routes traffic here.
-    healthcheck: "/readyz",
-    healthcheckTimeout: 300,
-    // E3.2: run DB migrations once, before the new deployment takes traffic —
-    // never at runtime from N replicas. migrate.ts prefers DIRECT_DATABASE_URL.
-    preDeployCommand: ["node migrate.js"],
-    deploy: {
-      restartPolicyType: "ON_FAILURE",
-      restartPolicyMaxRetries: 10,
-      // Zero-downtime rollout: new replica overlaps the old one instead of a
-      // hard cutover, and the old replica gets a grace window to drain in-flight
-      // requests/WS connections before it is killed.
-      overlapSeconds: 30,
-      drainingSeconds: 15,
-      limitOverride: { containers: { cpu: 8, memoryBytes: 8000000000 } },
-    },
-    replicas: { "asia-southeast1-eqsg3a": 1 },
-    domains: [{ domain: "aino.org.in", port: 5000 }, { domain: "www.aino.org.in", port: 5000 }],
-    networking: { privateNetworkEndpoint: "workpulse" },
-    env: { CLOUDFLARE_TURN_API_TOKEN: preserve(), CLOUDFLARE_TURN_TOKEN_ID: preserve(), CORS_ORIGIN: preserve(), DATABASE_PUBLIC_URL: preserve(), DATABASE_URL: preserve(), DESKTOP_UPLOAD_SECRET: preserve(), DIRECT_DATABASE_URL: preserve(), DISABLE_PUBLIC_TURN: preserve(), ENCRYPTION_KEY: preserve(), FIREBASE_SERVICE_ACCOUNT_KEY: preserve(), GIPHY_API_KEY: preserve(), GMAIL_CLIENT_ID: preserve(), GMAIL_CLIENT_SECRET: preserve(), GMAIL_REFRESH_TOKEN: preserve(), GOOGLE_API_KEY: preserve(), JWT_SECRET: preserve(), MASTER_POOL_SIZE: preserve(), PORT: preserve(), R2_ACCESS_KEY_ID: preserve(), R2_ACCOUNT_ID: preserve(), R2_SECRET_ACCESS_KEY: preserve(), R2_UPLOADS_BUCKET: preserve(), REDIS_URL: preserve(), ROLE: preserve(), SERVE_SPA: preserve(), SMTP_FROM: preserve(), SMTP_USER: preserve(), STORAGE_DRIVER: preserve(), TENANT_FOREACH_CONCURRENCY: preserve(), TENANT_MAX_POOLS: preserve(), TENANT_POOL_SIZE: preserve() },
-  });
+  // MIG-0401: these resources are created inside the new, isolated project.
+  const Postgres = postgres("Postgres", { region: REGION });
+  const Redis = redis("Redis", { region: REGION });
 
-  // E1.1: PgBouncer in transaction-pool mode sits in front of Postgres so that
-  // scaling web/realtime/worker replicas does not multiply real server-side DB
-  // connections — see infra/pgbouncer/README.md and E1.2/E1.3 compatibility audit.
   const PgBouncer = service("PgBouncer", {
     source: image("edoburu/pgbouncer:v1.24.1-p1"),
     env: {
@@ -52,16 +35,46 @@ export default defineRailway(() => {
       SERVER_TLS_SSLMODE: "prefer",
       IGNORE_STARTUP_PARAMETERS: "extra_float_digits,options",
     },
+    // No service domain or TCP proxy: PgBouncer is private-only.
     networking: { privateNetworkEndpoint: "pgbouncer" },
   });
 
-  // D2/F1: role-split services from the same image, differing only by ROLE.
-  // These run alongside WorkPulse (ROLE=all, kept as the rollback service) until
-  // the D5 two-replica gate passes; none of these are scaled past 1 replica here.
-  const roleServiceNames = { web: "aino-web", realtime: "aino-realtime", worker: "aino-worker" };
-  const roleServices = Object.entries(roleServiceNames).map(([role, name]) =>
+  const commonEnv = {
+    NODE_ENV: "development",
+    PORT: "5000",
+    // Railway resolves these references without exposing credentials in source.
+    DATABASE_URL: "postgresql://${{Postgres.PGUSER}}:${{Postgres.PGPASSWORD}}@${{PgBouncer.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}",
+    DIRECT_DATABASE_URL: Postgres.env.DATABASE_URL,
+    REDIS_URL: Redis.env.REDIS_URL,
+    STORAGE_DRIVER: "local",
+    DISABLE_PUBLIC_TURN: "true",
+    CORS_ORIGIN: "",
+    JWT_SECRET: sealedPlaceholder("JWT_SECRET"),
+    ENCRYPTION_KEY: sealedPlaceholder("ENCRYPTION_KEY"),
+    DESKTOP_UPLOAD_SECRET: sealedPlaceholder("DESKTOP_UPLOAD_SECRET"),
+    // Empty optional integrations prevent email, push, TURN, R2, and API calls.
+    CLOUDFLARE_TURN_API_TOKEN: "",
+    CLOUDFLARE_TURN_TOKEN_ID: "",
+    FIREBASE_SERVICE_ACCOUNT_KEY: "",
+    GIPHY_API_KEY: "",
+    GMAIL_CLIENT_ID: "",
+    GMAIL_CLIENT_SECRET: "",
+    GMAIL_REFRESH_TOKEN: "",
+    GOOGLE_API_KEY: "",
+    R2_ACCESS_KEY_ID: "",
+    R2_ACCOUNT_ID: "",
+    R2_SECRET_ACCESS_KEY: "",
+    R2_UPLOADS_BUCKET: "",
+    SMTP_FROM: "",
+    SMTP_HOST: "",
+    SMTP_PASS: "",
+    SMTP_USER: "",
+  };
+
+  const appService = (name: string, role: "web" | "realtime" | "worker" | "all") =>
     service(name, {
-      source: github("vvronline/WorkPulse", { branch: "master" }),
+      // MIG-0402: every application service uses only the split repository.
+      source: github(SOURCE, { branch: BRANCH }),
       healthcheck: "/readyz",
       healthcheckTimeout: 300,
       preDeployCommand: role === "web" ? ["node migrate.js"] : undefined,
@@ -70,21 +83,26 @@ export default defineRailway(() => {
         restartPolicyMaxRetries: 10,
         overlapSeconds: 30,
         drainingSeconds: 15,
+        // Keep the rollback target cold until an operator explicitly activates it.
+        numReplicas: role === "all" ? 0 : 1,
       },
+      // MIG-0404: all services start private-only. In particular the worker and
+      // rollback service have no public domain or TCP proxy to receive traffic.
       networking: { privateNetworkEndpoint: name },
-      // Shared secrets are referenced from WorkPulse rather than preserve()d —
-      // these are brand-new services with nothing of their own to preserve.
-      // A cross-service reference keeps one source of truth for rotation (A1).
       env: {
+        ...commonEnv,
         ROLE: role,
-        SERVE_SPA: "false",
-        NODE_ENV: "production",
-        CLOUDFLARE_TURN_API_TOKEN: WorkPulse.env.CLOUDFLARE_TURN_API_TOKEN, CLOUDFLARE_TURN_TOKEN_ID: WorkPulse.env.CLOUDFLARE_TURN_TOKEN_ID, CORS_ORIGIN: WorkPulse.env.CORS_ORIGIN, DATABASE_PUBLIC_URL: WorkPulse.env.DATABASE_PUBLIC_URL, DATABASE_URL: WorkPulse.env.DATABASE_URL, DESKTOP_UPLOAD_SECRET: WorkPulse.env.DESKTOP_UPLOAD_SECRET, DIRECT_DATABASE_URL: WorkPulse.env.DIRECT_DATABASE_URL, DISABLE_PUBLIC_TURN: WorkPulse.env.DISABLE_PUBLIC_TURN, ENCRYPTION_KEY: WorkPulse.env.ENCRYPTION_KEY, FIREBASE_SERVICE_ACCOUNT_KEY: WorkPulse.env.FIREBASE_SERVICE_ACCOUNT_KEY, GIPHY_API_KEY: WorkPulse.env.GIPHY_API_KEY, GMAIL_CLIENT_ID: WorkPulse.env.GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET: WorkPulse.env.GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN: WorkPulse.env.GMAIL_REFRESH_TOKEN, GOOGLE_API_KEY: WorkPulse.env.GOOGLE_API_KEY, JWT_SECRET: WorkPulse.env.JWT_SECRET, MASTER_POOL_SIZE: WorkPulse.env.MASTER_POOL_SIZE, PORT: WorkPulse.env.PORT, R2_ACCESS_KEY_ID: WorkPulse.env.R2_ACCESS_KEY_ID, R2_ACCOUNT_ID: WorkPulse.env.R2_ACCOUNT_ID, R2_SECRET_ACCESS_KEY: WorkPulse.env.R2_SECRET_ACCESS_KEY, R2_UPLOADS_BUCKET: WorkPulse.env.R2_UPLOADS_BUCKET, REDIS_URL: WorkPulse.env.REDIS_URL, SMTP_FROM: WorkPulse.env.SMTP_FROM, SMTP_USER: WorkPulse.env.SMTP_USER, STORAGE_DRIVER: WorkPulse.env.STORAGE_DRIVER, TENANT_FOREACH_CONCURRENCY: WorkPulse.env.TENANT_FOREACH_CONCURRENCY, TENANT_MAX_POOLS: WorkPulse.env.TENANT_MAX_POOLS, TENANT_POOL_SIZE: WorkPulse.env.TENANT_POOL_SIZE,
+        SERVE_SPA: role === "web" || role === "all" ? "true" : "false",
       },
-    })
-  );
+    });
 
-  return project("renewed-fascination", {
-    resources: [WorkPulse, Postgres, Redis, redisVolume, postgresVolume, PgBouncer, ...roleServices],
+  // MIG-0403: role-split services plus an isolated ROLE=all rollback target.
+  const web = appService("aino-next-web", "web");
+  const realtime = appService("aino-next-realtime", "realtime");
+  const worker = appService("aino-next-worker", "worker");
+  const rollback = appService("aino-next-rollback", "all");
+
+  return project("aino-platform-next", {
+    resources: [Postgres, Redis, PgBouncer, web, realtime, worker, rollback],
   });
 });
