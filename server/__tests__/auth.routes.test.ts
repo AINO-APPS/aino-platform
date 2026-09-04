@@ -1,5 +1,8 @@
 export {};
 
+// Keep this route suite deterministic; limiter behavior is covered separately.
+jest.mock("express-rate-limit", () => () => (_req: any, _res: any, next: any) => next());
+
 // Suppress pino logs during tests
 jest.mock("../utils/logger", () => ({
     logger: {
@@ -137,35 +140,14 @@ describe("POST /api/auth/register", () => {
         expect(res.body.error).toMatch(/self-registration is disabled/i);
     });
 
-    test("bootstraps platform_admin when no users exist", async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user_directory miss
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT session (createSession)
-            .mockResolvedValueOnce({ rows: [{ id: "sess" }], rowCount: 1 }); // list sessions (createSession)
-
-        // Bootstrap now runs inside masterTransaction — mock the transaction client
-        mockTransaction.mockImplementationOnce(async (fn: any) => {
-            const txClient = {
-                query: jest
-                    .fn()
-                    .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // pg_advisory_xact_lock
-                    .mockResolvedValueOnce({ rows: [{ count: "0" }], rowCount: 1 }) // platform_users count
-                    .mockResolvedValueOnce({ rows: [{ count: "0" }], rowCount: 1 }) // tenants count
-                    .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 }), // INSERT platform_user
-            };
-            return fn(txClient);
-        });
-
+    test("does not expose first-admin bootstrap over HTTP", async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
         const res = await request(app)
             .post("/api/auth/register")
             .set(CSRF)
             .send({ username: "newuser", password: "Password1!", full_name: "New User", email: "new@example.com" });
-        expect(res.status).toBe(200);
-        expect(res.body.user).toBeDefined();
-        expect(res.body.user.username).toBe("newuser");
-        expect(res.body.user.role).toBe("platform_admin");
-        expect(res.headers["set-cookie"]).toBeDefined();
-        expect(res.headers["set-cookie"][0]).toMatch(/token=/);
+        expect(res.status).toBe(403);
+        expect(mockTransaction).not.toHaveBeenCalled();
     });
 });
 
@@ -218,6 +200,31 @@ describe("POST /api/auth/login", () => {
             .set(CSRF)
             .send({ username: "john", password: "WrongPass1!" });
         expect(res.status).toBe(401);
+    });
+
+    test("keeps platform login tenantless and returns forced-change state", async () => {
+        const hash = await bcrypt.hash("CorrectPass1!", 10);
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user_directory miss
+            .mockResolvedValueOnce({ rows: [{
+                id: 9, username: "vvronline", password: hash, full_name: "Platform Admin",
+                email: "admin@example.test", is_active: true, token_version: 0,
+                failed_login_attempts: 0, must_change_password: true,
+            }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: "platform-session" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: "platform-session" }], rowCount: 1 });
+
+        const res = await request(app).post("/api/auth/login").set(CSRF)
+            .send({ username: "vvronline", password: "CorrectPass1!" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.user).toMatchObject({
+            id: 9, role: "platform_admin", tenant_id: null, org_id: null,
+            must_change_password: true,
+        });
+        const token = jwt.decode(res.body.token);
+        expect(token).toMatchObject({ platform: true, tenant_id: null });
+        expect(mockQuery.mock.calls.some(([sql]) => /FROM tenants/.test(sql))).toBe(false);
     });
 
     test("returns 200 with user data and cookie on valid login", async () => {

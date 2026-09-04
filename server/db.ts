@@ -229,10 +229,12 @@ async function initMasterDB(): Promise<void> {
             locked_until         TIMESTAMPTZ,
             theme                TEXT NOT NULL DEFAULT 'dark',
             avatar               TEXT,
+            must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
             created_at           TIMESTAMPTZ DEFAULT NOW()
         )
     `);
     await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
+    await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE`);
 
     // ---- App settings (platform-wide) ----
     await masterQuery(`

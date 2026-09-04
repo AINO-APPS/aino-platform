@@ -5,8 +5,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const redis = require("../redis");
-const { masterQuery, masterTransaction } = require("../db");
-const { getTenantPool, getTenantById, createTenant } = require("../utils/tenantManager");
+const { masterQuery } = require("../db");
+const { getTenantPool, getTenantById } = require("../utils/tenantManager");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { logger } = require("../utils/logger");
 const { getTransporter, sendMail } = require("../utils/mailer");
@@ -109,10 +109,13 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
         if (userRes.rows[0]) {
             // Check if this user is also a platform admin
             const platCheck = await masterQuery(
-                "SELECT 1 FROM platform_users WHERE LOWER(username) = $1 OR LOWER(email) = $1",
+                "SELECT * FROM platform_users WHERE LOWER(username) = $1 OR LOWER(email) = $1",
                 [identifier.toLowerCase()]
             );
             const isPlatformUser = !!platCheck.rows[0];
+            if (isPlatformUser) {
+                return { user: platCheck.rows[0], db: { query: masterQuery }, tenantId: null, isPlatformUser: true };
+            }
 
             // ── Self-heal: platform admin polluted into a CUSTOMER tenant ──
             // A historical bug seeded platform admins into the first active
@@ -264,39 +267,9 @@ router.post("/register", async (req: Request, res: Response) => {
             return res.status(403).json({ error: SELF_REG_DISABLED_MSG });
         }
 
-        // No tenant context — the only allowed path: first-ever platform_admin
-        // bootstrap. Use an advisory lock to prevent a race where two
-        // concurrent requests both see zero counts and both create an admin.
-        {
-            const bootstrapResult = await masterTransaction(async (client: any) => {
-                await client.query("SELECT pg_advisory_xact_lock(1)"); // lock #1 = bootstrap
-                const platCount = (await client.query("SELECT COUNT(*) FROM platform_users")).rows[0].count;
-                const tenantCount = (await client.query("SELECT COUNT(*) FROM tenants")).rows[0].count;
-                if (parseInt(platCount) === 0 && parseInt(tenantCount) === 0) {
-                    const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-                    const result = await client.query(
-                        "INSERT INTO platform_users (username, password, full_name, email) VALUES ($1,$2,$3,$4) RETURNING id",
-                        [username, hash, full_name, email]
-                    );
-                    return result.rows[0];
-                }
-                return null;
-            });
-            if (bootstrapResult) {
-                const sid = await createSession(bootstrapResult.id, req.headers["user-agent"], { query: masterQuery }, null);
-                const token = jwt.sign(
-                    { id: bootstrapResult.id, username, tv: 0, sid, tenant_id: null, platform: true },
-                    process.env.JWT_SECRET,
-                    { expiresIn: "8h" }
-                );
-                res.cookie("token", token, cookieOptions(req));
-                return res.json({
-                    user: { id: bootstrapResult.id, username, full_name, email, avatar: null, role: "platform_admin", org_id: null }
-                });
-            }
-            // Platform admin(s) / tenants already exist → self-registration is off.
-            return res.status(403).json({ error: SELF_REG_DISABLED_MSG });
-        }
+        // The initial platform identity is created only by the explicit,
+        // environment-driven CLI. Public HTTP registration never bootstraps it.
+        return res.status(403).json({ error: SELF_REG_DISABLED_MSG });
 
         // ── Registration mode check ──
         // `registration_mode` lives in `tenants.features` JSON next to the real
@@ -429,6 +402,10 @@ router.post("/register", async (req: Request, res: Response) => {
  * @param {boolean} params.isPlatformUser – true if this is a platform_users account
  */
 async function finishLogin(req: Request, res: Response, { user, db, tenantId, isPlatformUser }: { user: any; db: any; tenantId: number | null; isPlatformUser?: boolean }) {
+    if (isPlatformUser) {
+        tenantId = null;
+        db = { query: masterQuery };
+    }
     const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId);
     const token = jwt.sign(
         { id: user.id, username: user.username, tv: user.token_version || 0, sid, tenant_id: tenantId, platform: isPlatformUser || undefined },
@@ -438,174 +415,24 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
     res.cookie("token", token, cookieOptions(req));
 
     if (isPlatformUser) {
-        // If user was already resolved with a tenant context (via user_directory),
-        // we already have the correct JWT with platform: true and tenant_id.
-        // Ensure DB role is platform_admin and return.
-        if (tenantId) {
-            if (user.role !== "platform_admin") {
-                await db.query("UPDATE users SET role = $1 WHERE id = $2", ["platform_admin", user.id]);
-                user.role = "platform_admin";
-            }
-            const reportsRes = await db.query(
-                "SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1",
-                [user.id],
-            );
-            return res.json({
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    full_name: user.full_name,
-                    email: user.email || null,
-                    avatar: user.avatar || null,
-                    role: "platform_admin",
-                    org_id: user.org_id || 1,
-                    tenant_id: tenantId,
-                    has_reports: reportsRes.rowCount > 0,
-                },
-            });
-        }
-
-        // Platform admin without tenant context — home them in the DEFAULT
-        // platform tenant ONLY. Platform admins must NEVER be provisioned as
-        // users inside customer tenants: they reach those exclusively through
-        // the consent-gated impersonation flow (see routes/tenants.ts
-        // POST /:id/impersonate and getOrCreateInspectorUser). The previous
-        // query here picked the first ACTIVE tenant by id, which silently
-        // seeded the platform admin into whichever customer tenant was
-        // created first — polluting its user directory and consuming a plan
-        // seat. Restricting to is_default = TRUE fixes that: if no default
-        // tenant exists yet, the auto-provision path below creates one.
-        const tenantsRes = await masterQuery(
-            "SELECT * FROM tenants WHERE status = $1 AND is_default = TRUE ORDER BY id LIMIT 1", ["active"]
-        );
-        const primaryTenant = tenantsRes.rows[0];
-
-        if (primaryTenant) {
-            const poolEntry = await getTenantPool(primaryTenant.db_name, primaryTenant.db_host);
-            const tenantDb = { query: poolEntry.query, transaction: poolEntry.transaction };
-
-            // Check if platform admin already has a user record in this tenant
-            let tenantUser = (await tenantDb.query(
-                "SELECT * FROM users WHERE username = $1 OR email = $2",
-                [user.username, user.email || ""]
-            )).rows[0];
-
-            if (!tenantUser) {
-                // Create a platform_admin user in the tenant DB
-                tenantUser = (await tenantDb.query(
-                    `INSERT INTO users (username, password, full_name, email, org_id, role)
-                     VALUES ($1, $2, $3, $4, 1, 'platform_admin') RETURNING *`,
-                    [user.username, user.password, user.full_name, user.email || `${user.username}@platform.local`]
-                )).rows[0];
-
-                // Register in user_directory for future logins
-                if (user.email) {
-                    await masterQuery(
-                        "INSERT INTO user_directory (email, username, tenant_id, user_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-                        [user.email.toLowerCase(), user.username.toLowerCase(), primaryTenant.id, tenantUser.id]
-                    );
-                }
-            } else if (tenantUser.role !== "platform_admin") {
-                // Upgrade existing linked user to platform_admin
-                await tenantDb.query("UPDATE users SET role = $1 WHERE id = $2", ["platform_admin", tenantUser.id]);
-                tenantUser.role = "platform_admin";
-            }
-
-            // Re-issue JWT with tenant context + platform flag so routes use tenant DB
-            // while retaining platform_admin powers for tenant management
-            const tenantSid = await createSession(tenantUser.id, req.headers["user-agent"], tenantDb, primaryTenant.id);
-            const tenantToken = jwt.sign(
-                { id: tenantUser.id, username: tenantUser.username, tv: tenantUser.token_version || 0, sid: tenantSid, tenant_id: primaryTenant.id, platform: true },
-                process.env.JWT_SECRET,
-                { expiresIn: "8h" },
-            );
-            res.cookie("token", tenantToken, cookieOptions(req));
-
-            const reportsRes = await tenantDb.query(
-                "SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1",
-                [tenantUser.id],
-            );
-            return res.json({
-                user: {
-                    id: tenantUser.id,
-                    username: tenantUser.username,
-                    full_name: tenantUser.full_name,
-                    email: tenantUser.email || null,
-                    avatar: tenantUser.avatar || null,
-                    role: "platform_admin",
-                    org_id: tenantUser.org_id || 1,
-                    tenant_id: primaryTenant.id,
-                    has_reports: reportsRes.rowCount > 0,
-                },
-            });
-        }
-
-        // No tenant exists yet — auto-provision a default tenant so the app is usable
-        const orgName = user.full_name ? `${user.full_name}'s Organization` : "Default Organization";
-        const slug = "default";
-        let newTenant: any, newDb: any;
-        try {
-            ({ tenant: newTenant, db: newDb } = await createTenant({ orgName, slug }));
-            // Mark this tenant as the default (platform) tenant so that
-            // service-desk tickets from every tenant get mirrored here.
-            try {
-                await masterQuery(
-                    `UPDATE tenants SET is_default = TRUE WHERE id = $1`,
-                    [newTenant.id]
-                );
-                newTenant.is_default = true;
-            } catch (flagErr) {
-                logger.warn({ err: flagErr, tenantId: newTenant.id }, "Failed to flag tenant as default (non-fatal)");
-            }
-        } catch (err) {
-            logger.error({ err }, "Auto-provision default tenant failed");
-            return res.json({
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    full_name: user.full_name,
-                    email: user.email || null,
-                    avatar: user.avatar || null,
-                    role: "platform_admin",
-                    org_id: null,
-                    tenant_id: null,
-                },
-            });
-        }
-
-        const tenantDb = { query: newDb.query, transaction: newDb.transaction };
-        const tenantUser = (await tenantDb.query(
-            `INSERT INTO users (username, password, full_name, email, org_id, role)
-             VALUES ($1, $2, $3, $4, 1, 'platform_admin') RETURNING *`,
-            [user.username, user.password, user.full_name, user.email || `${user.username}@platform.local`]
-        )).rows[0];
-
-        if (user.email) {
-            await masterQuery(
-                "INSERT INTO user_directory (email, username, tenant_id, user_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-                [user.email.toLowerCase(), user.username.toLowerCase(), newTenant.id, tenantUser.id]
-            );
-        }
-
-        const newSid = await createSession(tenantUser.id, req.headers["user-agent"], tenantDb, newTenant.id);
-        const newToken = jwt.sign(
-            { id: tenantUser.id, username: tenantUser.username, tv: 0, sid: newSid, tenant_id: newTenant.id, platform: true },
-            process.env.JWT_SECRET,
-            { expiresIn: "8h" },
-        );
-        res.cookie("token", newToken, cookieOptions(req));
+        // Platform identities always remain in master context. Customer-tenant
+        // access is available only through the separately audited impersonation flow.
         return res.json({
             user: {
-                id: tenantUser.id,
-                username: tenantUser.username,
-                full_name: tenantUser.full_name,
-                email: tenantUser.email || null,
-                avatar: tenantUser.avatar || null,
+                id: user.id,
+                username: user.username,
+                full_name: user.full_name,
+                email: user.email || null,
+                avatar: user.avatar || null,
                 role: "platform_admin",
-                org_id: 1,
-                tenant_id: newTenant.id,
+                org_id: null,
+                tenant_id: null,
+                has_reports: false,
+                must_change_password: !!user.must_change_password,
             },
         });
+
+
     }
 
     const reportsRes = await db.query(

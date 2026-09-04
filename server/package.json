@@ -10,6 +10,7 @@
     "lint:deps": "depcruise index.ts migrate.ts app.ts roles bootstrap http routes services utils platform middleware modules realtime --config .dependency-cruiser.cjs",
     "lint:deps:graph": "depcruise index.ts routes services utils platform middleware modules --config .dependency-cruiser.cjs --output-type dot",
     "migrate": "tsx migrate.ts",
+    "bootstrap:platform-admin": "tsx scripts/bootstrap-platform-admin.ts",
     "start:prod": "npm run build && node dist/index.js",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit --detectOpenHandles",

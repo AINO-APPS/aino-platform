@@ -11,6 +11,7 @@ const { masterQuery } = require("../db");
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { logAction } = require("../utils/audit");
+const { logPlatformAction } = require("../utils/platformAudit");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { logger } = require("../utils/logger");
 const { requireTenant } = require("../middleware/tenant");
@@ -20,7 +21,15 @@ const { isValidDescriptor, isPlausibleDescriptor, parseDescriptor, compareDescri
 const { ROLE_LEVEL } = require("../middleware/rbac");
 
 const router = express.Router();
-router.use(requireTenant);
+// Tenantless platform users may read their profile and rotate their password.
+// All other profile operations remain tenant-only and therefore cannot run
+// application-table SQL against the master database.
+router.use((req: Request, res: Response, next) => {
+    if ((req.method === "GET" && req.path === "/") || (req.method === "PUT" && req.path === "/password")) {
+        return next();
+    }
+    return requireTenant(req, res, next);
+});
 
 const { cookieOptions } = require("../utils/cookie");
 
@@ -117,6 +126,24 @@ router.get("/", auth, async (req: Request, res: Response) => {
         if (req.isImpersonated && req.impersonatedBy) {
             const adminRow = (await masterQuery("SELECT full_name, username FROM platform_users WHERE id = $1", [req.impersonatedBy])).rows[0];
             impersonatedByName = adminRow?.full_name || adminRow?.username || null;
+        }
+
+        if (req.isPlatformUser && !req.tenantId && !req.isImpersonated) {
+            const platformUser = (await masterQuery(`
+                SELECT id, username, full_name, email, avatar, role, must_change_password
+                FROM platform_users
+                WHERE id = $1 AND is_active = TRUE
+            `, [req.userId])).rows[0];
+            if (!platformUser) return res.status(404).json({ error: "User not found" });
+            return res.json({
+                ...platformUser,
+                must_change_password: !!platformUser.must_change_password,
+                org_id: null,
+                team_id: null,
+                department_id: null,
+                tenant_id: null,
+                has_reports: false,
+            });
         }
 
         // Virtual impersonation: platform admin in a tenant with no users
@@ -255,7 +282,10 @@ router.put("/email", auth, async (req: Request, res: Response) => {
     }
 });
 
-router.put("/password", auth, loadUserContext, async (req: Request, res: Response) => {
+router.put("/password", auth, async (req: Request, res: Response, next) => {
+    if (req.isPlatformUser && !req.tenantId) return next();
+    return loadUserContext(req, res, next);
+}, async (req: Request, res: Response) => {
     try {
         const { current_password, new_password } = req.body;
         if (!current_password || !new_password) return res.status(400).json({ error: "Both current and new password are required" });
@@ -264,11 +294,14 @@ router.put("/password", auth, loadUserContext, async (req: Request, res: Respons
         const pwError = await validatePassword(new_password);
         if (pwError) return res.status(400).json({ error: pwError });
 
-        const user = (await req.db!.query("SELECT password FROM users WHERE id = $1", [req.userId])).rows[0];
-        if (!(await bcrypt.compare(current_password, user.password))) return res.status(400).json({ error: "Current password is incorrect" });
+        const isTenantlessPlatformUser = !!req.isPlatformUser && !req.tenantId;
+        const userTable = isTenantlessPlatformUser ? "platform_users" : "users";
+        const user = (await req.db!.query(`SELECT password FROM ${userTable} WHERE id = $1`, [req.userId])).rows[0];
+        if (!user || !(await bcrypt.compare(current_password, user.password))) return res.status(400).json({ error: "Current password is incorrect" });
+        if (await bcrypt.compare(new_password, user.password)) return res.status(400).json({ error: "New password must be different from current password" });
 
         const hash = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
-        await req.db!.query("UPDATE users SET password = $1, token_version = COALESCE(token_version, 0) + 1, must_change_password = FALSE WHERE id = $2", [hash, req.userId]);
+        await req.db!.query(`UPDATE ${userTable} SET password = $1, token_version = COALESCE(token_version, 0) + 1, must_change_password = FALSE, updated_at = NOW() WHERE id = $2`, [hash, req.userId]);
         await redis.invalidateTokenVersion(req.tenantId, req.userId);
         // Clear other sessions, keep the current one
         if (req.sessionId) {
@@ -277,14 +310,18 @@ router.put("/password", auth, loadUserContext, async (req: Request, res: Respons
             await req.db!.query("DELETE FROM user_sessions WHERE user_id = $1", [req.userId]);
         }
         await redis.invalidateUserSessions(req.tenantId, req.userId);
-        const updated = (await req.db!.query("SELECT token_version FROM users WHERE id = $1", [req.userId])).rows[0];
+        const updated = (await req.db!.query(`SELECT token_version FROM ${userTable} WHERE id = $1`, [req.userId])).rows[0];
         const tokenPayload: Record<string, unknown> = { id: req.userId, username: req.username, tv: updated.token_version || 0, sid: req.sessionId };
         if (req.tenantId) tokenPayload.tenant_id = req.tenantId;
         if (req.isPlatformUser) tokenPayload.platform = true;
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "8h" });
         res.cookie("token", token, cookieOptions(req));
-        logAction(req, "change_password", "user", req.userId, {});
-        res.json({ message: "Password updated successfully" });
+        if (isTenantlessPlatformUser) {
+            await logPlatformAction(req, "platform_admin_change_password", "platform_user", req.userId, { sessions_revoked: true });
+        } else {
+            logAction(req, "change_password", "user", req.userId, {});
+        }
+        res.json({ message: "Password updated successfully", must_change_password: false });
     } catch (err) {
         req.log.error({ err }, "PUT /profile/password error");
         res.status(500).json({ error: "Failed to change password" });

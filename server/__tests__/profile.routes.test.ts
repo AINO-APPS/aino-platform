@@ -32,6 +32,11 @@ jest.mock("../utils/audit", () => ({
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
 }));
 
+const mockLogPlatformAction = jest.fn().mockResolvedValue(undefined);
+jest.mock("../utils/platformAudit", () => ({
+    logPlatformAction: (...args: any[]) => mockLogPlatformAction(...args),
+}));
+
 jest.mock("../utils/platformConfig", () => ({
     getPasswordPolicy: jest.fn().mockResolvedValue({
         minLength: 8, requireUppercase: true, requireNumber: true, requireSpecial: true,
@@ -72,6 +77,11 @@ const CSRF = { "X-Requested-With": "WorkPulse" };
 
 function authCookie(userId = 1) {
     const token = jwt.sign({ id: userId, username: "testuser", tv: 0 }, SECRET, { expiresIn: "1h" });
+    return `token=${token}`;
+}
+
+function platformAuthCookie(userId = 9, sid = "current-session") {
+    const token = jwt.sign({ id: userId, username: "vvronline", tv: 0, sid, tenant_id: null, platform: true }, SECRET, { expiresIn: "1h" });
     return `token=${token}`;
 }
 
@@ -129,6 +139,25 @@ describe("GET /api/profile", () => {
         expect(res.body.username).toBe("testuser");
         expect(res.body.has_reports).toBe(false);
         expect(res.body.must_change_password).toBe(false);
+    });
+
+    test("returns a tenantless platform profile from platform_users", async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: "current-session" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{
+                id: 9, username: "vvronline", full_name: "Platform Admin",
+                email: "admin@example.test", avatar: null, role: "platform_admin",
+                must_change_password: true,
+            }], rowCount: 1 });
+
+        const res = await request(app).get("/api/profile").set("Cookie", platformAuthCookie());
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+            username: "vvronline", role: "platform_admin", tenant_id: null,
+            org_id: null, must_change_password: true, has_reports: false,
+        });
+        expect(mockQuery.mock.calls.some(([sql]) => /FROM users u/.test(sql))).toBe(false);
     });
 
     test("sets has_reports true when user has direct reports", async () => {
@@ -338,6 +367,33 @@ describe("PUT /api/profile/password", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/incorrect/i);
+    });
+
+    test("changes a tenantless platform password, rotates token, revokes other sessions and audits", async () => {
+        const hash = await bcrypt.hash("OldPass1!", 4);
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: "current-session" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ password: hash }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ token_version: 1 }], rowCount: 1 });
+
+        const res = await request(app).put("/api/profile/password")
+            .set("Cookie", platformAuthCookie()).set(CSRF)
+            .send({ current_password: "OldPass1!", new_password: "NewPass123!" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.must_change_password).toBe(false);
+        expect(mockQuery.mock.calls.some(([sql]) => /UPDATE platform_users/.test(sql))).toBe(true);
+        expect(mockQuery.mock.calls.some(([sql]) => /DELETE FROM user_sessions/.test(sql))).toBe(true);
+        expect(mockLogPlatformAction).toHaveBeenCalledWith(
+            expect.anything(), "platform_admin_change_password", "platform_user", 9,
+            { sessions_revoked: true },
+        );
+        const tokenCookie = res.headers["set-cookie"][0].match(/^token=([^;]+)/)?.[1];
+        expect(jwt.decode(tokenCookie)).toMatchObject({ platform: true, tv: 1 });
+        expect(jwt.decode(tokenCookie)).not.toHaveProperty("tenant_id");
     });
 
     test("changes password successfully with valid credentials", async () => {
