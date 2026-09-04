@@ -1,0 +1,178 @@
+asyncapi: 2.6.0
+info:
+  title: AINO realtime baseline
+  version: 1.0.0
+  description: >-
+    Baseline derived from server/utils/ws.ts and server/utils/wsHandlers. Frames are
+    JSON envelopes with type and optional data. Unknown types and malformed JSON are ignored.
+servers:
+  production:
+    url: aino.org.in/ws
+    protocol: wss
+    description: Native ws endpoint. The server caps frames at 64 KiB and 60 frames/second/connection.
+    security:
+      - cookieToken: []
+      - queryToken: []
+      - subprotocolToken: []
+channels:
+  /ws:
+    description: >-
+      Authentication precedence is token cookie, token query parameter, then the first
+      Sec-WebSocket-Protocol value. JWT failure/missing/revoked/expired tokens close with 4001;
+      unavailable tenants close with 4003; excess per-user connections close with 4029.
+    publish:
+      operationId: receiveClientFrame
+      message:
+        oneOf:
+          - $ref: '#/components/messages/Ping'
+          - $ref: '#/components/messages/ChatMessageCommand'
+          - $ref: '#/components/messages/CallInitiateCommand'
+          - $ref: '#/components/messages/CallAcceptCommand'
+          - $ref: '#/components/messages/CallRejectCommand'
+          - $ref: '#/components/messages/CallEndCommand'
+          - $ref: '#/components/messages/CallCancelCommand'
+    subscribe:
+      operationId: sendServerFrame
+      message:
+        oneOf:
+          - $ref: '#/components/messages/Pong'
+          - $ref: '#/components/messages/ChatMessageEvent'
+          - $ref: '#/components/messages/ChatMessageError'
+          - $ref: '#/components/messages/CallIncomingEvent'
+          - $ref: '#/components/messages/CallAcceptedEvent'
+          - $ref: '#/components/messages/CallRejectedEvent'
+          - $ref: '#/components/messages/CallEndedEvent'
+          - $ref: '#/components/messages/CallHandledElsewhereEvent'
+components:
+  securitySchemes:
+    cookieToken:
+      type: apiKey
+      in: cookie
+      name: token
+    queryToken:
+      type: apiKey
+      in: query
+      name: token
+    subprotocolToken:
+      type: apiKey
+      in: header
+      name: Sec-WebSocket-Protocol
+  schemas:
+    PositiveId:
+      type: integer
+      minimum: 1
+    ClientMsgId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: >-
+        Optional idempotency key. General mutable-handler cache key is tenant/user/type/clientMsgId,
+        in-process, 5 minute TTL. Call action keys additionally isolate by callId and action.
+        chat_message also has authoritative database deduplication and re-echoes a duplicate to sender only.
+    Envelope:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, minLength: 1 }
+        data: { type: object }
+      additionalProperties: true
+    CallActionData:
+      type: object
+      required: [callId, conversationId]
+      properties:
+        callId: { $ref: '#/components/schemas/PositiveId' }
+        conversationId: { $ref: '#/components/schemas/PositiveId' }
+        clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
+      additionalProperties: true
+  messages:
+    Ping:
+      payload:
+        type: object
+        required: [type]
+        properties: { type: { const: ping } }
+        additionalProperties: true
+    Pong:
+      payload:
+        type: object
+        required: [type]
+        properties: { type: { const: pong } }
+        additionalProperties: false
+    ChatMessageCommand:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: chat_message }
+              data:
+                type: object
+                required: [conversationId, content]
+                properties:
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  content: { type: string, minLength: 1, maxLength: 5000 }
+                  replyToId: { $ref: '#/components/schemas/PositiveId' }
+                  formatType: { type: string, maxLength: 16, description: Unknown values are normalized to text. }
+                  clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
+                  mentions: { type: array, items: { $ref: '#/components/schemas/PositiveId' } }
+                  linkPreview: { type: object }
+                additionalProperties: true
+    ChatMessageEvent:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties: { type: { const: chat_message }, data: { type: object } }
+    ChatMessageError:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: chat_message_error }
+              data:
+                type: object
+                required: [reason]
+                properties: { clientMsgId: { type: [string, 'null'] }, reason: { type: string } }
+    CallInitiateCommand:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: call_initiate }
+              data:
+                type: object
+                required: [conversationId, callType]
+                properties:
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  callType: { enum: [voice, video] }
+                  clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
+    CallAcceptCommand:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_accept }, data: { $ref: '#/components/schemas/CallActionData' } } }] }
+    CallRejectCommand:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_reject }, data: { $ref: '#/components/schemas/CallActionData' } } }] }
+    CallEndCommand:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_end }, data: { $ref: '#/components/schemas/CallActionData' } } }] }
+    CallCancelCommand:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: call_cancel }
+              data:
+                type: object
+                required: [conversationId]
+                properties:
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
+    CallIncomingEvent:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_incoming }, data: { type: object, required: [callId, conversationId, callerId, callType], properties: { callId: { $ref: '#/components/schemas/PositiveId' }, conversationId: { $ref: '#/components/schemas/PositiveId' }, callerId: { $ref: '#/components/schemas/PositiveId' }, callerName: { type: string }, callerAvatar: { type: [string, 'null'] }, callType: { enum: [voice, video] }, isGroup: { type: boolean }, groupName: { type: [string, 'null'] } } } } }] }
+    CallAcceptedEvent:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_accepted }, data: { type: object } } }] }
+    CallRejectedEvent:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_rejected }, data: { type: object } } }] }
+    CallEndedEvent:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_ended }, data: { type: object, required: [callId, conversationId] } } }] }
+    CallHandledElsewhereEvent:
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_handled_elsewhere }, data: { type: object, required: [callId, conversationId, action], properties: { action: { enum: [accepted, rejected] } } } } }] }

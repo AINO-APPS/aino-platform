@@ -1,0 +1,2526 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": [
+    "server/http/routes.ts",
+    "server/http/health.ts",
+    "server/__tests__/__snapshots__/routes.snapshot.test.ts.snap"
+  ],
+  "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
+  "totals": {
+    "routerMounts": 31,
+    "concreteEndpoints": 453,
+    "openApiOperations": 192
+  },
+  "standaloneRoutes": [
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "source": "server/http/health.ts",
+      "coverage": "baseline"
+    },
+    {
+      "method": "GET",
+      "path": "/readyz",
+      "source": "server/http/health.ts",
+      "coverage": "baseline"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "source": "server/http/health.ts",
+      "coverage": "baseline"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics",
+      "source": "server/platform/metrics/endpoint.ts",
+      "coverage": "inventory-only"
+    }
+  ],
+  "mounts": [
+    {
+      "id": "webhooks",
+      "mountPath": "/api/webhooks",
+      "source": "server/routes/webhooks.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 1
+    },
+    {
+      "id": "auth",
+      "mountPath": "/api/auth",
+      "source": "server/routes/auth.ts",
+      "coverage": "baseline",
+      "endpointCount": 18
+    },
+    {
+      "id": "tracker",
+      "mountPath": "/api/tracker",
+      "source": "server/routes/tracker.ts",
+      "coverage": "baseline",
+      "endpointCount": 19
+    },
+    {
+      "id": "leaves",
+      "mountPath": "/api/leaves",
+      "source": "server/routes/leaves.ts",
+      "coverage": "baseline",
+      "endpointCount": 11
+    },
+    {
+      "id": "tasks",
+      "mountPath": "/api/tasks",
+      "source": "server/routes/tasks/index.ts",
+      "coverage": "baseline",
+      "endpointCount": 38
+    },
+    {
+      "id": "sprints",
+      "mountPath": "/api/sprints",
+      "source": "server/routes/sprints.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 18
+    },
+    {
+      "id": "agile",
+      "mountPath": "/api/agile",
+      "source": "server/routes/agile.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 20
+    },
+    {
+      "id": "profile",
+      "mountPath": "/api/profile",
+      "source": "server/routes/profile.ts",
+      "coverage": "baseline",
+      "endpointCount": 12
+    },
+    {
+      "id": "organization",
+      "mountPath": "/api/org",
+      "source": "server/routes/organization.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 21
+    },
+    {
+      "id": "admin",
+      "mountPath": "/api/admin",
+      "source": "server/routes/admin.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 74
+    },
+    {
+      "id": "tenants",
+      "mountPath": "/api/admin/tenants",
+      "source": "server/routes/tenants.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 37
+    },
+    {
+      "id": "platform-access",
+      "mountPath": "/api/platform-access",
+      "source": "server/routes/platformAccess.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 5
+    },
+    {
+      "id": "internal",
+      "mountPath": "/api/internal",
+      "source": "server/routes/internal.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 3
+    },
+    {
+      "id": "manager",
+      "mountPath": "/api/manager",
+      "source": "server/routes/manager.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 12
+    },
+    {
+      "id": "leave-policy",
+      "mountPath": "/api/leave-policy",
+      "source": "server/routes/leavePolicy.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 10
+    },
+    {
+      "id": "notes",
+      "mountPath": "/api/notes",
+      "source": "server/routes/notes.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 21
+    },
+    {
+      "id": "calendar",
+      "mountPath": "/api/calendar",
+      "source": "server/routes/calendar.ts",
+      "coverage": "baseline",
+      "endpointCount": 4
+    },
+    {
+      "id": "meetings",
+      "mountPath": "/api/meetings",
+      "source": "server/routes/meetings.ts",
+      "coverage": "baseline",
+      "endpointCount": 13
+    },
+    {
+      "id": "notifications",
+      "mountPath": "/api/notifications",
+      "source": "server/routes/notifications.ts",
+      "coverage": "baseline",
+      "endpointCount": 7
+    },
+    {
+      "id": "export",
+      "mountPath": "/api/export",
+      "source": "server/routes/export.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 6
+    },
+    {
+      "id": "chat",
+      "mountPath": "/api/chat",
+      "source": "server/routes/chat.ts",
+      "coverage": "baseline",
+      "endpointCount": 51
+    },
+    {
+      "id": "giphy",
+      "mountPath": "/api/giphy",
+      "source": "server/routes/giphy.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 2
+    },
+    {
+      "id": "status",
+      "mountPath": "/api/me/status",
+      "source": "server/routes/status.ts",
+      "coverage": "baseline",
+      "endpointCount": 4
+    },
+    {
+      "id": "search",
+      "mountPath": "/api/search",
+      "source": "server/routes/search.ts",
+      "coverage": "baseline",
+      "endpointCount": 1
+    },
+    {
+      "id": "service-desk",
+      "mountPath": "/api/service-desk",
+      "source": "server/routes/serviceDesk.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 6
+    },
+    {
+      "id": "branding",
+      "mountPath": "/api/branding",
+      "source": "server/routes/branding.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 8
+    },
+    {
+      "id": "custom-fields",
+      "mountPath": "/api/custom-fields",
+      "source": "server/routes/customFields.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 8
+    },
+    {
+      "id": "compensation",
+      "mountPath": "/api/compensation",
+      "source": "server/routes/compensation.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 34
+    },
+    {
+      "id": "projects",
+      "mountPath": "/api/projects",
+      "source": "server/routes/projects.ts",
+      "coverage": "baseline",
+      "endpointCount": 7
+    },
+    {
+      "id": "integrations",
+      "mountPath": "/api/integrations",
+      "source": "server/routes/integrations.ts",
+      "coverage": "inventory-only",
+      "endpointCount": 11
+    },
+    {
+      "id": "public",
+      "mountPath": "/api/public",
+      "source": "server/routes/public.ts",
+      "coverage": "baseline",
+      "endpointCount": 4
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/announcements",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/announcements/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/announcements/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/audit-logs",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/invite-codes",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/invite-codes",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/invite-codes/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/organizations",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/organizations",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/organizations/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/organizations/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/organizations/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/pay-periods",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/pay-periods",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/pay-periods/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/registration-settings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/registration-settings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/role-requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-requests/:id/approve",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-requests/:id/cancel",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-requests/:id/reject",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/task-labels",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/task-labels",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/task-labels/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/task-labels/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/tenants/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/:id/access-requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/:id/access-requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/domain",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/:id/exit-impersonate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/features",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/:id/impersonate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/:id/impersonation-session",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/limits",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/plan",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/reactivate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/:id/seed",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/:id/stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:id/suspend",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/:id/users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/:id/users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/:tenantId/users/:userId/deactivate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/access-requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/tenants/access-requests/:reqId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/alerts",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/audit-logs",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/impersonation-policy",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/impersonation-policy",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/overview",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/plan-catalog",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/plan-catalog",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/plan-catalog/reset",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/platform-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/platform-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/platform-users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/platform-users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/platform-users/:id/deactivate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/platform-users/:id/reset-password",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id/assignment",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id/deactivate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/:id/face-enroll",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/:id/reset-password",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id/role",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/import",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agile/permissions/cancel-request",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/permissions/grants",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/agile/permissions/grants/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/permissions/me",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agile/permissions/request",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/permissions/requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/permissions/requests/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/settings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/settings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/work-item-types",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agile/work-item-types",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/agile/work-item-types/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/work-item-types/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/work-item-types/reorder",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agile/workflow-states",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agile/workflow-states",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/agile/workflow-states/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/workflow-states/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agile/workflow-states/reorder",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/biometric",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/auth/biometric/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/biometric/enroll",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/biometric/login",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/device-token",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/forgot-password",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/registration-mode",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/reset-password",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/webauthn",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/auth/webauthn/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webauthn/login/options",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webauthn/login/verify",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webauthn/register/options",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webauthn/register/verify",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/branding",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/branding",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/branding/email-templates",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/branding/email-templates/:templateKey",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/branding/email-templates/:templateKey",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/branding/email-templates/:templateKey/preview",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/branding/logo",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/branding/logo",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/calendar",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/calendar",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/calendar/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/calendar/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/blocked",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/calls",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/calls/:callId/accept",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/calls/:callId/end",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/calls/:callId/reject",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/calls/active",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/calls/delete",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/archive",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/calls",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/favourite",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/files",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/files",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/group",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/leave",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/members",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/conversations/:id/messages",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/messages",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/messages",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/mute",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/participants/:userId/role",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/pin",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/pinned",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/polls",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/read",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/read-status",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/transfer-owner",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/unread",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/group",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/ice-config",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/link-preview",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/media-jobs/:id/cancel",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/media-jobs/:id/retry",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/messages/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/messages/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/delivered",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/forward",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/pin",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/reactions",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/star",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/messages/:id/view",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/polls/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/polls/:id/vote",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/presence",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/search",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/search-messages",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/starred",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/users/:userId/block",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/users/:userId/block",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/bank-details",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/bank-details/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/bank-details/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/bank-details/:userId/approve",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/bank-details/:userId/reject",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/bank-details/:userId/verify",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/bank-verifications",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/ctc-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/compensation/ctc-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/disburse",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/disburse/:slipId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/disburse/retry/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/disbursements",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/employees",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/employees/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/employees/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/compensation/employees/:userId/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/my-bank-details",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/my-bank-details",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/my-slips",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/my-slips/:id/pdf",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/payment-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/compensation/payment-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/payment-config/test",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/payroll-run",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/salary-slips",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/salary-slips/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/salary-slips/:id/pdf",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/compensation/salary-slips/:id/publish",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/salary-slips/bulk-publish",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/compensation/templates",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/compensation/templates",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/compensation/templates/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/compensation/templates/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-fields",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/custom-fields",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/custom-fields/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/custom-fields/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-fields/all",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/custom-fields/reorder",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/custom-fields/task/:taskId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/custom-fields/task/:taskId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/my-analytics",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/my-leaves",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/my-tasks",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/payroll-hours",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/team-analytics",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/export/team-leaves",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/giphy/search",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/giphy/trending",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integrations",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/integrations/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integrations/:id/webhook",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integrations/github",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integrations/github/disconnect",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integrations/github/oauth/callback",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integrations/github/oauth/start",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integrations/github/repos",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/integrations/github/repos/:fullName",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/integrations/github/repos/connect",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/integrations/github/status",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/internal/db-pool-stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/internal/migration-status",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/internal/ws-stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leave-policy/balances",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leave-policy/balances/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/leave-policy/balances/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leave-policy/holidays",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leave-policy/holidays",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/leave-policy/holidays/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leave-policy/holidays/batch",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leave-policy/policies",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leave-policy/policies",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/leave-policy/policies/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/leaves/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/leaves/:id/approve",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/leaves/:id/reject",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/leaves/:id/revoke",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaves/:id/withdraw",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/balance",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/monthly-summary",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/pending",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/leaves/summary",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/approvals",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/manager/approvals/:id/approve",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/manager/approvals/:id/reject",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/manager/approvals/bulk",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/member/:userId/hours",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/member/:userId/leaves",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/member/:userId/overview",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/member/:userId/requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/member/:userId/tasks",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/my-requests",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/team-analytics",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/manager/team-attendance",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/me/status/activity-ping",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/me/status/presence-preference",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/:code",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:code/hls/start",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/:code/hls/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:code/hls/stop",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/:code/messages",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/meetings/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/meetings/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/meetings/:id/participants",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/:id/participants",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/meetings/:id/participants/:userId",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meetings/check-conflicts",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/notes",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/convert-to-task",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/daily-prefill",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/direct-reports",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/history/:pageId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/history/snapshot/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notes/links",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/links",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/links/:pageId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/mention",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/mentionable-users",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/oneonone-prefill/:userId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/search-events",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/search-meetings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/search-tasks",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notes/share/:pageId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/share/:pageId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/share/:pageId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/sprint-embed",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/time-summary",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notifications/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/:id/read",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/announcements",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/metrics",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/metrics/events",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read-all",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/chart",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/current",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/departments",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/departments",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/org/departments/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/departments/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/invite",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/members",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/remove-member",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/roles",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/roles",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/org/roles/:role_key",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/org/roles/:role_key",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/settings",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/teams",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/org/teams",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/org/teams/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/teams/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/org/teams/:id/sprint-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/org/teams/:id/sprint-config",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform-access",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform-access/:id/approve",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform-access/:id/deny",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/platform-access/:id/revoke",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/platform-access/active-session",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/profile",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/profile/avatar",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/avatar",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile/email",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/profile/face-enroll",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/profile/face-enroll",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/face-status",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/profile/notification-prefs",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile/notification-prefs",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile/password",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/:id/archive",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/tasks",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/public/branding",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/public/branding/logo",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/public/notes/:token",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/public/plan-catalog",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/service-desk/stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/service-desk/tickets",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/service-desk/tickets",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/service-desk/tickets/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/service-desk/tickets/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/service-desk/tickets/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sprints",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sprints/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sprints/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/burndown",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/carried-over",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sprints/:id/complete",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/cumulative-flow",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/cycle-time",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sprints/:id/pause",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sprints/:id/resume",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/retrospective",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sprints/:id/retrospective",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sprints/:id/start",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/stats",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/:id/tasks",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/active",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sprints/velocity/recent",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tasks/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/acceptance-criteria",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tasks/:id/acceptance-criteria",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/assign-sprint",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/block",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/children",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/comments",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/comments",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/comments/:commentId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tasks/:id/comments/:commentId",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/dependencies",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/dependencies",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/dependencies/:depId",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/detail",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/git",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/git",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/git/:refId",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/history",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/parent",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/parent",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/schedule",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/unschedule",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/assignable-users",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/available-sprints",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/backlog",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/backlog",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/carry-forward",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/labels",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/labels",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/labels/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tasks/labels/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/labels/manage",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/lookup/quicksearch",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/search",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/analytics",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/break-end",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/break-start",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/clock-in",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/clock-out",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tracker/entries/:date",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/entries/:date",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/history",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/manual-entries",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/manual-entry",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tracker/manual-entry/:date",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/overtime-request",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/overtime-requests",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/task-summary",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/theme",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tracker/theme",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/weekly",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tracker/widgets",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhooks/github/:integrationId",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/readyz",
+      "coverage": "operation"
+    }
+  ]
+}

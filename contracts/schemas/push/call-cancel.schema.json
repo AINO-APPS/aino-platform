@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aino.local/contracts/push/call-cancel.schema.json",
+  "title": "Call teardown push data",
+  "type": "object",
+  "required": ["type", "callId", "conversationId", "reason", "dedupeKey", "tenantId", "sentAt"],
+  "properties": {
+    "type": { "const": "call_handled_elsewhere" },
+    "callId": { "$ref": "#/$defs/positiveIntegerString" },
+    "conversationId": { "$ref": "#/$defs/positiveIntegerString" },
+    "reason": { "enum": ["accepted", "cancelled", "rejected", "ended", "handled_elsewhere"] },
+    "dedupeKey": { "type": "string", "pattern": "^call_cancel:[1-9][0-9]*$" },
+    "tenantId": { "type": "string", "pattern": "^(|[1-9][0-9]*)$" },
+    "sentAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false,
+  "$defs": { "positiveIntegerString": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
+}

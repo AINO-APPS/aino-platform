@@ -1,0 +1,10 @@
+{
+  "schema": "../../schemas/push/chat-message.schema.json",
+  "variant": "direct",
+  "data": {
+    "type": "chat_message", "title": "Alice", "body": "Hello from Alice", "conversationId": "456",
+    "messageId": "123", "senderId": "7", "senderName": "Alice", "isGroup": "false", "groupName": "",
+    "senderAvatar": "", "unreadCount": "5", "badgeCount": "5", "dedupeKey": "msg:123",
+    "expiresAt": "1781667765", "tenantId": "1", "sentAt": "2026-06-17T02:42:45.000Z"
+  }
+}

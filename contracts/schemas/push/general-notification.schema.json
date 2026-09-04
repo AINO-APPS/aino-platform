@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aino.local/contracts/push/general-notification.schema.json",
+  "title": "General notification push data",
+  "type": "object",
+  "required": ["notificationId", "type", "title", "body", "badgeCount", "dedupeKey", "actorAvatar", "actorName", "tenantId", "sentAt"],
+  "properties": {
+    "notificationId": { "$ref": "#/$defs/positiveIntegerString" },
+    "type": { "type": "string", "minLength": 1, "not": { "enum": ["incoming_call", "call_handled_elsewhere", "chat_message"] } },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1 },
+    "badgeCount": { "$ref": "#/$defs/positiveIntegerString" },
+    "dedupeKey": { "type": "string", "pattern": "^notif:[1-9][0-9]*$" },
+    "actorAvatar": { "type": "string" },
+    "actorName": { "type": "string" },
+    "tenantId": { "type": "string", "pattern": "^(|[1-9][0-9]*)$" },
+    "sentAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false,
+  "$defs": { "positiveIntegerString": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
+}

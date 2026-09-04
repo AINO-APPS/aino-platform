@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aino.local/contracts/push/chat-message.schema.json",
+  "title": "Chat message push data",
+  "type": "object",
+  "required": ["type", "title", "body", "conversationId", "messageId", "senderId", "senderName", "isGroup", "groupName", "senderAvatar", "unreadCount", "badgeCount", "dedupeKey", "expiresAt", "tenantId", "sentAt"],
+  "properties": {
+    "type": { "const": "chat_message" },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "maxLength": 150 },
+    "conversationId": { "$ref": "#/$defs/positiveIntegerString" },
+    "messageId": { "$ref": "#/$defs/positiveIntegerString" },
+    "senderId": { "$ref": "#/$defs/positiveIntegerString" },
+    "senderName": { "type": "string", "minLength": 1 },
+    "isGroup": { "enum": ["true", "false"] },
+    "groupName": { "type": "string" },
+    "senderAvatar": { "type": "string" },
+    "unreadCount": { "$ref": "#/$defs/positiveIntegerString" },
+    "badgeCount": { "$ref": "#/$defs/positiveIntegerString" },
+    "dedupeKey": { "type": "string", "pattern": "^msg:[1-9][0-9]*$" },
+    "expiresAt": { "type": "string", "pattern": "^[0-9]+$" },
+    "tenantId": { "type": "string", "pattern": "^(|[1-9][0-9]*)$" },
+    "sentAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false,
+  "$defs": { "positiveIntegerString": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
+}

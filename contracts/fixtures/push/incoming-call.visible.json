@@ -1,0 +1,11 @@
+{
+  "schema": "../../schemas/push/incoming-call.schema.json",
+  "variant": "visible",
+  "data": {
+    "type": "incoming_call", "title": "Incoming Video Call", "body": "Priya is calling...",
+    "callId": "199", "conversationId": "19", "callerId": "13", "callerName": "Priya",
+    "callerAvatar": "https://cdn.example.test/priya.png", "callType": "video", "isGroup": "false",
+    "groupName": "", "meetingCode": "", "expiresAt": "2026-06-17T02:43:15.000Z",
+    "dedupeKey": "call:199", "callCategory": "incoming-call", "tenantId": "1", "sentAt": "2026-06-17T02:42:45.000Z"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aino.local/contracts/push/incoming-call.schema.json",
+  "title": "Incoming call push data",
+  "type": "object",
+  "required": ["type", "title", "body", "callId", "conversationId", "callerId", "callType", "isGroup", "groupName", "meetingCode", "expiresAt", "dedupeKey", "callCategory", "tenantId", "sentAt"],
+  "properties": {
+    "type": { "const": "incoming_call" },
+    "title": { "enum": ["Incoming Voice Call", "Incoming Video Call"] },
+    "body": { "type": "string", "minLength": 1 },
+    "callId": { "$ref": "#/$defs/positiveIntegerString" },
+    "conversationId": { "$ref": "#/$defs/positiveIntegerString" },
+    "callerId": { "$ref": "#/$defs/positiveIntegerString" },
+    "callerName": { "type": "string" },
+    "callerAvatar": { "type": "string" },
+    "callType": { "enum": ["voice", "video"] },
+    "isGroup": { "enum": ["true", "false"] },
+    "groupName": { "type": "string" },
+    "meetingCode": { "type": "string" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "dedupeKey": { "type": "string", "pattern": "^call:[1-9][0-9]*$" },
+    "callCategory": { "const": "incoming-call" },
+    "tenantId": { "type": "string", "pattern": "^(|[1-9][0-9]*)$" },
+    "sentAt": { "type": "string", "format": "date-time" }
+  },
+  "oneOf": [
+    { "title": "Visible caller", "required": ["callerName", "callerAvatar"], "properties": { "body": { "pattern": " is calling\\.\\.\\.$" } } },
+    { "title": "Hidden sensitive content", "not": { "anyOf": [{ "required": ["callerName"] }, { "required": ["callerAvatar"] }] }, "properties": { "body": { "const": "Tap to answer" } } }
+  ],
+  "additionalProperties": false,
+  "$defs": { "positiveIntegerString": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
+}

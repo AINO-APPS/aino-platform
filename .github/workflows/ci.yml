@@ -22,6 +22,9 @@ jobs:
       - name: Verify Railway automatic-deploy configuration
         run: node scripts/verify-railway-config.mjs
 
+      - name: Validate HTTP, realtime, and push contracts
+        run: npm run contracts:validate
+
       # GR5 (static half): stops anyone reintroducing an in-process Map for
       # cross-replica state. The dynamic half runs in the server test suite.
       - name: Enforce statelessness guard
