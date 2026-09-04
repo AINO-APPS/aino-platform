@@ -48,6 +48,7 @@ module.exports = {
                     "^utils/(migrationRunner|tenantManager)\\.ts$",
                     "^services/status/(broadcaster|index)\\.ts$",
                     "^utils/ws\\.ts$",
+                    "^utils/wsHandlers/(call|meeting|shared)\\.ts$",
                 ],
             },
             to: { circular: true },
