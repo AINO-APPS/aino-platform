@@ -1,5 +1,7 @@
 # AINO
 
+> **Repository boundary:** This repository owns the shared backend, web client, Electron desktop application, contracts, and deployment infrastructure. Native mobile applications live independently in `AINO-APPS/aino-android` and `AINO-APPS/aino-ios`.
+
 A multi-tenant, enterprise-grade workforce platform that combines **time tracking, agile project management, leave & approval workflows, real-time chat & video calls, calendar, and a hierarchical notes wiki** into one application — with a desktop client (Electron), responsive web UI, and managed Postgres deployment on Railway.
 
 > AINO is what you get when you stop juggling Jira + Slack + Zoom + Google Calendar + Notion + Workday + a punch-clock spreadsheet. One login, one source of truth, one app for the whole team.

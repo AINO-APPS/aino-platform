@@ -149,43 +149,6 @@ jobs:
         working-directory: infra/cloudflare
         run: npm test
 
-  mobile:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            mobile/package-lock.json
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: npm ci
-
-      # Fails the build on ESLint ERRORS only. Warnings (the pre-existing
-      # `as any` / empty-catch / console debt) are reported but non-blocking,
-      # so the ratchet can be tightened as that debt is paid down.
-      - name: Lint mobile
-        working-directory: mobile
-        run: npm run lint
-
-      - name: Typecheck mobile (app)
-        working-directory: mobile
-        run: npm run typecheck
-
-      - name: Typecheck mobile (tests)
-        working-directory: mobile
-        run: npm run typecheck:tests
-
-      - name: Run mobile tests
-        working-directory: mobile
-        run: npm run test:ci
-
   docker-build:
     runs-on: ubuntu-latest
     # Both halves of the app must be green before we spend time on an image.

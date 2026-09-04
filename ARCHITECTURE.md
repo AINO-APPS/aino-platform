@@ -56,7 +56,7 @@
 | **Email** | Nodemailer (`utils/mailer.js`) — password resets, invites |
 | **PWA** | Service worker (`public/sw.js`), Web Manifest |
 | **Testing** | Vitest + React Testing Library (client), Jest + Supertest (server) |
-| **Deployment** | Web/API on Railway; desktop releases on Cloudflare R2; mobile JS OTA on EAS Update; native mobile builds via EAS or signed GitHub Actions CI |
+| **Deployment** | Web/API on Railway; desktop releases on Cloudflare R2; Android and iOS release independently from their native repositories |
 
 ---
 

@@ -1,8 +1,8 @@
 {
-  "name": "workpulse",
+  "name": "aino-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "AINO monorepo — desktop + mobile + server + client",
+  "description": "AINO platform — web, desktop, backend, contracts, and infrastructure",
   "scripts": {
     "release": "pwsh ./scripts/release.ps1",
     "check:generated": "node scripts/check-no-graphify-tracked.mjs",
