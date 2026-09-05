@@ -61,6 +61,12 @@ for (const endpoint of inventory.endpoints.filter(e => e.coverage === "operation
   check(operationKeys.has(`${endpoint.method} ${endpoint.path}`), `endpoint marked covered but missing from OpenAPI: ${endpoint.method} ${endpoint.path}`);
 }
 check(operationKeys.size === inventory.totals.openApiOperations, "inventory OpenAPI operation total is stale");
+for (const [routePath, item] of Object.entries(api.paths || {}).filter(([routePath]) => routePath.startsWith("/api/notifications"))) {
+  for (const method of ["get", "post", "delete"]) {
+    if (!item[method]) continue;
+    check(!JSON.stringify(item[method]).includes("FreeFormValue"), `notification operation is not exhaustively modeled: ${method.toUpperCase()} ${routePath}`);
+  }
+}
 
 const structuralPath = value => value.replace(/:[^/]+/g, ":param");
 const classificationTotals = { active: 0, stale: 0, "method-mismatch": 0 };

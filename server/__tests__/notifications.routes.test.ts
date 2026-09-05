@@ -96,9 +96,9 @@ describe("GET /api/notifications", () => {
     test("returns notifications with correct unread count", async () => {
         setupAuth();
         const rows = [
-            { id: 1, message: "Task assigned", is_read: false, created_at: "2024-01-01T10:00:00Z", task_title: "Fix bug" },
-            { id: 2, message: "Leave approved", is_read: true, created_at: "2024-01-01T09:00:00Z", task_title: null },
-            { id: 3, message: "Sprint started", is_read: false, created_at: "2024-01-01T08:00:00Z", task_title: null },
+            { id: 1, title: "Task assigned", body: "Fix bug", is_read: false, created_at: "2024-01-01T10:00:00Z", task_title: "Fix bug" },
+            { id: 2, title: "Leave approved", body: null, is_read: true, created_at: "2024-01-01T09:00:00Z", task_title: null },
+            { id: 3, title: "Sprint started", body: null, is_read: false, created_at: "2024-01-01T08:00:00Z", task_title: null },
         ];
         mockQuery
             .mockResolvedValueOnce({ rows: [{ count: "3" }], rowCount: 1 }) // total count
@@ -112,6 +112,23 @@ describe("GET /api/notifications", () => {
         expect(res.status).toBe(200);
         expect(res.body.notifications).toHaveLength(3);
         expect(res.body.unread).toBe(2);
+    });
+
+    test("applies and clamps pagination", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ count: "125" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [{ count: "0" }], rowCount: 1 });
+
+        const res = await request(app)
+            .get("/api/notifications?page=-2&per_page=500")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ total: 125, page: 1, perPage: 100 });
+        const listCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM notifications n"));
+        expect(listCall[1]).toEqual([1, 100, 0]);
     });
 });
 
@@ -155,6 +172,20 @@ describe("GET /api/notifications/metrics", () => {
         expect(res.body.counts.successfulRoutes).toBe(9);
         expect(res.body.latency.p95Ms).toBe(1400);
     });
+
+    test("clamps the metrics window to seven days", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{}], rowCount: 1 });
+
+        const res = await request(app)
+            .get("/api/notifications/metrics?hours=999")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.windowHours).toBe(168);
+        const metricsCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("WITH recent AS"));
+        expect(metricsCall[1]).toEqual([168]);
+    });
 });
 
 describe("POST /api/notifications/metrics/events", () => {
@@ -172,6 +203,41 @@ describe("POST /api/notifications/metrics/events", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/non-empty array/i);
+    });
+
+    test("rejects more than 200 metric events", async () => {
+        setupAuth();
+        const events = Array.from({ length: 201 }, (_, index) => ({
+            clientEventId: `evt_${index}`,
+            timestamp: Date.now(),
+            event: "displayed",
+        }));
+        const res = await request(app)
+            .post("/api/notifications/metrics/events")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ events });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/max 200/i);
+    });
+
+    test("reports duplicate metric events without failing the batch", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        const res = await request(app)
+            .post("/api/notifications/metrics/events")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ events: [
+                { clientEventId: "evt_new", timestamp: Date.now(), event: "displayed" },
+                { clientEventId: "evt_duplicate", timestamp: Date.now(), event: "displayed" },
+            ] });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true, accepted: 2, inserted: 1, duplicates: 1 });
     });
 
     test("ingests notification metric events", async () => {
@@ -272,6 +338,17 @@ describe("POST /api/notifications/:id/read", () => {
         expect(updateCall[1][0]).toBe(5);
         expect(updateCall[1][1]).toBe(1); // userId
     });
+
+    test("rejects a non-numeric notification ID", async () => {
+        setupAuth();
+        const res = await request(app)
+            .post("/api/notifications/not-a-number/read")
+            .set("Cookie", authCookie())
+            .set(CSRF);
+
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({ error: "Invalid notification ID" });
+    });
 });
 
 // ─── DELETE /api/notifications/:id ────────────────────────────────────────
@@ -303,5 +380,37 @@ describe("DELETE /api/notifications/:id", () => {
         expect(deleteCall).toBeDefined();
         expect(deleteCall[1][0]).toBe(5);
         expect(deleteCall[1][1]).toBe(1); // userId
+    });
+
+    test("rejects a non-numeric notification ID", async () => {
+        setupAuth();
+        const res = await request(app)
+            .delete("/api/notifications/not-a-number")
+            .set("Cookie", authCookie())
+            .set(CSRF);
+
+        expect(res.status).toBe(400);
+        expect(res.body).toEqual({ error: "Invalid notification ID" });
+    });
+});
+
+describe("GET /api/notifications/announcements", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    test("returns active announcements for the requester organization", async () => {
+        setupAuth();
+        const rows = [{ id: 4, message: "Maintenance", type: "info", created_at: "2026-09-06T10:00:00.000Z", author: null }];
+        mockQuery.mockResolvedValueOnce({ rows, rowCount: 1 });
+
+        const res = await request(app)
+            .get("/api/notifications/announcements")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ data: rows });
+        const announcementCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM announcements a"));
+        expect(announcementCall[1]).toEqual([1]);
     });
 });

@@ -8931,9 +8931,29 @@
         "tags": [
           "notifications"
         ],
-        "summary": "GET /api/notifications",
+        "summary": "List notifications",
         "operationId": "get_api_notifications",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8948,7 +8968,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/NotificationListResponse"
                 }
               }
             }
@@ -9011,7 +9031,7 @@
         "tags": [
           "notifications"
         ],
-        "summary": "DELETE /api/notifications/:id",
+        "summary": "Delete notification",
         "operationId": "delete_api_notifications_id",
         "parameters": [
           {
@@ -9019,7 +9039,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -9040,7 +9060,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/OkResponse"
                 }
               }
             }
@@ -9103,7 +9123,7 @@
         "tags": [
           "notifications"
         ],
-        "summary": "POST /api/notifications/:id/read",
+        "summary": "Mark notification read",
         "operationId": "post_api_notifications_id_read",
         "parameters": [
           {
@@ -9111,7 +9131,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           },
           {
@@ -9132,7 +9152,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/OkResponse"
                 }
               }
             }
@@ -9195,7 +9215,7 @@
         "tags": [
           "notifications"
         ],
-        "summary": "GET /api/notifications/announcements",
+        "summary": "List active announcements",
         "operationId": "get_api_notifications_announcements",
         "parameters": [],
         "security": [
@@ -9212,7 +9232,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/AnnouncementListResponse"
                 }
               }
             }
@@ -9275,9 +9295,21 @@
         "tags": [
           "notifications"
         ],
-        "summary": "GET /api/notifications/metrics",
+        "summary": "Get notification delivery metrics",
         "operationId": "get_api_notifications_metrics",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "description": "Metrics window; values are clamped to 1–168 hours.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 168,
+              "default": 24
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9292,7 +9324,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/NotificationMetricsResponse"
                 }
               }
             }
@@ -9355,7 +9387,7 @@
         "tags": [
           "notifications"
         ],
-        "summary": "POST /api/notifications/metrics/events",
+        "summary": "Ingest notification metric events",
         "operationId": "post_api_notifications_metrics_events",
         "parameters": [
           {
@@ -9376,7 +9408,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/NotificationMetricBatchResponse"
                 }
               }
             }
@@ -9431,6 +9463,16 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationMetricBatchRequest"
+              }
+            }
+          }
         }
       }
     },
@@ -9439,7 +9481,7 @@
         "tags": [
           "notifications"
         ],
-        "summary": "POST /api/notifications/read-all",
+        "summary": "Mark all notifications read",
         "operationId": "post_api_notifications_read_all",
         "parameters": [
           {
@@ -9460,7 +9502,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/OkResponse"
                 }
               }
             }
@@ -16956,6 +16998,394 @@
             "type": "string"
           }
         },
+        "additionalProperties": false
+      },
+      "OkResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": false
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "link_task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_read": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "task_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "type",
+          "title",
+          "body",
+          "link_task_id",
+          "is_read",
+          "created_at",
+          "task_title"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationListResponse": {
+        "type": "object",
+        "properties": {
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "perPage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "notifications",
+          "unread",
+          "total",
+          "page",
+          "perPage"
+        ],
+        "additionalProperties": false
+      },
+      "Announcement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "type",
+          "created_at",
+          "author"
+        ],
+        "additionalProperties": false
+      },
+      "AnnouncementListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/Announcement"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricEvent": {
+        "type": "object",
+        "properties": {
+          "clientEventId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "number",
+            "description": "Client event time in Unix milliseconds."
+          },
+          "level": {
+            "type": "string",
+            "default": "INFO"
+          },
+          "event": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dedupeKey": {
+            "type": "string"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "notificationType": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "source": {
+            "type": "string"
+          },
+          "errorHash": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "clientEventId",
+          "timestamp",
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricBatchRequest": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/NotificationMetricEvent"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricBatchResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "inserted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "duplicates": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "ok",
+          "accepted",
+          "inserted",
+          "duplicates"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricCounts": {
+        "type": "object",
+        "properties": {
+          "totalNotifications": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "routingAttempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "successfulRoutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedRoutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deduplicatedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "validationFailures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deliveryFailures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deliveredCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "displayedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tappedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "routePersistedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "routeConsumedCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "totalNotifications",
+          "routingAttempts",
+          "successfulRoutes",
+          "failedRoutes",
+          "deduplicatedCount",
+          "validationFailures",
+          "deliveryFailures",
+          "deliveredCount",
+          "displayedCount",
+          "tappedCount",
+          "routePersistedCount",
+          "routeConsumedCount"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricLatency": {
+        "type": "object",
+        "properties": {
+          "averageMs": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p50Ms": {
+            "type": "number",
+            "minimum": 0
+          },
+          "p95Ms": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "averageMs",
+          "p50Ms",
+          "p95Ms"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationMetricsResponse": {
+        "type": "object",
+        "properties": {
+          "windowHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          },
+          "successRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "counts": {
+            "$ref": "#/components/schemas/NotificationMetricCounts"
+          },
+          "latency": {
+            "$ref": "#/components/schemas/NotificationMetricLatency"
+          },
+          "lastEventAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "windowHours",
+          "successRate",
+          "counts",
+          "latency",
+          "lastEventAt"
+        ],
         "additionalProperties": false
       }
     }

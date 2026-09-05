@@ -16,6 +16,8 @@ The mobile map covers backend calls made through the shared Axios `api` instance
 
 `coverage: "operation"` means the method/path, authentication alternatives, mutating-request CSRF header, common errors, parameters, and response envelope are represented in OpenAPI. It does **not** claim every endpoint payload is exhaustively modeled. The most bootstrap-critical schemas (login, registration, auth response, profile, health, device token, clock events, and presence) have initial field-level schemas. Other baseline operations intentionally use `FreeFormValue` until their handlers and tests are converted into precise reusable schemas. Routers marked `inventory-only` are tracked but not yet described as OpenAPI operations.
 
+The seven notification operations are fully modeled from their handler and database schema, including pagination, integer path IDs, bounded metric-event batches, delivery metrics, announcements, and mutation acknowledgements. Contract validation rejects any notification operation that regresses to `FreeFormValue`.
+
 The server accepts either the `token` HttpOnly cookie or `Authorization: Bearer <jwt>` (cookie wins). Native clients use bearer authentication. Every mutating `/api` request except external webhooks must send `X-Requested-With: AINO` (the legacy `WorkPulse` value is also accepted). Tenant context is resolved from the verified JWT first, then from the request host/custom domain.
 
 ## Realtime and push baseline

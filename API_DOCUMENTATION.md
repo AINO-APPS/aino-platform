@@ -1173,20 +1173,30 @@ Get call history for a specific conversation.
 Base path: `/api/notifications`
 
 ### GET `/api/notifications`
-Get the user's notifications (latest 50) with unread count.
+Get the user's notifications with unread count and pagination metadata.
 
 - **Auth**: `auth`, `loadUserContext`
+- **Query**: `?page=1&per_page=50` (`page` is clamped to at least 1; `per_page` is clamped to 1–100)
 - **Response**:
   ```json
   {
     "notifications": [
       {
-        "id", "type": "leave_approved|task_assigned|meeting_invite|...",
-        "title", "body", "data": {},
-        "read": false, "created_at"
+        "id": 1,
+        "user_id": 42,
+        "type": "task",
+        "title": "Task assigned",
+        "body": "You were assigned a task",
+        "link_task_id": 7,
+        "is_read": false,
+        "created_at": "ISO",
+        "task_title": "Prepare report"
       }
     ],
-    "unread_count": 5
+    "unread": 5,
+    "total": 27,
+    "page": 1,
+    "perPage": 50
   }
   ```
 
@@ -1194,19 +1204,41 @@ Get the user's notifications (latest 50) with unread count.
 Mark all notifications as read.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Response**: `200 { message: "All marked as read" }`
+- **Response**: `200 { ok: true }`
 
 ### POST `/api/notifications/:id/read`
 Mark a single notification as read.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Response**: `200 { message: "Marked as read" }`
+- **Response**: `200 { ok: true }`
 
 ### DELETE `/api/notifications/:id`
 Delete a notification.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Response**: `200 { message: "Notification deleted" }`
+- **Response**: `200 { ok: true }`
+
+### POST `/api/notifications/metrics/events`
+Ingest a batch of client notification-delivery events. Duplicate `clientEventId` values are accepted but not inserted again.
+
+- **Auth**: `auth`, `loadUserContext`
+- **Body**: `{ events: [{ clientEventId, timestamp, event, level?, dedupeKey?, conversationId?, messageId?, notificationType?, state?, durationMs?, source?, errorHash?, metadata? }] }`
+- **Limits**: `events` must contain 1–200 valid entries; `timestamp` is Unix milliseconds.
+- **Response**: `200 { ok: true, accepted, inserted, duplicates }`
+
+### GET `/api/notifications/metrics`
+Get aggregated notification delivery and routing metrics.
+
+- **Auth**: `auth`, `loadUserContext`
+- **Query**: `?hours=24` (values are clamped to 1–168; invalid or omitted values default to 24)
+- **Response**: `{ windowHours, successRate, counts: { totalNotifications, routingAttempts, successfulRoutes, failedRoutes, deduplicatedCount, validationFailures, deliveryFailures, deliveredCount, displayedCount, tappedCount, routePersistedCount, routeConsumedCount }, latency: { averageMs, p50Ms, p95Ms }, lastEventAt }`
+- `successRate` and `lastEventAt` are `null` when no applicable events exist.
+
+### GET `/api/notifications/announcements`
+Get up to 20 active, unexpired global or organization announcements.
+
+- **Auth**: `auth`, `loadUserContext`
+- **Response**: `{ data: [{ id, message, type, created_at, author }] }`; `author` may be `null`.
 
 ---
 
