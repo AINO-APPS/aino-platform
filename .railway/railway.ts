@@ -1,18 +1,10 @@
-import { defineRailway, github, image, postgres, project, redis, service } from "railway/iac";
+import { defineRailway, github, image, postgres, preserve, project, redis, service } from "railway/iac";
 
 // Preserve the region of the already-provisioned fresh data services. Changing
 // this value would trigger a destructive database/volume move.
 const REGION = "europe-west4-drams3a";
 const SOURCE = "AINO-APPS/aino-platform";
 const BRANCH = "master";
-
-// Fresh-project placeholders are sealed in Railway. They are deliberately inert
-// and must be rotated before changing NODE_ENV to production or adding a domain.
-const sealedPlaceholder = (name: string) => ({
-  value: `MIG-040_REPLACE_${name}_BEFORE_USE`,
-  isSealed: true,
-  description: "Non-secret bootstrap placeholder; replace before enabling external access.",
-});
 
 export default defineRailway(() => {
   // MIG-0401: these resources are created inside the new, isolated project.
@@ -51,9 +43,12 @@ export default defineRailway(() => {
     STORAGE_DRIVER: "local",
     DISABLE_PUBLIC_TURN: "true",
     CORS_ORIGIN: "",
-    JWT_SECRET: sealedPlaceholder("JWT_SECRET"),
-    ENCRYPTION_KEY: sealedPlaceholder("ENCRYPTION_KEY"),
-    DESKTOP_UPLOAD_SECRET: sealedPlaceholder("DESKTOP_UPLOAD_SECRET"),
+    // Created out-of-band with cryptographic randomness and retained without
+    // decrypting or serializing their values into the IaC graph.
+    JWT_SECRET: preserve(),
+    ENCRYPTION_KEY: preserve(),
+    DESKTOP_UPLOAD_SECRET: preserve(),
+    METRICS_TOKEN: preserve(),
     // Empty optional integrations prevent email, push, TURN, R2, and API calls.
     CLOUDFLARE_TURN_API_TOKEN: "",
     CLOUDFLARE_TURN_TOKEN_ID: "",

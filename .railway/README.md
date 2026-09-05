@@ -14,9 +14,10 @@ provisioned in `europe-west4-drams3a`. Do not change it without an explicitly
 reviewed data-move plan.
 
 Bootstrap values are intentionally non-production: external integrations are
-empty/disabled and required secrets use sealed `MIG-040_REPLACE_*` placeholders.
-Rotate those placeholders and review all integration settings before enabling
-production mode, public networking, or nonzero rollback replicas.
+empty/disabled. Required secrets are created directly in Railway and represented
+as `preserve()` in IaC, so their values are never decrypted into source or plan
+artifacts. Review all integration settings before enabling production mode or
+public networking.
 
 The TypeScript file imports `railway/iac`. Install the SDK from the repository root:
 
