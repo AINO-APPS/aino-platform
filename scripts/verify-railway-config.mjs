@@ -38,6 +38,8 @@ for (const [name, role] of Object.entries(expected)) {
 }
 requireMatch(/preDeployCommand:\s*role === "web" \? \["node migrate\.js"\] : undefined/,
   "Only the web service may run pre-deploy migrations");
+requireMatch(/DATABASE_URL:\s*Postgres\.env\.DATABASE_URL/,
+  "Initial deployment must connect directly to fresh Postgres before the PgBouncer canary");
 
 // MIG-0404: private-only exposure and side-effect-safe bootstrap defaults.
 requireMatch(/networking:\s*\{\s*privateNetworkEndpoint:\s*name\s*\}/,

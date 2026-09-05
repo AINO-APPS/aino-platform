@@ -13,6 +13,11 @@ The checked-in region matches the fresh PostgreSQL and Redis resources already
 provisioned in `europe-west4-drams3a`. Do not change it without an explicitly
 reviewed data-move plan.
 
+The initial application deployment uses the direct fresh PostgreSQL URL for both
+runtime queries and migrations. PgBouncer remains provisioned but is introduced
+only after health, authentication and transaction smoke tests pass, one role at
+a time.
+
 Bootstrap values are intentionally non-production: external integrations are
 empty/disabled. Required secrets are created directly in Railway and represented
 as `preserve()` in IaC, so their values are never decrypted into source or plan

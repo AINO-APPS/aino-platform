@@ -37,7 +37,9 @@ export default defineRailway(() => {
     NODE_ENV: "development",
     PORT: "5000",
     // Railway resolves these references without exposing credentials in source.
-    DATABASE_URL: "postgresql://${{Postgres.PGUSER}}:${{Postgres.PGPASSWORD}}@${{PgBouncer.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}",
+    // First deployment connects directly to fresh Postgres. PgBouncer remains
+    // provisioned for a later one-role-at-a-time canary after smoke testing.
+    DATABASE_URL: Postgres.env.DATABASE_URL,
     DIRECT_DATABASE_URL: Postgres.env.DATABASE_URL,
     REDIS_URL: Redis.env.REDIS_URL,
     STORAGE_DRIVER: "local",
