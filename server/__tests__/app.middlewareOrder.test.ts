@@ -36,6 +36,7 @@ jest.mock("../jobs", () => ({
 }));
 
 const request = require("supertest");
+const jwt = require("jsonwebtoken");
 const { app } = require("../index");
 
 describe("application middleware order", () => {
@@ -49,6 +50,24 @@ describe("application middleware order", () => {
 
         expect(platformIndex).toBeGreaterThanOrEqual(0);
         expect(tenantAdminIndex).toBeGreaterThan(platformIndex);
+    });
+
+    it("serves master tenant-console endpoints to a tenantless platform admin", async () => {
+        const token = jwt.sign(
+            { id: 1, username: "platform", tv: 0, platform: true },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" },
+        );
+
+        const [overview, alerts] = await Promise.all([
+            request(app).get("/api/admin/tenants/overview").set("Cookie", `token=${token}`),
+            request(app).get("/api/admin/tenants/alerts").set("Cookie", `token=${token}`),
+        ]);
+
+        expect(overview.status).toBe(200);
+        expect(overview.body).toEqual(expect.objectContaining({ total_tenants: 0, total_users: 0 }));
+        expect(alerts.status).toBe(200);
+        expect(alerts.body).toEqual({ alerts: [] });
     });
 
     it("lets a webhook request reach its router without the browser CSRF header", async () => {

@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { useAuth } from "../../AuthContext";
+import { isTenantlessPlatformAdmin, useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import { useChatUnread } from "../../ChatContext";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import { prefetchPage } from "../common/KeepAlive";
-import { Building2, Users, Settings, Server } from "lucide-react";
+import { Building2, CreditCard, LayoutDashboard, Plus, ScrollText, Server, Settings, Shield, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import s from "./Navbar.module.css";
 
@@ -48,6 +48,33 @@ export default function NavLinks() {
 
     const moreIsActive = moreItems.some((item) => location.pathname === item.to);
     const p = location.pathname;
+
+    if (isTenantlessPlatformAdmin(user)) {
+        const tab = new URLSearchParams(location.search).get("tab") || "dashboard";
+        const platformItems = [
+            { tab: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+            { tab: "tenants", label: "Tenants", icon: Building2 },
+            { tab: "create", label: "New Tenant", icon: Plus },
+            { tab: "plans", label: "Plans", icon: CreditCard },
+            { tab: "admins", label: "Platform Admins", icon: Shield },
+            { tab: "settings", label: "Settings", icon: Settings },
+            { tab: "audit", label: "Audit", icon: ScrollText },
+        ];
+        return (
+            <div className={`${s["nav-links"]} ${s["nav-links-desktop"]}`}>
+                {platformItems.map((item) => {
+                    const Icon = item.icon;
+                    const to = item.tab === "dashboard" ? "/tenants" : `/tenants?tab=${item.tab}`;
+                    return (
+                        <NavLink key={item.tab} to={to} className={tab === item.tab ? s.active : ""}>
+                            <Icon className={s["nav-link-icon"]} size={15} />
+                            {item.label}
+                        </NavLink>
+                    );
+                })}
+            </div>
+        );
+    }
 
     return (
         <div className={`${s["nav-links"]} ${s["nav-links-desktop"]}`}>
