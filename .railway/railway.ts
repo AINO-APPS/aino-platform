@@ -73,7 +73,7 @@ export default defineRailway(() => {
   const appService = (name: string, role: "web" | "realtime" | "worker" | "all") =>
     service(name, {
       // MIG-0402: every application service uses only the split repository.
-      source: github(SOURCE, { branch: BRANCH }),
+      source: github(SOURCE, { branch: BRANCH, checkSuites: true }),
       healthcheck: "/readyz",
       healthcheckTimeout: 300,
       preDeployCommand: role === "web" ? ["node migrate.js"] : undefined,

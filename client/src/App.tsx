@@ -145,9 +145,13 @@ function CatchAll() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useAuth() as any;
+  const { isAuthenticated, isInitializing, user } = useAuth() as any;
   const location = useLocation();
   const tenantlessPlatformAdmin = isTenantlessPlatformAdmin(user);
+
+  // A cached profile intentionally omits role and permissions. Wait for the
+  // server verification before mounting tenant-scoped pages or navbar polling.
+  if (isAuthenticated && isInitializing) return <PageSkeleton />;
 
   return (
     <div className="app">
@@ -300,6 +304,10 @@ function AppRoutes() {
             <Route path="*" element={<CatchAll />} />
           </Routes>
         </Suspense>
+        {!tenantlessPlatformAdmin && <GlobalMeetingRoom />}
+        {!tenantlessPlatformAdmin && <MeetingPiP />}
+        {!tenantlessPlatformAdmin && <GlobalIncomingCall />}
+        {!tenantlessPlatformAdmin && <GlobalMeetingNotification />}
       </ErrorBoundary>
     </div>
   );
@@ -428,13 +436,6 @@ function MainApp() {
                                   <CallProvider>
                                     <MeetingProvider>
                                       <AppRoutes />
-                                      {/* Keeps a single MeetingRoom instance alive across
-                            navigations so minimize/maximize preserves peer
-                            connections and rendered <video> elements. */}
-                                      {!tenantlessPlatformAdmin && <GlobalMeetingRoom />}
-                                      {!tenantlessPlatformAdmin && <MeetingPiP />}
-                                      {!tenantlessPlatformAdmin && <GlobalIncomingCall />}
-                                      {!tenantlessPlatformAdmin && <GlobalMeetingNotification />}
                                     </MeetingProvider>
                                   </CallProvider>
                                 </StatusProvider>

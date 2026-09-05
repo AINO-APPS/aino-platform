@@ -15,6 +15,8 @@ for (const resource of ["Postgres", "Redis", "PgBouncer"]) {
 
 // MIG-0402: no legacy project/repository or production-domain coupling.
 requireMatch(/SOURCE\s*=\s*"AINO-APPS\/aino-platform"/, "Source must be AINO-APPS/aino-platform");
+requireMatch(/github\(SOURCE,\s*\{\s*branch:\s*BRANCH,\s*checkSuites:\s*true\s*\}\)/,
+  "Application deployments must wait for successful GitHub checks");
 for (const forbidden of [
   /renewed-fascination/i,
   /vvronline\/WorkPulse/i,
