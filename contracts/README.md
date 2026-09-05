@@ -5,8 +5,12 @@ This directory records the server's first machine-readable HTTP contract baselin
 - `http-route-inventory.json` inventories every router mounted by `server/http/routes.ts`, every concrete endpoint in the server's tested route snapshot, standalone health/metrics routes, and per-endpoint OpenAPI coverage.
 - `openapi.json` is an OpenAPI 3.1 document for health, authentication/bootstrap, profile, and the main mobile-facing groups (tracker, leaves, tasks, calendar, meetings, notifications, chat, presence, search, projects, and public bootstrap resources).
 - `generate-baseline.mjs` deterministically rebuilds both JSON files from the server route snapshot and the reviewed baseline metadata. Run it deliberately when server routes change, then review the diff.
+- `mobile-route-map.json` maps every Axios wrapper call from the immutable legacy mobile commit to the tested server inventory and classifies it as `active`, `stale`, or `method-mismatch`.
+- `generate-mobile-route-map.mjs` rebuilds that derived map without copying mobile source into this repository. Run `node contracts/generate-mobile-route-map.mjs D:\\Learnings\\WorkPulse d9d779c7520dbf052ba587ac2af649ec59920864`, then review the classifications.
 
 Validate with `npm run contracts:validate` from the repository root.
+
+The mobile map covers backend calls made through the shared Axios `api` instance. Direct external `fetch` calls (for application updates, GitHub releases, and geocoding) are intentionally excluded because they are not AINO server routes. Validation fails if any wrapper call could not be resolved to a string or template-literal path.
 
 ## Scope and limitations
 

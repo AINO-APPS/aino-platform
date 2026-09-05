@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = file => JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
 const inventory = readJson("contracts/http-route-inventory.json");
+const mobileRoutes = readJson("contracts/mobile-route-map.json");
 const api = readJson("contracts/openapi.json");
 const errors = [];
 const check = (ok, message) => { if (!ok) errors.push(message); };
@@ -16,6 +17,9 @@ check(api.components?.securitySchemes?.bearerAuth, "bearerAuth security scheme i
 check(api.components?.schemas?.Error, "shared Error schema is required");
 check(Array.isArray(inventory.mounts) && inventory.mounts.length > 0, "route inventory mounts are required");
 check(Array.isArray(inventory.endpoints) && inventory.endpoints.length > 0, "route inventory endpoints are required");
+check(mobileRoutes.generatedFrom?.commit === "d9d779c7520dbf052ba587ac2af649ec59920864", "mobile route map must use the immutable legacy commit");
+check(Array.isArray(mobileRoutes.wrappers) && mobileRoutes.wrappers.length > 0, "mobile route wrappers are required");
+check(Array.isArray(mobileRoutes.unresolved) && mobileRoutes.unresolved.length === 0, "all mobile wrapper calls must have a literal or template-literal route");
 
 const sourceRoutes = fs.readFileSync(path.join(root, "server/http/routes.ts"), "utf8");
 const sourceMounts = [...sourceRoutes.matchAll(/app\.use\("(\/api\/[^" ]+)"\s*,[^;]*?([A-Za-z][A-Za-z0-9]*)Routes\);/g)]
@@ -58,11 +62,28 @@ for (const endpoint of inventory.endpoints.filter(e => e.coverage === "operation
 }
 check(operationKeys.size === inventory.totals.openApiOperations, "inventory OpenAPI operation total is stale");
 
+const structuralPath = value => value.replace(/:[^/]+/g, ":param");
+const classificationTotals = { active: 0, stale: 0, "method-mismatch": 0 };
+for (const wrapper of mobileRoutes.wrappers || []) {
+  const samePath = inventory.endpoints.filter(endpoint => structuralPath(endpoint.path) === structuralPath(wrapper.apiPath));
+  const exact = samePath.some(endpoint => endpoint.method === wrapper.method);
+  const expected = exact ? "active" : samePath.length ? "method-mismatch" : "stale";
+  check(wrapper.classification === expected, `mobile route classification is stale: ${wrapper.method} ${wrapper.apiPath}`);
+  check(wrapper.source?.startsWith("mobile/src/"), `invalid mobile route source: ${wrapper.source}`);
+  check(Number.isInteger(wrapper.line) && wrapper.line > 0, `invalid mobile route source line: ${wrapper.source}:${wrapper.line}`);
+  if (expected in classificationTotals) classificationTotals[expected] += 1;
+}
+check(mobileRoutes.totals?.wrapperCalls === mobileRoutes.wrappers?.length, "mobile wrapper total is stale");
+check(mobileRoutes.totals?.unresolvedCalls === mobileRoutes.unresolved?.length, "mobile unresolved total is stale");
+for (const [classification, total] of Object.entries(classificationTotals)) {
+  check(mobileRoutes.totals?.classifications?.[classification] === total, `mobile ${classification} total is stale`);
+}
+
 if (errors.length) {
   console.error(`Contract validation failed (${errors.length}):\n- ${errors.join("\n- ")}`);
   process.exit(1);
 }
-console.log(`Contracts valid: ${inventory.mounts.length} router mounts, ${inventory.endpoints.length} endpoints inventoried, ${operationKeys.size} OpenAPI operations.`);
+console.log(`Contracts valid: ${inventory.mounts.length} router mounts, ${inventory.endpoints.length} endpoints inventoried, ${operationKeys.size} OpenAPI operations, ${mobileRoutes.wrappers.length} mobile wrapper calls classified.`);
 
 // Keep the realtime baseline dependency-free and part of the same repository gate.
 await import("./validate-realtime-contracts.mjs");

@@ -1,0 +1,2479 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": {
+    "repository": "legacy WorkPulse Git history",
+    "commit": "d9d779c7520dbf052ba587ac2af649ec59920864",
+    "path": "mobile/src/**/*.{ts,tsx}"
+  },
+  "basePath": "/api",
+  "scopeNote": "Every legacy Axios api.get/post/put/patch/delete call with a literal or template-literal first argument. Template expressions are normalized to path parameters before comparison with the tested server route snapshot.",
+  "totals": {
+    "sourceFilesScanned": 6,
+    "wrapperCalls": 307,
+    "unresolvedCalls": 0,
+    "classifications": {
+      "active": 307,
+      "stale": 0,
+      "method-mismatch": 0
+    }
+  },
+  "unresolved": [],
+  "wrappers": [
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 21,
+      "method": "GET",
+      "relativePath": "/admin/stats",
+      "apiPath": "/api/admin/stats",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 54,
+      "method": "GET",
+      "relativePath": "/admin/users",
+      "apiPath": "/api/admin/users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 58,
+      "method": "GET",
+      "relativePath": "/admin/users/:id",
+      "apiPath": "/api/admin/users/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 72,
+      "method": "POST",
+      "relativePath": "/admin/users",
+      "apiPath": "/api/admin/users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 119,
+      "method": "POST",
+      "relativePath": "/admin/users/import",
+      "apiPath": "/api/admin/users/import",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 127,
+      "method": "PUT",
+      "relativePath": "/admin/users/:id/role",
+      "apiPath": "/api/admin/users/:id/role",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 142,
+      "method": "PUT",
+      "relativePath": "/admin/users/:id/assignment",
+      "apiPath": "/api/admin/users/:id/assignment",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 146,
+      "method": "PUT",
+      "relativePath": "/admin/users/:id/deactivate",
+      "apiPath": "/api/admin/users/:id/deactivate",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 152,
+      "method": "DELETE",
+      "relativePath": "/admin/users/:id",
+      "apiPath": "/api/admin/users/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 156,
+      "method": "POST",
+      "relativePath": "/admin/users/:id/reset-password",
+      "apiPath": "/api/admin/users/:id/reset-password",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 183,
+      "method": "GET",
+      "relativePath": "/admin/role-requests",
+      "apiPath": "/api/admin/role-requests",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 187,
+      "method": "POST",
+      "relativePath": "/admin/role-requests/:id/approve",
+      "apiPath": "/api/admin/role-requests/:id/approve",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 193,
+      "method": "POST",
+      "relativePath": "/admin/role-requests/:id/reject",
+      "apiPath": "/api/admin/role-requests/:id/reject",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 199,
+      "method": "POST",
+      "relativePath": "/admin/role-requests/:id/cancel",
+      "apiPath": "/api/admin/role-requests/:id/cancel",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 219,
+      "method": "GET",
+      "relativePath": "/admin/audit-logs",
+      "apiPath": "/api/admin/audit-logs",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 238,
+      "method": "GET",
+      "relativePath": "/admin/organizations",
+      "apiPath": "/api/admin/organizations",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 253,
+      "method": "PUT",
+      "relativePath": "/admin/organizations/:id",
+      "apiPath": "/api/admin/organizations/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 279,
+      "method": "GET",
+      "relativePath": "/org/departments",
+      "apiPath": "/api/org/departments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 288,
+      "method": "POST",
+      "relativePath": "/org/departments",
+      "apiPath": "/api/org/departments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 300,
+      "method": "PUT",
+      "relativePath": "/org/departments/:id",
+      "apiPath": "/api/org/departments/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 304,
+      "method": "DELETE",
+      "relativePath": "/org/departments/:id",
+      "apiPath": "/api/org/departments/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 308,
+      "method": "GET",
+      "relativePath": "/org/teams",
+      "apiPath": "/api/org/teams",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 318,
+      "method": "POST",
+      "relativePath": "/org/teams",
+      "apiPath": "/api/org/teams",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 331,
+      "method": "PUT",
+      "relativePath": "/org/teams/:id",
+      "apiPath": "/api/org/teams/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 335,
+      "method": "DELETE",
+      "relativePath": "/org/teams/:id",
+      "apiPath": "/api/org/teams/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 361,
+      "method": "PUT",
+      "relativePath": "/org/settings",
+      "apiPath": "/api/org/settings",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 371,
+      "method": "GET",
+      "relativePath": "/branding",
+      "apiPath": "/api/branding",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 375,
+      "method": "PUT",
+      "relativePath": "/branding",
+      "apiPath": "/api/branding",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 413,
+      "method": "GET",
+      "relativePath": "/platform-access",
+      "apiPath": "/api/platform-access",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 420,
+      "method": "POST",
+      "relativePath": "/platform-access/:id/approve",
+      "apiPath": "/api/platform-access/:id/approve",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 428,
+      "method": "POST",
+      "relativePath": "/platform-access/:id/deny",
+      "apiPath": "/api/platform-access/:id/deny",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 434,
+      "method": "POST",
+      "relativePath": "/platform-access/:id/revoke",
+      "apiPath": "/api/platform-access/:id/revoke",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 479,
+      "method": "GET",
+      "relativePath": "/admin/tenants",
+      "apiPath": "/api/admin/tenants",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 485,
+      "method": "GET",
+      "relativePath": "/admin/tenants/overview",
+      "apiPath": "/api/admin/tenants/overview",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 489,
+      "method": "GET",
+      "relativePath": "/admin/tenants/:id",
+      "apiPath": "/api/admin/tenants/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 502,
+      "method": "GET",
+      "relativePath": "/admin/tenants/:id/stats",
+      "apiPath": "/api/admin/tenants/:id/stats",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 512,
+      "method": "POST",
+      "relativePath": "/admin/tenants",
+      "apiPath": "/api/admin/tenants",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 520,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/suspend",
+      "apiPath": "/api/admin/tenants/:id/suspend",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 527,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/reactivate",
+      "apiPath": "/api/admin/tenants/:id/reactivate",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 539,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id",
+      "apiPath": "/api/admin/tenants/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 547,
+      "method": "DELETE",
+      "relativePath": "/admin/tenants/:id",
+      "apiPath": "/api/admin/tenants/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 566,
+      "method": "GET",
+      "relativePath": "/admin/tenants/:id/users",
+      "apiPath": "/api/admin/tenants/:id/users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 573,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/domain",
+      "apiPath": "/api/admin/tenants/:id/domain",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 582,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/limits",
+      "apiPath": "/api/admin/tenants/:id/limits",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 590,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/plan",
+      "apiPath": "/api/admin/tenants/:id/plan",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 597,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/:id/features",
+      "apiPath": "/api/admin/tenants/:id/features",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 612,
+      "method": "POST",
+      "relativePath": "/admin/tenants/:id/users",
+      "apiPath": "/api/admin/tenants/:id/users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 616,
+      "method": "POST",
+      "relativePath": "/admin/tenants/:id/seed",
+      "apiPath": "/api/admin/tenants/:id/seed",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 651,
+      "method": "POST",
+      "relativePath": "/admin/tenants/:tenantId/access-requests",
+      "apiPath": "/api/admin/tenants/:tenantId/access-requests",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 658,
+      "method": "GET",
+      "relativePath": "/admin/tenants/:tenantId/access-requests",
+      "apiPath": "/api/admin/tenants/:tenantId/access-requests",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 664,
+      "method": "DELETE",
+      "relativePath": "/admin/tenants/access-requests/:id",
+      "apiPath": "/api/admin/tenants/access-requests/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 675,
+      "method": "POST",
+      "relativePath": "/admin/tenants/:id/impersonate",
+      "apiPath": "/api/admin/tenants/:id/impersonate",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 690,
+      "method": "POST",
+      "relativePath": "/admin/tenants/:id/exit-impersonate",
+      "apiPath": "/api/admin/tenants/:id/exit-impersonate",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 706,
+      "method": "GET",
+      "relativePath": "/admin/tenants/impersonation-policy",
+      "apiPath": "/api/admin/tenants/impersonation-policy",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 715,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/impersonation-policy",
+      "apiPath": "/api/admin/tenants/impersonation-policy",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 733,
+      "method": "GET",
+      "relativePath": "/admin/announcements",
+      "apiPath": "/api/admin/announcements",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 741,
+      "method": "POST",
+      "relativePath": "/admin/announcements",
+      "apiPath": "/api/admin/announcements",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 748,
+      "method": "PUT",
+      "relativePath": "/admin/announcements/:id",
+      "apiPath": "/api/admin/announcements/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 752,
+      "method": "DELETE",
+      "relativePath": "/admin/announcements/:id",
+      "apiPath": "/api/admin/announcements/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 773,
+      "method": "GET",
+      "relativePath": "/admin/tenants/plan-catalog",
+      "apiPath": "/api/admin/tenants/plan-catalog",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 777,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/plan-catalog",
+      "apiPath": "/api/admin/tenants/plan-catalog",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 781,
+      "method": "POST",
+      "relativePath": "/admin/tenants/plan-catalog/reset",
+      "apiPath": "/api/admin/tenants/plan-catalog/reset",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 797,
+      "method": "GET",
+      "relativePath": "/admin/tenants/platform-users",
+      "apiPath": "/api/admin/tenants/platform-users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 806,
+      "method": "POST",
+      "relativePath": "/admin/tenants/platform-users",
+      "apiPath": "/api/admin/tenants/platform-users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 813,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/platform-users/:id/deactivate",
+      "apiPath": "/api/admin/tenants/platform-users/:id/deactivate",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 822,
+      "method": "POST",
+      "relativePath": "/admin/tenants/platform-users/:id/reset-password",
+      "apiPath": "/api/admin/tenants/platform-users/:id/reset-password",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 831,
+      "method": "GET",
+      "relativePath": "/admin/tenants/platform-config",
+      "apiPath": "/api/admin/tenants/platform-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 835,
+      "method": "PUT",
+      "relativePath": "/admin/tenants/platform-config",
+      "apiPath": "/api/admin/tenants/platform-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 854,
+      "method": "GET",
+      "relativePath": "/admin/tenants/alerts",
+      "apiPath": "/api/admin/tenants/alerts",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 858,
+      "method": "GET",
+      "relativePath": "/admin/tenants/audit-logs",
+      "apiPath": "/api/admin/tenants/audit-logs",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 877,
+      "method": "GET",
+      "relativePath": "/admin/pay-periods",
+      "apiPath": "/api/admin/pay-periods",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 885,
+      "method": "POST",
+      "relativePath": "/admin/pay-periods",
+      "apiPath": "/api/admin/pay-periods",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 889,
+      "method": "DELETE",
+      "relativePath": "/admin/pay-periods/:id",
+      "apiPath": "/api/admin/pay-periods/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 905,
+      "method": "GET",
+      "relativePath": "/projects",
+      "apiPath": "/api/projects",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 915,
+      "method": "POST",
+      "relativePath": "/projects",
+      "apiPath": "/api/projects",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 919,
+      "method": "PATCH",
+      "relativePath": "/projects/:id/archive",
+      "apiPath": "/api/projects/:id/archive",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 923,
+      "method": "DELETE",
+      "relativePath": "/projects/:id",
+      "apiPath": "/api/projects/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 970,
+      "method": "GET",
+      "relativePath": "/org/chart",
+      "apiPath": "/api/org/chart",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 988,
+      "method": "GET",
+      "relativePath": "/org/roles",
+      "apiPath": "/api/org/roles",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 998,
+      "method": "POST",
+      "relativePath": "/org/roles",
+      "apiPath": "/api/org/roles",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1014,
+      "method": "PATCH",
+      "relativePath": "/org/roles/:roleKey",
+      "apiPath": "/api/org/roles/:roleKey",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1021,
+      "method": "DELETE",
+      "relativePath": "/org/roles/:roleKey",
+      "apiPath": "/api/org/roles/:roleKey",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1043,
+      "method": "POST",
+      "relativePath": "/branding/logo",
+      "apiPath": "/api/branding/logo",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1049,
+      "method": "DELETE",
+      "relativePath": "/branding/logo",
+      "apiPath": "/api/branding/logo",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1063,
+      "method": "GET",
+      "relativePath": "/branding/email-templates",
+      "apiPath": "/api/branding/email-templates",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1070,
+      "method": "PUT",
+      "relativePath": "/branding/email-templates/:key",
+      "apiPath": "/api/branding/email-templates/:key",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1074,
+      "method": "DELETE",
+      "relativePath": "/branding/email-templates/:key",
+      "apiPath": "/api/branding/email-templates/:key",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1125,
+      "method": "GET",
+      "relativePath": "/agile/settings",
+      "apiPath": "/api/agile/settings",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1129,
+      "method": "PUT",
+      "relativePath": "/agile/settings",
+      "apiPath": "/api/agile/settings",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1133,
+      "method": "GET",
+      "relativePath": "/agile/work-item-types",
+      "apiPath": "/api/agile/work-item-types",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1144,
+      "method": "POST",
+      "relativePath": "/agile/work-item-types",
+      "apiPath": "/api/agile/work-item-types",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1160,
+      "method": "PUT",
+      "relativePath": "/agile/work-item-types/:id",
+      "apiPath": "/api/agile/work-item-types/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1164,
+      "method": "DELETE",
+      "relativePath": "/agile/work-item-types/:id",
+      "apiPath": "/api/agile/work-item-types/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1168,
+      "method": "GET",
+      "relativePath": "/agile/workflow-states",
+      "apiPath": "/api/agile/workflow-states",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1180,
+      "method": "POST",
+      "relativePath": "/agile/workflow-states",
+      "apiPath": "/api/agile/workflow-states",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1197,
+      "method": "PUT",
+      "relativePath": "/agile/workflow-states/:id",
+      "apiPath": "/api/agile/workflow-states/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1201,
+      "method": "DELETE",
+      "relativePath": "/agile/workflow-states/:id",
+      "apiPath": "/api/agile/workflow-states/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1205,
+      "method": "GET",
+      "relativePath": "/agile/permissions/me",
+      "apiPath": "/api/agile/permissions/me",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1224,
+      "method": "GET",
+      "relativePath": "/tasks/labels/manage",
+      "apiPath": "/api/tasks/labels/manage",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1228,
+      "method": "POST",
+      "relativePath": "/tasks/labels",
+      "apiPath": "/api/tasks/labels",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1235,
+      "method": "PUT",
+      "relativePath": "/tasks/labels/:id",
+      "apiPath": "/api/tasks/labels/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1239,
+      "method": "DELETE",
+      "relativePath": "/tasks/labels/:id",
+      "apiPath": "/api/tasks/labels/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1284,
+      "method": "GET",
+      "relativePath": "/custom-fields/all",
+      "apiPath": "/api/custom-fields/all",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1288,
+      "method": "POST",
+      "relativePath": "/custom-fields",
+      "apiPath": "/api/custom-fields",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1295,
+      "method": "PUT",
+      "relativePath": "/custom-fields/:id",
+      "apiPath": "/api/custom-fields/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1299,
+      "method": "DELETE",
+      "relativePath": "/custom-fields/:id",
+      "apiPath": "/api/custom-fields/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1314,
+      "method": "GET",
+      "relativePath": "/integrations",
+      "apiPath": "/api/integrations",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1327,
+      "method": "GET",
+      "relativePath": "/integrations/github/status",
+      "apiPath": "/api/integrations/github/status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1331,
+      "method": "DELETE",
+      "relativePath": "/integrations/:id",
+      "apiPath": "/api/integrations/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1335,
+      "method": "POST",
+      "relativePath": "/integrations/github/disconnect",
+      "apiPath": "/api/integrations/github/disconnect",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1350,
+      "method": "GET",
+      "relativePath": "/compensation/templates",
+      "apiPath": "/api/compensation/templates",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1359,
+      "method": "POST",
+      "relativePath": "/compensation/templates",
+      "apiPath": "/api/compensation/templates",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1371,
+      "method": "PUT",
+      "relativePath": "/compensation/templates/:id",
+      "apiPath": "/api/compensation/templates/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1375,
+      "method": "DELETE",
+      "relativePath": "/compensation/templates/:id",
+      "apiPath": "/api/compensation/templates/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1390,
+      "method": "GET",
+      "relativePath": "/org/members",
+      "apiPath": "/api/org/members",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1409,
+      "method": "POST",
+      "relativePath": "/compensation/employees/:userId",
+      "apiPath": "/api/compensation/employees/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1425,
+      "method": "GET",
+      "relativePath": "/compensation/ctc-config",
+      "apiPath": "/api/compensation/ctc-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1429,
+      "method": "PUT",
+      "relativePath": "/compensation/ctc-config",
+      "apiPath": "/api/compensation/ctc-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1449,
+      "method": "GET",
+      "relativePath": "/compensation/bank-verifications",
+      "apiPath": "/api/compensation/bank-verifications",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1453,
+      "method": "POST",
+      "relativePath": "/compensation/bank-details/:userId/approve",
+      "apiPath": "/api/compensation/bank-details/:userId/approve",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1459,
+      "method": "POST",
+      "relativePath": "/compensation/bank-details/:userId/reject",
+      "apiPath": "/api/compensation/bank-details/:userId/reject",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1482,
+      "method": "GET",
+      "relativePath": "/compensation/employees",
+      "apiPath": "/api/compensation/employees",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1486,
+      "method": "GET",
+      "relativePath": "/compensation/employees/:userId",
+      "apiPath": "/api/compensation/employees/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1498,
+      "method": "POST",
+      "relativePath": "/compensation/employees/:userId",
+      "apiPath": "/api/compensation/employees/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1519,
+      "method": "GET",
+      "relativePath": "/compensation/salary-slips",
+      "apiPath": "/api/compensation/salary-slips",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1523,
+      "method": "POST",
+      "relativePath": "/compensation/payroll-run",
+      "apiPath": "/api/compensation/payroll-run",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1530,
+      "method": "PUT",
+      "relativePath": "/compensation/salary-slips/:id/publish",
+      "apiPath": "/api/compensation/salary-slips/:id/publish",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1534,
+      "method": "POST",
+      "relativePath": "/compensation/salary-slips/bulk-publish",
+      "apiPath": "/api/compensation/salary-slips/bulk-publish",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1557,
+      "method": "GET",
+      "relativePath": "/compensation/disbursements",
+      "apiPath": "/api/compensation/disbursements",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1561,
+      "method": "POST",
+      "relativePath": "/compensation/disburse",
+      "apiPath": "/api/compensation/disburse",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1570,
+      "method": "POST",
+      "relativePath": "/compensation/disburse/retry/:id",
+      "apiPath": "/api/compensation/disburse/retry/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1599,
+      "method": "GET",
+      "relativePath": "/compensation/payment-config",
+      "apiPath": "/api/compensation/payment-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1610,
+      "method": "PUT",
+      "relativePath": "/compensation/payment-config",
+      "apiPath": "/api/compensation/payment-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/admin.ts",
+      "line": 1614,
+      "method": "POST",
+      "relativePath": "/compensation/payment-config/test",
+      "apiPath": "/api/compensation/payment-config/test",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 155,
+      "method": "POST",
+      "relativePath": "/auth/logout",
+      "apiPath": "/api/auth/logout",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 266,
+      "method": "GET",
+      "relativePath": "/profile",
+      "apiPath": "/api/profile",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 333,
+      "method": "GET",
+      "relativePath": "/profile",
+      "apiPath": "/api/profile",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 346,
+      "method": "POST",
+      "relativePath": "/auth/login",
+      "apiPath": "/api/auth/login",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 360,
+      "method": "GET",
+      "relativePath": "/profile",
+      "apiPath": "/api/profile",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 403,
+      "method": "POST",
+      "relativePath": "/auth/biometric/enroll",
+      "apiPath": "/api/auth/biometric/enroll",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 421,
+      "method": "DELETE",
+      "relativePath": "/auth/biometric/:credId",
+      "apiPath": "/api/auth/biometric/:credId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/auth/AuthContext.tsx",
+      "line": 439,
+      "method": "POST",
+      "relativePath": "/auth/biometric/login",
+      "apiPath": "/api/auth/biometric/login",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 47,
+      "method": "GET",
+      "relativePath": "/tasks",
+      "apiPath": "/api/tasks",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 51,
+      "method": "PATCH",
+      "relativePath": "/tasks/:id/status",
+      "apiPath": "/api/tasks/:id/status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 69,
+      "method": "PUT",
+      "relativePath": "/tasks/:id",
+      "apiPath": "/api/tasks/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 73,
+      "method": "DELETE",
+      "relativePath": "/tasks/:id",
+      "apiPath": "/api/tasks/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 134,
+      "method": "POST",
+      "relativePath": "/tasks/:id/comments",
+      "apiPath": "/api/tasks/:id/comments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 148,
+      "method": "POST",
+      "relativePath": "/tasks/:id/comments",
+      "apiPath": "/api/tasks/:id/comments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 158,
+      "method": "GET",
+      "relativePath": "/tasks/backlog",
+      "apiPath": "/api/tasks/backlog",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 181,
+      "method": "POST",
+      "relativePath": "/tasks/backlog",
+      "apiPath": "/api/tasks/backlog",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 196,
+      "method": "GET",
+      "relativePath": "/tasks/available-sprints",
+      "apiPath": "/api/tasks/available-sprints",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 200,
+      "method": "GET",
+      "relativePath": "/tasks",
+      "apiPath": "/api/tasks",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 250,
+      "method": "GET",
+      "relativePath": "/agile/config",
+      "apiPath": "/api/agile/config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 280,
+      "method": "GET",
+      "relativePath": "/leaves/balance",
+      "apiPath": "/api/leaves/balance",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 286,
+      "method": "GET",
+      "relativePath": "/leaves",
+      "apiPath": "/api/leaves",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 304,
+      "method": "GET",
+      "relativePath": "/leave-policy/policies",
+      "apiPath": "/api/leave-policy/policies",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 317,
+      "method": "POST",
+      "relativePath": "/leave-policy/policies",
+      "apiPath": "/api/leave-policy/policies",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 321,
+      "method": "DELETE",
+      "relativePath": "/leave-policy/policies/:id",
+      "apiPath": "/api/leave-policy/policies/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 332,
+      "method": "GET",
+      "relativePath": "/leave-policy/holidays",
+      "apiPath": "/api/leave-policy/holidays",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 355,
+      "method": "GET",
+      "relativePath": "/leave-policy/balances",
+      "apiPath": "/api/leave-policy/balances",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 370,
+      "method": "PUT",
+      "relativePath": "/leave-policy/balances/:userId",
+      "apiPath": "/api/leave-policy/balances/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 376,
+      "method": "POST",
+      "relativePath": "/leaves/:id/withdraw",
+      "apiPath": "/api/leaves/:id/withdraw",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 387,
+      "method": "POST",
+      "relativePath": "/leaves",
+      "apiPath": "/api/leaves",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 403,
+      "method": "GET",
+      "relativePath": "/notifications",
+      "apiPath": "/api/notifications",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 411,
+      "method": "POST",
+      "relativePath": "/notifications/:id/read",
+      "apiPath": "/api/notifications/:id/read",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 415,
+      "method": "POST",
+      "relativePath": "/notifications/read-all",
+      "apiPath": "/api/notifications/read-all",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 596,
+      "method": "GET",
+      "relativePath": "/chat/conversations",
+      "apiPath": "/api/chat/conversations",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 600,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/messages",
+      "apiPath": "/api/chat/conversations/:convId/messages",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 606,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/read",
+      "apiPath": "/api/chat/conversations/:convId/read",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 623,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/messages",
+      "apiPath": "/api/chat/conversations/:convId/messages",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 632,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/delivered",
+      "apiPath": "/api/chat/messages/:messageId/delivered",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 636,
+      "method": "GET",
+      "relativePath": "/chat/search",
+      "apiPath": "/api/chat/search",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 651,
+      "method": "POST",
+      "relativePath": "/chat/conversations",
+      "apiPath": "/api/chat/conversations",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 657,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/reactions",
+      "apiPath": "/api/chat/messages/:messageId/reactions",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 677,
+      "method": "GET",
+      "relativePath": "/chat/presence",
+      "apiPath": "/api/chat/presence",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 698,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/members",
+      "apiPath": "/api/chat/conversations/:convId/members",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 712,
+      "method": "PUT",
+      "relativePath": "/chat/conversations/:convId/group",
+      "apiPath": "/api/chat/conversations/:convId/group",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 715,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/leave",
+      "apiPath": "/api/chat/conversations/:convId/leave",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 722,
+      "method": "PUT",
+      "relativePath": "/chat/conversations/:convId/participants/:userId/role",
+      "apiPath": "/api/chat/conversations/:convId/participants/:userId/role",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 727,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/transfer-owner",
+      "apiPath": "/api/chat/conversations/:convId/transfer-owner",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 732,
+      "method": "POST",
+      "relativePath": "/chat/conversations/group",
+      "apiPath": "/api/chat/conversations/group",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 803,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/files",
+      "apiPath": "/api/chat/conversations/:convId/files",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 813,
+      "method": "POST",
+      "relativePath": "/chat/media-jobs/:mediaJobId/cancel",
+      "apiPath": "/api/chat/media-jobs/:mediaJobId/cancel",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 819,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/view",
+      "apiPath": "/api/chat/messages/:messageId/view",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 825,
+      "method": "POST",
+      "relativePath": "/chat/media-jobs/:mediaJobId/retry",
+      "apiPath": "/api/chat/media-jobs/:mediaJobId/retry",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 829,
+      "method": "PUT",
+      "relativePath": "/chat/messages/:messageId",
+      "apiPath": "/api/chat/messages/:messageId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 833,
+      "method": "DELETE",
+      "relativePath": "/chat/messages/:messageId",
+      "apiPath": "/api/chat/messages/:messageId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 837,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/pin",
+      "apiPath": "/api/chat/messages/:messageId/pin",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 858,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/pinned",
+      "apiPath": "/api/chat/conversations/:convId/pinned",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 868,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/read-status",
+      "apiPath": "/api/chat/conversations/:convId/read-status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 872,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/star",
+      "apiPath": "/api/chat/messages/:messageId/star",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 893,
+      "method": "GET",
+      "relativePath": "/chat/search-messages",
+      "apiPath": "/api/chat/search-messages",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 911,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/files",
+      "apiPath": "/api/chat/conversations/:convId/files",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 932,
+      "method": "GET",
+      "relativePath": "/chat/starred",
+      "apiPath": "/api/chat/starred",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 938,
+      "method": "DELETE",
+      "relativePath": "/chat/conversations/:convId/messages",
+      "apiPath": "/api/chat/conversations/:convId/messages",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 942,
+      "method": "POST",
+      "relativePath": "/chat/messages/:messageId/forward",
+      "apiPath": "/api/chat/messages/:messageId/forward",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 946,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/pin",
+      "apiPath": "/api/chat/conversations/:convId/pin",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 950,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/favourite",
+      "apiPath": "/api/chat/conversations/:convId/favourite",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 956,
+      "method": "DELETE",
+      "relativePath": "/chat/conversations/:convId",
+      "apiPath": "/api/chat/conversations/:convId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 968,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/mute",
+      "apiPath": "/api/chat/conversations/:convId/mute",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 972,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/mute",
+      "apiPath": "/api/chat/conversations/:convId/mute",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 979,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/archive",
+      "apiPath": "/api/chat/conversations/:convId/archive",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 985,
+      "method": "POST",
+      "relativePath": "/chat/conversations/:convId/unread",
+      "apiPath": "/api/chat/conversations/:convId/unread",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 992,
+      "method": "GET",
+      "relativePath": "/chat/blocked",
+      "apiPath": "/api/chat/blocked",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1004,
+      "method": "POST",
+      "relativePath": "/chat/users/:userId/block",
+      "apiPath": "/api/chat/users/:userId/block",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1010,
+      "method": "DELETE",
+      "relativePath": "/chat/users/:userId/block",
+      "apiPath": "/api/chat/users/:userId/block",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1017,
+      "method": "GET",
+      "relativePath": "/chat/link-preview",
+      "apiPath": "/api/chat/link-preview",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1021,
+      "method": "GET",
+      "relativePath": "/chat/calls",
+      "apiPath": "/api/chat/calls",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1030,
+      "method": "POST",
+      "relativePath": "/chat/calls/delete",
+      "apiPath": "/api/chat/calls/delete",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1037,
+      "method": "GET",
+      "relativePath": "/chat/conversations/:convId/calls",
+      "apiPath": "/api/chat/conversations/:convId/calls",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1063,
+      "method": "GET",
+      "relativePath": "/chat/calls/active",
+      "apiPath": "/api/chat/calls/active",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1067,
+      "method": "GET",
+      "relativePath": "/chat/ice-config",
+      "apiPath": "/api/chat/ice-config",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1123,
+      "method": "POST",
+      "relativePath": "/chat/calls/:callId/reject",
+      "apiPath": "/api/chat/calls/:callId/reject",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1134,
+      "method": "POST",
+      "relativePath": "/chat/calls/:callId/accept",
+      "apiPath": "/api/chat/calls/:callId/accept",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1148,
+      "method": "POST",
+      "relativePath": "/chat/calls/:callId/end",
+      "apiPath": "/api/chat/calls/:callId/end",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1206,
+      "method": "GET",
+      "relativePath": "/notes",
+      "apiPath": "/api/notes",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1210,
+      "method": "PUT",
+      "relativePath": "/notes",
+      "apiPath": "/api/notes",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1230,
+      "method": "GET",
+      "relativePath": "/notes/daily-prefill",
+      "apiPath": "/api/notes/daily-prefill",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1251,
+      "method": "GET",
+      "relativePath": "/notes/oneonone-prefill/:userId",
+      "apiPath": "/api/notes/oneonone-prefill/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1255,
+      "method": "POST",
+      "relativePath": "/notes/convert-to-task",
+      "apiPath": "/api/notes/convert-to-task",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1272,
+      "method": "GET",
+      "relativePath": "/notes/direct-reports",
+      "apiPath": "/api/notes/direct-reports",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1278,
+      "method": "GET",
+      "relativePath": "/notes/share/:pageId",
+      "apiPath": "/api/notes/share/:pageId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1284,
+      "method": "POST",
+      "relativePath": "/notes/share/:pageId",
+      "apiPath": "/api/notes/share/:pageId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1288,
+      "method": "DELETE",
+      "relativePath": "/notes/share/:pageId",
+      "apiPath": "/api/notes/share/:pageId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1302,
+      "method": "POST",
+      "relativePath": "/profile/avatar",
+      "apiPath": "/api/profile/avatar",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1323,
+      "method": "GET",
+      "relativePath": "/calendar",
+      "apiPath": "/api/calendar",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1338,
+      "method": "POST",
+      "relativePath": "/calendar",
+      "apiPath": "/api/calendar",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1342,
+      "method": "DELETE",
+      "relativePath": "/calendar/:id",
+      "apiPath": "/api/calendar/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1356,
+      "method": "PUT",
+      "relativePath": "/calendar/:id",
+      "apiPath": "/api/calendar/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1392,
+      "method": "POST",
+      "relativePath": "/meetings",
+      "apiPath": "/api/meetings",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1424,
+      "method": "GET",
+      "relativePath": "/meetings/:code",
+      "apiPath": "/api/meetings/:code",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1428,
+      "method": "GET",
+      "relativePath": "/meetings/:id/participants",
+      "apiPath": "/api/meetings/:id/participants",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1435,
+      "method": "POST",
+      "relativePath": "/meetings/:id/participants",
+      "apiPath": "/api/meetings/:id/participants",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1442,
+      "method": "DELETE",
+      "relativePath": "/meetings/:id/participants/:userId",
+      "apiPath": "/api/meetings/:id/participants/:userId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1458,
+      "method": "POST",
+      "relativePath": "/meetings/check-conflicts",
+      "apiPath": "/api/meetings/check-conflicts",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1472,
+      "method": "POST",
+      "relativePath": "/leaves",
+      "apiPath": "/api/leaves",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1480,
+      "method": "POST",
+      "relativePath": "/tasks",
+      "apiPath": "/api/tasks",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1484,
+      "method": "GET",
+      "relativePath": "/tasks/:id/detail",
+      "apiPath": "/api/tasks/:id/detail",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1497,
+      "method": "GET",
+      "relativePath": "/tracker/task-summary",
+      "apiPath": "/api/tracker/task-summary",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1503,
+      "method": "PUT",
+      "relativePath": "/profile",
+      "apiPath": "/api/profile",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1507,
+      "method": "PUT",
+      "relativePath": "/profile/email",
+      "apiPath": "/api/profile/email",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1514,
+      "method": "PUT",
+      "relativePath": "/profile/password",
+      "apiPath": "/api/profile/password",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1518,
+      "method": "DELETE",
+      "relativePath": "/profile/avatar",
+      "apiPath": "/api/profile/avatar",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1549,
+      "method": "GET",
+      "relativePath": "/me/status",
+      "apiPath": "/api/me/status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1557,
+      "method": "PUT",
+      "relativePath": "/me/status",
+      "apiPath": "/api/me/status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1561,
+      "method": "PUT",
+      "relativePath": "/me/status/presence-preference",
+      "apiPath": "/api/me/status/presence-preference",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1590,
+      "method": "GET",
+      "relativePath": "/profile/notification-prefs",
+      "apiPath": "/api/profile/notification-prefs",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1594,
+      "method": "PUT",
+      "relativePath": "/profile/notification-prefs",
+      "apiPath": "/api/profile/notification-prefs",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1602,
+      "method": "GET",
+      "relativePath": "/profile/face-status",
+      "apiPath": "/api/profile/face-status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1606,
+      "method": "POST",
+      "relativePath": "/profile/face-enroll",
+      "apiPath": "/api/profile/face-enroll",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1613,
+      "method": "DELETE",
+      "relativePath": "/profile/face-enroll",
+      "apiPath": "/api/profile/face-enroll",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1627,
+      "method": "GET",
+      "relativePath": "/notifications/announcements",
+      "apiPath": "/api/notifications/announcements",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1635,
+      "method": "GET",
+      "relativePath": "/sprints/active",
+      "apiPath": "/api/sprints/active",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1639,
+      "method": "GET",
+      "relativePath": "/sprints/:sprintId/tasks",
+      "apiPath": "/api/sprints/:sprintId/tasks",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1663,
+      "method": "GET",
+      "relativePath": "/sprints/:sprintId/stats",
+      "apiPath": "/api/sprints/:sprintId/stats",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1667,
+      "method": "POST",
+      "relativePath": "/sprints/:sprintId/start",
+      "apiPath": "/api/sprints/:sprintId/start",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1674,
+      "method": "POST",
+      "relativePath": "/sprints/:sprintId/complete",
+      "apiPath": "/api/sprints/:sprintId/complete",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1688,
+      "method": "GET",
+      "relativePath": "/sprints",
+      "apiPath": "/api/sprints",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1717,
+      "method": "GET",
+      "relativePath": "/sprints/:sprintId/cycle-time",
+      "apiPath": "/api/sprints/:sprintId/cycle-time",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1725,
+      "method": "GET",
+      "relativePath": "/sprints/:sprintId/cumulative-flow",
+      "apiPath": "/api/sprints/:sprintId/cumulative-flow",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1744,
+      "method": "GET",
+      "relativePath": "/sprints/:sprintId/retrospective",
+      "apiPath": "/api/sprints/:sprintId/retrospective",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1759,
+      "method": "PUT",
+      "relativePath": "/sprints/:sprintId/retrospective",
+      "apiPath": "/api/sprints/:sprintId/retrospective",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1770,
+      "method": "PATCH",
+      "relativePath": "/tasks/:taskId/assign-sprint",
+      "apiPath": "/api/tasks/:taskId/assign-sprint",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1783,
+      "method": "PUT",
+      "relativePath": "/tasks/:taskId",
+      "apiPath": "/api/tasks/:taskId",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1822,
+      "method": "GET",
+      "relativePath": "/service-desk/tickets",
+      "apiPath": "/api/service-desk/tickets",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1831,
+      "method": "GET",
+      "relativePath": "/service-desk/stats",
+      "apiPath": "/api/service-desk/stats",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1840,
+      "method": "POST",
+      "relativePath": "/service-desk/tickets",
+      "apiPath": "/api/service-desk/tickets",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1844,
+      "method": "DELETE",
+      "relativePath": "/service-desk/tickets/:id",
+      "apiPath": "/api/service-desk/tickets/:id",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1857,
+      "method": "GET",
+      "relativePath": "/tasks/assignable-users",
+      "apiPath": "/api/tasks/assignable-users",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1867,
+      "method": "GET",
+      "relativePath": "/tasks/labels",
+      "apiPath": "/api/tasks/labels",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1871,
+      "method": "PATCH",
+      "relativePath": "/tasks/:id/schedule",
+      "apiPath": "/api/tasks/:id/schedule",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1875,
+      "method": "PATCH",
+      "relativePath": "/tasks/:id/unschedule",
+      "apiPath": "/api/tasks/:id/unschedule",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1888,
+      "method": "GET",
+      "relativePath": "/tasks/:id/history",
+      "apiPath": "/api/tasks/:id/history",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1892,
+      "method": "GET",
+      "relativePath": "/tasks/:id/comments",
+      "apiPath": "/api/tasks/:id/comments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1919,
+      "method": "GET",
+      "relativePath": "/tracker/history",
+      "apiPath": "/api/tracker/history",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1932,
+      "method": "GET",
+      "relativePath": "/tracker/analytics",
+      "apiPath": "/api/tracker/analytics",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1945,
+      "method": "POST",
+      "relativePath": "/tracker/manual-entry",
+      "apiPath": "/api/tracker/manual-entry",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1959,
+      "method": "PUT",
+      "relativePath": "/tracker/manual-entry/:date",
+      "apiPath": "/api/tracker/manual-entry/:date",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1972,
+      "method": "GET",
+      "relativePath": "/tracker/entries/:date",
+      "apiPath": "/api/tracker/entries/:date",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 1996,
+      "method": "GET",
+      "relativePath": "/tracker/manual-entries",
+      "apiPath": "/api/tracker/manual-entries",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2016,
+      "method": "GET",
+      "relativePath": "/tracker/overtime-requests",
+      "apiPath": "/api/tracker/overtime-requests",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2024,
+      "method": "POST",
+      "relativePath": "/tracker/overtime-request",
+      "apiPath": "/api/tracker/overtime-request",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2029,
+      "method": "GET",
+      "relativePath": "/tracker/widgets",
+      "apiPath": "/api/tracker/widgets",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2057,
+      "method": "GET",
+      "relativePath": "/manager/team-attendance",
+      "apiPath": "/api/manager/team-attendance",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2091,
+      "method": "GET",
+      "relativePath": "/manager/approvals",
+      "apiPath": "/api/manager/approvals",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2095,
+      "method": "GET",
+      "relativePath": "/manager/my-requests",
+      "apiPath": "/api/manager/my-requests",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2099,
+      "method": "POST",
+      "relativePath": "/manager/approvals/:id/approve",
+      "apiPath": "/api/manager/approvals/:id/approve",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2103,
+      "method": "POST",
+      "relativePath": "/manager/approvals/:id/reject",
+      "apiPath": "/api/manager/approvals/:id/reject",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2107,
+      "method": "POST",
+      "relativePath": "/manager/approvals/bulk",
+      "apiPath": "/api/manager/approvals/bulk",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2150,
+      "method": "GET",
+      "relativePath": "/manager/team-analytics",
+      "apiPath": "/api/manager/team-analytics",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2230,
+      "method": "GET",
+      "relativePath": "/manager/member/:userId/overview",
+      "apiPath": "/api/manager/member/:userId/overview",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2270,
+      "method": "GET",
+      "relativePath": "/org/current",
+      "apiPath": "/api/org/current",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2288,
+      "method": "GET",
+      "relativePath": "/org/members",
+      "apiPath": "/api/org/members",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2306,
+      "method": "GET",
+      "relativePath": "/org/departments",
+      "apiPath": "/api/org/departments",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2322,
+      "method": "GET",
+      "relativePath": "/org/teams",
+      "apiPath": "/api/org/teams",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2361,
+      "method": "GET",
+      "relativePath": "/org/chart",
+      "apiPath": "/api/org/chart",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2380,
+      "method": "GET",
+      "relativePath": "/compensation/my-slips",
+      "apiPath": "/api/compensation/my-slips",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2400,
+      "method": "GET",
+      "relativePath": "/compensation/my-bank-details",
+      "apiPath": "/api/compensation/my-bank-details",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2410,
+      "method": "POST",
+      "relativePath": "/compensation/my-bank-details",
+      "apiPath": "/api/compensation/my-bank-details",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/features.ts",
+      "line": 2464,
+      "method": "GET",
+      "relativePath": "/search",
+      "apiPath": "/api/search",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/services/notificationMetricsSync.ts",
+      "line": 46,
+      "method": "POST",
+      "relativePath": "/notifications/metrics/events",
+      "apiPath": "/api/notifications/metrics/events",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/services/pushNotificationService.ts",
+      "line": 368,
+      "method": "POST",
+      "relativePath": "/auth/device-token",
+      "apiPath": "/api/auth/device-token",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/tracker.ts",
+      "line": 18,
+      "method": "GET",
+      "relativePath": "/tracker/status",
+      "apiPath": "/api/tracker/status",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/tracker.ts",
+      "line": 57,
+      "method": "POST",
+      "relativePath": "/tracker/clock-in",
+      "apiPath": "/api/tracker/clock-in",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/tracker.ts",
+      "line": 61,
+      "method": "POST",
+      "relativePath": "/tracker/break-start",
+      "apiPath": "/api/tracker/break-start",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/tracker.ts",
+      "line": 65,
+      "method": "POST",
+      "relativePath": "/tracker/break-end",
+      "apiPath": "/api/tracker/break-end",
+      "classification": "active"
+    },
+    {
+      "source": "mobile/src/tracker.ts",
+      "line": 69,
+      "method": "POST",
+      "relativePath": "/tracker/clock-out",
+      "apiPath": "/api/tracker/clock-out",
+      "classification": "active"
+    }
+  ]
+}
