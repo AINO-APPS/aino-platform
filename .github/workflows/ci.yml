@@ -139,6 +139,50 @@ jobs:
       - name: Verify deployable SPA build
         run: node scripts/verify-spa-build.mjs client/dist
 
+  # Validate the Electron renderer and main process without signing or publishing.
+  desktop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build Electron renderer
+        working-directory: client
+        env:
+          VITE_API_URL: https://api.example.invalid/api
+          VITE_WS_URL: wss://api.example.invalid/ws
+          VITE_ELECTRON: "true"
+        run: npm run build
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Typecheck and compile Electron main process
+        working-directory: desktop
+        run: |
+          npm run typecheck
+          npm run build:main
+
+      - name: Build unpacked Linux application
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --linux --dir --publish never
+
   # Pure Node tests for the Cloudflare path router. No Wrangler credentials or
   # network access are needed.
   edge-router:
@@ -155,7 +199,7 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     # Both halves of the app must be green before we spend time on an image.
-    needs: [repository-hygiene, server, client, edge-router]
+    needs: [repository-hygiene, server, client, desktop, edge-router]
 
     steps:
       - uses: actions/checkout@v6
