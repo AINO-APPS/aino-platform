@@ -1,6 +1,8 @@
 import { defineRailway, github, image, postgres, project, redis, service } from "railway/iac";
 
-const REGION = "asia-southeast1-eqsg3a";
+// Preserve the region of the already-provisioned fresh data services. Changing
+// this value would trigger a destructive database/volume move.
+const REGION = "europe-west4-drams3a";
 const SOURCE = "AINO-APPS/aino-platform";
 const BRANCH = "master";
 

@@ -9,6 +9,10 @@ The target contains fresh Postgres, Redis, and private PgBouncer resources plus
 `AINO-APPS/aino-platform`; no public or custom domain is declared. Worker,
 rollback, databases, and PgBouncer therefore have no public ingress.
 
+The checked-in region matches the fresh PostgreSQL and Redis resources already
+provisioned in `europe-west4-drams3a`. Do not change it without an explicitly
+reviewed data-move plan.
+
 Bootstrap values are intentionally non-production: external integrations are
 empty/disabled and required secrets use sealed `MIG-040_REPLACE_*` placeholders.
 Rotate those placeholders and review all integration settings before enabling
