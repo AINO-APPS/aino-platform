@@ -67,6 +67,7 @@ for (const [routePath, item] of Object.entries(api.paths || {}).filter(([routePa
     check(!JSON.stringify(item[method]).includes("FreeFormValue"), `notification operation is not exhaustively modeled: ${method.toUpperCase()} ${routePath}`);
   }
 }
+check(!JSON.stringify(api.paths?.["/api/search"]?.get || {}).includes("FreeFormValue"), "search operation is not exhaustively modeled: GET /api/search");
 
 const structuralPath = value => value.replace(/:[^/]+/g, ":param");
 const classificationTotals = { active: 0, stale: 0, "method-mismatch": 0 };

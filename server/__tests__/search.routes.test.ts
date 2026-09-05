@@ -94,6 +94,7 @@ describe("GET /api/search - short query handling", () => {
         expect(res.body.tasks).toEqual([]);
         expect(res.body.notes).toEqual([]);
         expect(res.body.users).toEqual([]);
+        expect(res.body).toEqual({ tasks: [], notes: [], users: [], events: [], leaves: [], sprints: [], logs: [] });
     });
 
     test("returns empty results when q is missing", async () => {
@@ -104,7 +105,7 @@ describe("GET /api/search - short query handling", () => {
             .set("Cookie", authCookie());
 
         expect(res.status).toBe(200);
-        expect(res.body.tasks).toEqual([]);
+        expect(res.body).toEqual({ tasks: [], notes: [], users: [], events: [], leaves: [], sprints: [], logs: [] });
     });
 
     test("returns empty results for whitespace-only query", async () => {
@@ -115,7 +116,7 @@ describe("GET /api/search - short query handling", () => {
             .set("Cookie", authCookie());
 
         expect(res.status).toBe(200);
-        expect(res.body.tasks).toEqual([]);
+        expect(res.body).toEqual({ tasks: [], notes: [], users: [], events: [], leaves: [], sprints: [], logs: [] });
     });
 });
 
@@ -169,6 +170,22 @@ describe("GET /api/search - results grouping", () => {
         expect(res.body.tasks).toEqual([]);
         expect(res.body.notes).toEqual([]);
         expect(res.body.users).toEqual([]);
+    });
+
+    test("trims and caps the search term at 100 characters", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+        const query = `  ${"a".repeat(120)}  `;
+
+        const res = await request(app)
+            .get(`/api/search?q=${encodeURIComponent(query)}`)
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        const taskCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM tasks"));
+        expect(taskCall[1][1]).toBe(`${"a".repeat(100)}:*`);
+        const userCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM users") && sql.includes("full_name ILIKE"));
+        expect(userCall[1][2]).toBe(`%${"a".repeat(100)}%`);
     });
 });
 

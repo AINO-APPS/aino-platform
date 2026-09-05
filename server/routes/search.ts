@@ -32,7 +32,7 @@ router.get("/", async (req: Request, res: Response) => {
     try {
         const { q } = req.query as { q?: string };
         if (!q || q.trim().length < 2) {
-            return res.json({ tasks: [], notes: [], users: [], logs: [] });
+            return res.json({ tasks: [], notes: [], users: [], events: [], leaves: [], sprints: [], logs: [] });
         }
 
         const term = q.trim().slice(0, 100); // cap length to prevent expensive queries

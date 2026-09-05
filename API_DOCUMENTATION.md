@@ -1247,22 +1247,23 @@ Get up to 20 active, unexpired global or organization announcements.
 Base path: `/api/search`
 
 ### GET `/api/search`
-Global full-text search across all entities.
+Global search across visible tasks, personal notes, organization users, personal calendar events and leaves, team sprints, and role-gated audit logs.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Query**: `?q=search_term` (minimum 2 characters)
+- **Query**: `?q=search_term`. The value is trimmed and truncated to 100 characters. Missing, blank, or shorter-than-two-character values return the same response shape with empty arrays.
 - **Response**:
   ```json
   {
-    "tasks": [{ "id", "title", "status", "priority" }],
-    "notes": [{ "page_id", "title", "snippet" }],
-    "users": [{ "id", "username", "full_name" }],
-    "events": [{ "id", "title", "start" }],
-    "leaves": [{ "id", "leave_type", "status" }],
-    "sprints": [{ "id", "name", "status" }],
-    "audit_logs": [{ "id", "action", "details" }]
+    "tasks": [{ "id", "title", "description", "status", "priority", "date", "due_date", "sprint_id", "snippet" }],
+    "notes": [{ "id", "title", "snippet", "tags", "pinned", "folderId", "updatedAt" }],
+    "users": [{ "id", "username", "full_name", "email", "avatar", "role" }],
+    "events": [{ "id", "title", "description", "start_time", "end_time", "all_day" }],
+    "leaves": [{ "id", "date", "leave_type", "duration", "status", "reason" }],
+    "sprints": [{ "id", "name", "goal", "status", "start_date", "end_date" }],
+    "logs": [{ "id", "action", "entity_type", "entity_id", "details", "created_at", "actor_name" }]
   }
   ```
+- Each group is capped independently (tasks 20, notes 15, users/logs 10, events/leaves/sprints 7). `logs` is empty unless the user has at least the `hr_admin` role and a tenant organization context.
 
 ---
 

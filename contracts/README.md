@@ -18,6 +18,8 @@ The mobile map covers backend calls made through the shared Axios `api` instance
 
 The seven notification operations are fully modeled from their handler and database schema, including pagination, integer path IDs, bounded metric-event batches, delivery metrics, announcements, and mutation acknowledgements. Contract validation rejects any notification operation that regresses to `FreeFormValue`.
 
+The global search operation is fully modeled across its seven result groups. Missing or short queries use the same stable empty-array envelope as successful searches, and contract validation rejects a regression to `FreeFormValue`.
+
 The server accepts either the `token` HttpOnly cookie or `Authorization: Bearer <jwt>` (cookie wins). Native clients use bearer authentication. Every mutating `/api` request except external webhooks must send `X-Requested-With: AINO` (the legacy `WorkPulse` value is also accepted). Tenant context is resolved from the verified JWT first, then from the request host/custom domain.
 
 ## Realtime and push baseline
