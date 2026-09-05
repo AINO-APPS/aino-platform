@@ -6,8 +6,10 @@ import { MemoryRouter } from "react-router-dom";
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
 vi.mock("../AuthContext", () => ({
+    hasTenantContext: (user: any) =>
+        user?.tenant_id !== null && user?.tenant_id !== undefined,
     useAuth: () => ({
-        user: { id: 1, username: "testuser", role: "employee" },
+        user: { id: 1, username: "testuser", role: "employee", tenant_id: 1 },
     }),
 }));
 

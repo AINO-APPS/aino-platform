@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { isTenantlessPlatformAdmin, useAuth } from "../../AuthContext";
+import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import { useChatUnread } from "../../ChatContext";
 import { useClickOutside } from "../../hooks/useClickOutside";
@@ -12,7 +12,6 @@ import {
     CalendarCheck,
     FileText,
     Building2,
-    Plus,
     Users,
     Settings,
     Server,
@@ -63,30 +62,6 @@ export default function MobileTabBar() {
 
     const moreIsActive = moreItems.some((item) => location.pathname === item.to);
     const p = location.pathname;
-
-    if (isTenantlessPlatformAdmin(user)) {
-        const tab = new URLSearchParams(location.search).get("tab") || "dashboard";
-        const items = [
-            { tab: "dashboard", label: "Home", icon: Home },
-            { tab: "tenants", label: "Tenants", icon: Building2 },
-            { tab: "create", label: "New", icon: Plus },
-            { tab: "settings", label: "Settings", icon: Settings },
-        ];
-        return (
-            <div className={s["mobile-tab-bar"]}>
-                {items.map((item) => {
-                    const Icon = item.icon;
-                    const to = item.tab === "dashboard" ? "/tenants" : `/tenants?tab=${item.tab}`;
-                    return (
-                        <NavLink key={item.tab} to={to} className={tab === item.tab ? s.active : ""}>
-                            <span className={s["nav-icon"]}><Icon size={22} /></span>
-                            <span className={s["tab-label"]}>{item.label}</span>
-                        </NavLink>
-                    );
-                })}
-            </div>
-        );
-    }
 
     return (
         <div className={s["mobile-tab-bar"]}>

@@ -10,6 +10,7 @@ import {
 import useWebSocket from "../../hooks/useWebSocket";
 import useChatNotification from "../../hooks/useChatNotification";
 import { useChatUnread } from "../../ChatContext";
+import { hasTenantContext, useAuth } from "../../AuthContext";
 
 import { NOTIFICATION_POLL_INTERVAL } from "../../constants";
 
@@ -44,6 +45,8 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 const DEFAULT_ICON = <Bell size={14} />;
 
 export default function NotificationBell() {
+    const { user } = useAuth();
+    const tenantReady = hasTenantContext(user);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [unread, setUnread] = useState(0);
     const [open, setOpen] = useState(false);
@@ -51,6 +54,11 @@ export default function NotificationBell() {
     const navigate = useNavigate();
 
     const fetchNotifs = useCallback(async () => {
+        if (!tenantReady) {
+            setNotifications([]);
+            setUnread(0);
+            return;
+        }
         try {
             const res = await getNotifications();
             setNotifications(res.data.notifications);
@@ -58,46 +66,45 @@ export default function NotificationBell() {
         } catch {
             /* ignore polling errors */
         }
-    }, []);
+    }, [tenantReady]);
 
     // Initial fetch + polling (fallback for when WS is unavailable)
     useEffect(() => {
+        if (!tenantReady) return;
         fetchNotifs();
         const id = setInterval(fetchNotifs, NOTIFICATION_POLL_INTERVAL);
         return () => clearInterval(id);
-    }, [fetchNotifs]);
+    }, [tenantReady, fetchNotifs]);
 
     const { refreshUnread: refreshChatUnread } = useChatUnread() as any;
     const { notifyGeneral, requestPermission } = useChatNotification() as any;
 
     // WebSocket: refresh notifications on real-time events
-    useWebSocket(
-        useCallback(
-            (msg: any) => {
-                if (
-                    [
-                        "notification",
-                        "leave_update",
-                        "task_assigned",
-                        "approval_update",
-                        "meeting_invite",
-                        "meeting_started",
-                    ].includes(msg.type)
-                ) {
-                    fetchNotifs();
-                    notifyGeneral(msg.data?.title || msg.type.replace(/_/g, " "), msg.data?.body);
-                }
-                if (msg.type === "chat_message") {
-                    refreshChatUnread();
-                }
-                // Relay meeting_started to GlobalMeetingNotification via custom event
-                if (msg.type === "meeting_started" && msg.data) {
-                    window.dispatchEvent(new CustomEvent("meeting_started", { detail: msg.data }));
-                }
-            },
-            [fetchNotifs, refreshChatUnread, notifyGeneral]
-        )
+    const onWsMessage = useCallback(
+        (msg: any) => {
+            if (
+                [
+                    "notification",
+                    "leave_update",
+                    "task_assigned",
+                    "approval_update",
+                    "meeting_invite",
+                    "meeting_started",
+                ].includes(msg.type)
+            ) {
+                fetchNotifs();
+                notifyGeneral(msg.data?.title || msg.type.replace(/_/g, " "), msg.data?.body);
+            }
+            if (msg.type === "chat_message") {
+                refreshChatUnread();
+            }
+            if (msg.type === "meeting_started" && msg.data) {
+                window.dispatchEvent(new CustomEvent("meeting_started", { detail: msg.data }));
+            }
+        },
+        [fetchNotifs, refreshChatUnread, notifyGeneral],
     );
+    useWebSocket(tenantReady ? onWsMessage : null);
 
     // Close on outside click / Escape
     useEffect(() => {

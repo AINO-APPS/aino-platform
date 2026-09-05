@@ -116,16 +116,7 @@ const KEEP_ALIVE_PATHS = [
 
 function KeepAliveRoutes() {
   const { pathname } = useLocation();
-  const { user } = useAuth();
   const isKeepAlivePath = KEEP_ALIVE_PATHS.includes(pathname);
-
-  if (
-    isTenantlessPlatformAdmin(user) &&
-    isKeepAlivePath &&
-    pathname !== "/tenants"
-  ) {
-    return <Navigate to="/tenants" replace />;
-  }
 
   return isKeepAlivePath ? <KeepAlive /> : null;
 }

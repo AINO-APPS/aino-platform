@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../AuthContext";
+import { hasTenantContext, useAuth } from "../AuthContext";
 import { globalSearch } from "../api";
 import { ROLE_LEVEL } from "../constants";
 import {
@@ -78,6 +78,7 @@ interface UseGlobalSearchOptions {
  */
 export function useGlobalSearch({ onClose }: UseGlobalSearchOptions) {
     const { user } = useAuth() as any;
+    const tenantReady = hasTenantContext(user);
     const navigate = useNavigate();
 
     const [query, setQuery] = useState("");
@@ -155,6 +156,12 @@ export function useGlobalSearch({ onClose }: UseGlobalSearchOptions) {
 
     const doSearch = useCallback(async (q: string) => {
         if (q.trim().length < 2) { setResults(null); setError(""); return; }
+        if (!tenantReady) {
+            setResults(null);
+            setError("");
+            setLoading(false);
+            return;
+        }
         abortCtrlRef.current?.abort();
         const controller = new AbortController();
         abortCtrlRef.current = controller;
@@ -171,7 +178,7 @@ export function useGlobalSearch({ onClose }: UseGlobalSearchOptions) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [tenantReady]);
 
     const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
