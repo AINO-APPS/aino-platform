@@ -35,6 +35,12 @@ jest.mock("./utils/tenantManager", () => ({
     suspendTenant: jest.fn(),
     reactivateTenant: jest.fn(),
     provisionTenant: jest.fn(),
+    getPoolStats: jest.fn(() => ({
+        poolCount: 0,
+        maxPools: 100,
+        poolSize: 3,
+        metrics: {},
+    })),
 }));
 
 // Mock the collaboration module — it pulls in @hocuspocus/server which ships

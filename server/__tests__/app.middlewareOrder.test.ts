@@ -20,9 +20,21 @@ jest.mock("../utils/logger", () => ({
     },
 }));
 
+const mockMasterQuery = jest.fn(async (sql: string) => {
+    if (sql.includes("SELECT token_version FROM platform_users")) {
+        return { rows: [{ token_version: 0 }], rowCount: 1 };
+    }
+    if (sql.includes("COUNT(*) AS total_users")) {
+        return { rows: [{ total_users: "0" }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+});
+const mockTransaction = jest.fn();
 jest.mock("../db", () => ({
-    masterQuery: jest.fn(async () => ({ rows: [], rowCount: 0 })),
-    masterTransaction: jest.fn(),
+    query: (...args: any[]) => mockMasterQuery(...args),
+    transaction: (...args: any[]) => mockTransaction(...args),
+    masterQuery: (...args: any[]) => mockMasterQuery(...args),
+    masterTransaction: (...args: any[]) => mockTransaction(...args),
     pool: { end: jest.fn(), query: jest.fn() },
     initDB: jest.fn(), initTenantSchema: jest.fn(),
     makePoolQuery: jest.fn(), makePoolTransaction: jest.fn(), seedAgileDefaults: jest.fn(),
