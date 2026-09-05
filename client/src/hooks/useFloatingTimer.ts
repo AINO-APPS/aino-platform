@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useAuth } from "../AuthContext";
+import { hasTenantContext, useAuth } from "../AuthContext";
 import { useWorkState } from "../WorkStateContext";
 // NOTE (status v2): the tracker flow no longer writes status. Clock-in/break/
 // clock-out are time-tracking events, NOT presence events. Presence is
@@ -38,6 +38,7 @@ interface TrackerStatus {
  */
 export function useFloatingTimer() {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const { setWorkState, setWorkMode: setContextWorkMode } = useWorkState();
 
     const [status, setStatus] = useState<TrackerStatus | null>(null);
@@ -58,7 +59,7 @@ export function useFloatingTimer() {
     } = useLiveTimer(status);
 
     const fetchStatus = useCallback(async () => {
-        if (!isAuthenticated) return;
+        if (!tenantReady) return;
         try {
             const res = await getStatus();
             setStatus(res.data);
@@ -66,13 +67,13 @@ export function useFloatingTimer() {
         } catch {
             /* keep defaults */
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     // Load org-level attendance verification flag once per session. Refresh
     // when the user changes (re-login) so admin toggles take effect on the
     // next sign-in without a full reload.
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!tenantReady) return;
         let cancelled = false;
         getCurrentOrg()
             .then((res) => {
@@ -87,7 +88,7 @@ export function useFloatingTimer() {
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated, user?.id]);
+    }, [tenantReady, user?.id]);
 
     useEffect(() => {
         let cancelled = false;

@@ -57,7 +57,8 @@ describe("useWebSocket reliable chat delivery", () => {
   });
 
   test("sends immediately when the socket is available", () => {
-    const { result, unmount } = renderHook(() => useWebSocket(vi.fn()));
+    const onMessage = vi.fn();
+    const { result, unmount } = renderHook(() => useWebSocket(onMessage));
     const socket = MockWebSocket.instances[0];
 
     act(() => socket.open());
@@ -86,7 +87,8 @@ describe("useWebSocket reliable chat delivery", () => {
   });
 
   test("waits offline and flushes as soon as the connection opens", () => {
-    const { result, unmount } = renderHook(() => useWebSocket(vi.fn()));
+    const onMessage = vi.fn();
+    const { result, unmount } = renderHook(() => useWebSocket(onMessage));
     const socket = MockWebSocket.instances[0];
 
     act(() =>

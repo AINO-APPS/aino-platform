@@ -16,9 +16,11 @@ vi.mock("../api", () => ({
     baseURL: "http://localhost:3000",
 }));
 vi.mock("../AuthContext", () => ({
+    isTenantlessPlatformAdmin: (user: any) =>
+        user?.role === "platform_admin" && user?.tenant_id == null,
     useAuth: () => ({
         isAuthenticated: true,
-        user: { id: 1, username: "test", full_name: "Test User", role: "employee", avatar: null },
+        user: { id: 1, username: "test", full_name: "Test User", role: "employee", tenant_id: 1, avatar: null },
         logout: vi.fn(),
         updateUser: vi.fn(),
     }),
