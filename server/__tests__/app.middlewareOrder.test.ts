@@ -31,10 +31,10 @@ const mockMasterQuery = jest.fn(async (sql: string) => {
 });
 const mockTransaction = jest.fn();
 jest.mock("../db", () => ({
-    query: (...args: any[]) => mockMasterQuery(...args),
-    transaction: (...args: any[]) => mockTransaction(...args),
-    masterQuery: (...args: any[]) => mockMasterQuery(...args),
-    masterTransaction: (...args: any[]) => mockTransaction(...args),
+    query: mockMasterQuery,
+    transaction: mockTransaction,
+    masterQuery: mockMasterQuery,
+    masterTransaction: mockTransaction,
     pool: { end: jest.fn(), query: jest.fn() },
     initDB: jest.fn(), initTenantSchema: jest.fn(),
     makePoolQuery: jest.fn(), makePoolTransaction: jest.fn(), seedAgileDefaults: jest.fn(),
