@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
-import { isTenantlessPlatformAdmin, useAuth } from "../../AuthContext";
+import { useAuth } from "../../AuthContext";
 import { useBranding } from "../../BrandingContext";
 import { serverURL } from "../../api";
 import NavLinks from "./NavLinks";
@@ -15,8 +15,7 @@ const isElectron = !!window.electronAPI?.isElectron;
 const isMacElectron = isElectron && window.electronAPI?.platform === "darwin";
 
 export default function Navbar() {
-  const { isAuthenticated, user } = useAuth() as any;
-  const tenantlessPlatformAdmin = isTenantlessPlatformAdmin(user);
+  const { isAuthenticated } = useAuth() as any;
   const { branding } = useBranding() as any;
   const [searchOpen, setSearchOpen] = useState(false);
   const logoSrc = branding?.logo_url
@@ -55,9 +54,9 @@ export default function Navbar() {
           <h1 className={s.title}>{branding?.org_name || "AINO"}</h1>
         </NavLink>
         <div className={s["navbar-right"]}>
-          {!tenantlessPlatformAdmin && <NavLinks />}
-          {!tenantlessPlatformAdmin && <NotificationBell />}
-          {!tenantlessPlatformAdmin && <button
+          <NavLinks />
+          <NotificationBell />
+          <button
             className={s.searchBtn}
             onClick={() => setSearchOpen(true)}
             title="Search (Ctrl+K)"
@@ -78,7 +77,7 @@ export default function Navbar() {
                 strokeLinecap="round"
               />
             </svg>
-          </button>}
+          </button>
           <ProfileMenu />
           {isElectron && !isMacElectron && <WindowControls />}
         </div>

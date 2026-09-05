@@ -74,8 +74,11 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/profile/password", passwordLimiter);
     app.use("/api/profile", apiLimiter, profileRoutes);
     app.use("/api/org", apiLimiter, organizationRoutes);
-    app.use("/api/admin", apiLimiter, adminRoutes);
+    // Mount the more-specific master/platform router first. The general admin
+    // router has router-wide requireTenant middleware and would otherwise
+    // intercept /api/admin/tenants/* with "Organization context required".
     app.use("/api/admin/tenants", apiLimiter, tenantRoutes);
+    app.use("/api/admin", apiLimiter, adminRoutes);
     app.use("/api/platform-access", apiLimiter, platformAccessRoutes);
     app.use("/api/internal", apiLimiter, internalRoutes);
     app.use("/api/manager", apiLimiter, managerRoutes);

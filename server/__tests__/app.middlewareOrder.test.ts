@@ -39,6 +39,18 @@ const request = require("supertest");
 const { app } = require("../index");
 
 describe("application middleware order", () => {
+    it("mounts platform tenant routes before tenant-scoped admin routes", () => {
+        const source = require("fs").readFileSync(
+            require("path").join(__dirname, "../http/routes.ts"),
+            "utf8",
+        );
+        const platformIndex = source.indexOf('app.use("/api/admin/tenants"');
+        const tenantAdminIndex = source.indexOf('app.use("/api/admin",');
+
+        expect(platformIndex).toBeGreaterThanOrEqual(0);
+        expect(tenantAdminIndex).toBeGreaterThan(platformIndex);
+    });
+
     it("lets a webhook request reach its router without the browser CSRF header", async () => {
         // An unknown provider may 404/400 inside the webhook router; the key
         // invariant is that the global CSRF middleware did NOT return 403.
