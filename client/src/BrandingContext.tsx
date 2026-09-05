@@ -11,7 +11,7 @@ import {
     type ReactNode,
 } from "react";
 import { getBranding, getPublicBranding, serverURL } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket, { type WebSocketMessage } from "./hooks/useWebSocket";
 
 interface Branding {
@@ -51,6 +51,7 @@ const BrandingContext = createContext<BrandingContextValue>({
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [branding, setBranding] = useState<Branding>({
         logo_url: null,
         accent_color: DEFAULT_ACCENT,
@@ -74,7 +75,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (!isAuthenticated || !user?.id) {
+        if (!tenantReady || !user?.id) {
             // Logged-out state: instead of falling straight to defaults, ask
             // the server for the resolved tenant's branding so the
             // login / register / forgot-password pages match the org theme.
@@ -107,7 +108,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         fetchedForUser.current = user.id;
         publicFetched.current = false; // re-fetch public branding on next logout
         refresh();
-    }, [isAuthenticated, user?.id, refresh]);
+    }, [tenantReady, user?.id, refresh]);
 
     // Live sync: when an admin changes the org accent / logo, the server
     // broadcasts `branding_changed` to every connected client of the tenant.
@@ -118,7 +119,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
             refresh();
         }
     }, [refresh]);
-    useWebSocket(isAuthenticated ? onWsMessage : null);
+    useWebSocket(tenantReady ? onWsMessage : null);
 
     // Apply accent color as a CSS custom property override ONLY when the
     // org has set a non-default value. This way, orgs that haven't

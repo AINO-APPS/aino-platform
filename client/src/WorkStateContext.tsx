@@ -8,7 +8,7 @@ import {
     type SetStateAction,
     type ReactNode,
 } from "react";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import { getStatus } from "./api";
 
 interface WorkStateContextValue {
@@ -26,14 +26,15 @@ const WorkStateContext = createContext<WorkStateContextValue>({
 });
 
 export function WorkStateProvider({ children }: { children: ReactNode }) {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [workState, setWorkState] = useState("logged_out");
     const [workMode, setWorkMode] = useState("office");
 
     // Bootstrap work state from server on every page load/refresh so the
     // profile status dot is correct regardless of which page is active.
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             setWorkState("logged_out");
             setWorkMode("office");
             return;
@@ -51,7 +52,7 @@ export function WorkStateProvider({ children }: { children: ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     const value = useMemo(
         () => ({ workState, setWorkState, workMode, setWorkMode }),

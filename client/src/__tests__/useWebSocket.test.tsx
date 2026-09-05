@@ -77,6 +77,14 @@ describe("useWebSocket reliable chat delivery", () => {
     unmount();
   });
 
+  test("does not connect when the handler is disabled", () => {
+    const { result, unmount } = renderHook(() => useWebSocket(null));
+
+    expect(MockWebSocket.instances).toHaveLength(0);
+    expect(result.current.connected).toBe(false);
+    unmount();
+  });
+
   test("waits offline and flushes as soon as the connection opens", () => {
     const { result, unmount } = renderHook(() => useWebSocket(vi.fn()));
     const socket = MockWebSocket.instances[0];

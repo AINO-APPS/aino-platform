@@ -5,7 +5,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket from "./hooks/useWebSocket";
 
 interface FeaturesContextValue {
@@ -52,7 +52,7 @@ export function FeaturesProvider({ children }: { children: ReactNode }) {
         },
         [updateUser],
     );
-    useWebSocket(user ? onWsMessage : null);
+    useWebSocket(hasTenantContext(user) ? onWsMessage : null);
 
     const value = useMemo<FeaturesContextValue>(() => {
         const features =

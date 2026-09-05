@@ -12,8 +12,10 @@ import { render, act, waitFor } from "@testing-library/react";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // AuthContext: pretend we're logged in as user 1.
+let authUser: any = { id: 1, tenant_id: 1 };
 vi.mock("../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1 }, isAuthenticated: true }),
+    useAuth: () => ({ user: authUser, isAuthenticated: true }),
+    hasTenantContext: (user: any) => user?.tenant_id !== null && user?.tenant_id !== undefined,
     AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -65,6 +67,7 @@ function mount(captured: any) {
 }
 
 beforeEach(() => {
+    authUser = { id: 1, tenant_id: 1 };
     wsHandler = null;
     apiMock.getMyStatus.mockReset();
     apiMock.setMyStatus.mockReset();
@@ -75,6 +78,15 @@ beforeEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("StatusContext — initial fetch", () => {
+    test("does not fetch tenant status for a tenantless platform admin", async () => {
+        authUser = { id: 1, role: "platform_admin", tenant_id: null };
+        const cap: any = {};
+        mount(cap);
+        await waitFor(() => expect(cap.value).toBeTruthy());
+        expect(apiMock.getMyStatus).not.toHaveBeenCalled();
+        expect(wsHandler).toBeNull();
+    });
+
     test("fetches /api/me/status on mount and seeds state", async () => {
         apiMock.getMyStatus.mockResolvedValueOnce({
             data: {

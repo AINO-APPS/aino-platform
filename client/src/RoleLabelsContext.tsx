@@ -9,7 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { getOrgRoles } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 
 /**
  * Role Labels Context.
@@ -129,6 +129,7 @@ const RoleLabelsContext = createContext<RoleLabelsContextValue | null>(null);
 
 export function RoleLabelsProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [roles, setRoles] = useState<RoleLabel[]>(FALLBACK_ROLES);
     const [defaults, setDefaults] = useState<RoleLabel[]>(FALLBACK_ROLES);
     const [loading, setLoading] = useState(false);
@@ -137,7 +138,7 @@ export function RoleLabelsProvider({ children }: { children: ReactNode }) {
     const lastTenantRef = useRef<string | null>(null);
 
     const fetch = useCallback(async () => {
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             setRoles(FALLBACK_ROLES);
             setDefaults(FALLBACK_ROLES);
             return;
@@ -163,7 +164,7 @@ export function RoleLabelsProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoading(false);
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     useEffect(() => {
         const tenantKey = user

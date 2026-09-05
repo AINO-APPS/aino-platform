@@ -11,7 +11,7 @@ vi.mock("../api", () => ({
 }));
 
 // Must import after mocks
-import { AuthProvider, useAuth } from "../AuthContext";
+import { AuthProvider, hasTenantContext, isTenantlessPlatformAdmin, useAuth } from "../AuthContext";
 
 function TestConsumer() {
   const { user, isAuthenticated, saveAuth, logout } = useAuth() as any;
@@ -205,5 +205,21 @@ describe("AuthContext", () => {
 
     expect(localStorage.getItem("workpulse_agile_config_v1")).toBeNull();
     expect(localStorage.getItem("theme")).toBe("light");
+  });
+});
+
+describe("tenant context predicates", () => {
+  test("identifies a tenantless platform administrator", () => {
+    const user = { id: 1, role: "platform_admin", tenant_id: null };
+    expect(isTenantlessPlatformAdmin(user)).toBe(true);
+    expect(hasTenantContext(user)).toBe(false);
+  });
+
+  test("treats impersonated and tenant users as tenant scoped", () => {
+    const platformInspector = { id: 1, role: "platform_admin", tenant_id: 7, impersonated: true };
+    const employee = { id: 2, role: "employee", tenant_id: 7 };
+    expect(isTenantlessPlatformAdmin(platformInspector)).toBe(false);
+    expect(hasTenantContext(platformInspector)).toBe(true);
+    expect(hasTenantContext(employee)).toBe(true);
   });
 });

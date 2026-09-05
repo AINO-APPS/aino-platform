@@ -22,7 +22,7 @@ import {
     type ReactNode,
 } from "react";
 import { getAgileConfig } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 
 interface PriorityScheme {
     key: string;
@@ -225,6 +225,7 @@ function saveCache(config: AgileConfig) {
 
 export function AgileConfigProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [config, setConfig] = useState<AgileConfig>(
         () => loadCache() || FALLBACK_CONFIG,
     );
@@ -232,7 +233,7 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
     const [error, setError] = useState<unknown>(null);
 
     const refresh = useCallback(async () => {
-        if (!isAuthenticated) return;
+        if (!tenantReady) return;
         setLoading(true);
         try {
             const r = await getAgileConfig();
@@ -264,11 +265,11 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoading(false);
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     useEffect(() => {
-        if (isAuthenticated) refresh();
-    }, [isAuthenticated, user?.id, refresh]);
+        if (tenantReady) refresh();
+    }, [tenantReady, user?.id, refresh]);
 
     const value = useMemo<AgileConfigContextValue>(() => {
         // Derive convenient lookups

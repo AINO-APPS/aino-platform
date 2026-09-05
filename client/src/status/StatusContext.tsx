@@ -23,7 +23,7 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { useAuth } from "../AuthContext";
+import { hasTenantContext, useAuth } from "../AuthContext";
 import useWebSocket, { type WebSocketMessage } from "../hooks/useWebSocket";
 import {
     getMyStatus,
@@ -114,6 +114,7 @@ const StatusContext = createContext<StatusContextValue>({
 
 export function StatusProvider({ children }: { children: ReactNode }) {
     const { user, isAuthenticated } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const myUserId = user?.id ?? null;
 
     // Current user's effective state (mirrors the WS payload).
@@ -159,14 +160,14 @@ export function StatusProvider({ children }: { children: ReactNode }) {
         [myUserId],
     );
 
-    const { sendMessage: _wsSend } = useWebSocket(onWsMessage);
+    const { sendMessage: _wsSend } = useWebSocket(tenantReady ? onWsMessage : null);
     void _wsSend;
 
     // ── Initial fetch ─────────────────────────────────────────────────────
     // On login, ask the server for our current resolved state so we have
     // something to show before the first WS event arrives.
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             setMe(INITIAL_ME);
             setPeers({});
             return;
@@ -190,14 +191,14 @@ export function StatusProvider({ children }: { children: ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     // ── Activity ping ─────────────────────────────────────────────────────
     // Lightweight throttle around real user input. Sends at most one ping
     // per ACTIVITY_PING_THROTTLE_MS. The server uses this to clear
     // 'away' on its own resolver pass.
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!tenantReady) return;
 
         const handler = () => {
             const now = Date.now();
@@ -216,7 +217,7 @@ export function StatusProvider({ children }: { children: ReactNode }) {
         return () => {
             events.forEach((e) => document.removeEventListener(e, handler));
         };
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     // ── Mutators ──────────────────────────────────────────────────────────
     const setManualStatus = useCallback(

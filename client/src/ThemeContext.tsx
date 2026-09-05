@@ -9,7 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { getTheme, updateTheme } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket, { type WebSocketMessage } from "./hooks/useWebSocket";
 
 interface ThemeContextValue {
@@ -23,7 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const [theme, setTheme] = useState(
         () => localStorage.getItem("theme") || "dark",
     );
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const hasFetchedRef = useRef(false);
 
     // Apply theme to document
@@ -35,7 +36,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     // Fetch theme from server only once when first authenticated
     useEffect(() => {
-        if (isAuthenticated && !hasFetchedRef.current) {
+        if (tenantReady && !hasFetchedRef.current) {
             hasFetchedRef.current = true;
             getTheme()
                 .then(({ data }) => {
@@ -43,10 +44,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
                 })
                 .catch((e) => console.error(e));
         }
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             hasFetchedRef.current = false;
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     // Live multi-device sync: when the theme is changed on another device or
     // tab of the same user, the server pushes a `theme_changed` event over the
@@ -59,17 +60,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             }
         }
     }, []);
-    useWebSocket(isAuthenticated ? onWsMessage : null);
+    useWebSocket(tenantReady ? onWsMessage : null);
 
     const toggleTheme = useCallback(async () => {
         setTheme((prev) => {
             const newTheme = prev === "dark" ? "light" : "dark";
-            if (isAuthenticated) {
+            if (tenantReady) {
                 updateTheme(newTheme).catch((e) => console.error(e));
             }
             return newTheme;
         });
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     const value = useMemo(
         () => ({ theme, toggleTheme }),

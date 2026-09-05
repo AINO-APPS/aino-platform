@@ -6,7 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { AuthProvider, useAuth } from "./AuthContext";
+import { AuthProvider, isTenantlessPlatformAdmin, useAuth } from "./AuthContext";
 import { FeaturesProvider, useFeatures } from "./FeaturesContext";
 import { ROLE_LEVEL } from "./constants";
 import { ThemeProvider } from "./ThemeContext";
@@ -116,8 +116,16 @@ const KEEP_ALIVE_PATHS = [
 
 function KeepAliveRoutes() {
   const { pathname } = useLocation();
-
+  const { user } = useAuth();
   const isKeepAlivePath = KEEP_ALIVE_PATHS.includes(pathname);
+
+  if (
+    isTenantlessPlatformAdmin(user) &&
+    isKeepAlivePath &&
+    pathname !== "/tenants"
+  ) {
+    return <Navigate to="/tenants" replace />;
+  }
 
   return isKeepAlivePath ? <KeepAlive /> : null;
 }
@@ -137,8 +145,9 @@ function CatchAll() {
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth() as any;
+  const { isAuthenticated, user } = useAuth() as any;
   const location = useLocation();
+  const tenantlessPlatformAdmin = isTenantlessPlatformAdmin(user);
 
   return (
     <div className="app">
@@ -422,10 +431,10 @@ function MainApp() {
                                       {/* Keeps a single MeetingRoom instance alive across
                             navigations so minimize/maximize preserves peer
                             connections and rendered <video> elements. */}
-                                      <GlobalMeetingRoom />
-                                      <MeetingPiP />
-                                      <GlobalIncomingCall />
-                                      <GlobalMeetingNotification />
+                                      {!tenantlessPlatformAdmin && <GlobalMeetingRoom />}
+                                      {!tenantlessPlatformAdmin && <MeetingPiP />}
+                                      {!tenantlessPlatformAdmin && <GlobalIncomingCall />}
+                                      {!tenantlessPlatformAdmin && <GlobalMeetingNotification />}
                                     </MeetingProvider>
                                   </CallProvider>
                                 </StatusProvider>

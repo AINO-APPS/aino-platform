@@ -8,7 +8,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket, { type WebSocketMessage } from "./hooks/useWebSocket";
 
 interface IncomingCall {
@@ -46,7 +46,8 @@ const CallCtx = createContext<CallContextValue>({
 });
 
 export function CallProvider({ children }: { children: ReactNode }) {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [globalIncomingCall, setGlobalIncomingCall] =
         useState<IncomingCall | null>(null);
     const [pendingAcceptedCall, setPendingAcceptedCall] =
@@ -138,7 +139,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const { sendMessage: wsSend } = useWebSocket(
-        isAuthenticated ? onWsMessage : null,
+        tenantReady ? onWsMessage : null,
     );
 
     const rejectGlobalCall = useCallback(() => {

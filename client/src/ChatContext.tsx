@@ -8,7 +8,7 @@ import {
     type ReactNode,
 } from "react";
 import { getConversations } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import type { Conversation } from "./types";
 
 type UnreadConversation = {
@@ -31,7 +31,8 @@ const ChatCtx = createContext<ChatContextValue>({
 });
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [unreadCount, setUnreadCount] = useState(0);
 
     const updateUnreadFromConversations = useCallback(
@@ -48,7 +49,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
 
     const refreshUnread = useCallback(async () => {
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             setUnreadCount(0);
             return;
         }
@@ -60,7 +61,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         } catch {
             /* ignore */
         }
-    }, [isAuthenticated, updateUnreadFromConversations]);
+    }, [tenantReady, updateUnreadFromConversations]);
 
     useEffect(() => {
         refreshUnread();

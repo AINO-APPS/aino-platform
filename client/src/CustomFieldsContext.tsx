@@ -16,7 +16,7 @@ import {
     type ReactNode,
 } from "react";
 import { getCustomFields } from "./api";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import type { CustomFieldDef } from "./types";
 
 interface CustomFieldsContextValue {
@@ -31,12 +31,13 @@ const Ctx = createContext<CustomFieldsContextValue | null>(null);
 
 export function CustomFieldsProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
     const [fields, setFields] = useState<CustomFieldDef[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<unknown>(null);
 
     const refresh = useCallback(async () => {
-        if (!isAuthenticated) {
+        if (!tenantReady) {
             setFields([]);
             return;
         }
@@ -53,7 +54,7 @@ export function CustomFieldsProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoading(false);
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     useEffect(() => {
         refresh();

@@ -180,6 +180,10 @@ export default function useWebSocket(onMessage: OnMessage) {
   }, [stopHeartbeat]);
 
   const connect = useCallback(() => {
+    // A null handler explicitly disables this socket. Tenantless platform
+    // administrators use only the platform console and have no tenant-scoped
+    // realtime channel to connect to.
+    if (!onMessageRef.current) return;
     // Prevent duplicate connections: skip if already open, connecting, or a connect is in-flight
     if (connectingRef.current) return;
     if (wsRef.current && wsRef.current.readyState <= 1) return;
@@ -372,6 +376,19 @@ export default function useWebSocket(onMessage: OnMessage) {
   );
 
   useEffect(() => {
+    if (!onMessage) {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      stopAckRetry();
+      stopHeartbeat();
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      connectingRef.current = false;
+      setConnected(false);
+      return;
+    }
     connect();
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -382,7 +399,7 @@ export default function useWebSocket(onMessage: OnMessage) {
         wsRef.current.close();
       }
     };
-  }, [connect, stopAckRetry, stopHeartbeat]);
+  }, [onMessage, connect, stopAckRetry, stopHeartbeat]);
 
   // Reconnect when a message handler is provided after a 4001 auth rejection.
   // This handles the desktop app case where the WS connects before login

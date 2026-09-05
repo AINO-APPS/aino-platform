@@ -8,7 +8,7 @@ import {
     useCallback,
     type ReactNode,
 } from "react";
-import { useAuth } from "./AuthContext";
+import { hasTenantContext, useAuth } from "./AuthContext";
 import { getNotificationPrefs, updateNotificationPrefs } from "./api";
 import {
     DEFAULT_PREFS,
@@ -62,6 +62,7 @@ export function NotificationPrefsProvider({
     children: ReactNode;
 }) {
     const { isAuthenticated, user } = useAuth();
+    const tenantReady = isAuthenticated && hasTenantContext(user);
 
     // Merge defaults <- localStorage cache <- server response so the first
     // render already has sane values without flicker.
@@ -76,7 +77,7 @@ export function NotificationPrefsProvider({
     // Pull canonical prefs from the server when user logs in. Falls back to
     // the cached/default prefs if the request fails (offline, server down).
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!tenantReady) return;
         // If the auth profile already shipped notification_prefs, prefer that
         // (avoids the extra round-trip on initial app load).
         const userPrefs = user?.notification_prefs as
@@ -104,7 +105,7 @@ export function NotificationPrefsProvider({
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated, user?.id]);
+    }, [tenantReady, user?.id]);
 
     /**
      * Update prefs locally, persist to localStorage immediately, debounce-save
@@ -119,7 +120,7 @@ export function NotificationPrefsProvider({
                 // Debounce server save (avoid spamming PUT while user drags slider)
                 if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
                 saveTimerRef.current = setTimeout(() => {
-                    if (!isAuthenticated) return;
+                    if (!tenantReady) return;
                     updateNotificationPrefs(partial).catch(() => {
                         /* will retry on next change; cache already saved */
                     });
@@ -128,20 +129,20 @@ export function NotificationPrefsProvider({
                 return merged;
             });
         },
-        [isAuthenticated],
+        [tenantReady],
     );
 
     const resetPrefs = useCallback(() => {
         setPrefs(DEFAULT_PREFS);
         saveToCache(DEFAULT_PREFS);
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-        if (isAuthenticated) {
+        if (tenantReady) {
             // Push every default field so the server stores a complete record.
             const { v: _v, ...rest } = DEFAULT_PREFS;
             void _v;
             updateNotificationPrefs(rest).catch(() => {});
         }
-    }, [isAuthenticated]);
+    }, [tenantReady]);
 
     /* ─── Playback helpers used by the rest of the app ───────────────── */
 

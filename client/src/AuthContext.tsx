@@ -21,6 +21,14 @@ interface AuthContextValue {
   isInitializing: boolean;
 }
 
+export function hasTenantContext(user: User | null | undefined): boolean {
+  return user?.tenant_id !== null && user?.tenant_id !== undefined;
+}
+
+export function isTenantlessPlatformAdmin(user: User | null | undefined): boolean {
+  return user?.role === "platform_admin" && !hasTenantContext(user);
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Only cache display-safe fields in localStorage to prevent privilege escalation
