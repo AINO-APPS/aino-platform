@@ -85,8 +85,10 @@ export default defineRailway(() => {
         restartPolicyMaxRetries: 10,
         overlapSeconds: 30,
         drainingSeconds: 15,
-        // Keep the rollback target cold until an operator explicitly activates it.
-        numReplicas: role === "all" ? 0 : 1,
+        // Railway requires at least one declared replica. Serverless sleep keeps
+        // the private rollback target cold until an operator explicitly uses it.
+        numReplicas: 1,
+        sleepApplication: role === "all",
       },
       // MIG-0404: all services start private-only. In particular the worker and
       // rollback service have no public domain or TCP proxy to receive traffic.

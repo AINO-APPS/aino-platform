@@ -4,8 +4,8 @@
 `aino-platform-next` project. It has not been applied by this change.
 
 The target contains fresh Postgres, Redis, and private PgBouncer resources plus
-`aino-next-web`, `aino-next-realtime`, `aino-next-worker`, and the cold
-(zero-replica) `aino-next-rollback` service. All application services source
+`aino-next-web`, `aino-next-realtime`, `aino-next-worker`, and the private,
+serverless-sleep-enabled `aino-next-rollback` service. All application services source
 `AINO-APPS/aino-platform`; no public or custom domain is declared. Worker,
 rollback, databases, and PgBouncer therefore have no public ingress.
 
