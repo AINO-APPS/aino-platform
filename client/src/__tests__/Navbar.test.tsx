@@ -18,6 +18,8 @@ vi.mock("../api", () => ({
 vi.mock("../AuthContext", () => ({
     isTenantlessPlatformAdmin: (user: any) =>
         user?.role === "platform_admin" && user?.tenant_id == null,
+    hasTenantContext: (user: any) =>
+        user?.tenant_id !== null && user?.tenant_id !== undefined,
     useAuth: () => ({
         isAuthenticated: true,
         user: { id: 1, username: "test", full_name: "Test User", role: "employee", tenant_id: 1, avatar: null },
