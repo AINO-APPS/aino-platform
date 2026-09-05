@@ -2,6 +2,7 @@
 import { Suspense, lazy, useRef } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
+import { isTenantlessPlatformAdmin } from "../../AuthContext";
 import { ROLE_LEVEL } from "../../constants";
 import PageSkeleton from "./PageSkeleton";
 
@@ -32,6 +33,37 @@ const ROLE_REQUIREMENTS: Record<string, string> = {
     "/manager": "team_lead",
 };
 
+export function canMountTenantPage(user: any, path: string): boolean {
+    return !isTenantlessPlatformAdmin(user) || path === "/tenants";
+}
+
+function TenantRequiredState() {
+    return (
+        <main style={{ maxWidth: 1400, margin: "2rem auto", padding: "0 2.5rem" }}>
+            <section className="status-card" style={{ padding: "2rem" }}>
+                <h2 style={{ margin: "0 0 0.75rem", color: "var(--text-primary)" }}>
+                    No tenant selected
+                </h2>
+                <p style={{ margin: "0 0 1.25rem", color: "var(--text-secondary)", maxWidth: 680 }}>
+                    This workspace is tenant-scoped. Create or select a tenant from the platform console before using this section.
+                </p>
+                <NavigateLink />
+            </section>
+        </main>
+    );
+}
+
+function NavigateLink() {
+    return (
+        <a
+            href="/tenants"
+            style={{ color: "var(--primary)", fontWeight: 600, textDecoration: "none" }}
+        >
+            Open Platform Console
+        </a>
+    );
+}
+
 // Create lazy components (only once)
 const lazyPages: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {};
 for (const [path, importFn] of Object.entries(pageImports)) {
@@ -53,6 +85,8 @@ export default function KeepAlive() {
 
     // Force password change
     if (user?.must_change_password) return <Navigate to="/change-password" />;
+
+    if (!canMountTenantPage(user, current)) return <TenantRequiredState />;
 
     // Role check for current path
     const minRole = ROLE_REQUIREMENTS[current];
