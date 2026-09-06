@@ -410,7 +410,7 @@ async function invalidateOrgUserContexts(tenantId: number | null | undefined /* 
     return delPattern(`t:${tenantId}:user:*:ctx`);
 }
 
-// -- Session helpers (max-2-device enforcement) --
+// -- Session cache helpers --
 
 async function getUserSessions(tenantId: number | null | undefined, userId: number): Promise<unknown> {
     return get(KEYS.userSessions(tenantId, userId));

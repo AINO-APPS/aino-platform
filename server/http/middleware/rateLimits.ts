@@ -14,9 +14,10 @@ import * as redis from "../../redis";
 function makeStore(prefix: string) {
     if (!process.env.REDIS_URL) return undefined;
     return new RedisStore({
-        sendCommand: (...args: unknown[]) => {
+        sendCommand: async (...args: unknown[]) => {
+            await redis.initRedis();
             const client = redis.getClient();
-            if (!client) return Promise.reject(new Error("Redis unavailable"));
+            if (!client) throw new Error("Redis unavailable after initialization");
             return (client as any).call(...args);
         },
         prefix: `rl:${prefix}:`,
