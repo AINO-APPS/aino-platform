@@ -30,6 +30,8 @@ type Query = (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCoun
 interface DbLike { query: Query; }
 type RolesMap = Record<string, number>;
 
+const PROTECTED_ASSIGNMENT_ROLES = new Set(["super_admin", "platform_admin"]);
+
 /**
  * System-level roles. These names are NOT tenant-customisable; they are
  * referenced directly by middleware like impersonationAudit.js,
@@ -299,6 +301,41 @@ function canManageUser(managerRole: string, targetRole: string, rolesMap: RolesM
     return levelForRole(managerRole, rolesMap) > levelForRole(targetRole, rolesMap);
 }
 
+interface AssignableRole {
+    roleKey: string;
+    permissionLevel: number;
+}
+
+/** Resolve and authorize a tenant-scoped role assignment. */
+async function resolveAssignableTenantRole(
+    db: DbLike,
+    orgId: number | null | undefined,
+    requestedRole: unknown,
+    actorLevel: number,
+): Promise<AssignableRole> {
+    const roleKey = typeof requestedRole === "string" && requestedRole.trim()
+        ? requestedRole.trim().toLowerCase()
+        : "employee";
+    if (!orgId) throw Object.assign(new Error("Organization context is required"), { code: "ORG_REQUIRED" });
+    if (PROTECTED_ASSIGNMENT_ROLES.has(roleKey)) {
+        throw Object.assign(new Error(`${roleKey} is a protected system role`), { code: "PROTECTED_ROLE" });
+    }
+
+    const rolesMap = await getTenantRolesMap(db, orgId, null);
+    const permissionLevel = rolesMap[roleKey] ?? (
+        Object.keys(rolesMap).length === 0 && ["employee", "team_lead", "manager", "hr_admin"].includes(roleKey)
+            ? ROLE_LEVEL[roleKey]
+            : undefined
+    );
+    if (!Number.isInteger(permissionLevel) || permissionLevel < 1 || permissionLevel > 4) {
+        throw Object.assign(new Error(`Role '${roleKey}' is not defined for this organization`), { code: "INVALID_ROLE" });
+    }
+    if (permissionLevel >= actorLevel) {
+        throw Object.assign(new Error("Cannot assign a role equal to or higher than your own"), { code: "ROLE_HIERARCHY" });
+    }
+    return { roleKey, permissionLevel };
+}
+
 /**
  * Get all user IDs visible to a manager/lead (async).
  * Only includes users with a strictly lower level (except self and direct reports).
@@ -375,5 +412,6 @@ export {
     requireRole,
     requireSameOrg,
     canManageUser,
+    resolveAssignableTenantRole,
     getVisibleUserIds,
 };

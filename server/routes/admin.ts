@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const { masterQuery } = require("../db");
 const auth = require("../middleware/auth");
-const { loadUserContext, requireRole, requireSameOrg, canManageUser, VALID_ROLES, ROLE_LEVEL } = require("../middleware/rbac");
+const { loadUserContext, requireRole, requireSameOrg, canManageUser, getTenantRolesMap, levelForRole, resolveAssignableTenantRole, ROLE_LEVEL } = require("../middleware/rbac");
 const { logAction, queryLogs } = require("../utils/audit");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { getOffsetMin, getTzModifier } = require("../utils/timezone");
@@ -14,6 +14,16 @@ const redis = require("../redis");
 const router = express.Router();
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireRole("hr_admin"), requireTenant);
+
+function requireTenantAdminIdentity(req: Request, res: Response, next: express.NextFunction): void | Response {
+    if (req.isPlatformUser || req.isImpersonated) {
+        return res.status(403).json({
+            error: "Tenant user management must be performed by a tenant administrator",
+            code: "TENANT_ADMIN_IDENTITY_REQUIRED",
+        });
+    }
+    next();
+}
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -282,38 +292,36 @@ router.get('/users/:id', async (req: Request, res: Response) => {
 });
 
 // Helper: determine which role levels must approve a role change
-function getRequiredApprovals(requestedRole: string): string[] {
+function getRequiredApprovals(targetLevel: number): string[] {
     const allRoles = ['employee', 'team_lead', 'manager', 'hr_admin', 'super_admin'];
-    const targetLevel = ROLE_LEVEL[requestedRole] || 1;
     // Every role strictly above the requested role must approve
     return allRoles.filter(r => ROLE_LEVEL[r] > targetLevel);
 }
 
-router.put('/users/:id/role', async (req: Request, res: Response) => {
+router.put('/users/:id/role', requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { role, reason } = req.body;
-        if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: `Invalid role. Valid roles: ${VALID_ROLES.join(', ')}` });
-        // platform_admin is a system operator role — cannot be self-assigned via this endpoint
-        if (role === 'platform_admin') return res.status(403).json({ error: 'Cannot assign platform_admin role via this interface' });
-        // super_admin assignment requires platform_admin authority
-        if (role === 'super_admin' && req.userRole !== 'platform_admin') {
-            return res.status(403).json({ error: 'Only platform administrators can assign the super_admin role' });
-        }
         const targetRes = await req.db!.query('SELECT id, role, org_id, full_name FROM users WHERE id = $1', [Number(id)]);
         const target = targetRes.rows[0];
         if (!target) return res.status(404).json({ error: 'User not found' });
-        if (req.userRole !== 'platform_admin' && target.org_id !== req.userOrgId) {
+        if (target.org_id !== req.userOrgId) {
             return res.status(403).json({ error: 'Cannot modify users outside your organization' });
         }
+        let resolvedRole;
+        try {
+            resolvedRole = await resolveAssignableTenantRole(req.db!, req.userOrgId, role, req.roleLevel || 1);
+        } catch (roleErr: any) {
+            const status = roleErr.code === 'ROLE_HIERARCHY' || roleErr.code === 'PROTECTED_ROLE' ? 403 : 400;
+            return res.status(status).json({ error: roleErr.message, code: roleErr.code });
+        }
+        const rolesMap = await getTenantRolesMap(req.db!, req.userOrgId, req.tenantId);
+        const targetLevel = levelForRole(target.role, rolesMap);
         if (target.role === role) return res.status(400).json({ error: 'User already has this role' });
-        if (req.userRole !== 'platform_admin' && !canManageUser(req.userRole, target.role)) {
+        if (targetLevel >= (req.roleLevel || 1)) {
             return res.status(403).json({ error: 'Cannot modify a user with a role equal to or higher than your own' });
         }
-        if (req.userRole !== 'platform_admin' && !canManageUser(req.userRole, role)) {
-            return res.status(403).json({ error: 'Cannot assign a role equal to or higher than your own' });
-        }
-        if (Number(id) === req.userId && req.userRole !== 'platform_admin') {
+        if (Number(id) === req.userId) {
             return res.status(400).json({ error: 'Cannot change your own role' });
         }
         // Check for existing pending request
@@ -322,30 +330,29 @@ router.put('/users/:id/role', async (req: Request, res: Response) => {
 
         // platform_admin: apply immediately (no one above them)
         // super_admin: apply immediately for roles below super_admin within their org
-        const canApplyImmediately = req.userRole === 'platform_admin' ||
-            (req.userRole === 'super_admin' && ROLE_LEVEL[role] < ROLE_LEVEL['super_admin']);
+        const canApplyImmediately = (req.roleLevel || 1) >= ROLE_LEVEL['super_admin'];
         if (canApplyImmediately) {
-            await req.db!.query('UPDATE users SET role = $1 WHERE id = $2', [role, Number(id)]);
+            await req.db!.query('UPDATE users SET role = $1 WHERE id = $2', [resolvedRole.roleKey, Number(id)]);
             await redis.invalidateUserContext(req.tenantId, Number(id));
             const approverKey = req.userRole;
             await req.db!.query(
                 `INSERT INTO role_change_requests (org_id, target_user_id, requested_by, from_role, to_role, status, reason, approvals, resolved_at)
                  VALUES ($1,$2,$3,$4,$5,'approved',$6,$7,NOW())`,
-                [req.userOrgId, Number(id), req.userId, target.role, role, reason || null, JSON.stringify({ [approverKey as string]: { status: 'approved', by: req.userId, at: new Date().toISOString() } })]
+                [req.userOrgId, Number(id), req.userId, target.role, resolvedRole.roleKey, reason || null, JSON.stringify({ [approverKey as string]: { status: 'approved', by: req.userId, at: new Date().toISOString() } })]
             );
-            logAction(req, 'update_role', 'user', Number(id), { old_role: target.role, new_role: role });
-            return res.json({ message: `${target.full_name}'s role updated to ${role}`, immediate: true });
+            logAction(req, 'update_role', 'user', Number(id), { old_role: target.role, new_role: resolvedRole.roleKey });
+            return res.json({ message: `${target.full_name}'s role updated to ${resolvedRole.roleKey}`, immediate: true });
         }
 
         // Otherwise: create approval request
-        const required = getRequiredApprovals(role);
+        const required = getRequiredApprovals(resolvedRole.permissionLevel);
         const approvals: Record<string, ApprovalEntry> = {};
         for (const r of required) approvals[r] = { status: 'pending' };
 
         const result = await req.db!.query(
             `INSERT INTO role_change_requests (org_id, target_user_id, requested_by, from_role, to_role, reason, approvals)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-            [req.userOrgId, Number(id), req.userId, target.role, role, reason || null, JSON.stringify(approvals)]
+            [req.userOrgId, Number(id), req.userId, target.role, resolvedRole.roleKey, reason || null, JSON.stringify(approvals)]
         );
         logAction(req, 'request_role_change', 'user', Number(id), { from_role: target.role, to_role: role, request_id: result.rows[0].id });
         res.json({ message: `Role change request created for ${target.full_name}. Awaiting approval.`, request_id: result.rows[0].id, pending: true });
@@ -487,7 +494,7 @@ router.post('/role-requests/:id/cancel', async (req: Request, res: Response) => 
     }
 });
 
-router.put('/users/:id/assignment', async (req: Request, res: Response) => {
+router.put('/users/:id/assignment', requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { org_id, department_id, team_id, manager_id } = req.body;
@@ -546,7 +553,7 @@ router.put('/users/:id/assignment', async (req: Request, res: Response) => {
     }
 });
 
-router.put('/users/:id/deactivate', async (req: Request, res: Response) => {
+router.put('/users/:id/deactivate', requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const targetRes = await req.db!.query('SELECT id, role, org_id, full_name, is_active FROM users WHERE id = $1', [Number(id)]);
@@ -576,7 +583,7 @@ router.put('/users/:id/deactivate', async (req: Request, res: Response) => {
     }
 });
 
-router.post('/users/:id/reset-password', requireRole('hr_admin'), async (req: Request, res: Response) => {
+router.post('/users/:id/reset-password', requireRole('hr_admin'), requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { new_password } = req.body;
@@ -610,7 +617,7 @@ router.post('/users/:id/reset-password', requireRole('hr_admin'), async (req: Re
 // Reset a user's face enrollment (attendance verification). Needed because
 // self-service unenroll/re-enroll is blocked while the org enforces face
 // verification — an HR admin clears it here and the user enrolls afresh.
-router.delete('/users/:id/face-enroll', requireRole('hr_admin'), async (req: Request, res: Response) => {
+router.delete('/users/:id/face-enroll', requireRole('hr_admin'), requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const userId = Number(req.params.id);
         const target = (await req.db!.query('SELECT id, role, org_id, full_name FROM users WHERE id = $1', [userId])).rows[0];
@@ -630,7 +637,7 @@ router.delete('/users/:id/face-enroll', requireRole('hr_admin'), async (req: Req
     }
 });
 
-router.delete('/users/:id', requireRole('super_admin'), async (req: Request, res: Response) => {
+router.delete('/users/:id', requireRole('super_admin'), requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const userId = Number(req.params.id);
         const targetRes = await req.db!.query('SELECT id, role, org_id, full_name, is_active FROM users WHERE id = $1', [userId]);
@@ -667,7 +674,7 @@ router.delete('/users/:id', requireRole('super_admin'), async (req: Request, res
     }
 });
 
-router.post('/users', requireRole('hr_admin'), async (req: Request, res: Response) => {
+router.post('/users', requireRole('hr_admin'), requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { username, password, full_name, email, role, org_id, department_id, team_id, manager_id } = req.body;
         if (!username || !full_name || !email) {
@@ -696,9 +703,12 @@ router.post('/users', requireRole('hr_admin'), async (req: Request, res: Respons
             );
             if (dirCheck.rows[0]) return res.status(400).json({ error: 'Username or email already registered in another organization' });
         }
-        const assignRole = VALID_ROLES.includes(role) ? role : 'employee';
-        if (req.userRole !== 'platform_admin' && ROLE_LEVEL[assignRole] >= ROLE_LEVEL[req.userRole as string]) {
-            return res.status(403).json({ error: 'Cannot create a user with a role equal to or higher than your own' });
+        let assignRole: string;
+        try {
+            assignRole = (await resolveAssignableTenantRole(req.db!, req.userOrgId, role, req.roleLevel || 1)).roleKey;
+        } catch (roleErr: any) {
+            const status = roleErr.code === 'ROLE_HIERARCHY' || roleErr.code === 'PROTECTED_ROLE' ? 403 : 400;
+            return res.status(status).json({ error: roleErr.message, code: roleErr.code });
         }
         const hash = await bcrypt.hash(plainPw, BCRYPT_ROUNDS);
         let assignOrgId = req.userOrgId;
@@ -1087,7 +1097,7 @@ const importUpload = multer({
  * Optional columns: department_name, team_name, manager_username
  * Returns { imported: N, failed: [{row, error}] }
  */
-router.post('/users/import', requireRole('hr_admin'), importUpload.single('file'), async (req: Request, res: Response) => {
+router.post('/users/import', requireRole('hr_admin'), requireTenantAdminIdentity, importUpload.single('file'), async (req: Request, res: Response) => {
     try {
         let usersToImport: any[] = [];
 
@@ -1169,9 +1179,11 @@ router.post('/users/import', requireRole('hr_admin'), importUpload.single('file'
                 const usernameErr = validateUsername(username);
                 if (usernameErr) { failed.push({ row: rowNum, error: usernameErr }); continue; }
 
-                const assignRole = VALID_ROLES.includes(roleRaw) ? roleRaw : 'employee';
-                if (ROLE_LEVEL[assignRole] >= ROLE_LEVEL[req.userRole as string]) {
-                    failed.push({ row: rowNum, error: `Cannot import user with role '${assignRole}' (at or above your own level)` }); continue;
+                let assignRole: string;
+                try {
+                    assignRole = (await resolveAssignableTenantRole(req.db!, assignOrgId, roleRaw, req.roleLevel || 1)).roleKey;
+                } catch (roleErr: any) {
+                    failed.push({ row: rowNum, error: roleErr.message }); continue;
                 }
 
                 // Either use provided password or auto-generate a temporary one

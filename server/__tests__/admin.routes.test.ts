@@ -106,6 +106,23 @@ function setupAuth(role = "hr_admin", extra: Record<string, any> = {}) {
         }); // loadUserContext
 }
 
+describe("platform identity boundary", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    test("a tenant user named platform_admin cannot access tenant management", async () => {
+        setupAuth("platform_admin");
+        const res = await request(app)
+            .get("/api/admin/tenants")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe("PLATFORM_IDENTITY_REQUIRED");
+        expect(mockQuery.mock.calls.some(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM tenants"))).toBe(false);
+    });
+});
+
 // ─── PUT /api/admin/users/:id/assignment ──────────────────────────────────────
 describe("PUT /api/admin/users/:id/assignment — circular manager detection", () => {
     beforeEach(() => {

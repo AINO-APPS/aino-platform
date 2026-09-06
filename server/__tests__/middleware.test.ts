@@ -23,7 +23,7 @@ jest.mock("../db", () => ({
 }));
 
 const authMiddleware = require("../middleware/auth");
-const { canManageUser } = require("../middleware/rbac");
+const { canManageUser, resolveAssignableTenantRole } = require("../middleware/rbac");
 
 const SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -120,5 +120,42 @@ describe("canManageUser (RBAC)", () => {
 
     test("employee cannot manage team_lead", () => {
         expect(canManageUser("employee", "team_lead")).toBe(false);
+    });
+});
+
+describe("resolveAssignableTenantRole", () => {
+    const db = { query: jest.fn() };
+
+    beforeEach(() => db.query.mockReset());
+
+    test("resolves a tenant custom role using its configured level", async () => {
+        db.query.mockResolvedValue({ rows: [{ role_key: "people_ops", permission_level: 3 }] });
+        await expect(resolveAssignableTenantRole(db, 1, "people_ops", 5)).resolves.toEqual({
+            roleKey: "people_ops",
+            permissionLevel: 3,
+        });
+    });
+
+    test.each(["super_admin", "platform_admin"])("rejects protected role %s", async (role) => {
+        await expect(resolveAssignableTenantRole(db, 1, role, 5)).rejects.toMatchObject({ code: "PROTECTED_ROLE" });
+        expect(db.query).not.toHaveBeenCalled();
+    });
+
+    test("rejects unknown roles instead of silently assigning employee", async () => {
+        db.query.mockResolvedValue({ rows: [{ role_key: "employee", permission_level: 1 }] });
+        await expect(resolveAssignableTenantRole(db, 1, "made_up", 5)).rejects.toMatchObject({ code: "INVALID_ROLE" });
+    });
+
+    test("supports canonical roles only when a legacy tenant has no catalogue", async () => {
+        db.query.mockResolvedValue({ rows: [] });
+        await expect(resolveAssignableTenantRole(db, 1, "employee", 4)).resolves.toEqual({
+            roleKey: "employee",
+            permissionLevel: 1,
+        });
+    });
+
+    test("rejects roles at the actor's own level", async () => {
+        db.query.mockResolvedValue({ rows: [{ role_key: "people_ops", permission_level: 4 }] });
+        await expect(resolveAssignableTenantRole(db, 1, "people_ops", 4)).rejects.toMatchObject({ code: "ROLE_HIERARCHY" });
     });
 });

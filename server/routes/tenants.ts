@@ -7,6 +7,7 @@ import type { Request, Response } from "express";
 const { masterQuery } = require("../db");
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
+const requirePlatformIdentity = require("../middleware/platformIdentity");
 const {
     createTenant, deleteTenant, suspendTenant, reactivateTenant,
     getTenantById, getTenantPool, getPoolStats, listActiveTenants,
@@ -47,7 +48,7 @@ const router = express.Router();
 const NON_DEFAULT_ACTIVITY_MSG =
     "Tenant activity data is only accessible via approved access.";
 
-router.use(auth, loadUserContext, requireRole("platform_admin"));
+router.use(auth, loadUserContext, requireRole("platform_admin"), requirePlatformIdentity);
 
 interface ActorCheck {
     ok?: boolean;
@@ -1713,18 +1714,20 @@ router.post("/:id/users", async (req: Request, res: Response) => {
 
         const db = await getTenantPool(tenant.db_name, tenant.db_host);
 
+        if (role !== undefined && role !== "super_admin") {
+            return res.status(400).json({
+                error: "The initial tenant administrator must use the super_admin role",
+                code: "INITIAL_ADMIN_ROLE_REQUIRED",
+            });
+        }
+
         // Default-tenant guard, with a bootstrap exception: platform admins may
         // create the INITIAL tenant administrator for a brand-new non-default
         // tenant during onboarding. Once the tenant has its own (non-platform)
         // user, further row-level user management is gated behind the
         // consent-based impersonation flow (see NON_DEFAULT_USER_DATA_MSG).
-        if (!tenant.is_default) {
-            const existing = await db.query(
-                "SELECT 1 FROM users WHERE role <> 'platform_admin' LIMIT 1"
-            );
-            if (existing.rows[0]) {
-                return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
-            }
+        if (tenant.is_default) {
+            return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
         }
 
         // Check global uniqueness
@@ -1745,12 +1748,21 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         }
 
         const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-        const validRole = ["super_admin", "hr_admin", "manager", "team_lead", "employee"].includes(role) ? role : "employee";
-
-        const result = await db.query(
-            "INSERT INTO users (username, password, full_name, email, org_id, role) VALUES ($1,$2,$3,$4,1,$5) RETURNING id, username, full_name, email, role",
-            [username, hash, full_name, email, validRole]
-        );
+        const result = await db.transaction(async (client: any) => {
+            // Serializes the one-time bootstrap even when two platform admins
+            // submit concurrently against different application replicas.
+            await client.query("SELECT pg_advisory_xact_lock($1)", [tid]);
+            const existing = await client.query(
+                "SELECT 1 FROM users WHERE role <> 'platform_admin' LIMIT 1"
+            );
+            if (existing.rows[0]) {
+                throw Object.assign(new Error(NON_DEFAULT_USER_DATA_MSG), { code: "TENANT_ALREADY_BOOTSTRAPPED" });
+            }
+            return client.query(
+                "INSERT INTO users (username, password, full_name, email, org_id, role, must_change_password) VALUES ($1,$2,$3,$4,1,'super_admin',TRUE) RETURNING id, username, full_name, email, role",
+                [username, hash, full_name, email]
+            );
+        });
 
         // Add to user_directory
         await masterQuery(
@@ -1760,7 +1772,10 @@ router.post("/:id/users", async (req: Request, res: Response) => {
 
         logPlatformAction(req, "tenant_user_created", "user", result.rows[0].id, { tenant_id: tid, username }, tid);
         res.status(201).json({ user: result.rows[0] });
-    } catch (err) {
+    } catch (err: any) {
+        if (err.code === "TENANT_ALREADY_BOOTSTRAPPED") {
+            return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
+        }
         logger.error({ err }, "Create tenant user error");
         res.status(500).json({ error: "Failed to create user" });
     }
