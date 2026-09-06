@@ -29,23 +29,17 @@ module.exports = {
                 "Circular imports make load order significant and break the " +
                 "module extraction in Phase G. Break the cycle by moving the " +
                 "shared piece into platform/ or by injecting the dependency.",
-            // KNOWN DEBT (2 cycles, both pre-existing and deliberately broken
-            // with a lazy require() at the call site):
-            //
-            //   utils/migrationRunner <-> utils/tenantManager
-            //     migrationRunner.sweepAllTenants() needs forEachTenant();
-            //     tenantManager.createTenant() needs runTenantMigrations().
-            //     Phase G resolves this by moving both to platform/db/.
+            // KNOWN DEBT (one pre-existing cycle, deliberately broken with a
+            // lazy require() at the call site):
             //
             //   services/status/broadcaster -> utils/ws -> services/status
             //     The broadcaster pushes through the WS fan-out, which reads
             //     status. Phase G/D2 resolves it by injecting the sender.
             //
             // Excluded so CI stays green on existing debt while still failing
-            // on any NEW cycle. Remove each entry as Phase G untangles it.
+            // on any NEW cycle. Remove the entry when the realtime boundary lands.
             from: {
                 pathNot: [
-                    "^utils/(migrationRunner|tenantManager)\\.ts$",
                     "^services/status/(broadcaster|index)\\.ts$",
                     "^utils/ws\\.ts$",
                     "^utils/wsHandlers/(call|meeting|shared)\\.ts$",

@@ -45,8 +45,10 @@ describe("migration files", () => {
 
     it("expectedMigrationCount matches the file count", () => {
         const { expectedMigrationCount } = require("../utils/migrationRunner");
+        const canonical = require("../platform/db/migrations");
         const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
         expect(expectedMigrationCount).toBe(files.length);
+        expect(expectedMigrationCount).toBe(canonical.expectedMigrationCount);
     });
 });
 

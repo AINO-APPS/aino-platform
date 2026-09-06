@@ -65,7 +65,7 @@ router.get("/db-pool-stats", (_req: Request, res: Response) => {
  * can use it after deploys without making the load-balancer probe every DB.
  */
 router.get("/migration-status", async (_req: Request, res: Response) => {
-    const { expectedMigrationCount } = require("../utils/migrationRunner");
+    const { expectedMigrationCount } = require("../platform/db/migrations");
     const tenants: Record<string, number> = {};
     let minApplied = Infinity;
     const sweep = await forEachTenant(async (db: DbContext, tenant: any) => {

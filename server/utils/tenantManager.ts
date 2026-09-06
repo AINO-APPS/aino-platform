@@ -13,6 +13,7 @@
 import { Pool } from "pg";
 import { masterQuery, masterTransaction, initTenantSchema } from "../db";
 import { makePoolQuery, makePoolTransaction } from "../platform/db/pool";
+import { runTenantMigrations } from "../platform/db/migrations";
 import { logger } from "./logger";
 import type { QueryFn, TransactionFn, TenantRow, DbContext } from "../types/domain";
 import { forEachBounded } from "../platform/boundedParallel";
@@ -210,7 +211,6 @@ async function getTenantPool(dbName: string, dbHost?: string | null): Promise<Po
         if (!migratedDbs.has(dbName)) {
             migratedDbs.add(dbName);
             try {
-                const { runTenantMigrations } = require("./migrationRunner");
                 await runTenantMigrations(entry.query, { label: dbName, transaction: entry.transaction });
             } catch (err) {
                 logger.error({ err: (err as Error).message, dbName }, "Per-pool migrations failed (non-fatal)");
@@ -408,7 +408,6 @@ async function createTenant(
     const db = await getTenantPool(dbName, shard?.host || null);
     await initTenantSchema(db.query);
 
-    const { runTenantMigrations } = require("./migrationRunner");
     const migResult = await runTenantMigrations(db.query, { label: dbName, transaction: db.transaction });
     if (migResult.failed.length > 0) {
         logger.error(

@@ -40,7 +40,7 @@ let timer: NodeJS.Timeout | null = null;
 
 /** Run one sweep. Exported so a test can drive it without a timer. */
 async function sampleMigrationDrift(): Promise<void> {
-    const { expectedMigrationCount } = require("../../utils/migrationRunner");
+    const { expectedMigrationCount } = require("../db/migrations");
     const { forEachTenant } = require("../../utils/tenantManager");
 
     let minApplied = Infinity;

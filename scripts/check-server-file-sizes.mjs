@@ -33,7 +33,7 @@ const grandfathered = {
   "routes/tracker.ts": 925,
   "services/pushNotifications.ts": 866,
   "utils/mailer.ts": 608,
-  "utils/tenantManager.ts": 709,
+  "utils/tenantManager.ts": 708,
   "utils/ws.ts": 3841,
   "utils/wsHandlers/call.ts": 1458,
   "utils/wsHandlers/meeting.ts": 1459,
