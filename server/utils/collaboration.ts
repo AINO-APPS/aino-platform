@@ -15,6 +15,7 @@ import { masterQuery } from "../db";
 import { getTenantPool, getTenantById } from "./tenantManager";
 import { logger } from "./logger";
 import { notifyUser } from "./ws";
+import { validateSession } from "../services/authSessions";
 import {
     resolveCollaborationToken,
     isCollaborationOriginAllowed,
@@ -164,8 +165,14 @@ async function createCollaborationServer(httpServer: HttpServer): Promise<Collab
                 throw new Error("Tenant unavailable");
             }
 
+            if (!payload.sid || await validateSession(Number(userId), String(payload.sid), db) !== "active") {
+                throw new Error("Session ended");
+            }
+
             const userRow = (await db.query(
-                "SELECT id, full_name, avatar, email FROM users WHERE id = $1",
+                payload.platform && !tenantId
+                    ? "SELECT id, full_name, avatar, email FROM platform_users WHERE id = $1"
+                    : "SELECT id, full_name, avatar, email FROM users WHERE id = $1",
                 [userId]
             )).rows[0];
 

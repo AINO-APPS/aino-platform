@@ -21,6 +21,20 @@ describe("migration files", () => {
         expect(files.length).toBeGreaterThan(0);
     });
 
+    it("ships the single-session inactivity migration", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "0003_single_idle_session.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("last_activity_at");
+        expect(sql).toContain("create unique index if not exists uq_user_sessions_user");
+        expect(sql).toContain("partition by user_id");
+    });
+
+    it("ships the equivalent master platform-user session migration", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "master", "0003_single_idle_session.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("last_activity_at");
+        expect(sql).toContain("create unique index if not exists uq_user_sessions_user");
+        expect(sql).toContain("partition by user_id");
+    });
+
     it("uses zero-padded numeric prefixes so lexical order == apply order", () => {
         const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
         for (const f of files) {

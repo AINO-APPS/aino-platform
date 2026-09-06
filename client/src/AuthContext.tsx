@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { getProfile, logoutUser, refreshToken } from "./api";
+import { getProfile, logoutUser, recordSessionActivity, refreshToken } from "./api";
 import { REFRESH_TOKEN_INTERVAL } from "./constants";
 import { queryClient, PERSISTED_QUERY_CACHE_KEY } from "./queryClient";
 import type { User } from "./types";
@@ -195,6 +195,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     }, REFRESH_TOKEN_INTERVAL);
     return () => clearInterval(id);
+  }, [user]);
+
+  // Authentication inactivity is renewed by real foreground input, not by
+  // background polling, refresh timers, or a desktop app hidden in the tray.
+  useEffect(() => {
+    if (!user) return;
+    let lastSent = 0;
+    const record = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastSent < 5 * 60 * 1000) return;
+      lastSent = now;
+      recordSessionActivity().catch(() => {
+        /* authoritative 401 handling is centralized in AxiosInterceptor */
+      });
+    };
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((event) => window.addEventListener(event, record, { passive: true }));
+    return () => events.forEach((event) => window.removeEventListener(event, record));
   }, [user]);
 
   const saveAuth = useCallback((userData: User) => {

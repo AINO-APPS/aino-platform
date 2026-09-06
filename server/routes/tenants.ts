@@ -19,7 +19,6 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { startSession: startImpSession, getSession: getImpSession, endSession: endImpSession } = require("../middleware/impersonationAudit");
-
 const { cookieOptions } = require("../utils/cookie");
 const {
     PLANS, PLAN_KEYS, FEATURE_LABELS,
@@ -39,17 +38,13 @@ const {
 } = require("../utils/platformConfig");
 const { invalidateMaintenanceCache } = require("../middleware/maintenanceMode");
 const { tenantStorageStatsFields } = require("../services/tenantStorageUsage");
-
 const router = express.Router();
-
 // Message returned alongside `activity_restricted` when tenant-private
 // activity metrics are withheld. See hasTenantDataConsent() in
 // utils/impersonationApproval for the full consent model.
 const NON_DEFAULT_ACTIVITY_MSG =
     "Tenant activity data is only accessible via approved access.";
-
 router.use(auth, loadUserContext, requireRole("platform_admin"), requirePlatformIdentity);
-
 interface ActorCheck {
     ok?: boolean;
     actor?: any;
@@ -58,7 +53,6 @@ interface ActorCheck {
     code?: string;
     mismatch?: boolean;
 }
-
 /**
  * Re-verify the acting platform admin's password before a destructive
  * tenant action (suspend / delete). Defends against session-cookie theft
@@ -1701,7 +1695,6 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         if (!tenant || tenant.status !== "active") {
             return res.status(404).json({ error: "Tenant not found or not active" });
         }
-
         const { username, password, full_name, email, role } = req.body;
         if (!username || !password || !full_name || !email) {
             return res.status(400).json({ error: "username, password, full_name and email are required" });
@@ -1711,16 +1704,13 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         if (pwError) return res.status(400).json({ error: pwError });
         const usernameError = validateUsername(username);
         if (usernameError) return res.status(400).json({ error: usernameError });
-
         const db = await getTenantPool(tenant.db_name, tenant.db_host);
-
         if (role !== undefined && role !== "super_admin") {
             return res.status(400).json({
                 error: "The initial tenant administrator must use the super_admin role",
                 code: "INITIAL_ADMIN_ROLE_REQUIRED",
             });
         }
-
         // Default-tenant guard, with a bootstrap exception: platform admins may
         // create the INITIAL tenant administrator for a brand-new non-default
         // tenant during onboarding. Once the tenant has its own (non-platform)
@@ -1729,7 +1719,6 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         if (tenant.is_default) {
             return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
         }
-
         // Check global uniqueness
         const dirCheck = await masterQuery(
             "SELECT 1 FROM user_directory WHERE email = $1 OR username = $2",
@@ -1738,7 +1727,6 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         if (dirCheck.rows[0]) {
             return res.status(409).json({ error: "Email or username already exists globally." });
         }
-
         // Check tenant user limit
         if (tenant.max_users) {
             const countRes = await masterQuery("SELECT COUNT(*) FROM user_directory WHERE tenant_id = $1", [tid]);
@@ -1746,7 +1734,6 @@ router.post("/:id/users", async (req: Request, res: Response) => {
                 return res.status(403).json({ error: `Tenant user limit (${tenant.max_users}) reached.` });
             }
         }
-
         const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
         const result = await db.transaction(async (client: any) => {
             // Serializes the one-time bootstrap even when two platform admins
@@ -1763,13 +1750,11 @@ router.post("/:id/users", async (req: Request, res: Response) => {
                 [username, hash, full_name, email]
             );
         });
-
         // Add to user_directory
         await masterQuery(
             "INSERT INTO user_directory (email, username, tenant_id, user_id) VALUES ($1, $2, $3, $4)",
             [email.toLowerCase(), username.toLowerCase(), tid, result.rows[0].id]
         );
-
         logPlatformAction(req, "tenant_user_created", "user", result.rows[0].id, { tenant_id: tid, username }, tid);
         res.status(201).json({ user: result.rows[0] });
     } catch (err: any) {

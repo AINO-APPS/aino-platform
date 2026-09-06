@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 import { logger } from "../utils/logger";
 import * as redis from "../redis";
 import { masterQuery } from "../db";
+import { validateSession } from "../services/authSessions";
 
 // ── Impersonation revocation cache ────────────────────────────────────────
 // Cache the per-request liveness check for an access-request row for 10s so
@@ -95,16 +96,17 @@ async function authMiddleware(req: any, res: Response, next: NextFunction): Prom
                 return res.status(401).json({ error: "Session expired. Please sign in again." });
             }
 
-            // Validate session is still active (single-device enforcement)
+            // Validate session is still active. New logins always carry a sid;
+            // sid-less JWTs remain accepted only for the bounded lifetime of
+            // tokens issued before this rollout.
             if (decoded.sid) {
-                let sessions = await redis.getUserSessions(tenantId, decoded.id) as string[] | null;
-                if (sessions === null) {
-                    const sessRes = await dbQuery("SELECT id FROM user_sessions WHERE user_id = $1", [decoded.id]);
-                    sessions = sessRes.rows.map((r: any) => r.id);
-                    await redis.setUserSessions(tenantId, decoded.id, sessions);
-                }
-                if (!sessions!.includes(decoded.sid)) {
+                const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery });
+                if (state === "missing") {
                     return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
+                }
+                if (state === "idle") {
+                    await redis.invalidateUserSessions(tenantId, decoded.id);
+                    return res.status(401).json({ error: "Session expired due to inactivity.", code: "SESSION_IDLE_EXPIRED" });
                 }
             }
         } // end !isVirtualImpersonation

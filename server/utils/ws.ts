@@ -68,6 +68,7 @@ const redis = require("../redis");
 const statusService = require("../services/status");
 const wsMetrics = require("./wsMetrics");
 import { pushNotifications } from "../services/pushNotifications";
+import { validateSession } from "../services/authSessions";
 
 // Phase 6 — Per-message default soft-timeout. Most handlers should complete
 // in well under a second; if any handler hangs for > 5s it almost certainly
@@ -246,10 +247,15 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
 
     try {
       const tokenVersion = payload.tv ?? 0;
+      if (!payload.sid || await validateSession(userId, payload.sid, db) !== "active") {
+        ws.close(4001, "Session ended");
+        return;
+      }
       let dbTokenVersion = await redis.getTokenVersion(tenantId, userId);
       if (dbTokenVersion === null) {
+        const userTable = payload.platform && !tenantId ? "platform_users" : "users";
         const userRow = (
-          await db.query("SELECT token_version FROM users WHERE id = $1", [
+          await db.query(`SELECT token_version FROM ${userTable} WHERE id = $1`, [
             userId,
           ])
         ).rows[0];
@@ -269,6 +275,7 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
       // logout / forced-revoke / password change stays fully functional
       // forever because the token version is otherwise only checked once.
       ws._tokenVersion = tokenVersion;
+      ws._sessionId = payload.sid;
       ws._tokenExpMs = payload.exp ? payload.exp * 1000 : null;
       ws._lastAuthCheckAt = Date.now();
     } catch {
@@ -350,11 +357,16 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         ws._authCheckInFlight = true;
         Promise.resolve()
           .then(async () => {
+            if (!ws._sessionId || await validateSession(userId, ws._sessionId, db) !== "active") {
+              ws.close(4001, "Session ended");
+              return;
+            }
             let dbTv = await redis.getTokenVersion(tenantId, userId);
             if (dbTv === null) {
+              const userTable = payload.platform && !tenantId ? "platform_users" : "users";
               const row = (
                 await db.query(
-                  "SELECT token_version FROM users WHERE id = $1",
+                  `SELECT token_version FROM ${userTable} WHERE id = $1`,
                   [userId],
                 )
               ).rows[0];
@@ -552,6 +564,19 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         return ws.terminate();
       }
       ws.isAlive = false;
+      if (ws.userId && ws._sessionId && ws.db && !ws._heartbeatAuthCheckInFlight) {
+        ws._heartbeatAuthCheckInFlight = true;
+        validateSession(ws.userId, ws._sessionId, ws.db)
+          .then((state) => {
+            if (state !== "active") ws.close(4001, "Session ended");
+          })
+          .catch(() => {
+            /* fail open on transient DB errors */
+          })
+          .finally(() => {
+            ws._heartbeatAuthCheckInFlight = false;
+          });
+      }
       try {
         ws.ping();
       } catch {

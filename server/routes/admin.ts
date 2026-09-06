@@ -10,11 +10,9 @@ const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/
 const { getOffsetMin, getTzModifier } = require("../utils/timezone");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
-
 const router = express.Router();
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireRole("hr_admin"), requireTenant);
-
 function requireTenantAdminIdentity(req: Request, res: Response, next: express.NextFunction): void | Response {
     if (req.isPlatformUser || req.isImpersonated) {
         return res.status(403).json({
@@ -24,20 +22,16 @@ function requireTenantAdminIdentity(req: Request, res: Response, next: express.N
     }
     next();
 }
-
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
     transaction: <T = unknown>(fn: (client: any) => Promise<T>) => Promise<T>;
 }
-
 interface ApprovalEntry {
     status: string;
     by?: number;
     at?: string;
 }
-
 // ==================== ORGANIZATIONS ====================
-
 router.get('/organizations', requireRole('platform_admin'), async (req: Request, res: Response) => {
     try {
         const page = Math.max(parseInt(String(req.query.page)) || 1, 1);
@@ -297,7 +291,6 @@ function getRequiredApprovals(targetLevel: number): string[] {
     // Every role strictly above the requested role must approve
     return allRoles.filter(r => ROLE_LEVEL[r] > targetLevel);
 }
-
 router.put('/users/:id/role', requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -327,7 +320,6 @@ router.put('/users/:id/role', requireTenantAdminIdentity, async (req: Request, r
         // Check for existing pending request
         const existingRes = await req.db!.query('SELECT id FROM role_change_requests WHERE target_user_id = $1 AND status = $2', [Number(id), 'pending']);
         if (existingRes.rows[0]) return res.status(400).json({ error: 'A role change request is already pending for this user' });
-
         // platform_admin: apply immediately (no one above them)
         // super_admin: apply immediately for roles below super_admin within their org
         const canApplyImmediately = (req.roleLevel || 1) >= ROLE_LEVEL['super_admin'];
@@ -343,12 +335,10 @@ router.put('/users/:id/role', requireTenantAdminIdentity, async (req: Request, r
             logAction(req, 'update_role', 'user', Number(id), { old_role: target.role, new_role: resolvedRole.roleKey });
             return res.json({ message: `${target.full_name}'s role updated to ${resolvedRole.roleKey}`, immediate: true });
         }
-
         // Otherwise: create approval request
         const required = getRequiredApprovals(resolvedRole.permissionLevel);
         const approvals: Record<string, ApprovalEntry> = {};
         for (const r of required) approvals[r] = { status: 'pending' };
-
         const result = await req.db!.query(
             `INSERT INTO role_change_requests (org_id, target_user_id, requested_by, from_role, to_role, reason, approvals)
              VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
@@ -363,7 +353,6 @@ router.put('/users/:id/role', requireTenantAdminIdentity, async (req: Request, r
 });
 
 // ==================== ROLE CHANGE REQUESTS ====================
-
 router.get('/role-requests', async (req: Request, res: Response) => {
     try {
         const status = req.query.status || null;
@@ -582,7 +571,6 @@ router.put('/users/:id/deactivate', requireTenantAdminIdentity, async (req: Requ
         res.status(500).json({ error: 'Failed to update user' });
     }
 });
-
 router.post('/users/:id/reset-password', requireRole('hr_admin'), requireTenantAdminIdentity, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;

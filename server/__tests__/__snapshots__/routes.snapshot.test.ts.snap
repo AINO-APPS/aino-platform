@@ -97,6 +97,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "DELETE /api/agile/workflow-states/:id",
   "PUT    /api/agile/workflow-states/:id",
   "PUT    /api/agile/workflow-states/reorder",
+  "POST   /api/auth/activity",
   "GET    /api/auth/biometric",
   "DELETE /api/auth/biometric/:id",
   "POST   /api/auth/biometric/enroll",

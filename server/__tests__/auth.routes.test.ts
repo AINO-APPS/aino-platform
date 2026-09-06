@@ -401,6 +401,8 @@ describe("POST /api/auth/refresh", () => {
         expect(res.body.message).toMatch(/refreshed/i);
         expect(res.headers["set-cookie"]).toBeDefined();
         expect(res.headers["set-cookie"][0]).toMatch(/token=/);
+        const token = res.headers["set-cookie"][0].match(/^token=([^;]+)/)?.[1];
+        expect(jwt.decode(token)).toMatchObject({ sid: expect.any(String) });
     });
 
     test("returns 401 when user no longer exists", async () => {

@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const crypto = require("crypto");
+const { replaceSession, touchSession } = require("../services/authSessions");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
@@ -71,14 +72,6 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 
     next();
 });
-
-// Allow up to two concurrent active sessions per user (e.g. desktop app +
-// browser, or laptop + phone). When a user signs in on a third device, the
-// oldest active session is evicted so the device count never exceeds the cap.
-// Note: a stolen/forgotten session on one device is therefore NOT auto-kicked
-// by a fresh login on another device — users must explicitly log out or reset
-// their password (which clears all sessions and bumps token_version) to revoke.
-const MAX_SESSIONS = 2;
 
 /**
  * Resolve a tenant's DB handle from its id.
@@ -178,23 +171,11 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
 }
 
 /**
- * Create a session for the user, evicting the oldest if exceeding MAX_SESSIONS.
+ * Create the user's sole active authentication session.
  * Returns the new session ID.
  */
 async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null): Promise<string> {
-    const sid = crypto.randomUUID();
-    await db.query("INSERT INTO user_sessions (id, user_id, device) VALUES ($1, $2, $3)", [sid, userId, deviceInfo || null]);
-
-    // Evict oldest sessions beyond the limit
-    const sessRes = await db.query(
-        "SELECT id FROM user_sessions WHERE user_id = $1 ORDER BY created_at ASC",
-        [userId],
-    );
-    const sessions = sessRes.rows;
-    if (sessions.length > MAX_SESSIONS) {
-        const toDelete = sessions.slice(0, sessions.length - MAX_SESSIONS).map((s: any) => s.id);
-        await db.query("DELETE FROM user_sessions WHERE id = ANY($1)", [toDelete]);
-    }
+    const sid = await replaceSession(userId, deviceInfo, db);
     await redis.invalidateUserSessions(tenantId, userId);
     return sid;
 }
@@ -668,14 +649,20 @@ router.post("/reset-password", async (req: Request, res: Response) => {
 // Refresh token
 router.post("/refresh", auth, async (req: Request, res: Response) => {
     try {
-        const row = (await req.db!.query("SELECT token_version FROM users WHERE id = $1", [req.userId])).rows[0];
+        if (req.isImpersonated) {
+            return res.status(403).json({ error: "Impersonation sessions cannot be refreshed", code: "IMPERSONATION_REFRESH_DENIED" });
+        }
+        const table = req.isPlatformUser && !req.tenantId ? "platform_users" : "users";
+        const row = (await req.db!.query(`SELECT token_version FROM ${table} WHERE id = $1`, [req.userId])).rows[0];
         if (!row) return res.status(401).json({ error: "User not found" });
+        const sessionTenantId = req.tenantId ? Number(req.tenantId) : null;
+        const sessionId = req.sessionId || await createSession(req.userId!, req.headers["user-agent"], req.db!, sessionTenantId);
 
         const claims: any = {
             id: req.userId,
             username: req.username,
             tv: row.token_version || 0,
-            sid: req.sessionId,
+            sid: sessionId,
             tenant_id: req.tenantId || null,
         };
         // Preserve platform_admin flag across refreshes
@@ -696,10 +683,20 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
     }
 });
 
+// Renew the two-day inactivity window only after real foreground user input.
+router.post("/activity", auth, async (req: Request, res: Response) => {
+    if (!req.userId || !req.sessionId) return res.status(401).json({ error: "Active session required" });
+    const touched = await touchSession(req.userId, req.sessionId, req.db!);
+    if (!touched) return res.status(401).json({ error: "Session expired due to inactivity", code: "SESSION_IDLE_EXPIRED" });
+    await redis.invalidateUserSessions(req.tenantId, req.userId);
+    res.json({ ok: true });
+});
+
 // Logout — always succeeds even without a valid token
 router.post("/logout", async (req: Request, res: Response) => {
     try {
-        const token = req.cookies.token;
+        const authHeader = req.headers.authorization;
+        const token = req.cookies.token || (typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null);
         if (token) {
             const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
             if (decoded.sid) {

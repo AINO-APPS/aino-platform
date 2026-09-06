@@ -74,6 +74,7 @@ export const trendingGiphy = (type: "gifs" | "stickers" = "gifs") =>
 export const login = (data: AnyData) => API.post("/auth/login", data);
 export const logoutUser = () => API.post("/auth/logout");
 export const refreshToken = () => API.post("/auth/refresh");
+export const recordSessionActivity = () => API.post("/auth/activity");
 export const forgotPassword = (data: AnyData) => API.post("/auth/forgot-password", data);
 export const resetPassword = (data: AnyData) => API.post("/auth/reset-password", data);
 

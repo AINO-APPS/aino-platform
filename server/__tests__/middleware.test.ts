@@ -95,6 +95,35 @@ describe("authMiddleware", () => {
         expect(req.userId).toBe(42);
         expect(req.username).toBe("alice");
     });
+
+    test("rejects a session replaced by a login on another device", async () => {
+        const token = jwt.sign({ id: 42, username: "alice", tv: 0, sid: "old-session" }, SECRET, { expiresIn: "1h" });
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        const { req, res, next } = mockReqRes(token);
+
+        await authMiddleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringMatching(/another device/i) }));
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test("rejects and removes a session idle for two days", async () => {
+        const token = jwt.sign({ id: 42, username: "alice", tv: 0, sid: "idle-session" }, SECRET, { expiresIn: "1h" });
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ last_activity_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+        const { req, res, next } = mockReqRes(token);
+
+        await authMiddleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "SESSION_IDLE_EXPIRED" }));
+        expect(next).not.toHaveBeenCalled();
+    });
 });
 
 describe("canManageUser (RBAC)", () => {

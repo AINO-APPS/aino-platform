@@ -144,7 +144,7 @@ describe("GET /api/profile", () => {
     test("returns a tenantless platform profile from platform_users", async () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ id: "current-session" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ last_activity_at: new Date() }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{
                 id: 9, username: "vvronline", full_name: "Platform Admin",
                 email: "admin@example.test", avatar: null, role: "platform_admin",
@@ -373,7 +373,7 @@ describe("PUT /api/profile/password", () => {
         const hash = await bcrypt.hash("OldPass1!", 4);
         mockQuery
             .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ id: "current-session" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ last_activity_at: new Date() }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ password: hash }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [], rowCount: 1 })

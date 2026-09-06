@@ -5,9 +5,13 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 // Mock API
 const mockGetProfile = vi.fn();
 const mockLogoutUser = vi.fn();
+const mockRecordSessionActivity = vi.fn().mockResolvedValue({});
+const mockRefreshToken = vi.fn().mockResolvedValue({});
 vi.mock("../api", () => ({
   getProfile: (...args: any[]) => mockGetProfile(...args),
   logoutUser: (...args: any[]) => mockLogoutUser(...args),
+  recordSessionActivity: (...args: any[]) => mockRecordSessionActivity(...args),
+  refreshToken: (...args: any[]) => mockRefreshToken(...args),
 }));
 
 // Must import after mocks
@@ -34,6 +38,8 @@ describe("AuthContext", () => {
     localStorage.clear();
     mockGetProfile.mockReset();
     mockLogoutUser.mockReset();
+    mockRecordSessionActivity.mockClear();
+    mockRefreshToken.mockClear();
   });
 
   test("starts unauthenticated when no cache", async () => {
@@ -205,6 +211,33 @@ describe("AuthContext", () => {
 
     expect(localStorage.getItem("workpulse_agile_config_v1")).toBeNull();
     expect(localStorage.getItem("theme")).toBe("light");
+  });
+
+  test("renews inactivity from visible user input and throttles repeated input", async () => {
+    const user = userEvent.setup();
+    mockGetProfile.mockResolvedValue({ data: { id: 1, username: "saved", role: "employee" } });
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
+    await user.click(screen.getByText("save"));
+    mockRecordSessionActivity.mockClear();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A" }));
+    window.dispatchEvent(new Event("pointerdown"));
+
+    await waitFor(() => expect(mockRecordSessionActivity).toHaveBeenCalledTimes(1));
+  });
+
+  test("does not renew inactivity while the document is hidden", async () => {
+    const user = userEvent.setup();
+    mockGetProfile.mockResolvedValue({ data: { id: 1, username: "saved", role: "employee" } });
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    render(<AuthProvider><TestConsumer /></AuthProvider>);
+    await user.click(screen.getByText("save"));
+    mockRecordSessionActivity.mockClear();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "A" }));
+
+    expect(mockRecordSessionActivity).not.toHaveBeenCalled();
+    visibility.mockRestore();
   });
 });
 
