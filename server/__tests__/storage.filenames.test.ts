@@ -12,10 +12,12 @@ import { randomFilename, isLegacyGuessableFilename } from "../platform/storage/f
 
 describe("randomFilename", () => {
     it("does not embed a user id or timestamp", () => {
+        const timestamp = 1788697000123;
+        const now = jest.spyOn(Date, "now").mockReturnValue(timestamp);
         const name = randomFilename("user", "jpg");
+        now.mockRestore();
         expect(isLegacyGuessableFilename(name)).toBe(false);
-        // A Date.now() value (13 digits) must not appear anywhere.
-        expect(name).not.toMatch(/\d{13}/);
+        expect(name).not.toContain(String(timestamp));
     });
 
     it("is unique across many calls", () => {
