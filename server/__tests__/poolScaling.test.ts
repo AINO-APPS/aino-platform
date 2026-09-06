@@ -4,12 +4,12 @@ import path from "path";
 
 describe("pool scaling configuration", () => {
     const root = path.join(__dirname, "..");
-    const dbSource = fs.readFileSync(path.join(root, "db.ts"), "utf8");
+    const poolSource = fs.readFileSync(path.join(root, "platform/db/pool.ts"), "utf8");
     const tenantSource = fs.readFileSync(path.join(root, "utils/tenantManager.ts"), "utf8");
 
     it("defaults the master pool to 4 connections", () => {
-        expect(dbSource).toMatch(/MASTER_POOL_SIZE[^\n]+\|\| 4/);
-        expect(dbSource).toMatch(/max:\s*MASTER_POOL_SIZE/);
+        expect(poolSource).toMatch(/MASTER_POOL_SIZE[^\n]+\|\| 4/);
+        expect(poolSource).toMatch(/max:\s*MASTER_POOL_SIZE/);
     });
 
     it("defaults tenant pools to 3 and caches up to 100", () => {

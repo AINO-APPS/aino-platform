@@ -11,11 +11,11 @@
  *   - Total worst case: 10 + 10×8 = 90 connections
  */
 import { Pool } from "pg";
-import { masterQuery, masterTransaction, makePoolQuery, makePoolTransaction, initTenantSchema } from "../db";
+import { masterQuery, masterTransaction, initTenantSchema } from "../db";
+import { makePoolQuery, makePoolTransaction } from "../platform/db/pool";
 import { logger } from "./logger";
 import type { QueryFn, TransactionFn, TenantRow, DbContext } from "../types/domain";
 import { forEachBounded } from "../platform/boundedParallel";
-
 interface PoolEntry {
     pool: Pool;
     query: QueryFn;
