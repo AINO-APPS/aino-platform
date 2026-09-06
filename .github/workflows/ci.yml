@@ -35,6 +35,12 @@ jobs:
       - name: Forbid SQL in route files
         run: npm run check:sql-routes
 
+      - name: Enforce client and desktop refactor ratchets
+        run: |
+          npm run check:client-file-sizes
+          npm run check:desktop-file-sizes
+          npm run check:desktop-ipc
+
   # ── Server ────────────────────────────────────────────────────────────────
   # Split from the client job (Phase B, task B3) so the two run in parallel:
   # wall-clock CI time is now max(server, client) instead of their sum.

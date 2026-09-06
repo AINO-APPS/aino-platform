@@ -44,6 +44,7 @@
     ],
     "collectCoverageFrom": [
       "routes/**/*.ts",
+      "modules/**/*.ts",
       "services/**/*.ts",
       "utils/**/*.ts",
       "platform/**/*.ts",
