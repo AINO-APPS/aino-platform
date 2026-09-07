@@ -46,7 +46,7 @@ router.get("/github/oauth/callback", async (req: Request, res: Response) => {
         if (!ctx) return res.status(400).send("OAuth state expired or already used. Please restart the connection from WorkPulse.");
 
         // Resolve the tenant DB for the (tenantId) we stashed in state.
-        const masterDb = require("../db");
+        const masterDb = require("../services/masterDatabase");
         const { getTenantPool } = require("../utils/tenantManager");
         let db: DbLike;
         if (ctx.tenantId) {

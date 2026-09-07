@@ -2,7 +2,7 @@ import express from "express";
 import type { Request, Response } from "express";
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
-const { masterQuery } = require("../db");
+const { masterQuery } = require("../services/masterDatabase");
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole, requireSameOrg, canManageUser, getTenantRolesMap, levelForRole, resolveAssignableTenantRole, ROLE_LEVEL } = require("../middleware/rbac");
 const { logAction, queryLogs } = require("../utils/audit");

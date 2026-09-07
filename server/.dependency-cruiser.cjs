@@ -60,14 +60,14 @@ module.exports = {
             to: {},
         },
 
-        // ── The layering contract — warn now, error per-module in Phase G ───
+        // ── The layering contract ───────────────────────────────────────────
         {
             name: "routes-no-direct-db",
-            severity: "warn",
+            severity: "error",
             comment:
                 "LAYERING: a route must not import the db module directly. " +
-                "Go through a service, which goes through a repository. " +
-                "(Flip to error per module as Phase G migrates it.)",
+                "Use the explicit platform DB port while a legacy route is " +
+                "being migrated, then move its queries into a repository.",
             from: { path: "^routes/" },
             to: { path: "^db\\.ts$" },
         },

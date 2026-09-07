@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const auth = require("../middleware/auth");
 const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
-const { masterQuery } = require("../db");
+const { masterQuery } = require("../services/masterDatabase");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");

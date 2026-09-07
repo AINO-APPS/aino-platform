@@ -16,7 +16,7 @@ import type { Request, Response } from "express";
 const crypto = require("crypto");
 const { logger } = require("../utils/logger");
 const { getTenantPool } = require("../utils/tenantManager");
-const { masterQuery } = require("../db");
+const { masterQuery } = require("../services/masterDatabase");
 const { isFeatureEnabled } = require("../utils/planCatalog");
 const { extractIssueKeys, resolveIssueKeys } = require("./tasks/_helpers/issueKey");
 
@@ -91,7 +91,7 @@ async function getDbForIntegration(integrationId: number): Promise<ResolvedInteg
         }
     }
     // Single-DB legacy fallback
-    const db = require("../db");
+    const db = require("../services/masterDatabase");
     const exists = (await db.masterQuery(
         "SELECT id, org_id FROM org_integrations WHERE id = $1",
         [integrationId]

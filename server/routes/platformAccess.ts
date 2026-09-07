@@ -17,7 +17,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const auth = require("../middleware/auth");
-const { masterQuery } = require("../db");
+const { masterQuery } = require("../services/masterDatabase");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { logger } = require("../utils/logger");
 const {
