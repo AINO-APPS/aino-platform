@@ -21,7 +21,6 @@
   "routes/profile.ts": 51,
   "routes/projects.ts": 17,
   "routes/public.ts": 5,
-  "routes/search.ts": 2,
   "routes/serviceDesk.ts": 14,
   "routes/sprints.ts": 41,
   "routes/tasks/backlog.ts": 20,
