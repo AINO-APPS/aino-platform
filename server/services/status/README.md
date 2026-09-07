@@ -34,8 +34,8 @@ computes the "effective" status with a pure function.
 | `resolver.js`     | **Pure** functions. No I/O. Easy to unit-test.                             |
 | `repository.js`   | DB I/O only. Reads/writes `users` + `user_presence_sessions` + `user_status_events`.|
 | `cache.js`        | Redis I/O only. Typed, prefixed keys.                                      |
-| `broadcaster.js`  | WS broadcast of the unified `user_status` event.                           |
-| `index.js`        | **`StatusService`** — public API that composes the four files above.       |
+| `broadcaster.js`  | Emits unified `user_status` through an injected realtime fan-out port.      |
+| `index.js`        | **`StatusService`** — public API that composes the files above.            |
 | `migration.js`    | Compatibility export for the platform-owned idempotent status schema.      |
 | `__tests__/`      | Unit + integration tests next to source.                                   |
 
@@ -103,7 +103,7 @@ Every mutator method:
 2. Updates the Redis cache (via `cache`).
 3. Re-resolves the effective state.
 4. Writes a `user_status_events` row.
-5. Broadcasts a `user_status` WS event (via `broadcaster`).
+5. Broadcasts a `user_status` WS event through the fan-out port injected by `realtime/composition.ts` in every HTTP-bearing process role.
 
 A single call site, a single side-effect chain — no orphan code paths.
 

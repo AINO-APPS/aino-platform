@@ -29,22 +29,7 @@ module.exports = {
                 "Circular imports make load order significant and break the " +
                 "module extraction in Phase G. Break the cycle by moving the " +
                 "shared piece into platform/ or by injecting the dependency.",
-            // KNOWN DEBT (one pre-existing cycle, deliberately broken with a
-            // lazy require() at the call site):
-            //
-            //   services/status/broadcaster -> utils/ws -> services/status
-            //     The broadcaster pushes through the WS fan-out, which reads
-            //     status. Phase G/D2 resolves it by injecting the sender.
-            //
-            // Excluded so CI stays green on existing debt while still failing
-            // on any NEW cycle. Remove the entry when the realtime boundary lands.
-            from: {
-                pathNot: [
-                    "^services/status/(broadcaster|index)\\.ts$",
-                    "^utils/ws\\.ts$",
-                    "^utils/wsHandlers/(call|meeting|shared)\\.ts$",
-                ],
-            },
+            from: {},
             to: { circular: true },
         },
         {

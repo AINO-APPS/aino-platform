@@ -28,15 +28,11 @@ interface SentMessage {
     data: { effective?: string; [key: string]: unknown };
 }
 
-// Capture WS broadcasts without depending on the real `ws` module.
+// Capture fan-out through the status service's injected realtime boundary.
 const sentMessages: SentMessage[] = [];
-jest.mock("../../../utils/ws", () => ({
-    sendToUser: (tenantId: number | null, userId: number, type: string, data: SentMessage["data"]) => {
-        sentMessages.push({ tenantId, userId, type, data });
-    },
-}));
 
 import statusService = require("../");
+import { configureStatusFanout } from "../broadcaster";
 
 // Derive the service's context type from its own signature so our in-memory
 // fake `db` is accepted without leaking the internal type name.
@@ -310,6 +306,9 @@ function makeDb({ users }: { users: Partial<FakeUser>[] }): {
 
 beforeEach(() => {
     sentMessages.length = 0;
+    configureStatusFanout((tenantId, userId, type, data) => {
+        sentMessages.push({ tenantId, userId, type, data: data as SentMessage["data"] });
+    });
 });
 
 describe("StatusService — full side-effect chain", () => {
@@ -329,8 +328,12 @@ describe("StatusService — full side-effect chain", () => {
         expect(state.events[0]).toMatchObject({ user_id: 1, source: "session_open", to_state: "available" });
         // Broadcast went to self + org peer
         expect(sentMessages.map((m) => m.userId).sort()).toEqual([1, 2]);
-        expect(sentMessages[0].type).toBe("user_status");
-        expect(sentMessages[0].data.effective).toBe("available");
+        expect(sentMessages[0]).toMatchObject({
+            tenantId: null,
+            userId: 1,
+            type: "user_status",
+            data: { userId: 1, effective: "available", presence: "online" },
+        });
     });
 
     test("setManualStatus(dnd) reflects in effective state", async () => {

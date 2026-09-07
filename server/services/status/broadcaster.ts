@@ -3,8 +3,8 @@
  *
  * INVARIANTS:
  *   • Only this file produces the unified `user_status` WS event.
- *   • Lazy-requires `../../utils/ws` so that requiring status service from
- *     anywhere (including tests that don't boot the WS server) is safe.
+ *   • The platform/realtime composition root injects fan-out; this domain
+ *     service never imports WebSocket infrastructure.
  *   • Errors are swallowed — broadcasting is best-effort.
  *
  * Event shape (frozen — version it by adding fields, never by renaming):
@@ -26,8 +26,18 @@ interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 }
 
-interface WsModule {
-    sendToUser?: (tenantId: number | null, userId: number, type: string, payload: unknown) => void;
+type StatusFanout = (
+    tenantId: number | null,
+    userId: number,
+    type: "user_status",
+    payload: unknown,
+) => void;
+
+let sendToUser: StatusFanout = () => { };
+
+/** Configure infrastructure at the process composition root. */
+function configureStatusFanout(fanout: StatusFanout): void {
+    sendToUser = fanout;
 }
 
 interface BroadcastArgs {
@@ -37,22 +47,14 @@ interface BroadcastArgs {
     payload: unknown;
 }
 
-// Lazy import to avoid circular requires during boot.
-function getWs(): WsModule | null {
-    try { return require("../../utils/ws") as WsModule; } catch { return null; }
-}
-
 /**
  * Broadcast the user's new effective state to themselves and to every
  * online member of their organisation.
  */
 async function broadcastUserStatus({ db, tenantId, userId, payload }: BroadcastArgs): Promise<void> {
-    const ws = getWs();
-    if (!ws?.sendToUser) return;
-
     try {
         // Send to the user themselves first (multi-tab sync).
-        ws.sendToUser(tenantId, userId, "user_status", payload);
+        sendToUser(tenantId, userId, "user_status", payload);
 
         // Then to org peers. Org membership is the privacy boundary.
         // Single SQL round-trip: derive org_id from the actor row and fan
@@ -69,9 +71,10 @@ async function broadcastUserStatus({ db, tenantId, userId, payload }: BroadcastA
             [userId],
         )).rows;
         for (const p of peers) {
-            ws.sendToUser(tenantId, p.id, "user_status", payload);
+            sendToUser(tenantId, p.id, "user_status", payload);
         }
     } catch { /* best-effort */ }
 }
 
-export { broadcastUserStatus };
+export { broadcastUserStatus, configureStatusFanout };
+export type { StatusFanout };

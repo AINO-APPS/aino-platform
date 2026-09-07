@@ -10,6 +10,7 @@ import type { Express } from "express";
 import { logger } from "../utils/logger";
 import { setupWebSocket } from "../utils/ws";
 import { createCollaborationServer } from "../utils/collaboration";
+import { composeRealtimeBoundaries } from "../realtime/composition";
 import { initJobs } from "../jobs";
 import { autoClockOut, cleanupTokens } from "../services/attendance/autoClockOut";
 import { bootstrap } from "../bootstrap/migrations";
@@ -25,6 +26,7 @@ async function runAllRole(app: Express): Promise<void> {
     await bootstrap();
 
     const httpServer = http.createServer(app);
+    composeRealtimeBoundaries();
     const wss = await setupWebSocket(httpServer);
     setWebSocketServer(wss);
     await createCollaborationServer(httpServer);

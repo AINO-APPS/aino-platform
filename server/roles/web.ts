@@ -10,10 +10,12 @@ import { logger } from "../utils/logger";
 import { bootstrap } from "../bootstrap/migrations";
 import { installShutdownHandlers } from "../bootstrap/shutdown";
 import { startTracing } from "../platform/metrics";
+import { composeRealtimeBoundaries } from "../realtime/composition";
 
 async function runWebRole(app: Express): Promise<void> {
     startTracing();
     await bootstrap();
+    composeRealtimeBoundaries();
     const server = http.createServer(app);
     const port = process.env.PORT || 5000;
     server.listen(port, () => logger.info({ port, role: "web" }, "Web role running"));
