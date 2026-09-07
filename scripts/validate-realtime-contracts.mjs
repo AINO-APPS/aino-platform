@@ -26,6 +26,7 @@ for (const marker of ["asyncapi: 2.6.0", "url: aino.org.in/ws", "cookieToken:", 
 }
 const ws = [
   "server/utils/ws.ts",
+  "server/realtime/auth.ts",
   "server/realtime/messageRouter.ts",
   "server/realtime/fanout.ts",
 ].map(read).join("\n");

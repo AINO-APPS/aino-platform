@@ -5,7 +5,7 @@ import auth from "../../middleware/auth";
 import { loadUserContext } from "../../middleware/rbac";
 import { findApprover } from "../../utils/approver";
 import { logAction } from "../../utils/audit";
-import { sendToUser } from "../../utils/ws";
+import { sendToUser } from "../../realtime/fanout";
 import { createAttendanceService } from "./attendance.service";
 import { AttendanceError } from "./attendance.types";
 import type { AttendanceDb } from "./attendance.types";

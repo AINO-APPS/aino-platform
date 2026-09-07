@@ -4,7 +4,7 @@ const configureStatusFanout = jest.fn();
 const sendToUser = jest.fn();
 
 jest.mock("../services/status/broadcaster", () => ({ configureStatusFanout }));
-jest.mock("../utils/ws", () => ({ sendToUser }));
+jest.mock("../realtime/fanout", () => ({ sendToUser }));
 
 import { composeRealtimeBoundaries } from "../realtime/composition";
 

@@ -15,48 +15,11 @@ import { logger } from "../logger";
 import * as signalStore from "../../realtime/signalStore";
 import * as membershipCache from "../../realtime/membershipCache";
 import * as meetingLeaveStore from "../../realtime/meetingLeaveStore";
+import { clientKey, clients, hasOpenSocket } from "../../realtime/registry";
+import type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
+export type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
 const statusService = require("../../services/status");
 const wsMetrics = require("../wsMetrics");
-
-export type Query = (
-  sql: string,
-  params?: unknown[],
-) => Promise<{ rows: any[]; rowCount?: number | null }>;
-
-export interface DbLike {
-  query: Query;
-  transaction?: (fn: (client: unknown) => Promise<unknown>) => Promise<unknown>;
-}
-
-/**
- * Extended WebSocket — the `ws` library's socket plus the bag of
- * per-connection state stashed directly on the instance.
- */
-export interface ExtWS {
-  readyState: number;
-  isAlive?: boolean;
-  db?: DbLike;
-  tenantId?: number | null;
-  userId?: number;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-  terminate(): void;
-  ping(): void;
-  on(event: string, cb: (...args: any[]) => void): void;
-  [key: string]: any;
-}
-
-export type WSType = string;
-
-export type SendToUser = (
-  tenantId: number | null | undefined,
-  userId: number,
-  type: WSType,
-  data: unknown,
-) => void;
-
-/** Map<clientKey, Set<WebSocket>> — local instance connections, keyed by tenantId:userId */
-export const clients = new Map<string, Set<ExtWS>>();
 
 interface PendingMeetingLeave {
   timer: NodeJS.Timeout;
@@ -77,26 +40,8 @@ const meetingLeaveKey = (
   meetingId: number,
 ): string => `${tenantId || 0}:${userId}:${meetingId}`;
 
-/** Composite key for the clients Map to prevent cross-tenant collisions */
-export function clientKey(
-  tenantId: number | null | undefined,
-  userId: number,
-): string {
-  return `${tenantId || 0}:${userId}`;
-}
-
-/** True if the user has at least one OPEN (readyState===1) local socket. */
-export function hasOpenSocket(
-  tenantId: number | null | undefined,
-  userId: number,
-): boolean {
-  const set = clients.get(clientKey(tenantId, userId));
-  if (!set) return false;
-  for (const ws of set) {
-    if (ws.readyState === 1) return true;
-  }
-  return false;
-}
+/** Compatibility exports while bounded handlers migrate to realtime/. */
+export { clientKey, clients, hasOpenSocket };
 
 export function recordCallTransitionFailure(data: Record<string, unknown>): void {
   if (typeof wsMetrics?.recordCallTransitionFailure === "function") {

@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { sendToUser } from "../utils/ws";
+import { sendToUser } from "../realtime/fanout";
 import { getStorage, urlToKey } from "../platform/storage";
 
 type QueryResult = { rows: any[]; rowCount?: number | null };

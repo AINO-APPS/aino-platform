@@ -11,16 +11,15 @@
  *     services/status/broadcaster.js.
  */
 import { randomUUID } from "crypto";
-import type { Server as HTTPServer } from "http";
-import type { IncomingMessage } from "http";
+import type { Server as HTTPServer, IncomingMessage } from "http";
 import { logger } from "./logger";
 import { handleChatMessage as dispatchMessage } from "../realtime/messageRouter";
 import { INSTANCE_ID, broadcast, deliverLocal, notifyUser, sendToUser } from "../realtime/fanout";
+import { registerConnection, unregisterConnection } from "../realtime/registry";
+import { resolveRealtimeToken, revalidateSocketSession, verifyRealtimeToken } from "../realtime/auth";
+import { attachSocketHeartbeat, handleApplicationPing, startHeartbeat } from "../realtime/heartbeat";
+import type { DbLike, ExtWS } from "../realtime/types";
 import {
-  DbLike,
-  ExtWS,
-  clients,
-  clientKey,
   isConversationMember,
   isMeetingMember,
   emitCallHistoryMessage as sharedEmitCallHistoryMessage,
@@ -51,8 +50,6 @@ async function handleChatMessage(
   return dispatchMessage(db, senderId, tenantId, msg, ws, sendToUser);
 }
 const { WebSocketServer } = require("ws");
-const jwt = require("jsonwebtoken");
-const cookie = require("cookie");
 const { masterQuery } = require("../db");
 const { getTenantPool, getTenantById } = require("./tenantManager");
 const redis = require("../redis");
@@ -155,22 +152,7 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
     // Authenticate via cookie (web/desktop) or, for native mobile clients
     // that can't send cookies on the WS handshake, via a `token` query
     // param or the `Sec-WebSocket-Protocol` header. Cookie takes precedence.
-    const cookies = cookie.parse(req.headers.cookie || "");
-    let token: string | undefined = cookies.token;
-    if (!token) {
-      try {
-        const url = new URL(req.url || "", "http://localhost");
-        token = url.searchParams.get("token") || undefined;
-      } catch {
-        /* malformed url — ignore */
-      }
-    }
-    if (!token) {
-      const proto = req.headers["sec-websocket-protocol"];
-      if (typeof proto === "string" && proto.length > 0) {
-        token = proto.split(",")[0].trim();
-      }
-    }
+    const token = resolveRealtimeToken(req);
     if (!token) {
       ws.close(4001, "Unauthorized");
       return;
@@ -178,7 +160,7 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
 
     let payload: any;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET);
+      payload = verifyRealtimeToken(token, process.env.JWT_SECRET);
     } catch {
       ws.close(4001, "Unauthorized");
       return;
@@ -249,15 +231,12 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
     }
 
     // Register client (enforce per-user connection limit)
-    const ck = clientKey(tenantId, userId);
-    const wasOffline = !clients.has(ck) || clients.get(ck)!.size === 0;
-    if (!clients.has(ck)) clients.set(ck, new Set<ExtWS>());
-    const userConns = clients.get(ck)!;
-    if (userConns.size >= MAX_CONNECTIONS_PER_USER) {
+    const registration = registerConnection(tenantId, userId, ws, MAX_CONNECTIONS_PER_USER);
+    if (!registration.accepted) {
       ws.close(4029, "Too many connections");
       return;
     }
-    userConns.add(ws);
+    const { wasOffline } = registration;
 
     // Status service v2: register this connection as its own session so
     // per-device activity (in_call / in_meeting) and "Appear Offline" can
@@ -380,13 +359,7 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         // cheap and doesn't pollute the per-handler stats. We also treat
         // it as proof of life for the server-side pong heartbeat.
         if (msg && msg.type === "ping") {
-          ws.isAlive = true;
-          ws._missedPongs = 0;
-          try {
-            ws.send(JSON.stringify({ type: "pong" }));
-          } catch {
-            /* ignore */
-          }
+          handleApplicationPing(ws);
           return;
         }
         // Phase 6 — wrap every dispatch with the metrics collector so
@@ -418,24 +391,18 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
     });
 
     ws.on("close", async () => {
-      const set = clients.get(ck);
-      if (set) {
-        set.delete(ws);
-        if (set.size === 0) {
-          clients.delete(ck);
-          // Drop Redis presence + bump last_seen_at for legacy
-          // /api/chat/presence readers. Status service emits the
-          // canonical `user_status` event from closeSession() below.
-          redis.removePresence(tenantId, userId);
-          db.query("UPDATE users SET last_seen_at = NOW() WHERE id = $1", [
-            userId,
-          ]).catch((err: any) => {
+      if (unregisterConnection(tenantId, userId, ws)) {
+        // Drop Redis presence + bump last_seen_at for legacy
+        // /api/chat/presence readers. Status service emits the
+        // canonical `user_status` event from closeSession() below.
+        redis.removePresence(tenantId, userId);
+        db.query("UPDATE users SET last_seen_at = NOW() WHERE id = $1", [userId])
+          .catch((err: any) => {
             logger.warn(
               { err: err.message, userId },
               "Failed to update last_seen_at on disconnect",
             );
           });
-        }
       }
 
       // Status service v2: close exactly this connection's session.
@@ -491,66 +458,28 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
       ws.close();
     });
 
-    // Heartbeat: keep connection alive
-    ws.isAlive = true;
+    // Heartbeat: keep presence and status sessions fresh on transport pongs.
     ws.userId = userId;
     ws.tenantId = tenantId || null;
-    ws.on("pong", () => {
-      ws.isAlive = true;
-      // Refresh Redis presence TTL on every pong so users don't appear offline
-      redis.setPresence(ws.tenantId, ws.userId, redis.TTL.PRESENCE);
-      // Status service v2: keep this session's last_seen_at fresh so
-      // the resolver doesn't classify it as stale (> SESSION_STALE_MS).
-      if (ws._statusSessionKey) {
+    attachSocketHeartbeat(ws, (socket) => {
+      redis.setPresence(socket.tenantId, socket.userId, redis.TTL.PRESENCE);
+      if (socket._statusSessionKey) {
         statusService
-          .touchSession({ db, tenantId: ws.tenantId }, ws._statusSessionKey)
-          .catch(() => {
-            /* best-effort */
-          });
+          .touchSession({ db, tenantId: socket.tenantId }, socket._statusSessionKey)
+          .catch(() => { /* best-effort */ });
       }
     });
   });
 
-  // Heartbeat interval — softer than before: a single missed pong no longer
-  // terminates the socket. We only kill the connection after `MAX_MISSED_PONGS`
-  // consecutive missed pings (~60s of silence), which matches videosdk-style
-  // SDK behaviour and prevents brief network blips from kicking users out of
-  // their meeting. Combined with `scheduleMeetingDisconnectCleanup` below,
-  // a short Wi-Fi drop now causes zero user-visible disruption.
-  const MAX_MISSED_PONGS = 2;
-  const heartbeat = setInterval(() => {
-    wss.clients.forEach((ws: ExtWS) => {
-      ws._missedPongs = (ws._missedPongs || 0) + (ws.isAlive ? 0 : 1);
-      if (ws._missedPongs > MAX_MISSED_PONGS) {
-        logger.debug(
-          { userId: ws.userId, missed: ws._missedPongs },
-          "WS terminating after missed pongs",
-        );
-        return ws.terminate();
-      }
-      ws.isAlive = false;
-      if (ws.userId && ws._sessionId && ws.db && !ws._heartbeatAuthCheckInFlight) {
-        ws._heartbeatAuthCheckInFlight = true;
-        validateSession(ws.userId, ws._sessionId, ws.db)
-          .then((state) => {
-            if (state !== "active") ws.close(4001, "Session ended");
-          })
-          .catch(() => {
-            /* fail open on transient DB errors */
-          })
-          .finally(() => {
-            ws._heartbeatAuthCheckInFlight = false;
-          });
-      }
-      try {
-        ws.ping();
-      } catch {
-        /* ignore */
-      }
-    });
-  }, 30000);
-
-  wss.on("close", () => clearInterval(heartbeat));
+  // Two consecutive missed pongs are tolerated; the third terminates the socket.
+  startHeartbeat(wss, {
+    revalidate: (ws) => revalidateSocketSession(ws, validateSession),
+    onTerminate: (ws) => logger.debug(
+      { userId: ws.userId, missed: ws._missedPongs },
+      "WS terminating after missed pongs",
+    ),
+    onProofOfLife: () => undefined,
+  });
 
   return wss;
 }

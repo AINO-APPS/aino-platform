@@ -1,6 +1,7 @@
 import { logger } from "../utils/logger";
 import { pushNotifications } from "../services/pushNotifications";
-import { clients, clientKey, type DbLike, type WSType } from "../utils/wsHandlers/shared";
+import { clients, clientKey } from "./registry";
+import type { DbLike, WSType } from "./types";
 const redis = require("../redis");
 
 export const INSTANCE_ID = `ws-${process.pid}-${Date.now()}`;
