@@ -30,6 +30,12 @@ files:
   - callPipWindow.js
   - biometric.js
   - ipc-contract.js
+  - permissions.js
+  - screenCapture.js
+  - locationIpc.js
+  - protocol.js
+  - protocolUtils.js
+  - windowState.js
   - icons/**/*
   - package.json
   - google-api-key.txt

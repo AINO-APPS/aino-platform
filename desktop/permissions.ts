@@ -1,0 +1,40 @@
+import { systemPreferences, type Session } from "electron";
+
+const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "mediaKeySystem", "geolocation"]);
+
+export function setupPermissions(electronSession: Session): void {
+// Grant media + geolocation permissions.
+//   - media / display-capture / mediaKeySystem → camera, mic, screen share
+//   - geolocation → required by the "clock-in from office" geofence flow
+//                    (client/src/utils/geolocation.js → navigator.geolocation)
+// Without geolocation in this list the renderer's getCurrentPosition()
+// fires its error callback with PERMISSION_DENIED, the desktop client
+// skips sending latitude/longitude, and the server responds 403
+// "Location is required to clock in from office. Please allow location
+// access." — which looks like the user can't "enable" location even
+// though the Windows OS-level location toggle is on.
+electronSession.setPermissionRequestHandler(
+  (_webContents, permission, callback) => {
+    const granted = ALLOWED_PERMISSIONS.has(permission);
+    console.log(
+      `[AINO] Permission request: ${permission} → ${granted ? "GRANTED" : "DENIED"}`,
+    );
+    callback(granted);
+  },
+);
+electronSession.setPermissionCheckHandler(
+  (_webContents, permission) => {
+    const granted = ALLOWED_PERMISSIONS.has(permission);
+    console.log(
+      `[AINO] Permission check: ${permission} → ${granted ? "GRANTED" : "DENIED"}`,
+    );
+    return granted;
+  },
+);
+
+// macOS: request camera/mic access at OS level
+if (process.platform === "darwin") {
+  systemPreferences.askForMediaAccess("camera").catch(() => {});
+  systemPreferences.askForMediaAccess("microphone").catch(() => {});
+}
+}
