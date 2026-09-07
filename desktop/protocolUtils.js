@@ -7,9 +7,18 @@ exports.normalizeProtocolPath = normalizeProtocolPath;
 exports.resolveClientFile = resolveClientFile;
 exports.isAllowedAppNavigation = isAllowedAppNavigation;
 exports.isReadOnlyMethod = isReadOnlyMethod;
+exports.shouldApplyAppCsp = shouldApplyAppCsp;
+exports.createProxyRequest = createProxyRequest;
 const path_1 = __importDefault(require("path"));
 function normalizeProtocolPath(url) {
-    const decoded = decodeURIComponent(url.pathname || "/").replace(/\\/g, "/");
+    let decoded;
+    try {
+        decoded = decodeURIComponent(url.pathname || "/");
+    }
+    catch {
+        decoded = url.pathname || "/";
+    }
+    decoded = decoded.replace(/\\/g, "/");
     return decoded.startsWith("/") ? decoded : `/${decoded}`;
 }
 function resolveClientFile(clientDist, pathname) {
@@ -29,5 +38,25 @@ function isAllowedAppNavigation(url) {
 }
 function isReadOnlyMethod(method) {
     return method === "GET" || method === "HEAD";
+}
+function shouldApplyAppCsp(url, resourceType) {
+    return resourceType === "mainFrame" && isAllowedAppNavigation(url);
+}
+function createProxyRequest(apiServer, request) {
+    const source = new URL(request.url);
+    const headers = new Headers(request.headers);
+    headers.delete("host");
+    headers.set("origin", "workpulse://app");
+    headers.set("x-requested-with", "WorkPulse");
+    return {
+        url: `${apiServer}${normalizeProtocolPath(source)}${source.search}`,
+        init: {
+            method: request.method,
+            headers,
+            credentials: "include",
+            cache: isReadOnlyMethod(request.method) ? "default" : "no-store",
+            bypassCustomProtocolHandlers: true,
+        },
+    };
 }
 //# sourceMappingURL=protocolUtils.js.map

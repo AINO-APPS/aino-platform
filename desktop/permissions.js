@@ -1,8 +1,22 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isAllowedPermission = isAllowedPermission;
 exports.setupPermissions = setupPermissions;
 const electron_1 = require("electron");
 const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "mediaKeySystem", "geolocation"]);
+function isAllowedPermission(permission, requestingOrigin) {
+    if (!ALLOWED_PERMISSIONS.has(permission))
+        return false;
+    if (!requestingOrigin)
+        return false;
+    try {
+        const origin = new URL(requestingOrigin);
+        return origin.protocol === "workpulse:" && origin.hostname === "app";
+    }
+    catch {
+        return false;
+    }
+}
 function setupPermissions(electronSession) {
     // Grant media + geolocation permissions.
     //   - media / display-capture / mediaKeySystem → camera, mic, screen share
@@ -14,13 +28,13 @@ function setupPermissions(electronSession) {
     // "Location is required to clock in from office. Please allow location
     // access." — which looks like the user can't "enable" location even
     // though the Windows OS-level location toggle is on.
-    electronSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-        const granted = ALLOWED_PERMISSIONS.has(permission);
+    electronSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+        const granted = isAllowedPermission(permission, details.requestingUrl);
         console.log(`[AINO] Permission request: ${permission} → ${granted ? "GRANTED" : "DENIED"}`);
         callback(granted);
     });
-    electronSession.setPermissionCheckHandler((_webContents, permission) => {
-        const granted = ALLOWED_PERMISSIONS.has(permission);
+    electronSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+        const granted = isAllowedPermission(permission, requestingOrigin);
         console.log(`[AINO] Permission check: ${permission} → ${granted ? "GRANTED" : "DENIED"}`);
         return granted;
     });

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { CallPipAction, CallPipState, ElectronAPI, ListenerContract, RendererInvoke, RendererSend, Unsubscribe, WindowVisibility } from "./ipc-contract";
+import { subscribe } from "./preloadListeners";
 
 type Listener<T> = (callback: (value: T) => void) => Unsubscribe;
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as RendererInvoke;
@@ -10,14 +11,7 @@ function createListener<C extends keyof ListenerContract, T = ListenerContract[C
     channel: C,
     transform?: (...args: ListenerContract[C]) => T
 ): Listener<T> {
-    return (callback) => {
-        const handler = (_e: IpcRendererEvent, ...rawArgs: unknown[]) => {
-            const args = rawArgs as ListenerContract[C];
-            callback(transform ? transform(...args) : (args[0] as T));
-        };
-        ipcRenderer.on(channel, handler);
-        return () => ipcRenderer.removeListener(channel, handler);
-    };
+    return (callback) => subscribe(ipcRenderer, channel, callback, transform);
 }
 
 const electronAPI = {

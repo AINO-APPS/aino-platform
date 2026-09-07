@@ -14,3 +14,9 @@ test("critical preload channels remain declared", () => {
   assert.ok(SEND_CHANNELS.includes("screen-source-selected"));
   assert.ok(LISTENER_CHANNELS.includes("screen-sources"));
 });
+
+test("all public channel lists match the typed contract keys", () => {
+  const manifest = require("../ipc-channels.json");
+  assert.deepEqual([...INVOKE_CHANNELS, ...SEND_CHANNELS].sort(), manifest.rendererToMain.sort());
+  assert.deepEqual([...LISTENER_CHANNELS].sort(), manifest.mainToRenderer.sort());
+});

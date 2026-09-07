@@ -4,5 +4,5 @@ checkSourceFileSizes({
   label: "Desktop",
   root: "desktop",
   baselineFile: "scripts/desktop-file-sizes-baseline.json",
-  recursive: false,
+  recursive: true,
 });

@@ -2,6 +2,7 @@ import { net, shell } from "electron";
 import { execFile } from "child_process";
 import util from "util";
 import { handleIpc } from "./ipc-contract";
+import { parseIpLocation, parseMacWifi, parseWindowsWifi } from "./locationUtils";
 
 const execFileP = util.promisify(execFile);
 
@@ -50,30 +51,7 @@ handleIpc("get-wifi-info", async () => {
         "[AINO] get-wifi-info: netsh output length =",
         stdout.length,
       );
-      const bssidM = /^\s*BSSID\s*:\s*([0-9A-Fa-f:]{17})\s*$/m.exec(stdout);
-      const ssidM = /^\s*SSID\s*:\s*(.+?)\s*$/m.exec(stdout);
-      const sigM = /^\s*Signal\s*:\s*(\d+)\s*%/m.exec(stdout);
-      const stateM = /^\s*State\s*:\s*(.+?)\s*$/m.exec(stdout);
-      console.log("[AINO] get-wifi-info: parsed →", {
-        bssid: bssidM?.[1] || null,
-        ssid: ssidM?.[1] || null,
-        signal: sigM?.[1] || null,
-        state: stateM?.[1] || null,
-      });
-      if (!bssidM) {
-        const error =
-          stateM && /disconnected/i.test(stateM[1])
-            ? "wifi_disconnected"
-            : "bssid_unavailable";
-        console.warn("[AINO] get-wifi-info: no BSSID →", error);
-        return { ok: false, error };
-      }
-      const result = {
-        ok: true,
-        bssid: bssidM[1].toUpperCase(),
-        ssid: ssidM ? ssidM[1] : null,
-        signal: sigM ? Number(sigM[1]) : null,
-      };
+      const result = parseWindowsWifi(stdout);
       console.log("[AINO] get-wifi-info: success →", result);
       return result;
     }
@@ -81,22 +59,7 @@ handleIpc("get-wifi-info", async () => {
       const airport =
         "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
       const { stdout } = await execFileP(airport, ["-I"]);
-      const bssidM = /\bBSSID:\s*([0-9a-fA-F:]{11,17})/.exec(stdout);
-      const ssidM = /\bSSID:\s*(.+)/.exec(stdout);
-      const rssiM = /\bagrCtlRSSI:\s*(-?\d+)/.exec(stdout);
-      if (!bssidM) return { ok: false, error: "bssid_unavailable" };
-      // Pad single-digit hex octets — macOS reports `1:2:3:4:5:6`.
-      const padded = bssidM[1]
-        .split(":")
-        .map((s) => s.padStart(2, "0"))
-        .join(":")
-        .toUpperCase();
-      return {
-        ok: true,
-        bssid: padded,
-        ssid: ssidM ? ssidM[1].trim() : null,
-        signal: rssiM ? Number(rssiM[1]) : null,
-      };
+      return parseMacWifi(stdout);
     }
     if (process.platform === "linux") {
       try {
@@ -231,17 +194,11 @@ handleIpc("get-ip-location", async () => {
   }[] = [
     {
       url: "http://ip-api.com/json/?fields=status,lat,lon,city,regionName,country,query",
-      parse: (j) =>
-        j && j.status === "success"
-          ? { latitude: j.lat, longitude: j.lon, accuracy: 5000 }
-          : null,
+      parse: parseIpLocation,
     },
     {
       url: "https://ipapi.co/json/",
-      parse: (j) =>
-        j && typeof j.latitude === "number" && typeof j.longitude === "number"
-          ? { latitude: j.latitude, longitude: j.longitude, accuracy: 5000 }
-          : null,
+      parse: parseIpLocation,
     },
   ];
   for (const p of providers) {

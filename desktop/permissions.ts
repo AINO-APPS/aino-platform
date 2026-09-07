@@ -2,6 +2,17 @@ import { systemPreferences, type Session } from "electron";
 
 const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "mediaKeySystem", "geolocation"]);
 
+export function isAllowedPermission(permission: string, requestingOrigin?: string): boolean {
+  if (!ALLOWED_PERMISSIONS.has(permission)) return false;
+  if (!requestingOrigin) return false;
+  try {
+    const origin = new URL(requestingOrigin);
+    return origin.protocol === "workpulse:" && origin.hostname === "app";
+  } catch {
+    return false;
+  }
+}
+
 export function setupPermissions(electronSession: Session): void {
 // Grant media + geolocation permissions.
 //   - media / display-capture / mediaKeySystem → camera, mic, screen share
@@ -14,8 +25,8 @@ export function setupPermissions(electronSession: Session): void {
 // access." — which looks like the user can't "enable" location even
 // though the Windows OS-level location toggle is on.
 electronSession.setPermissionRequestHandler(
-  (_webContents, permission, callback) => {
-    const granted = ALLOWED_PERMISSIONS.has(permission);
+  (_webContents, permission, callback, details) => {
+    const granted = isAllowedPermission(permission, details.requestingUrl);
     console.log(
       `[AINO] Permission request: ${permission} → ${granted ? "GRANTED" : "DENIED"}`,
     );
@@ -23,8 +34,8 @@ electronSession.setPermissionRequestHandler(
   },
 );
 electronSession.setPermissionCheckHandler(
-  (_webContents, permission) => {
-    const granted = ALLOWED_PERMISSIONS.has(permission);
+  (_webContents, permission, requestingOrigin) => {
+    const granted = isAllowedPermission(permission, requestingOrigin);
     console.log(
       `[AINO] Permission check: ${permission} → ${granted ? "GRANTED" : "DENIED"}`,
     );

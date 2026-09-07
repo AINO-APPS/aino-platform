@@ -12,6 +12,10 @@ appId: com.workpulse.desktop
 # %APPDATA%\WorkPulse profile forward so the rename does not log users out.
 productName: AINO
 copyright: Copyright © 2026 AINO
+protocols:
+  - name: AINO links
+    schemes:
+      - workpulse
 
 directories:
   output: dist
@@ -19,6 +23,15 @@ directories:
 
 files:
   - main.js
+  - application.js
+  - config.js
+  - deepLinks.js
+  - ipcSecurity.js
+  - preloadListeners.js
+  - locationUtils.js
+  - lifecycle.js
+  - navigationSecurity.js
+  - windows.js
   # Sets app.name and migrates the legacy %APPDATA%\WorkPulse profile. main.js
   # requires it, so omitting it here crashes the PACKAGED app on launch with
   # "Cannot find module ./appIdentity" (dev runs fine -- this list only

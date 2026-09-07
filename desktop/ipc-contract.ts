@@ -68,11 +68,19 @@ export type RendererOn = <C extends keyof ListenerContract>(channel: C, listener
 
 export function handleIpc<C extends keyof InvokeContract>(channel: C, listener: (event: IpcMainInvokeEvent, ...args: InvokeContract[C]["args"]) => InvokeContract[C]["result"] | Promise<InvokeContract[C]["result"]>): void {
   const { ipcMain } = require("electron") as typeof import("electron");
-  ipcMain.handle(channel, listener as never);
+  const { assertTrustedIpcSender } = require("./ipcSecurity") as typeof import("./ipcSecurity");
+  ipcMain.handle(channel, ((event: IpcMainInvokeEvent, ...args: InvokeContract[C]["args"]) => {
+    assertTrustedIpcSender(event);
+    return listener(event, ...args);
+  }) as never);
 }
 export function onIpc<C extends keyof SendContract>(channel: C, listener: (event: IpcMainEvent, ...args: SendContract[C]) => void): void {
   const { ipcMain } = require("electron") as typeof import("electron");
-  ipcMain.on(channel, listener as never);
+  const { assertTrustedIpcSender } = require("./ipcSecurity") as typeof import("./ipcSecurity");
+  ipcMain.on(channel, ((event: IpcMainEvent, ...args: SendContract[C]) => {
+    try { assertTrustedIpcSender(event); } catch { return; }
+    listener(event, ...args);
+  }) as never);
 }
 export function sendIpc<C extends keyof ListenerContract>(target: WebContents, channel: C, ...args: ListenerContract[C]): void { target.send(channel, ...args); }
 

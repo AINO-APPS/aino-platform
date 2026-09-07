@@ -50,9 +50,7 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
     // — doing so would break their script loading and make the
     // editor either fail or load very slowly while it retries.
     electronSession.webRequest.onHeadersReceived((details, callback) => {
-        const isAppDocument = details.resourceType === "mainFrame" &&
-            typeof details.url === "string" &&
-            details.url.startsWith("workpulse://");
+        const isAppDocument = (0, protocolUtils_1.shouldApplyAppCsp)(details.url, details.resourceType);
         if (!isAppDocument) {
             callback({ responseHeaders: details.responseHeaders });
             return;
@@ -207,29 +205,11 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
         }
         // Proxy /api/* requests to server (cookies managed by Electron session)
         if (pathname.startsWith("/api/") || pathname.startsWith("/api\\")) {
-            const targetUrl = `${apiServer}${pathname}${url.search || ""}`;
             try {
-                const headers = {};
-                // Copy all incoming headers into a plain object
-                for (const [key, value] of request.headers.entries()) {
-                    if (key.toLowerCase() === "host")
-                        continue; // skip host
-                    headers[key] = value;
-                }
-                headers["origin"] = "workpulse://app";
-                headers["x-requested-with"] = "WorkPulse";
-                // `cache: "no-store"` on EVERY request defeated HTTP caching for
-                // read-only GETs (chat messages, members, read-status, presence),
-                // forcing a full remote round-trip each time and adding latency on
-                // the chat-open path. Mutating requests still bypass the cache.
-                const isReadOnly = (0, protocolUtils_1.isReadOnlyMethod)(request.method);
-                const fetchOpts = {
-                    method: request.method,
-                    headers,
-                    credentials: "include",
-                    cache: isReadOnly ? "default" : "no-store",
-                    bypassCustomProtocolHandlers: true,
-                };
+                // Read-only requests retain normal HTTP caching; mutations bypass it.
+                const proxy = (0, protocolUtils_1.createProxyRequest)(apiServer, request);
+                const targetUrl = proxy.url;
+                const fetchOpts = proxy.init;
                 // Buffer the body for methods that have one
                 if (!["GET", "HEAD"].includes(request.method)) {
                     try {

@@ -3,9 +3,16 @@ import path from "node:path";
 
 const desktopRoot = path.resolve("desktop");
 const contractSource = fs.readFileSync(path.join(desktopRoot, "ipc-contract.ts"), "utf8");
-const source = fs.readdirSync(desktopRoot)
-  .filter((name) => name.endsWith(".ts") && !/\.(?:test|spec)\.ts$/.test(name) && name !== "ipc-contract.ts")
-  .map((name) => fs.readFileSync(path.join(desktopRoot, name), "utf8")).join("\n");
+function walk(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (["node_modules", "dist", "build", "tests"].includes(entry.name)) return [];
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : [full];
+  });
+}
+const source = walk(desktopRoot)
+  .filter((file) => file.endsWith(".ts") && !/\.(?:test|spec)\.ts$/.test(file) && path.basename(file) !== "ipc-contract.ts")
+  .map((file) => fs.readFileSync(file, "utf8")).join("\n");
 
 function matches(text, patterns) {
   const found = new Set();

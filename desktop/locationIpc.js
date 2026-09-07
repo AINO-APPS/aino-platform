@@ -8,6 +8,7 @@ const electron_1 = require("electron");
 const child_process_1 = require("child_process");
 const util_1 = __importDefault(require("util"));
 const ipc_contract_1 = require("./ipc-contract");
+const locationUtils_1 = require("./locationUtils");
 const execFileP = util_1.default.promisify(child_process_1.execFile);
 function setupLocationIpc() {
     // ─── IP-based geolocation fallback ─────────────────────────────────
@@ -51,52 +52,14 @@ function setupLocationIpc() {
                     "interfaces",
                 ]);
                 console.log("[AINO] get-wifi-info: netsh output length =", stdout.length);
-                const bssidM = /^\s*BSSID\s*:\s*([0-9A-Fa-f:]{17})\s*$/m.exec(stdout);
-                const ssidM = /^\s*SSID\s*:\s*(.+?)\s*$/m.exec(stdout);
-                const sigM = /^\s*Signal\s*:\s*(\d+)\s*%/m.exec(stdout);
-                const stateM = /^\s*State\s*:\s*(.+?)\s*$/m.exec(stdout);
-                console.log("[AINO] get-wifi-info: parsed →", {
-                    bssid: bssidM?.[1] || null,
-                    ssid: ssidM?.[1] || null,
-                    signal: sigM?.[1] || null,
-                    state: stateM?.[1] || null,
-                });
-                if (!bssidM) {
-                    const error = stateM && /disconnected/i.test(stateM[1])
-                        ? "wifi_disconnected"
-                        : "bssid_unavailable";
-                    console.warn("[AINO] get-wifi-info: no BSSID →", error);
-                    return { ok: false, error };
-                }
-                const result = {
-                    ok: true,
-                    bssid: bssidM[1].toUpperCase(),
-                    ssid: ssidM ? ssidM[1] : null,
-                    signal: sigM ? Number(sigM[1]) : null,
-                };
+                const result = (0, locationUtils_1.parseWindowsWifi)(stdout);
                 console.log("[AINO] get-wifi-info: success →", result);
                 return result;
             }
             if (process.platform === "darwin") {
                 const airport = "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport";
                 const { stdout } = await execFileP(airport, ["-I"]);
-                const bssidM = /\bBSSID:\s*([0-9a-fA-F:]{11,17})/.exec(stdout);
-                const ssidM = /\bSSID:\s*(.+)/.exec(stdout);
-                const rssiM = /\bagrCtlRSSI:\s*(-?\d+)/.exec(stdout);
-                if (!bssidM)
-                    return { ok: false, error: "bssid_unavailable" };
-                // Pad single-digit hex octets — macOS reports `1:2:3:4:5:6`.
-                const padded = bssidM[1]
-                    .split(":")
-                    .map((s) => s.padStart(2, "0"))
-                    .join(":")
-                    .toUpperCase();
-                return {
-                    ok: true,
-                    bssid: padded,
-                    ssid: ssidM ? ssidM[1].trim() : null,
-                    signal: rssiM ? Number(rssiM[1]) : null,
-                };
+                return (0, locationUtils_1.parseMacWifi)(stdout);
             }
             if (process.platform === "linux") {
                 try {
@@ -215,15 +178,11 @@ $w.Stop()
         const providers = [
             {
                 url: "http://ip-api.com/json/?fields=status,lat,lon,city,regionName,country,query",
-                parse: (j) => j && j.status === "success"
-                    ? { latitude: j.lat, longitude: j.lon, accuracy: 5000 }
-                    : null,
+                parse: locationUtils_1.parseIpLocation,
             },
             {
                 url: "https://ipapi.co/json/",
-                parse: (j) => j && typeof j.latitude === "number" && typeof j.longitude === "number"
-                    ? { latitude: j.latitude, longitude: j.longitude, accuracy: 5000 }
-                    : null,
+                parse: locationUtils_1.parseIpLocation,
             },
         ];
         for (const p of providers) {
