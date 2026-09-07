@@ -11,11 +11,12 @@ import crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
 
 const isProduction = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
 
 const logger = pino({
     level: process.env.LOG_LEVEL || (isProduction ? "info" : "debug"),
-    ...(isProduction
-        ? {} // JSON to stdout — let the log shipper handle formatting
+    ...(isProduction || isTest
+        ? {} // JSON to stdout in production; synchronous destination in tests.
         : { transport: { target: "pino-pretty", options: { colorize: true, translateTime: "HH:MM:ss" } } }),
 });
 
