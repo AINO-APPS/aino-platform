@@ -9,7 +9,7 @@
   "components/chat/MessageBubble.tsx": 726,
   "components/chat/call/index.tsx": 1757,
   "components/chat/call/useCallControls.ts": 754,
-  "components/chat/call/useWebRTC.ts": 1973,
+  "components/chat/call/useWebRTC.ts": 1808,
   "components/organization/OfficeLocationSettings.tsx": 917,
   "components/profile/EditProfileModal.tsx": 706,
   "pages/AgileSettings.tsx": 894,
