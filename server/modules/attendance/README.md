@@ -16,6 +16,8 @@ Owns employee time-tracking behavior and its persistence boundary.
 - `GET /api/tracker/widgets`
 - `POST /api/tracker/break-start`
 - `POST /api/tracker/break-end`
+- `POST /api/tracker/manual-entry`
+- `PUT /api/tracker/manual-entry/:date`
 - `GET /api/tracker/manual-entries`
 - `GET /api/tracker/entries/:date`
 - `DELETE /api/tracker/entries/:date`

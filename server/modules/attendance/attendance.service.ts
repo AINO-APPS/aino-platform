@@ -4,6 +4,7 @@ import type {
     AttendanceDb,
     CreateOvertimeInput,
     Theme,
+    ManualEntryInput,
 } from "./attendance.types";
 import { AttendanceError } from "./attendance.types";
 import * as repository from "./attendance.repository";
@@ -315,6 +316,139 @@ export function createAttendanceService(deps: AttendanceDependencies) {
             if (result.error) throw new AttendanceError(result.error);
         },
 
+        async createManualEntry(
+            db: AttendanceDb,
+            actor: AttendanceActor,
+            input: ManualEntryInput,
+            isSuperAdmin: boolean,
+            timezoneModifier: string,
+        ) {
+            if (await repository.countEntriesForDate(db, actor.userId, input.date, timezoneModifier) > 0) {
+                throw new AttendanceError("Entries already exist for this date. Delete them first to add manual entries.");
+            }
+            const leave = await repository.findLeaveForDate(db, actor.userId, input.date);
+            if (leave) {
+                throw new AttendanceError(
+                    `You have a ${leave.leave_type} leave on this date. Remove the leave first to add a manual entry.`,
+                );
+            }
+            await assertManualDateUnlocked(db, actor.orgId, input.date);
+
+            const approvalStatus = isSuperAdmin ? "approved" : "pending";
+            const needsApproval = !isSuperAdmin;
+            const approver = needsApproval
+                ? await deps.findApprover(db, actor.userId, actor.orgId)
+                : null;
+            await repository.persistManualDay(db, {
+                userId: actor.userId,
+                orgId: actor.orgId,
+                approverId: approver?.id || null,
+                date: input.date,
+                clockIn: input.clockIn,
+                clockOut: input.clockOut,
+                breaks: input.breaks,
+                workMode: input.workMode,
+                approvalStatus,
+                toUtc: input.toUtc,
+                reason: "Manual time entry",
+                metadata: {
+                    date: input.date,
+                    clock_in: input.clockIn,
+                    clock_out: input.clockOut || null,
+                    work_mode: input.workMode,
+                },
+                createApproval: needsApproval,
+            });
+            return { approvalStatus, needsApproval, approverId: approver?.id || null };
+        },
+
+        async editManualEntry(
+            db: AttendanceDb,
+            actor: AttendanceActor,
+            input: ManualEntryInput,
+            isSuperAdmin: boolean,
+            timezoneModifier: string,
+        ) {
+            await assertManualDateUnlocked(db, actor.orgId, input.date);
+            const leave = await repository.findLeaveForDate(db, actor.userId, input.date);
+            if (leave) {
+                throw new AttendanceError(
+                    `You have a ${leave.leave_type} leave on this date. Remove the leave first to edit a manual entry.`,
+                );
+            }
+
+            const approvalStatus = isSuperAdmin ? "approved" : "pending";
+            const needsApproval = !isSuperAdmin;
+            const hasProtectedData = !isSuperAdmin && await repository.hasProtectedManualEditData(
+                db, actor.userId, input.date, timezoneModifier,
+            );
+            const approver = hasProtectedData || needsApproval
+                ? await deps.findApprover(db, actor.userId, actor.orgId)
+                : null;
+            const common = {
+                userId: actor.userId,
+                orgId: actor.orgId,
+                approverId: approver?.id || null,
+                date: input.date,
+                clockIn: input.clockIn,
+                clockOut: input.clockOut,
+                breaks: input.breaks,
+                workMode: input.workMode,
+                approvalStatus,
+                toUtc: input.toUtc,
+            };
+            if (hasProtectedData) {
+                await repository.persistProtectedManualEdit(db, {
+                    ...common,
+                    reason: "Manual time entry (edit request)",
+                    metadata: {
+                        date: input.date,
+                        clock_in: input.clockIn,
+                        clock_out: input.clockOut || null,
+                        breaks: input.breaks,
+                        work_mode: input.workMode,
+                        timezone_offset: input.timezoneOffset,
+                        edit: true,
+                    },
+                });
+            } else {
+                await repository.persistManualDay(db, {
+                    ...common,
+                    reason: "Manual time entry (edited)",
+                    metadata: {
+                        date: input.date,
+                        clock_in: input.clockIn,
+                        clock_out: input.clockOut || null,
+                        work_mode: input.workMode,
+                    },
+                    replaceExisting: true,
+                    timezoneModifier,
+                    createApproval: needsApproval,
+                });
+            }
+            return {
+                approvalStatus: hasProtectedData ? "pending" : approvalStatus,
+                needsApproval: hasProtectedData || needsApproval,
+                approverId: approver?.id || null,
+                hasProtectedData,
+            };
+        },
+
+        async notifyManualEntryApprover(
+            db: AttendanceDb,
+            actor: AttendanceActor,
+            approverId: number,
+            date: string,
+            edit: boolean,
+        ): Promise<void> {
+            const requesterName = await repository.getUserDisplayName(db, actor.userId);
+            await repository.insertManualEntryNotification(db, approverId, requesterName, date, edit);
+            deps.sendToUser(actor.tenantId, approverId, "approval_update", {
+                type: "manual_entry",
+                status: "pending",
+            });
+        },
+
         async listManualEntries(db: AttendanceDb, userId: number) {
             const rows = await repository.listManualEntryRequests(db, userId);
             return rows.map((row: { metadata: string | object | null; [key: string]: unknown }) => {
@@ -370,6 +504,22 @@ function groupEntriesByLocalDate(entries: any[], timezoneOffset: number): Record
         (grouped[date] ??= []).push(entry);
     }
     return grouped;
+}
+
+
+
+async function assertManualDateUnlocked(
+    db: AttendanceDb,
+    orgId: number | null,
+    date: string,
+): Promise<void> {
+    if (!orgId) return;
+    const locked = await repository.findLockedPayPeriod(db, orgId, date);
+    if (locked) {
+        throw new AttendanceError(
+            `This date is in a locked pay period (${locked.label}). Time entries cannot be modified.`,
+        );
+    }
 }
 
 export type AttendanceService = ReturnType<typeof createAttendanceService>;

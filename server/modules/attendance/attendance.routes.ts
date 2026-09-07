@@ -9,8 +9,8 @@ import { sendToUser } from "../../realtime/fanout";
 import { createAttendanceService } from "./attendance.service";
 import { AttendanceError } from "./attendance.types";
 import type { AttendanceDb } from "./attendance.types";
-import { parseCreateOvertime, parseTheme, parseDateParam } from "./attendance.schema";
-import { getLocalToday, getLocalDow, getOffsetMin } from "../../utils/timezone";
+import { parseCreateOvertime, parseTheme, parseDateParam, parseManualEntry } from "./attendance.schema";
+import { getLocalToday, getLocalDow, getOffsetMin, getTzModifier } from "../../utils/timezone";
 
 const router = express.Router();
 const service = createAttendanceService({ findApprover: findApprover as any, sendToUser });
@@ -177,6 +177,84 @@ router.post("/break-end", auth, async (req: Request, res: Response) => {
         res.status(500).json({ error: "Failed to end break" });
     }
 });
+
+router.post("/manual-entry", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const manual = parseManualEntry(req.body, { today: getLocalToday(req) });
+        const actor = {
+            userId: req.userId!,
+            orgId: req.userOrgId || null,
+            tenantId: req.tenantId ? Number(req.tenantId) : null,
+        };
+        const result = await service.createManualEntry(
+            db(req), actor, manual, req.userRole === "super_admin", getTzModifier(req),
+        );
+        logAction(req, "create", "manual_entry", null, {
+            date: manual.date,
+            clock_in: manual.clockIn,
+            clock_out: manual.clockOut || null,
+            status: result.approvalStatus,
+        });
+        res.json({
+            message: result.needsApproval
+                ? "Manual entry submitted for approval"
+                : "Manual entry added successfully",
+            status: result.approvalStatus,
+            needsApproval: result.needsApproval,
+        });
+        if (result.needsApproval && result.approverId) {
+            void service.notifyManualEntryApprover(
+                db(req), actor, result.approverId, manual.date, false,
+            ).catch((err) => req.log.error({ err }, "Manager notification error (manual entry)"));
+        }
+    } catch (err) {
+        if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
+        req.log.error({ err }, "Manual entry error");
+        res.status(500).json({ error: "Failed to add manual entry" });
+    }
+});
+
+router.put("/manual-entry/:date", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const manual = parseManualEntry(req.body, {
+            date: String(req.params.date),
+            today: getLocalToday(req),
+            edit: true,
+        });
+        const actor = {
+            userId: req.userId!,
+            orgId: req.userOrgId || null,
+            tenantId: req.tenantId ? Number(req.tenantId) : null,
+        };
+        const result = await service.editManualEntry(
+            db(req), actor, manual, req.userRole === "super_admin", getTzModifier(req),
+        );
+        logAction(req, "update", "manual_entry", null, {
+            date: manual.date,
+            clock_in: manual.clockIn,
+            clock_out: manual.clockOut || null,
+            status: result.approvalStatus,
+            non_destructive: result.hasProtectedData,
+        });
+        res.json({
+            message: result.needsApproval
+                ? "Your edit was submitted for manager approval. Your original entries stay in place until it is approved."
+                : "Entry updated successfully",
+            status: result.approvalStatus,
+            needsApproval: result.needsApproval,
+        });
+        if (result.needsApproval && result.approverId) {
+            void service.notifyManualEntryApprover(
+                db(req), actor, result.approverId, manual.date, true,
+            ).catch((err) => req.log.error({ err }, "Manager notification error (manual entry edit)"));
+        }
+    } catch (err) {
+        if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
+        req.log.error({ err }, "Manual entry edit error");
+        res.status(500).json({ error: "Failed to update entry" });
+    }
+});
+
 
 router.get("/manual-entries", auth, loadUserContext, async (req: Request, res: Response) => {
     try {

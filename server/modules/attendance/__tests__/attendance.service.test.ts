@@ -259,4 +259,117 @@ describe("attendance service", () => {
             db as any, { userId: 1, orgId: 2 }, "2026-08-21", 0,
         )).toBe(3);
     });
+
+
+    it("creates a pending manual day and preserves approval metadata", async () => {
+        const client = { query: jest.fn(async () => ({ rows: [], rowCount: 1 })) };
+        const db = makeDb();
+        db.query
+            .mockResolvedValueOnce({ rows: [{ count: "0" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        db.transaction = jest.fn(async (fn: any) => fn(client));
+        const service = createAttendanceService({
+            findApprover: jest.fn(async () => ({ id: 9 })),
+            sendToUser: jest.fn(),
+        });
+        const manual = parseManualEntry({
+            date: "2026-08-21",
+            clock_in: "09:00",
+            clock_out: "17:00",
+            breaks: [{ start: "12:00", end: "12:30" }],
+            work_mode: "remote",
+        }, { today: "2026-08-21" });
+
+        await expect(service.createManualEntry(db as any, {
+            userId: 1, orgId: 2, tenantId: 3,
+        }, manual, false, "+0 minutes")).resolves.toEqual({
+            approvalStatus: "pending",
+            needsApproval: true,
+            approverId: 9,
+        });
+        expect(client.query).toHaveBeenCalledTimes(5);
+        const calls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
+        const approvalParams = calls[4][1];
+        expect(approvalParams[4]).toBe(JSON.stringify({
+            date: "2026-08-21",
+            clock_in: "09:00",
+            clock_out: "17:00",
+            work_mode: "remote",
+        }));
+    });
+
+    it("rejects creating a manual day when entries already exist", async () => {
+        const db = makeDb([{ count: "2" }], 1);
+        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const manual = parseManualEntry({
+            date: "2026-08-21", clock_in: "09:00", clock_out: "17:00",
+        }, { today: "2026-08-21" });
+
+        await expect(service.createManualEntry(db as any, {
+            userId: 1, orgId: 2, tenantId: 3,
+        }, manual, false, "+0 minutes")).rejects.toThrow(
+            "Entries already exist for this date. Delete them first to add manual entries.",
+        );
+    });
+
+    it("keeps protected entries intact when a manual edit needs approval", async () => {
+        const client = { query: jest.fn(async () => ({ rows: [], rowCount: 1 })) };
+        const db = makeDb();
+        db.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [{ value: 1 }], rowCount: 1 });
+        db.transaction = jest.fn(async (fn: any) => fn(client));
+        const service = createAttendanceService({
+            findApprover: jest.fn(async () => ({ id: 9 })),
+            sendToUser: jest.fn(),
+        });
+        const manual = parseManualEntry({
+            clock_in: "10:00", clock_out: "18:00", work_mode: "hybrid",
+        }, { date: "2026-08-21", today: "2026-08-21", edit: true });
+
+        const result = await service.editManualEntry(db as any, {
+            userId: 1, orgId: 2, tenantId: 3,
+        }, manual, false, "+0 minutes");
+
+        expect(result).toEqual({
+            approvalStatus: "pending",
+            needsApproval: true,
+            approverId: 9,
+            hasProtectedData: true,
+        });
+        expect(client.query).toHaveBeenCalledTimes(2);
+        const sqlCalls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
+        const approvalParams = sqlCalls[1][1];
+        expect(approvalParams[4]).toContain('"edit":true');
+        expect(sqlCalls.some(([sql]) => /DELETE FROM time_entries/.test(sql))).toBe(false);
+    });
+
+    it("replaces unprotected manual rows immediately for a super admin", async () => {
+        const client = { query: jest.fn(async () => ({ rows: [], rowCount: 1 })) };
+        const db = makeDb();
+        db.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        db.transaction = jest.fn(async (fn: any) => fn(client));
+        const findApprover = jest.fn();
+        const service = createAttendanceService({ findApprover, sendToUser: jest.fn() });
+        const manual = parseManualEntry({
+            clock_in: "10:00", clock_out: "18:00",
+        }, { date: "2026-08-21", today: "2026-08-21", edit: true });
+
+        await expect(service.editManualEntry(db as any, {
+            userId: 1, orgId: 2, tenantId: 3,
+        }, manual, true, "+0 minutes")).resolves.toEqual({
+            approvalStatus: "approved",
+            needsApproval: false,
+            approverId: null,
+            hasProtectedData: false,
+        });
+        const sqlCalls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
+        expect(sqlCalls.some(([sql]) => /DELETE FROM time_entries/.test(sql))).toBe(true);
+        expect(findApprover).not.toHaveBeenCalled();
+    });
+
 });
