@@ -181,7 +181,7 @@ jobs:
         working-directory: desktop
         run: |
           npm run typecheck
-          npm run build:main
+          npm test
 
       - name: Build unpacked Linux application
         working-directory: desktop
