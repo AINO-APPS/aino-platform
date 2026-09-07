@@ -1,5 +1,4 @@
 {
-  "api.ts": 969,
   "components/DailyNotes/components/NotesHome.tsx": 622,
   "components/DailyNotes/components/SlashMenu.tsx": 647,
   "components/DailyNotes/useNotesStore.ts": 1445,
