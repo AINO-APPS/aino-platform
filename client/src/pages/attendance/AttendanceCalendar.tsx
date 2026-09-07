@@ -5,14 +5,9 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
 } from "lucide-react";
-import {
-  getHistory,
-  getLeaves,
-  getHolidays,
-  getLocalToday,
-  getCurrentOrg,
-  getStatus,
-} from "../../api";
+import { getHistory, getLeaves, getStatus } from "../../api/workforce";
+import { getHolidays, getCurrentOrg } from "../../api/organization";
+import { getLocalToday } from "../../api/client";
 import { useLiveTimer } from "../../hooks/useLiveTimer";
 import { STATUS_POLL_INTERVAL } from "../../constants";
 import s from "./AttendanceCalendar.module.css";

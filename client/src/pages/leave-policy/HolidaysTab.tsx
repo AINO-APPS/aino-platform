@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getHolidays, addHoliday, deleteHoliday } from "../../api";
+import { getHolidays, addHoliday, deleteHoliday } from "../../api/organization";
 import HolidayCard from "./HolidayCard";
 import s from "../LeavePolicy.module.css";
 

@@ -13,7 +13,7 @@ import {
   Mail,
   MapPin,
 } from "lucide-react";
-import { getCurrentOrg } from "../../api";
+import { getCurrentOrg } from "../../api/organization";
 import OrgGeneralSettings from "../../components/organization/OrgSettings";
 import OfficeLocationSettings from "../../components/organization/OfficeLocationSettings";
 import OrgRoleLabels from "./OrgRoleLabels";

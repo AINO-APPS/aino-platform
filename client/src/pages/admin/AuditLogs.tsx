@@ -8,7 +8,7 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react";
-import { getAuditLogs, getAdminUsers } from "../../api";
+import { getAuditLogs, getAdminUsers } from "../../api/organization";
 import s from "../Admin.module.css";
 import al from "./AuditLogs.module.css";
 import su from "./AdminUtils.module.css";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { startMeetingHlsBroadcast, stopMeetingHlsBroadcast } from "../../api";
+import { startMeetingHlsBroadcast, stopMeetingHlsBroadcast } from "../../api/meetings";
 
 type BroadcastState = "idle" | "starting" | "live" | "stopping" | "error";
 

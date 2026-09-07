@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-    getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
-    getImpersonationPolicy, updateImpersonationPolicy,
-    getPlatformConfig, updatePlatformConfig,
-} from "../../api";
+import { getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getImpersonationPolicy, updateImpersonationPolicy, getPlatformConfig, updatePlatformConfig } from "../../api/organization";
 import {
     Loader2, X, Megaphone, Trash2, ToggleLeft, ToggleRight, Shield, Save,
     Wrench, Lock, Database,

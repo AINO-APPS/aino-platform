@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ClipboardList, Users, UserCheck, Building, Info } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import {
-    createAdminUser, getAdminOrganizations, getCurrentOrg, getOrgDepartments, getOrgTeams, getAdminUsers
-} from "../../api";
+import { createAdminUser, getAdminOrganizations, getCurrentOrg, getOrgDepartments, getOrgTeams, getAdminUsers } from "../../api/organization";
 import { ROLES, ROLE_LABELS } from "./constants";
 import s from "../Admin.module.css";
 import sf from "./AdminForms.module.css";

@@ -12,12 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import {
-  getAdminOrganizations,
-  createAdminOrganization,
-  updateAdminOrganization,
-  deleteAdminOrganization,
-} from "../../api";
+import { getAdminOrganizations, createAdminOrganization, updateAdminOrganization, deleteAdminOrganization } from "../../api/organization";
 import OrgModal from "./OrgModal";
 import TypedConfirm from "./TypedConfirm";
 import Departments from "../../components/organization/Departments";

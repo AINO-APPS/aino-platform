@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { forgotPassword } from "../api";
+import { forgotPassword } from "../api/workforce";
 import { KeyRound } from "lucide-react";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import s from "./Auth.module.css";

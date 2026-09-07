@@ -5,14 +5,8 @@ import { useWorkState } from "../WorkStateContext";
 // clock-out are time-tracking events, NOT presence events. Presence is
 // derived server-side from open WS sessions; idle/away is derived from
 // last_activity_at. See server/services/status/README.md.
-import {
-    getStatus,
-    clockIn,
-    breakStart,
-    breakEnd,
-    clockOut,
-    getCurrentOrg,
-} from "../api";
+import { getStatus, clockIn, breakStart, breakEnd, clockOut } from "../api/workforce";
+import { getCurrentOrg } from "../api/organization";
 import { useLiveTimer } from "./useLiveTimer";
 import { useAutoDismiss } from "./useAutoDismiss";
 import { STATUS_POLL_INTERVAL } from "../constants";

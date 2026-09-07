@@ -21,7 +21,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import { getAgileConfig } from "./api";
+import { getAgileConfig } from "./api/tasks";
 import { hasTenantContext, useAuth } from "./AuthContext";
 
 interface PriorityScheme {

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Building2, Users, GitBranch, Tag, CreditCard } from "lucide-react";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import { useAuth } from "../AuthContext";
-import { createOrg, getCurrentOrg } from "../api";
+import { createOrg, getCurrentOrg } from "../api/organization";
 import Departments from "../components/organization/Departments";
 import Teams from "../components/organization/Teams";
 import OrgChartView from "../components/organization/OrgChartView";

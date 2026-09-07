@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MicOff, Mic, CameraOff, Camera, Check, ClipboardList, Volume2, Play } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getMeeting, getIceConfig } from "../api";
+import { getMeeting } from "../api/meetings";
+import { getIceConfig } from "../api/chat";
 import { useAuth } from "../AuthContext";
 import { useMeeting } from "../MeetingContext";
 // ADR-010 — ICE preflight. Runs in parallel with media + network

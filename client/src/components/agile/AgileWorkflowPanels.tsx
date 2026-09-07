@@ -30,21 +30,7 @@ import {
     BarChart3,
     Link as LinkIcon,
 } from "lucide-react";
-import {
-    setTaskBlocker,
-    getTaskDependencies,
-    addTaskDependency,
-    removeTaskDependency,
-    quicksearchTasks,
-    getSprintBurndown,
-    getRecentVelocity,
-    startSprint,
-    completeSprint,
-    getSprints,
-    getTaskChildren,
-    getTaskParent,
-    setTaskParent,
-} from "../../api";
+import { setTaskBlocker, getTaskDependencies, addTaskDependency, removeTaskDependency, quicksearchTasks, getSprintBurndown, getRecentVelocity, startSprint, completeSprint, getSprints, getTaskChildren, getTaskParent, setTaskParent } from "../../api/tasks";
 import { useAgileConfig } from "../../AgileConfigContext";
 import s from "./AgileWorkflowPanels.module.css";
 

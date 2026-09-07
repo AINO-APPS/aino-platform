@@ -8,7 +8,7 @@ import {
     useRef,
     type ReactNode,
 } from "react";
-import { getOrgRoles } from "./api";
+import { getOrgRoles } from "./api/organization";
 import { hasTenantContext, useAuth } from "./AuthContext";
 
 /**

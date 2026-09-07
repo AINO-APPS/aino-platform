@@ -31,7 +31,7 @@ import {
 } from "../../components/customFields/CustomFieldRenderer";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useCustomFields } from "../../CustomFieldsContext";
-import { getTaskDetail, getTaskCustomFieldValues } from "../../api";
+import { getTaskDetail, getTaskCustomFieldValues } from "../../api/tasks";
 import {
     X,
     Package,

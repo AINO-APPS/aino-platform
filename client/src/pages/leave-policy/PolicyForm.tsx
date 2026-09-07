@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import { saveLeavePolicyAPI } from "../../api";
+import { saveLeavePolicyAPI } from "../../api/organization";
 import s from "../LeavePolicy.module.css";
 
 const defaults = {

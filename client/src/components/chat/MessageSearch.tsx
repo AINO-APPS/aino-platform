@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { searchMessages as apiSearch } from "../../api";
+import { searchMessages as apiSearch } from "../../api/chat";
 import s from "./MessageSearch.module.css";
 
 interface SearchResult {

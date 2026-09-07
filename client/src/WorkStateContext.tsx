@@ -9,7 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { hasTenantContext, useAuth } from "./AuthContext";
-import { getStatus } from "./api";
+import { getStatus } from "./api/workforce";
 
 interface WorkStateContextValue {
     workState: string;

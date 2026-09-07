@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-    getTenants, getTenantOverview, suspendTenant, reactivateTenant,
-    deleteTenantApi,
-} from "../../api";
+import { getTenants, getTenantOverview, suspendTenant, reactivateTenant, deleteTenantApi } from "../../api/organization";
 import {
     Building2, Pause, Play, Trash2, Users, Shield, X, Search, Calendar, Loader2,
 } from "lucide-react";

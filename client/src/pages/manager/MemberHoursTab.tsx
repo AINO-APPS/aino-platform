@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMemberHours } from "../../api";
+import { getMemberHours } from "../../api/organization";
 import { House, Building2 } from "lucide-react";
 import s from "../Admin.module.css";
 import m from "../ManagerDashboard.module.css";

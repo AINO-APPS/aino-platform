@@ -1,7 +1,7 @@
 import React, { memo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, Check, X } from "lucide-react";
-import { getApprovals, approveRequest, rejectRequest } from "../../api";
+import { getApprovals, approveRequest, rejectRequest } from "../../api/organization";
 import s from "./PendingApprovalsCard.module.css";
 
 interface Approval {

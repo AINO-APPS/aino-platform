@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { searchChatUsers } from "../../../api";
+import { searchChatUsers } from "../../../api/chat";
 import s from "../CallOverlay.module.css";
 
 interface AddParticipantPopupProps {

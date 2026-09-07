@@ -10,12 +10,7 @@ import {
   Edit3,
   Save,
 } from "lucide-react";
-import {
-  getMySalarySlips,
-  downloadMySalarySlipPdf,
-  getMyBankDetails,
-  saveMyBankDetails,
-} from "../../api";
+import { getMySalarySlips, downloadMySalarySlipPdf, getMyBankDetails, saveMyBankDetails } from "../../api/compensation";
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   processed: <CheckCircle size={14} style={{ color: "#10b981" }} />,

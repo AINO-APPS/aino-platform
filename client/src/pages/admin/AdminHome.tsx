@@ -18,15 +18,7 @@ import {
   Settings as SettingsIcon,
   AlarmClock,
 } from "lucide-react";
-import {
-  getAdminStats,
-  getRoleChangeRequests,
-  getApprovals,
-  getCurrentOrg,
-  getOrgDepartments,
-  getOrgTeams,
-  getLeavePolicies,
-} from "../../api";
+import { getAdminStats, getRoleChangeRequests, getApprovals, getCurrentOrg, getOrgDepartments, getOrgTeams, getLeavePolicies } from "../../api/organization";
 import s from "./AdminLayout.module.css";
 
 interface AdminStats {

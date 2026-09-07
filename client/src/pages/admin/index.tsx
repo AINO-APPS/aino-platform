@@ -8,7 +8,7 @@ import {
 import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { getRoleChangeRequests, getCurrentOrg } from "../../api";
+import { getRoleChangeRequests, getCurrentOrg } from "../../api/organization";
 import UserManagement from "./UserManagement";
 import AddPeopleWizard from "./AddPeopleWizard";
 import MyOrganization from "./MyOrganization";

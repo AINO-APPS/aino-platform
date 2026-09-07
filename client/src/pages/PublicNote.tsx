@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getPublicNote } from "../api";
+import { getPublicNote } from "../api/notes";
 import s from "./PublicNote.module.css";
 
 /**

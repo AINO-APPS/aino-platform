@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getLeaveBalances, updateLeaveBalance } from "../../api";
+import { getLeaveBalances, updateLeaveBalance } from "../../api/organization";
 import { Users, Search } from "lucide-react";
 import s from "../LeavePolicy.module.css";
 import { LEAVE_TYPE_MAP } from "../../constants/leaves";

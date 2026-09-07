@@ -2,12 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, Clock } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import {
-  getRoleChangeRequests,
-  approveRoleChange,
-  rejectRoleChange,
-  cancelRoleChange,
-} from "../../api";
+import { getRoleChangeRequests, approveRoleChange, rejectRoleChange, cancelRoleChange } from "../../api/organization";
 import { ROLE_LABELS } from "./constants";
 import s from "../Admin.module.css";
 import sf from "./AdminForms.module.css";

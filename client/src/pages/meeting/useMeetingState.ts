@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "../../AuthContext";
-import { getIceConfig, uploadChatFile, getMeetingMessages } from "../../api";
+import { getIceConfig, uploadChatFile } from "../../api/chat";
+import { getMeetingMessages } from "../../api/meetings";
 import {
     getCachedMessages,
     setCachedMessages,

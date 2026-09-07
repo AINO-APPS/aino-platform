@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Video, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, X, Clock } from "lucide-react";
-import { getCallHistory } from "../../api";
+import { getCallHistory } from "../../api/chat";
 import s from "./CallHistory.module.css";
 
 function formatDuration(secs: number): string {

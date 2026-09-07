@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import s from "./EmojiGifPicker.module.css";
 import EmojiImage from "../../emoji/EmojiImage";
-import { searchGiphy } from "../../api";
+import { searchGiphy } from "../../api/workforce";
 import { CATEGORY_ORDER, SKIN_TONES } from "../../emoji/types";
 import type { Emoji, EmojiCategory } from "../../emoji/types";
 import {

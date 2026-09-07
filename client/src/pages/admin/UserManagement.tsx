@@ -7,15 +7,7 @@ import {
   CheckCircle2,
   X as XIcon,
 } from "lucide-react";
-import {
-  getAdminUsers,
-  toggleUserActive,
-  updateUserAssignment,
-  getOrgDepartments,
-  getOrgTeams,
-  getAdminOrganizations,
-  getRoleChangeRequests,
-} from "../../api";
+import { getAdminUsers, toggleUserActive, updateUserAssignment, getOrgDepartments, getOrgTeams, getAdminOrganizations, getRoleChangeRequests } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import { useRoleLabels } from "../../RoleLabelsContext";
 import { ROLES } from "./constants";

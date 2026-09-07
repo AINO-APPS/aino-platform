@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChatAvatar } from "./";
-import { searchChatUsers } from "../../api";
+import { searchChatUsers } from "../../api/chat";
 import s from "./CallOverlay.module.css";
 
 const isElectron = !!window.electronAPI?.isElectron;

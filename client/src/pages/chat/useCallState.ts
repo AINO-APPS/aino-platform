@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useGlobalCall } from "../../CallContext";
 import { useToast } from "../../components/common/Toast";
-import { getActiveCall } from "../../api";
+import { getActiveCall } from "../../api/chat";
 // NOTE (status v2): client no longer broadcasts auto-status for calls.
 // The server sets/clears per-session `in_call` activity on
 // `call_initiate` / `call_accept` / `call_end` (see server/utils/ws.js).

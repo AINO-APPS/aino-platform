@@ -7,7 +7,8 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { getProfile, logoutUser, recordSessionActivity, refreshToken } from "./api";
+import { getProfile } from "./api/organization";
+import { logoutUser, recordSessionActivity, refreshToken } from "./api/workforce";
 import { REFRESH_TOKEN_INTERVAL } from "./constants";
 import { queryClient, PERSISTED_QUERY_CACHE_KEY } from "./queryClient";
 import type { User } from "./types";

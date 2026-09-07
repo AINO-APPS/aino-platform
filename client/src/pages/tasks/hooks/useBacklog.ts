@@ -1,13 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import {
-    getBacklog,
-    addBacklogTask,
-    scheduleTask,
-    unscheduleTask,
-    assignTaskToSprint,
-    updateTask,
-    getLocalToday,
-} from "../../../api";
+import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask } from "../../../api/tasks";
+import { getLocalToday } from "../../../api/client";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {

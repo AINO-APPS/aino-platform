@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save, TestTube2, CheckCircle, AlertCircle } from "lucide-react";
-import {
-  getPaymentConfig,
-  savePaymentConfig,
-  testPaymentConfig,
-} from "../../api";
+import { getPaymentConfig, savePaymentConfig, testPaymentConfig } from "../../api/compensation";
 import s from "./AdminPages.module.css";
 
 export default function PaymentSettings() {

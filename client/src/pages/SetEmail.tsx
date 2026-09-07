@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../AuthContext";
-import { updateEmail } from "../api";
+import { updateEmail } from "../api/organization";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import s from "./Auth.module.css";
 

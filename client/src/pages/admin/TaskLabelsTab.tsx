@@ -3,12 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tag } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import {
-  getTaskLabelsManage,
-  createTaskLabel,
-  updateTaskLabel,
-  deleteTaskLabel,
-} from "../../api";
+import { getTaskLabelsManage, createTaskLabel, updateTaskLabel, deleteTaskLabel } from "../../api/tasks";
 import s from "../Admin.module.css";
 import tl from "./TaskLabels.module.css";
 import sf from "./AdminForms.module.css";

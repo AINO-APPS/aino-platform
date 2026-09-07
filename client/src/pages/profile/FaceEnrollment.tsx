@@ -8,7 +8,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getFaceStatus, enrollFace, clearFaceEnrollment } from "../../api";
+import { getFaceStatus, enrollFace, clearFaceEnrollment } from "../../api/workforce";
 import FaceCapture from "../../components/attendance/FaceCapture";
 import s from "./FaceEnrollment.module.css";
 

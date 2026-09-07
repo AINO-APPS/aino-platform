@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ShieldAlert, LogOut, Eye, Clock, FileText, Edit3, X, ChevronDown, ChevronUp } from "lucide-react";
-import { exitImpersonation, getImpersonationSession } from "../../api";
+import { exitImpersonation, getImpersonationSession } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import s from "./ImpersonationBanner.module.css";
 

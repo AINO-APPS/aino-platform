@@ -11,12 +11,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import {
-  getOrgRoles,
-  createOrgRole,
-  updateOrgRole,
-  deleteOrgRole,
-} from "../../api";
+import { getOrgRoles, createOrgRole, updateOrgRole, deleteOrgRole } from "../../api/organization";
 import { useRoleLabels } from "../../RoleLabelsContext";
 import { useToast } from "../../components/common/Toast";
 import s from "./OrgRoleLabels.module.css";

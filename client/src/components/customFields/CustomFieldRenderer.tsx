@@ -10,9 +10,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import { useCustomFields } from "../../CustomFieldsContext";
-import {
-    getTaskCustomFieldValues, updateTaskCustomFieldValues,
-} from "../../api";
+import { getTaskCustomFieldValues, updateTaskCustomFieldValues } from "../../api/tasks";
 import { Save, Loader2 } from "lucide-react";
 import s from "./CustomFields.module.css";
 

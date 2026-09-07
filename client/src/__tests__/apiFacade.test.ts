@@ -21,7 +21,7 @@ import API, { baseURL, serverURL } from "../api/client";
 import { addTaskComment, getTasks } from "../api/tasks";
 import { getPublicNote } from "../api/notes";
 import { uploadChatFile } from "../api/chat";
-import * as compatibilityFacade from "../api";
+
 
 beforeEach(() => {
     axiosInstance.get.mockClear();
@@ -33,7 +33,6 @@ beforeEach(() => {
 
 describe("shared API client contract", () => {
     test("preserves the default client identity and security defaults", () => {
-        expect(compatibilityFacade.default).toBe(API);
         expect(create).toHaveBeenCalledWith({
             baseURL,
             withCredentials: true,

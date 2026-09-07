@@ -3,12 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Megaphone } from "lucide-react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import {
-  getAdminAnnouncements,
-  createAnnouncement,
-  updateAnnouncement,
-  deleteAnnouncement,
-} from "../../api";
+import { getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from "../../api/organization";
 import s from "../Admin.module.css";
 import sf from "./AdminForms.module.css";
 import su from "./AdminUtils.module.css";

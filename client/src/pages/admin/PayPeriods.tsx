@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock, Unlock } from "lucide-react";
-import {
-  getPayPeriods,
-  createPayPeriod,
-  deletePayPeriod,
-  exportPayrollHours,
-} from "../../api";
+import { getPayPeriods, createPayPeriod, deletePayPeriod, exportPayrollHours } from "../../api/notes";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./AdminPages.module.css";
 

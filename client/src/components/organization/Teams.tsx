@@ -2,19 +2,8 @@ import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { CalendarDays } from "lucide-react";
-import {
-  getOrgTeams,
-  getOrgDepartments,
-  getOrgMembers,
-  createTeam,
-  updateTeam,
-  deleteTeam,
-  getTeamSprintConfig,
-  updateTeamSprintConfig,
-  getActiveSprint,
-  pauseSprint,
-  resumeSprint,
-} from "../../api";
+import { getOrgTeams, getOrgDepartments, getOrgMembers, createTeam, updateTeam, deleteTeam, getTeamSprintConfig, updateTeamSprintConfig } from "../../api/organization";
+import { getActiveSprint, pauseSprint, resumeSprint } from "../../api/tasks";
 import s from "../../pages/Admin.module.css";
 import tc from "./TeamsConfig.module.css";
 import sf from "../../pages/admin/AdminForms.module.css";

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-    getPlatformUsers, createPlatformUser, deactivatePlatformUser, resetPlatformUserPassword,
-} from "../../api";
+import { getPlatformUsers, createPlatformUser, deactivatePlatformUser, resetPlatformUserPassword } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import { Shield, Plus, X, Loader2, Key, UserX, UserCheck } from "lucide-react";
 import ConfirmDialog from "../../components/common/ConfirmDialog";

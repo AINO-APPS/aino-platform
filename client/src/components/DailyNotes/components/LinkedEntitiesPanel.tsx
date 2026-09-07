@@ -2,10 +2,7 @@
 /* LinkedEntitiesPanel — side-rail showing tasks, meetings, and calendar
    events linked to the active note page. Supports search + link/unlink. */
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-    getNoteLinks, addNoteLink, removeNoteLink,
-    searchNoteTasks, searchNoteMeetings, searchNoteEvents,
-} from "../../../api";
+import { getNoteLinks, addNoteLink, removeNoteLink, searchNoteTasks, searchNoteMeetings, searchNoteEvents } from "../../../api/notes";
 import {
     CheckSquare, Calendar, Video, Plus, X, Search, Link2, Unlink,
     ChevronDown, ChevronRight,

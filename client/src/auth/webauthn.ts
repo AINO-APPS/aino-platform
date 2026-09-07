@@ -1,5 +1,5 @@
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
-import API from "../api";
+import { default as API } from "../api/client";
 
 /**
  * WebAuthn / passkey client wrapper (Phase 3 — web biometric login).

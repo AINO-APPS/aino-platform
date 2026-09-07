@@ -15,15 +15,9 @@ import {
   Filler,
   ArcElement,
 } from "chart.js";
-import {
-  getAnalytics,
-  getHistory,
-  getWidgets,
-  getLocalDate,
-  getLocalToday,
-  exportMyAnalytics,
-  getNotificationMetrics,
-} from "../../api";
+import { getAnalytics, getHistory, getWidgets } from "../../api/workforce";
+import { getLocalDate, getLocalToday } from "../../api/client";
+import { exportMyAnalytics, getNotificationMetrics } from "../../api/notes";
 import ExportButton from "../../components/common/ExportButton";
 import WidgetsGrid from "../../components/dashboard/WidgetsGrid";
 import SummaryStats from "./SummaryStats";

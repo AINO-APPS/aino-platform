@@ -1,15 +1,5 @@
 import { useEffect, useRef } from "react";
-import {
-  uploadChatFile,
-  cancelChatMediaJob,
-  retryChatMediaJob,
-  toggleReaction,
-  editMessage,
-  deleteMessage,
-  togglePin,
-  toggleStar,
-  createPoll,
-} from "../../api";
+import { uploadChatFile, cancelChatMediaJob, retryChatMediaJob, toggleReaction, editMessage, deleteMessage, togglePin, toggleStar, createPoll } from "../../api/chat";
 import type useChatState from "./useChatState";
 import type { AnyRecord } from "../../types";
 import { createPendingMessageId } from "./messageDelivery";

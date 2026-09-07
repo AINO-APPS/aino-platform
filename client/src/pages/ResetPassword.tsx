@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { resetPassword } from "../api";
+import { resetPassword } from "../api/workforce";
 import { Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import PasswordInput from "../components/common/PasswordInput";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";

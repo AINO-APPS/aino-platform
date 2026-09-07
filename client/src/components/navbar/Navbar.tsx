@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
 import { useBranding } from "../../BrandingContext";
-import { serverURL } from "../../api";
+import { serverURL } from "../../api/client";
 import NavLinks from "./NavLinks";
 import ProfileMenu from "./ProfileMenu";
 import MobileTabBar from "./MobileTabBar";

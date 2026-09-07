@@ -7,7 +7,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getLeavePolicies, deleteLeavePolicyAPI } from "../../api";
+import { getLeavePolicies, deleteLeavePolicyAPI } from "../../api/organization";
 import PolicyForm from "./PolicyForm";
 import HolidaysTab from "./HolidaysTab";
 import s from "../LeavePolicy.module.css";

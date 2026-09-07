@@ -1,14 +1,5 @@
 import { useState, useCallback } from "react";
-import {
-    getTaskDetail,
-    getTaskHistory,
-    getTaskComments,
-    deleteTaskComment,
-    updateTask,
-    updateTaskStatus,
-    addTaskComment,
-    updateTaskComment,
-} from "../../../api";
+import { getTaskDetail, getTaskHistory, getTaskComments, deleteTaskComment, updateTask, updateTaskStatus, addTaskComment, updateTaskComment } from "../../../api/tasks";
 import type { Comment, Task } from "../../../types";
 
 type ShowConfirm = (

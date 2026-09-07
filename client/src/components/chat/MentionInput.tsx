@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle } from "react";
 import s from "./MentionInput.module.css";
-import { searchChatUsers } from "../../api";
+import { searchChatUsers } from "../../api/chat";
 
 interface MentionUser {
     id: number | string;

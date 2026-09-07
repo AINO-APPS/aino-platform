@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMemberLeaves } from "../../api";
+import { getMemberLeaves } from "../../api/organization";
 import ApprovalBadge from "./ApprovalBadge";
 import { LEAVE_ICONS } from "./constants";
 import s from "../Admin.module.css";

@@ -3,11 +3,8 @@ import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../AuthContext";
 import { useWorkState } from "../WorkStateContext";
-import {
-  getTaskSummary,
-  getCalendarEvents,
-  getActiveAnnouncements,
-} from "../api";
+import { getTaskSummary } from "../api/workforce";
+import { getCalendarEvents, getActiveAnnouncements } from "../api/notes";
 import { QUOTE_ROTATION_INTERVAL } from "../constants";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import TodayEventsCard from "../components/dashboard/TodayEventsCard";

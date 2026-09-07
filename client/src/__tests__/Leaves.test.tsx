@@ -22,15 +22,19 @@ const mockGetLeaveBalances = vi.fn();
 const mockExportMyLeaves = vi.fn();
 const mockGetLeavePolicies = vi.fn();
 
-vi.mock("../api", () => ({
+vi.mock("../api/workforce", () => ({
   getLeaves: (...args: any[]) => mockGetLeaves(...args),
   addLeave: (...args: any[]) => mockAddLeave(...args),
   addLeavesBatch: (...args: any[]) => mockAddLeavesBatch(...args),
   withdrawLeave: (...args: any[]) => mockWithdrawLeave(...args),
   getLeaveSummary: vi.fn().mockResolvedValue({ data: {} }),
+}));
+vi.mock("../api/organization", () => ({
   getLeaveBalances: (...args: any[]) => mockGetLeaveBalances(...args),
-  exportMyLeaves: (...args: any[]) => mockExportMyLeaves(...args),
   getLeavePolicies: (...args: any[]) => mockGetLeavePolicies(...args),
+}));
+vi.mock("../api/notes", () => ({
+  exportMyLeaves: (...args: any[]) => mockExportMyLeaves(...args),
 }));
 
 vi.mock("../components/ConfirmDialog", () => ({

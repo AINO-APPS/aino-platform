@@ -9,12 +9,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import {
-  getEmailTemplates,
-  updateEmailTemplate,
-  revertEmailTemplate,
-  previewEmailTemplate,
-} from "../../api";
+import { getEmailTemplates, updateEmailTemplate, revertEmailTemplate, previewEmailTemplate } from "../../api/meetings";
 import s from "./EmailTemplatesSection.module.css";
 
 /**

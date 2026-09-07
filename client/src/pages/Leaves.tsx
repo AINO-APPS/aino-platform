@@ -2,12 +2,9 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, ClipboardList, Users, Send } from "lucide-react";
 import { useAuth } from "../AuthContext";
-import {
-  getLeaves,
-  withdrawLeave,
-  getLeaveBalances,
-  exportMyLeaves,
-} from "../api";
+import { getLeaves, withdrawLeave } from "../api/workforce";
+import { getLeaveBalances } from "../api/organization";
+import { exportMyLeaves } from "../api/notes";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import ExportButton from "../components/common/ExportButton";
 import { useToast } from "../components/common/Toast";

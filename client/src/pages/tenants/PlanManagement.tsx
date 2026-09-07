@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-    getPlanCatalog, updatePlanCatalog, resetPlanCatalog,
-} from "../../api";
+import { getPlanCatalog, updatePlanCatalog, resetPlanCatalog } from "../../api/organization";
 import {
     Loader2, Save, RotateCcw, Plus, Trash2, X, ChevronDown, ChevronUp,
 } from "lucide-react";

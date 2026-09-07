@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Table2, FolderOpen, AlertTriangle, CheckCircle2, XCircle, Download } from "lucide-react";
-import { importUsers } from "../../api";
+import { importUsers } from "../../api/compensation";
 import s from "./AdminPages.module.css";
 
 interface ImportDetail {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Video } from "lucide-react";
-import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, createMeeting } from "../../api";
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "../../api/notes";
+import { createMeeting } from "../../api/meetings";
 import { useAuth } from "../../AuthContext";
 import { useBranding } from "../../BrandingContext";
 import useWebSocket from "../../hooks/useWebSocket";

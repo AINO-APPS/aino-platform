@@ -15,7 +15,7 @@ import {
   Timer,
   Maximize2,
 } from "lucide-react";
-import { markMessageViewed } from "../../api";
+import { markMessageViewed } from "../../api/chat";
 import s from "./FilePreview.module.css";
 
 const IMAGE_TYPES = [

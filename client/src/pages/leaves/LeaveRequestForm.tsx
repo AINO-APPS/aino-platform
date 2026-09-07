@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { addLeave, addLeavesBatch, getLeavePolicies } from "../../api";
+import { addLeave, addLeavesBatch } from "../../api/workforce";
+import { getLeavePolicies } from "../../api/organization";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { LEAVE_TYPES, buildLeaveTypeOptions } from "../../constants/leaves";
 import { getDateRange } from "../../utils/date";

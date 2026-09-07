@@ -2,14 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { X, User, Mail, Lock, AlertTriangle, Trash2, Fingerprint, Plus, Smartphone, Monitor } from "lucide-react";
 import { useAuth } from "../../AuthContext";
-import {
-    updateProfile,
-    updateEmail,
-    updatePassword,
-    deleteAccount,
-    listBiometricDevices,
-    revokeBiometricDevice,
-} from "../../api";
+import { updateProfile, updateEmail, updatePassword, deleteAccount } from "../../api/organization";
+import { listBiometricDevices, revokeBiometricDevice } from "../../api/workforce";
 import PasswordInput from "../common/PasswordInput";
 import { useAsyncAction } from "../../hooks/useAsyncAction";
 import {

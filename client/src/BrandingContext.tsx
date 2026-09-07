@@ -10,7 +10,8 @@ import {
     type SetStateAction,
     type ReactNode,
 } from "react";
-import { getBranding, getPublicBranding, serverURL } from "./api";
+import { getBranding, getPublicBranding } from "./api/meetings";
+import { serverURL } from "./api/client";
 import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket, { type WebSocketMessage } from "./hooks/useWebSocket";
 

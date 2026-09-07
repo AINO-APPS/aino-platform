@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Copy, Forward, Pin, Star, Trash2, X } from "lucide-react";
 import ConfirmDialog from "../components/common/ConfirmDialog";
-import { uploadChatFile } from "../api";
+import { uploadChatFile } from "../api/chat";
 import {
   MessageSearch,
   ForwardModal,

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { searchTasks } from "../../../api";
+import { searchTasks } from "../../../api/tasks";
 import type { Task } from "../../../types";
 
 export function useGlobalSearch() {

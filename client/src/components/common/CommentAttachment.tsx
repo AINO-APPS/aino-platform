@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import FilePreview from "../chat/FilePreview";
-import { serverURL } from "../../api";
+import { serverURL } from "../../api/client";
 
 /**
  * Renders a task-comment file attachment. Images show an inline thumbnail

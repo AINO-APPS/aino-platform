@@ -3,17 +3,8 @@ import { useAuth } from "../AuthContext";
 import { QUOTE_ROTATION_INTERVAL, STATUS_POLL_INTERVAL } from "../constants";
 import { useWorkState } from "../WorkStateContext";
 // NOTE (status v2): tracker no longer writes status — see useFloatingTimer.ts
-import {
-    getStatus,
-    clockIn,
-    breakStart,
-    breakEnd,
-    clockOut,
-    getWidgets,
-    getWeeklyChart,
-    getTaskSummary,
-    getCalendarEvents,
-} from "../api";
+import { getStatus, clockIn, breakStart, breakEnd, clockOut, getWidgets, getWeeklyChart, getTaskSummary } from "../api/workforce";
+import { getCalendarEvents } from "../api/notes";
 import { useAutoDismiss } from "./useAutoDismiss";
 import { useLiveTimer } from "./useLiveTimer";
 import { useEventReminder } from "./useEventReminder";

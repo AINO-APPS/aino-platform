@@ -3,7 +3,7 @@
    Inserted via slash menu /time. Shows today's tracked hours, break time,
    clock-in/out times, and work mode. Auto-refreshes. */
 import React, { useState, useEffect, useCallback } from "react";
-import { getTimeSummary } from "../../../api";
+import { getTimeSummary } from "../../../api/notes";
 import { Clock, Coffee, MapPin, RefreshCw, Play, Square, Trash2, X } from "lucide-react";
 import s from "./TimeTrackingBlock.module.css";
 

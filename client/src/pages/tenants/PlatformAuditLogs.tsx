@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { ScrollText, Shield, Building2, ChevronLeft, ChevronRight, Clock, Eye, Edit3 } from "lucide-react";
-import { getPlatformAuditLogs, getTenants, getPlatformUsers } from "../../api";
+import { getPlatformAuditLogs, getTenants, getPlatformUsers } from "../../api/organization";
 import s from "./Tenants.module.css";
 
 const ACTION_COLORS: Record<string, string> = {

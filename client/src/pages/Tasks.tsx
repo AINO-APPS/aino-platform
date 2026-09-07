@@ -1,22 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import {
-  getTasks,
-  updateTaskStatus,
-  deleteTask,
-  carryForwardTasks,
-  getAssignableUsers,
-  getTaskLabels,
-  addTaskComment,
-  updateTaskComment,
-  getLocalToday,
-  getTaskDetail,
-  getTeamSprintConfig,
-  getAvailableSprints,
-  getSprintStats,
-  getProjects,
-} from "../api";
+import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects } from "../api/tasks";
+import { getLocalToday } from "../api/client";
+import { getTeamSprintConfig } from "../api/organization";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
 import { SprintLifecycleControls } from "../components/agile/AgileWorkflowPanels";

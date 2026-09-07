@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { getConversations, getPresence } from "../../api";
+import { getConversations, getPresence } from "../../api/chat";
 import type { AnyRecord } from "../../types";
 
 export type ChatConversation = AnyRecord & { id: number | string };

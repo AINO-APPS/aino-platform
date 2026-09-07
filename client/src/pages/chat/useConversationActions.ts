@@ -1,15 +1,4 @@
-import {
-  deleteConversation,
-  togglePinConversation,
-  toggleFavouriteConversation,
-  muteConversation,
-  toggleArchiveConversation,
-  blockUser,
-  unblockUser,
-  getMembers,
-  markConversationRead,
-  markConversationUnread,
-} from "../../api";
+import { deleteConversation, togglePinConversation, toggleFavouriteConversation, muteConversation, toggleArchiveConversation, blockUser, unblockUser, getMembers, markConversationRead, markConversationUnread } from "../../api/chat";
 import { setClearedAt } from "./chatLocalDeletes";
 import type useChatState from "./useChatState";
 

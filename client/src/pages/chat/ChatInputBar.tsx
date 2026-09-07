@@ -12,7 +12,8 @@ import MediaEditor, {
   type MediaEditorResult,
 } from "../../components/chat/MediaEditor";
 import VideoPreview from "../../components/chat/VideoPreview";
-import { getLinkPreview, serverURL } from "../../api";
+import { getLinkPreview } from "../../api/chat";
+import { serverURL } from "../../api/client";
 import s from "./ChatInputBar.module.css";
 
 export interface LinkPreviewData {

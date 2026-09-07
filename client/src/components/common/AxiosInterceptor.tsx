@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import API from "../../api";
+import { default as API } from "../../api/client";
 import { useAuth } from "../../AuthContext";
 import { useToast } from "./Toast";
 

@@ -7,8 +7,10 @@ const mockGetProfile = vi.fn();
 const mockLogoutUser = vi.fn();
 const mockRecordSessionActivity = vi.fn().mockResolvedValue({});
 const mockRefreshToken = vi.fn().mockResolvedValue({});
-vi.mock("../api", () => ({
+vi.mock("../api/organization", () => ({
   getProfile: (...args: any[]) => mockGetProfile(...args),
+}));
+vi.mock("../api/workforce", () => ({
   logoutUser: (...args: any[]) => mockLogoutUser(...args),
   recordSessionActivity: (...args: any[]) => mockRecordSessionActivity(...args),
   refreshToken: (...args: any[]) => mockRefreshToken(...args),

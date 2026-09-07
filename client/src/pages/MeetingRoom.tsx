@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Copy, Check, Minimize2 } from "lucide-react";
 import { useMeeting } from "../MeetingContext";
 import { useAuth } from "../AuthContext";
-import { getMeeting } from "../api";
+import { getMeeting } from "../api/meetings";
 import { useMeetingState } from "./meeting/useMeetingState";
 import { useMeetingRecording } from "./meeting/useMeetingRecording";
 import ParticipantTile from "./meeting/ParticipantTile";

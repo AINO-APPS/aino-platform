@@ -31,13 +31,7 @@ import {
     readFileAsText,
 } from "./notesExport";
 import { markdownToHtml } from "./notesMarkdown";
-import {
-    getMentionableUsers,
-    sendNoteMention,
-    getDailyPrefill,
-    getOneOnOnePrefill,
-    convertToTask,
-} from "../../api";
+import { getMentionableUsers, sendNoteMention, getDailyPrefill, getOneOnOnePrefill, convertToTask } from "../../api/notes";
 import useCollaboration from "./useCollaboration";
 import { useAuth } from "../../AuthContext";
 import { useBranding } from "../../BrandingContext";

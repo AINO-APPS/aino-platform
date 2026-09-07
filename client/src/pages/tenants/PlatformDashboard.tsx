@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-    getTenantOverview, getTenantAlerts,
-} from "../../api";
+import { getTenantOverview, getTenantAlerts } from "../../api/organization";
 import {
     Loader2, Building2, Users, AlertTriangle, TrendingUp,
     Database, Activity, ShieldAlert,

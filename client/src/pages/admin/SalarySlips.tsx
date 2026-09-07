@@ -10,17 +10,8 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
-import {
-  getPayPeriods,
-  getSalarySlips,
-  runPayroll,
-  publishSalarySlip,
-  bulkPublishSlips,
-  downloadSalarySlipPdf,
-  disburseSalaries,
-  getDisbursements,
-  retryDisbursement,
-} from "../../api";
+import { getPayPeriods } from "../../api/notes";
+import { getSalarySlips, runPayroll, publishSalarySlip, bulkPublishSlips, downloadSalarySlipPdf, disburseSalaries, getDisbursements, retryDisbursement } from "../../api/compensation";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./AdminPages.module.css";
 

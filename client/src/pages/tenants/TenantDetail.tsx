@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-    getTenant, getTenantStats, getTenantUsers,
-    suspendTenant, reactivateTenant, deleteTenantApi, updateTenant, updateTenantDomain, updateTenantLimits,
-    getAdminOrganizations, updateAdminOrganization,
-    getPlanCatalog, updateTenantPlan, updateTenantFeatures,
-} from "../../api";
+import { getTenant, getTenantStats, getTenantUsers, suspendTenant, reactivateTenant, deleteTenantApi, updateTenant, updateTenantDomain, updateTenantLimits, getAdminOrganizations, updateAdminOrganization, getPlanCatalog, updateTenantPlan, updateTenantFeatures } from "../../api/organization";
 import {
     ArrowLeft, Building2, Users, Shield, Globe, Database, HardDrive,
     BarChart3, ExternalLink, Clock, Calendar, Settings2, Loader2,

@@ -12,14 +12,8 @@ import {
   FileText,
   Plus,
 } from "lucide-react";
-import {
-  createAdminUser,
-  importUsers,
-  getAdminOrganizations,
-  getCurrentOrg,
-  getOrgDepartments,
-  getOrgTeams,
-} from "../../api";
+import { createAdminUser, getAdminOrganizations, getCurrentOrg, getOrgDepartments, getOrgTeams } from "../../api/organization";
+import { importUsers } from "../../api/compensation";
 import { ROLES, ROLE_LABELS } from "./constants";
 import s from "./UserManagement.module.css";
 import w from "./AddPeopleWizard.module.css";

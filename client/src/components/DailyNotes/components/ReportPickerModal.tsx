@@ -2,7 +2,7 @@
 /* ReportPickerModal — modal for picking a direct report when creating
    a prefilled 1-on-1 page via the /oneonone slash command. */
 import React, { useState, useEffect } from "react";
-import { getDirectReports } from "../../../api";
+import { getDirectReports } from "../../../api/notes";
 import { Users, Search, X } from "lucide-react";
 import s from "./ReportPickerModal.module.css";
 

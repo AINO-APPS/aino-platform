@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Hand, MicOff, Mic } from "lucide-react";
-import { searchChatUsers } from "../../api";
+import { searchChatUsers } from "../../api/chat";
 import "./MeetingRoom.css";
 
 interface MeetingParticipantsProps {

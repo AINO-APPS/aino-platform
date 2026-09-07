@@ -15,7 +15,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import { getCustomFields } from "./api";
+import { getCustomFields } from "./api/tasks";
 import { hasTenantContext, useAuth } from "./AuthContext";
 import type { CustomFieldDef } from "./types";
 

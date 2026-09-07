@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { ChatAvatar } from "../../components/chat";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import { deleteCalls, getAllCallHistory } from "../../api";
+import { deleteCalls, getAllCallHistory } from "../../api/chat";
 import s from "./ChatSidebar.module.css";
 
 type CallEntry = {

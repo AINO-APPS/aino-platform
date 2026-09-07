@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import DOMPurify from "dompurify";
 import hljs from "../../hljs-setup";
-import { getLocalToday } from "../../api";
+import { getLocalToday } from "../../api/client";
 
 /** Pre-process HTML: syntax-highlight code blocks before React renders */
 const DOMPURIFY_CONFIG = {

@@ -1,7 +1,7 @@
 import React from "react";
 import { PRIORITIES, COLUMNS } from "./constants";
 import { formatDate } from "./utils";
-import { getLocalToday } from "../../api";
+import { getLocalToday } from "../../api/client";
 import { useTaskCtx } from "./TaskContext";
 import { useFeatures } from "../../FeaturesContext";
 import { CalendarDays, Package, Search, Headset, BarChart3 } from "lucide-react";

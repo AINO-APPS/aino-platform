@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart3 } from "lucide-react";
 import s from "./PollDisplay.module.css";
-import { getPoll, votePoll } from "../../api";
+import { getPoll, votePoll } from "../../api/chat";
 
 interface PollData {
     question?: string;

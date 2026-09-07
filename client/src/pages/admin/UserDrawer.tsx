@@ -2,10 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import {
     X, KeyRound, Ban, CheckCircle2, Trash2, Save, AlertTriangle,
 } from "lucide-react";
-import {
-    updateUserRole, updateUserAssignment, toggleUserActive, deleteAdminUser, adminResetPassword,
-    cancelRoleChange,
-} from "../../api";
+import { updateUserRole, updateUserAssignment, toggleUserActive, deleteAdminUser, adminResetPassword, cancelRoleChange } from "../../api/organization";
 import { ROLES } from "./constants";
 import { useRoleLabels } from "../../RoleLabelsContext";
 import s from "./UserManagement.module.css";

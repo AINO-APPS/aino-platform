@@ -3,7 +3,7 @@
    Inserted via slash menu /sprint. Renders as a self-contained card that
    auto-refreshes sprint data from the server. */
 import React, { useState, useEffect, useCallback } from "react";
-import { getSprintEmbed } from "../../../api";
+import { getSprintEmbed } from "../../../api/notes";
 import { Rocket, Clock, AlertCircle, CheckCircle2, RefreshCw, Trash2, X } from "lucide-react";
 import s from "./SprintEmbedBlock.module.css";
 

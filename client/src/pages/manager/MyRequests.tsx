@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMyRequests } from "../../api";
+import { getMyRequests } from "../../api/organization";
 import ApprovalBadge from "./ApprovalBadge";
 import RequestDetails from "./RequestDetails";
 import s from "../Admin.module.css";

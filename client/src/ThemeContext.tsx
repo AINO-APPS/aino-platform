@@ -8,7 +8,7 @@ import {
     useRef,
     type ReactNode,
 } from "react";
-import { getTheme, updateTheme } from "./api";
+import { getTheme, updateTheme } from "./api/workforce";
 import { hasTenantContext, useAuth } from "./AuthContext";
 import useWebSocket, { type WebSocketMessage } from "./hooks/useWebSocket";
 

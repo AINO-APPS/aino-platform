@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import { updateOrgSettings } from "../../api";
+import { updateOrgSettings } from "../../api/organization";
 import TIMEZONES from "../../constants/timezones";
 import s from "../../pages/Admin.module.css";
 import sf from "../../pages/admin/AdminForms.module.css";

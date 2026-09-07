@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Pin, X, Search } from "lucide-react";
-import { getPinnedMessages } from "../../api";
+import { getPinnedMessages } from "../../api/chat";
 import ChatAvatar from "./ChatAvatar";
 import s from "./PinnedMessages.module.css";
 

@@ -5,12 +5,7 @@ import type {
   RefObject,
   SetStateAction,
 } from "react";
-import {
-  getMembers,
-  getMessages,
-  getReadStatus,
-  markConversationRead,
-} from "../../api";
+import { getMembers, getMessages, getReadStatus, markConversationRead } from "../../api/chat";
 import type { AnyRecord } from "../../types";
 import {
   isCurrentConversationRequest,

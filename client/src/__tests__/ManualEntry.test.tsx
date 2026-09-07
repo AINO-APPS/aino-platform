@@ -26,18 +26,23 @@ const mockSubmitOvertimeRequest = vi.fn();
 const mockGetOvertimeRequests = vi.fn();
 const mockGetCurrentOrg = vi.fn();
 
-vi.mock("../api", () => ({
+vi.mock("../api/workforce", () => ({
     addManualEntry: (...args: any[]) => mockAddManualEntry(...args),
     updateManualEntry: (...args: any[]) => mockUpdateManualEntry(...args),
     deleteEntries: vi.fn().mockResolvedValue({ data: { message: "Deleted" } }),
     getEntries: (...args: any[]) => mockGetEntries(...args),
     getLeaves: (...args: any[]) => mockGetLeaves(...args),
     getStatus: (...args: any[]) => mockGetStatus(...args),
-    getLocalToday: (...args: any[]) => mockGetLocalToday(...args),
     getManualEntryRequests: (...args: any[]) => mockGetManualEntryRequests(...args),
     submitOvertimeRequest: (...args: any[]) => mockSubmitOvertimeRequest(...args),
     getOvertimeRequests: (...args: any[]) => mockGetOvertimeRequests(...args),
+}));
+vi.mock("../api/organization", () => ({
     getCurrentOrg: (...args: any[]) => mockGetCurrentOrg(...args),
+}));
+vi.mock("../api/client", async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    getLocalToday: (...args: any[]) => mockGetLocalToday(...args),
 }));
 
 import ManualEntry from "../pages/ManualEntry";

@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import {
-  getOrgDepartments,
-  getOrgMembers,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
-} from "../../api";
+import { getOrgDepartments, getOrgMembers, createDepartment, updateDepartment, deleteDepartment } from "../../api/organization";
 import s from "../../pages/Admin.module.css";
 import su from "../../pages/admin/AdminUtils.module.css";
 

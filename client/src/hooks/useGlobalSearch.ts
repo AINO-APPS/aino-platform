@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { hasTenantContext, useAuth } from "../AuthContext";
-import { globalSearch } from "../api";
+import { globalSearch } from "../api/notes";
 import { ROLE_LEVEL } from "../constants";
 import {
     Home, Calendar, CheckSquare, FileText, MessageSquare, Palmtree,

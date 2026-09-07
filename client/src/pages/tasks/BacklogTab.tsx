@@ -28,7 +28,7 @@ import {
     WorkItemTypeBadge,
     BlockerBadge,
 } from "../../components/agile/AgilePickers";
-import { getLocalToday } from "../../api";
+import { getLocalToday } from "../../api/client";
 import { useTaskCtx } from "./TaskContext";
 import s from "./BacklogTab.module.css";
 

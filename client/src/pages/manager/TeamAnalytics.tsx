@@ -1,11 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  getTeamAnalytics,
-  exportTeamAnalytics,
-  getLocalDate,
-  getLocalToday,
-} from "../../api";
+import { getTeamAnalytics } from "../../api/organization";
+import { exportTeamAnalytics } from "../../api/notes";
+import { getLocalDate, getLocalToday } from "../../api/client";
 import { ROLE_LABELS, formatMin } from "./constants";
 import { Users, Timer, ClipboardList, Target, AlarmClock } from "lucide-react";
 import TodayStatusBadge from "./TodayStatusBadge";

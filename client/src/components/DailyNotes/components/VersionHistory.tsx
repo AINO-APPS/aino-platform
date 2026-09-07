@@ -5,7 +5,7 @@
      - Diff     → line-based diff against the *current* page content. */
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import DOMPurify from "dompurify";
-import { getPageHistory, getHistorySnapshot } from "../../../api";
+import { getPageHistory, getHistorySnapshot } from "../../../api/notes";
 import { History, X, FileText, RotateCcw, GitBranch } from "../../../constants/icons";
 import { lineDiff } from "../notesUtils";
 import s from "./VersionHistory.module.css";

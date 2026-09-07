@@ -23,15 +23,7 @@ import {
   ArrowLeft,
   MessageSquare,
 } from "lucide-react";
-import {
-  getSprints,
-  getSprintStats,
-  getSprintTasks,
-  getSprintCumulativeFlow,
-  getSprintCycleTime,
-  getSprintRetrospective,
-  updateSprintRetrospective,
-} from "../api";
+import { getSprints, getSprintStats, getSprintTasks, getSprintCumulativeFlow, getSprintCycleTime, getSprintRetrospective, updateSprintRetrospective } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import {
   BurndownChart,

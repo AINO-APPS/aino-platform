@@ -1,13 +1,6 @@
 import { useState, useCallback } from "react";
 import { X, Crown, Shield, MoreVertical, LogOut } from "lucide-react";
-import {
-    searchChatUsers,
-    createGroup,
-    updateGroup,
-    leaveGroup,
-    setGroupRole,
-    transferGroupOwner,
-} from "../../api";
+import { searchChatUsers, createGroup, updateGroup, leaveGroup, setGroupRole, transferGroupOwner } from "../../api/chat";
 import ChatAvatar from "./ChatAvatar";
 import s from "./GroupModal.module.css";
 

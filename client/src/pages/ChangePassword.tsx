@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import { useAuth } from "../AuthContext";
-import { updatePassword as changePasswordApi } from "../api";
+import { updatePassword as changePasswordApi } from "../api/organization";
 import { KeyRound, ArrowRight } from "lucide-react";
 import PasswordInput from "../components/common/PasswordInput";
 import s from "./Auth.module.css";

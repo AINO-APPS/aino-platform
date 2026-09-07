@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { AlertTriangle, Video, X } from "lucide-react";
-import { searchChatUsers, getMeeting, checkMeetingConflicts } from "../../api";
+import { searchChatUsers } from "../../api/chat";
+import { getMeeting, checkMeetingConflicts } from "../../api/meetings";
 import { useFeatures } from "../../FeaturesContext";
 import s from "./Calendar.module.css";
 

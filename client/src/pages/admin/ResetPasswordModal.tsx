@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import { adminResetPassword } from "../../api";
+import { adminResetPassword } from "../../api/organization";
 import s from "../Admin.module.css";
 import sf from "./AdminForms.module.css";
 

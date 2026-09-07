@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { updateTaskStatus } from "../../../api";
+import { updateTaskStatus } from "../../../api/tasks";
 import s from "../TaskCard.module.css";
 import type { Task } from "../../../types";
 

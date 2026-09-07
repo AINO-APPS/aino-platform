@@ -4,7 +4,7 @@ import { Zap, Inbox } from "lucide-react";
 import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import useWebSocket from "../../hooks/useWebSocket";
-import { getActiveSprint, getSprintTasks, getBacklog } from "../../api";
+import { getActiveSprint, getSprintTasks, getBacklog } from "../../api/tasks";
 import s from "./SprintProgressCard.module.css";
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };

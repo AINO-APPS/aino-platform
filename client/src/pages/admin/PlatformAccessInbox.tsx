@@ -14,12 +14,7 @@ import {
   History,
   BadgeAlert,
 } from "lucide-react";
-import {
-  listIncomingAccessRequests,
-  approveAccessRequest,
-  denyAccessRequest,
-  revokeAccessSession,
-} from "../../api";
+import { listIncomingAccessRequests, approveAccessRequest, denyAccessRequest, revokeAccessSession } from "../../api/organization";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 const EMPTY_ITEMS: any[] = [];

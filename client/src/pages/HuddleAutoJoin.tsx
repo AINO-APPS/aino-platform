@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getMeeting } from "../api";
+import { getMeeting } from "../api/meetings";
 import { useMeeting } from "../MeetingContext";
 
 /**

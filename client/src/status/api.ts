@@ -11,7 +11,7 @@
  * tests stub the network without monkey-patching axios.
  */
 
-import API from "../api";
+import { default as API } from "../api/client";
 import type { ManualStatus, PresencePreference } from "./constants";
 
 export interface SetMyStatusBody {

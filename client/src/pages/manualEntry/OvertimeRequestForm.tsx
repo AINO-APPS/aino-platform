@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { submitOvertimeRequest, getOvertimeRequests } from "../../api";
+import { submitOvertimeRequest, getOvertimeRequests } from "../../api/workforce";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import s from "../ManualEntry.module.css";
 

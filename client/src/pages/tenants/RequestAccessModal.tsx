@@ -2,10 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
     X, Shield, Loader2, CheckCircle2, AlertTriangle, KeyRound, Lock,
 } from "lucide-react";
-import {
-    createTenantAccessRequest, listTenantAccessRequests, cancelAccessRequest,
-    impersonateTenant, getImpersonationPolicy,
-} from "../../api";
+import { createTenantAccessRequest, listTenantAccessRequests, cancelAccessRequest, impersonateTenant, getImpersonationPolicy } from "../../api/organization";
 import s from "./Tenants.module.css";
 
 interface AccessRequest {

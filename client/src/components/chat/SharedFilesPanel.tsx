@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { File, X, Search, Image, FileText, Film, Music } from "lucide-react";
 import s from "./SharedFilesPanel.module.css";
-import { getSharedFiles } from "../../api";
+import { getSharedFiles } from "../../api/chat";
 import { isBeforeClearedAt } from "../../pages/chat/chatLocalDeletes";
 import FilePreview from "./FilePreview";
 

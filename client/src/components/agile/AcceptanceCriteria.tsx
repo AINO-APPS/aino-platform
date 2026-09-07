@@ -15,7 +15,7 @@
  */
 import React, { useEffect, useState, useCallback } from "react";
 import { Plus, X, CheckSquare, Square } from "lucide-react";
-import { getAcceptanceCriteria, updateAcceptanceCriteria } from "../../api";
+import { getAcceptanceCriteria, updateAcceptanceCriteria } from "../../api/tasks";
 import { useAgileConfig } from "../../AgileConfigContext";
 import s from "./AcceptanceCriteria.module.css";
 

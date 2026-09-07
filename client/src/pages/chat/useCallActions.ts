@@ -1,4 +1,4 @@
-import { createMeeting } from "../../api";
+import { createMeeting } from "../../api/meetings";
 import type useChatState from "./useChatState";
 
 type ChatState = ReturnType<typeof useChatState>;

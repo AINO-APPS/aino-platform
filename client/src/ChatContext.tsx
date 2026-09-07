@@ -7,7 +7,7 @@ import {
     useMemo,
     type ReactNode,
 } from "react";
-import { getConversations } from "./api";
+import { getConversations } from "./api/chat";
 import { hasTenantContext, useAuth } from "./AuthContext";
 import type { Conversation } from "./types";
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Bookmark, X, Search, ArrowUpRight } from "lucide-react";
 import s from "./StarredMessages.module.css";
-import { getStarredMessages, toggleStar } from "../../api";
+import { getStarredMessages, toggleStar } from "../../api/chat";
 
 interface StarredMessage {
     id: number | string;

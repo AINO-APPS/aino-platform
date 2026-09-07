@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-    getTaskComments,
-    addTaskComment,
-    updateTaskComment,
-    deleteTaskComment,
-} from "../../../api";
+import { getTaskComments, addTaskComment, updateTaskComment, deleteTaskComment } from "../../../api/tasks";
 import { stripHtml } from "../utils";
 import type { Comment, Task } from "../../../types";
 

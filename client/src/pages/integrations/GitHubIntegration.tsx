@@ -13,14 +13,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "../../AuthContext";
-import {
-  getGithubStatus,
-  startGithubOAuth,
-  listGithubRepos,
-  connectGithubRepos,
-  disconnectGithubRepo,
-  disconnectGithub,
-} from "../../api";
+import { getGithubStatus, startGithubOAuth, listGithubRepos, connectGithubRepos, disconnectGithubRepo, disconnectGithub } from "../../api/tasks";
 import { useToast } from "../../components/common/Toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 // lucide-react doesn't ship a "Github" mark; GitBranch is the closest

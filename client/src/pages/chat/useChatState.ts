@@ -1,10 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  searchChatUsers,
-  createConversation,
-  markConversationRead,
-  ackDelivered,
-} from "../../api";
+import { searchChatUsers, createConversation, markConversationRead, ackDelivered } from "../../api/chat";
 import { useAuth } from "../../AuthContext";
 import { useChatUnread } from "../../ChatContext";
 import useWebSocket from "../../hooks/useWebSocket";

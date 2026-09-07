@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getTeamAttendance } from "../../api";
+import { getTeamAttendance } from "../../api/organization";
 import MemberCard from "./MemberCard";
 import s from "../Admin.module.css";
 import m from "../ManagerDashboard.module.css";

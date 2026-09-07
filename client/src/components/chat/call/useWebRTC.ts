@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getIceConfig } from "../../../api";
+import { getIceConfig } from "../../../api/chat";
 import {
   applyLowLatencyPlayout,
   createQualityController,

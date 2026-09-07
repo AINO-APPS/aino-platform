@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getApprovals,
-  approveRequest,
-  rejectRequest,
-  bulkApproval,
-} from "../../api";
+import { getApprovals, approveRequest, rejectRequest, bulkApproval } from "../../api/organization";
 import ApprovalBadge from "./ApprovalBadge";
 import RequestDetails from "./RequestDetails";
 import s from "../Admin.module.css";

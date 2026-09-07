@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FileEdit, Ban, AlertCircle, Building2, House, ArrowRight, ClipboardList, Timer } from "lucide-react";
-import { addManualEntry, updateManualEntry, getEntries, getLeaves, getStatus, getLocalToday, getManualEntryRequests, getOvertimeRequests, getCurrentOrg } from "../api";
+import { addManualEntry, updateManualEntry, getEntries, getLeaves, getStatus, getManualEntryRequests, getOvertimeRequests } from "../api/workforce";
+import { getLocalToday } from "../api/client";
+import { getCurrentOrg } from "../api/organization";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 // NOTE (status v2): tracker no longer writes status — see useFloatingTimer.js
 import { tsToLocalTime, parseEntries, entryTypeLabels, entryTypeIcons } from "./manualEntry/manualEntryUtils";

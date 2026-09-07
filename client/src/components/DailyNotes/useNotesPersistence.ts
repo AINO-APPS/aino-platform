@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getNotes, saveNotes } from "../../api";
+import { getNotes, saveNotes } from "../../api/notes";
 import { newPage, migratePageModel } from "./notesUtils";
 import type { NotePage, NoteFolder, NoteTodo } from "./notesUtils";
 

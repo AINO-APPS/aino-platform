@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link2, Trash2, Copy, Check, X, ExternalLink } from "../../../constants/icons";
 import { Globe } from "lucide-react";
-import { getNoteShare, createNoteShare, revokeNoteShare } from "../../../api";
+import { getNoteShare, createNoteShare, revokeNoteShare } from "../../../api/notes";
 import s from "./ShareNoteModal.module.css";
 
 interface ShareNoteModalProps {

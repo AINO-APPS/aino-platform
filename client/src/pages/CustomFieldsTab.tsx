@@ -7,12 +7,7 @@
  */
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getCustomFieldsAll,
-  createCustomField,
-  updateCustomField,
-  deleteCustomField,
-} from "../api";
+import { getCustomFieldsAll, createCustomField, updateCustomField, deleteCustomField } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useCustomFields } from "../CustomFieldsContext";
 import { Plus, Pencil, Trash2, X, Save, Loader2 } from "lucide-react";

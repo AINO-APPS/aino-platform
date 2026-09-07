@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Shield, AlertTriangle, X } from "lucide-react";
 import { useAuth } from "../../AuthContext";
-import { getActiveInspectorSession, revokeAccessSession } from "../../api";
+import { getActiveInspectorSession, revokeAccessSession } from "../../api/organization";
 
 /**
  * Tenant-side banner that shows when a platform-admin is currently

@@ -1,7 +1,4 @@
-import {
-    biometricEnroll,
-    biometricLogin as biometricLoginApi,
-} from "../api";
+import { biometricEnroll, biometricLogin as biometricLoginApi } from "../api/workforce";
 
 /**
  * Desktop (Electron) biometric login wrapper (Phase 4 — Windows Hello / Touch ID).

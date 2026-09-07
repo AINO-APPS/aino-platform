@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMemberOverview } from "../../api";
+import { getMemberOverview } from "../../api/organization";
 import { ROLE_LABELS } from "./constants";
 import MemberOverview from "./MemberOverview";
 import MemberLeavesTab from "./MemberLeavesTab";

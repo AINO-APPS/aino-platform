@@ -9,7 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { hasTenantContext, useAuth } from "./AuthContext";
-import { getNotificationPrefs, updateNotificationPrefs } from "./api";
+import { getNotificationPrefs, updateNotificationPrefs } from "./api/organization";
 import {
     DEFAULT_PREFS,
     playSound,

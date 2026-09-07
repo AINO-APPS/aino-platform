@@ -14,12 +14,7 @@ import {
   Trash2,
   Tag,
 } from "lucide-react";
-import {
-  getServiceDeskTickets,
-  createServiceDeskTicket,
-  getServiceDeskStats,
-  deleteServiceDeskTicket,
-} from "../../api";
+import { getServiceDeskTickets, createServiceDeskTicket, getServiceDeskStats, deleteServiceDeskTicket } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import s from "./ServiceDeskTab.module.css";
 import b from "./BacklogTab.module.css";

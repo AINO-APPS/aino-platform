@@ -11,8 +11,11 @@ vi.mock("../AuthContext", () => ({
 }));
 
 const mockGetTasks = vi.fn();
-vi.mock("../api", () => ({
+vi.mock("../api/tasks", () => ({
   getTasks: (...args: any[]) => mockGetTasks(...args),
+}));
+vi.mock("../api/client", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   getLocalToday: () => "2026-03-12",
 }));
 

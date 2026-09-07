@@ -27,19 +27,7 @@ import {
 } from "lucide-react";
 import TaskLabelsTab from "./admin/TaskLabelsTab";
 import CustomFieldsTab from "./CustomFieldsTab";
-import {
-  getAgileSettings,
-  updateAgileSettings,
-  getWorkItemTypes,
-  createWorkItemType,
-  updateWorkItemType,
-  deleteWorkItemType,
-  getWorkflowStates,
-  createWorkflowState,
-  updateWorkflowState,
-  deleteWorkflowState,
-  getAgilePermissions,
-} from "../api";
+import { getAgileSettings, updateAgileSettings, getWorkItemTypes, createWorkItemType, updateWorkItemType, deleteWorkItemType, getWorkflowStates, createWorkflowState, updateWorkflowState, deleteWorkflowState, getAgilePermissions } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import s from "./AgileSettings.module.css";
 

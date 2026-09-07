@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Users, Search } from "lucide-react";
 import DOMPurify from "dompurify";
-import { getOrgChart } from "../../api";
+import { getOrgChart } from "../../api/organization";
 import { ROLE_LABELS } from "../../pages/admin/constants";
 import s from "../../pages/Admin.module.css";
 import oc from "./OrgChart.module.css";

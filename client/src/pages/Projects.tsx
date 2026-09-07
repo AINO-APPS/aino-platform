@@ -23,15 +23,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
-import {
-  getProjects,
-  createProject,
-  updateProject,
-  archiveProject,
-  deleteProject,
-  getProjectTasks,
-  getAssignableUsers,
-} from "../api";
+import { getProjects, createProject, updateProject, archiveProject, deleteProject, getProjectTasks, getAssignableUsers } from "../api/tasks";
 import { useToast } from "../components/common/Toast";
 import Pagination from "../components/common/Pagination";
 import {

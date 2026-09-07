@@ -9,7 +9,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "../../AuthContext";
-import { getCurrentOrg } from "../../api";
+import { getCurrentOrg } from "../../api/organization";
 import OrgSettings from "../../components/organization/OrgSettings";
 import Departments from "../../components/organization/Departments";
 import Teams from "../../components/organization/Teams";

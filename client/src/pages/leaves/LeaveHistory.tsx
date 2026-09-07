@@ -6,7 +6,7 @@ import {
     buildLeaveTypeMeta,
     buildLeaveTypeOptions,
 } from "../../constants/leaves";
-import { getLeavePolicies } from "../../api";
+import { getLeavePolicies } from "../../api/organization";
 import { fmtDate } from "../../utils/date";
 import s from "../Leaves.module.css";
 

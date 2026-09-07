@@ -6,10 +6,12 @@ import Login from "../pages/Login";
 
 // Mock the api module
 const mockLoginApi = vi.fn();
-vi.mock("../api", () => ({
+vi.mock("../api/workforce", () => ({
     login: (...args: any[]) => mockLoginApi(...args),
-    getProfile: vi.fn().mockRejectedValue(new Error("not logged in")),
     logoutUser: vi.fn(),
+}));
+vi.mock("../api/organization", () => ({
+    getProfile: vi.fn().mockRejectedValue(new Error("not logged in")),
 }));
 
 // Mock AuthContext

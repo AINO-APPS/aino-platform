@@ -4,7 +4,7 @@ import FaceCapture from "./FaceCapture";
 import { preloadFaceModels } from "../../utils/faceApi";
 import { getOfficeSignals, geolocationErrorMessage } from "../../utils/geolocation";
 import type { Position, WifiInfo, PositionSource } from "../../utils/geolocation";
-import { getCurrentOrg } from "../../api";
+import { getCurrentOrg } from "../../api/organization";
 import { useNavigate } from "react-router-dom";
 import VerifyError from "./VerifyError";
 import s from "./ClockInVerifyModal.module.css";

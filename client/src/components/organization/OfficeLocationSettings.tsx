@@ -15,7 +15,7 @@ import {
     Plus,
     Trash2,
 } from "lucide-react";
-import { updateOrgSettings } from "../../api";
+import { updateOrgSettings } from "../../api/organization";
 import {
     getCurrentPosition,
     geolocationErrorMessage,
