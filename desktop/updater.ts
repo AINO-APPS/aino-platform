@@ -11,6 +11,7 @@ import {
   type IpcMainInvokeEvent,
   type IpcMainEvent,
 } from "electron";
+import { handleIpc, onIpc, sendIpc, type ListenerContract } from "./ipc-contract";
 
 autoUpdater.logger = console;
 
@@ -347,9 +348,9 @@ function setupUpdater(mainWindow: BrowserWindow): void {
   const MAX_RETRIES = 3;
   const RETRY_DELAYS = [10_000, 30_000, 60_000]; // 10s, 30s, 60s
 
-  function sendToRenderer(channel: string, data?: unknown): void {
+  function sendToRenderer<C extends keyof ListenerContract>(channel: C, ...args: ListenerContract[C]): void {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(channel, data);
+      sendIpc(mainWindow.webContents, channel, ...args);
     }
   }
 
@@ -410,7 +411,7 @@ function setupUpdater(mainWindow: BrowserWindow): void {
     reminderInterval = setInterval(
       () => {
         sendToRenderer("update-reminder", {
-          version: pendingVersion,
+          version: pendingVersion || undefined,
           releaseNotes: pendingReleaseNotes || "",
         });
       },
@@ -436,16 +437,16 @@ function setupUpdater(mainWindow: BrowserWindow): void {
   });
 
   // ─── Update IPC handlers ───
-  ipcMain.on("install-update", () => {
+  onIpc("install-update", () => {
     clearReminder();
     autoUpdater.quitAndInstall(false, true);
   });
 
-  ipcMain.on("download-update", () => {
+  onIpc("download-update", () => {
     autoUpdater.downloadUpdate().catch(() => {});
   });
 
-  ipcMain.handle("check-for-update", async () => {
+  handleIpc("check-for-update", async () => {
     if (checkInProgress) {
       return { available: false, reason: "check-in-progress" };
     }
@@ -475,43 +476,43 @@ function setupUpdater(mainWindow: BrowserWindow): void {
     }
   });
 
-  ipcMain.handle("get-app-version", () => app.getVersion());
+  handleIpc("get-app-version", () => app.getVersion());
 
   // Preserve the renderer API without making an unauthenticated GitHub request.
   // Release notes now come from electron-updater's latest*.yml metadata; an
   // empty value is valid when a release does not include notes.
-  ipcMain.handle("fetch-release-notes", () => pendingReleaseNotes || "");
+  handleIpc("fetch-release-notes", () => pendingReleaseNotes || "");
 
   // ─── Window management IPC handlers ───
-  ipcMain.handle("is-maximized", (event: IpcMainInvokeEvent) => {
+  handleIpc("is-maximized", (event: IpcMainInvokeEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     return win ? win.isMaximized() : false;
   });
 
-  ipcMain.on("window-minimize", (event: IpcMainEvent) => {
+  onIpc("window-minimize", (event: IpcMainEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) win.minimize();
   });
 
-  ipcMain.on("window-maximize", (event: IpcMainEvent) => {
+  onIpc("window-maximize", (event: IpcMainEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
       win.isMaximized() ? win.unmaximize() : win.maximize();
     }
   });
 
-  ipcMain.on("window-close", (event: IpcMainEvent) => {
+  onIpc("window-close", (event: IpcMainEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) win.close();
   });
 
   // ─── Incoming call: flash taskbar and show/focus window ───
-  ipcMain.on("flash-frame", (event: IpcMainEvent, flash: boolean) => {
+  onIpc("flash-frame", (event: IpcMainEvent, flash: boolean) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) win.flashFrame(!!flash);
   });
 
-  ipcMain.on("show-and-focus", (event: IpcMainEvent) => {
+  onIpc("show-and-focus", (event: IpcMainEvent) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win) {
       if (win.isMinimized()) win.restore();
@@ -525,7 +526,7 @@ function setupUpdater(mainWindow: BrowserWindow): void {
   // macOS/Linux render it as a dock badge via app.setBadgeCount; Windows has
   // no dock badge, so we draw a small numeric overlay icon on the taskbar
   // button instead (cleared with null when the count is 0).
-  ipcMain.on("set-badge-count", (event: IpcMainEvent, rawCount: number) => {
+  onIpc("set-badge-count", (event: IpcMainEvent, rawCount: number) => {
     const count = Math.max(0, Math.floor(Number(rawCount) || 0));
     try {
       if (typeof app.setBadgeCount === "function") {

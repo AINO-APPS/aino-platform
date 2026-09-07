@@ -1,17 +1,8 @@
 import { useState, useEffect } from "react";
+import type { ScreenSource } from "../../../../desktop/ipc-contract";
 import s from "./ScreenPicker.module.css";
 
-interface ScreenSource {
-    id: string;
-    name: string;
-    thumbnail: string;
-    appIcon?: string;
-}
-
-const api = window.electronAPI as unknown as {
-    onScreenSources?: (cb: (list: ScreenSource[]) => void) => (() => void) | void;
-    selectScreenSource: (id: string | null) => void;
-} | undefined;
+const api = window.electronAPI;
 
 /**
  * Electron screen/window picker overlay.

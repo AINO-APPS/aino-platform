@@ -27,5 +27,5 @@ declare namespace Electron {
 interface Window {
     // preload.js stores maximize-change listeners keyed by the caller's
     // callback so `removeMaximizeChange` can detach the right handler.
-    __maxChangeHandlers?: Map<unknown, (...args: unknown[]) => void>;
+    __maxChangeHandlers?: Map<(value: boolean) => void, (...args: unknown[]) => void>;
 }

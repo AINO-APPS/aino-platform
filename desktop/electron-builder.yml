@@ -29,6 +29,7 @@ files:
   - updater.js
   - callPipWindow.js
   - biometric.js
+  - ipc-contract.js
   - icons/**/*
   - package.json
   - google-api-key.txt

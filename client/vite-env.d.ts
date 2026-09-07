@@ -12,14 +12,9 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Electron preload bridge exposed via contextBridge in desktop/preload.
-// Permissive by design — the desktop app injects this at runtime; web builds
-// leave it undefined. Components guard with optional chaining.
-interface ElectronAPI {
-  isElectron?: boolean;
-  platform?: string;
-  [key: string]: any;
-}
+// Electron preload bridge exposed via contextBridge in desktop/preload. Web
+// builds leave it undefined, so renderer call sites use optional chaining.
+type ElectronAPI = import("../desktop/ipc-contract").ElectronAPI;
 
 interface Window {
   electronAPI?: ElectronAPI;

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import s from "./UpdateNotification.module.css";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const api = window.electronAPI as any;
+const api = window.electronAPI;
 
 type UpdateState = "idle" | "checking" | "downloading" | "ready" | "upToDate" | "error";
 
@@ -184,7 +183,7 @@ export default function UpdateNotification() {
                         <span className={s.icon}>✅</span>
                         <span>Update <strong>v{version}</strong> ready — restart to apply</span>
                         <div className={s.actions}>
-                            <button className={s.actionBtn} onClick={() => api.installUpdate()}>
+                            <button className={s.actionBtn} onClick={() => api?.installUpdate()}>
                                 Restart Now
                             </button>
                             <button

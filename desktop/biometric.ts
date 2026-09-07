@@ -9,6 +9,7 @@ import path from "path";
 import fs from "fs";
 import { execFile } from "child_process";
 import util from "util";
+import { handleIpc } from "./ipc-contract";
 
 const execFileP = util.promisify(execFile);
 
@@ -177,7 +178,7 @@ Write-Output $result
  */
 export function setupBiometric(_getWindow?: () => BrowserWindow | null): void {
     // Report availability + whether a credential is already enrolled.
-    ipcMain.handle("biometric:available", async () => {
+    handleIpc("biometric:available", async () => {
         const available = await isHardwareAvailable();
         const enrolled = readStore() !== null;
         return { available, enrolled, platform: process.platform };
@@ -185,7 +186,7 @@ export function setupBiometric(_getWindow?: () => BrowserWindow | null): void {
 
     // Persist a server-issued device credential behind safeStorage. The
     // renderer calls this right after a successful POST /auth/biometric/enroll.
-    ipcMain.handle("biometric:enroll", async (_e, payload: { credentialId?: string; deviceSecret?: string }) => {
+    handleIpc("biometric:enroll", async (_e, payload: { credentialId?: string; deviceSecret?: string }) => {
         try {
             const credentialId = payload?.credentialId;
             const deviceSecret = payload?.deviceSecret;
@@ -211,7 +212,7 @@ export function setupBiometric(_getWindow?: () => BrowserWindow | null): void {
 
     // Gate the stored secret behind the OS biometric and return it so the
     // renderer can exchange it at POST /auth/biometric/login.
-    ipcMain.handle("biometric:login", async () => {
+    handleIpc("biometric:login", async () => {
         try {
             const stored = readStore();
             if (!stored) return { ok: false, error: "not_enrolled" };
@@ -238,7 +239,7 @@ export function setupBiometric(_getWindow?: () => BrowserWindow | null): void {
     });
 
     // Forget the stored credential on this device.
-    ipcMain.handle("biometric:disable", async () => {
+    handleIpc("biometric:disable", async () => {
         clearStore();
         return { ok: true };
     });

@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, app, screen, nativeImage, type IpcMainEvent } from "electron";
 import path from "path";
 import fs from "fs";
+import { onIpc, sendIpc, type CallPipAction, type CallPipState } from "./ipc-contract";
 
 /**
  * Always-on-top mini call window (Teams-style "floatie").
@@ -32,7 +33,7 @@ import fs from "fs";
  *     'call:pip-state-request'              → pip window needs current state.
  */
 
-type PipState = Record<string, unknown>;
+type PipState = CallPipState;
 type PipBounds = { width: number; height: number; x: number; y: number };
 
 const STATE_FILE = (): string => path.join(app.getPath("userData"), "call-pip-window-state.json");
@@ -96,7 +97,7 @@ function setupCallPipWindow(mainWindow: BrowserWindow): CallPipController {
         if (pipWindow && !pipWindow.isDestroyed()) {
             // Already open — just push the latest state through.
             try {
-                pipWindow.webContents.send("call:pip-state", lastState);
+                sendIpc(pipWindow.webContents, "call:pip-state", lastState);
             } catch {
                 /* ignore */
             }
@@ -192,7 +193,7 @@ function setupCallPipWindow(mainWindow: BrowserWindow): CallPipController {
             // closes set __silentClose to avoid the bounce.
             if (!wasSilent && mainWindow && !mainWindow.isDestroyed()) {
                 try {
-                    mainWindow.webContents.send("call:pip-window-closed");
+                    sendIpc(mainWindow.webContents, "call:pip-window-closed");
                 } catch {
                     /* ignore */
                 }
@@ -201,23 +202,23 @@ function setupCallPipWindow(mainWindow: BrowserWindow): CallPipController {
     };
 
     // ── IPC: from main window ──
-    ipcMain.on("call:pip-open", (event: IpcMainEvent, state?: PipState) => {
+    onIpc("call:pip-open", (event: IpcMainEvent, state?: PipState) => {
         // Only the main window may open a pip window
         if (event.sender !== mainWindow.webContents) return;
         openPip(state);
     });
 
-    ipcMain.on("call:pip-close", (event: IpcMainEvent) => {
+    onIpc("call:pip-close", (event: IpcMainEvent) => {
         if (event.sender !== mainWindow.webContents) return;
         closePip(true);
     });
 
-    ipcMain.on("call:pip-update-state", (event: IpcMainEvent, partial?: PipState) => {
+    onIpc("call:pip-update-state", (event: IpcMainEvent, partial?: PipState) => {
         if (event.sender !== mainWindow.webContents) return;
         lastState = { ...(lastState || {}), ...(partial || {}) };
         if (pipWindow && !pipWindow.isDestroyed()) {
             try {
-                pipWindow.webContents.send("call:pip-state", lastState);
+                sendIpc(pipWindow.webContents, "call:pip-state", lastState);
             } catch {
                 /* ignore */
             }
@@ -225,18 +226,18 @@ function setupCallPipWindow(mainWindow: BrowserWindow): CallPipController {
     });
 
     // ── IPC: from pip window ──
-    ipcMain.on("call:pip-ready", (event: IpcMainEvent) => {
+    onIpc("call:pip-ready", (event: IpcMainEvent) => {
         if (!pipWindow || event.sender !== pipWindow.webContents) return;
         if (lastState) {
             try {
-                pipWindow.webContents.send("call:pip-state", lastState);
+                sendIpc(pipWindow.webContents, "call:pip-state", lastState);
             } catch {
                 /* ignore */
             }
         }
     });
 
-    ipcMain.on("call:pip-action", (event: IpcMainEvent, payload?: { action?: string }) => {
+    onIpc("call:pip-action", (event: IpcMainEvent, payload?: { action?: CallPipAction }) => {
         if (!pipWindow || event.sender !== pipWindow.webContents) return;
         if (!mainWindow || mainWindow.isDestroyed()) return;
         // Restore actions should also bring the main window forward.
@@ -250,7 +251,7 @@ function setupCallPipWindow(mainWindow: BrowserWindow): CallPipController {
             }
         }
         try {
-            mainWindow.webContents.send("call:pip-action", payload || {});
+            sendIpc(mainWindow.webContents, "call:pip-action", payload || {});
         } catch {
             /* ignore */
         }

@@ -27,8 +27,7 @@ interface PipState {
  *      callPip.close() which closes this BrowserWindow.
  */
 export default function CallPipPage() {
-    const api = window.electronAPI as any;
-    const pip = api?.callPip;
+    const pip = window.electronAPI?.callPip;
 
     const [state, setState] = useState<PipState>({
         remoteName: "",

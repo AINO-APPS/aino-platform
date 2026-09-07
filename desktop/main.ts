@@ -27,6 +27,7 @@ import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";
 import { setupCallPipWindow } from "./callPipWindow";
 import { setupBiometric } from "./biometric";
+import { handleIpc, onIpc, sendIpc } from "./ipc-contract";
 
 // App identity (appUserModelId + app.name) and the legacy userData migration
 // now live in ./appIdentity, imported at the very top so they run before any
@@ -402,7 +403,7 @@ app.whenReady().then(async () => {
           thumbnail: s.thumbnail.toDataURL(),
           appIcon: s.appIcon ? s.appIcon.toDataURL() : null,
         }));
-        mainWindow?.webContents.send("screen-sources", serialized);
+        mainWindow && sendIpc(mainWindow.webContents, "screen-sources", serialized);
 
         // Wait for user to pick a source or cancel
         pendingSourceSelection = { sources, callback };
@@ -443,7 +444,7 @@ app.whenReady().then(async () => {
   // renderer reads it on demand at clock-in time only. BSSID lookup
   // requires Windows Location Services to be ON; without it `netsh`
   // returns `(blank)` for the BSSID and we surface `{ ok: false }`.
-  ipcMain.handle("get-wifi-info", async () => {
+  handleIpc("get-wifi-info", async () => {
     console.log("[AINO] get-wifi-info: reading Wi-Fi interface...");
     try {
       if (process.platform === "win32") {
@@ -534,7 +535,7 @@ app.whenReady().then(async () => {
   // ─── Native Windows geolocation via .NET Location API ──────────────
   // Bypasses Chromium entirely and uses the OS location service (GPS /
   // Wi-Fi triangulation). Much more accurate than IP-based geolocation.
-  ipcMain.handle("get-native-location", async () => {
+  handleIpc("get-native-location", async () => {
     if (process.platform !== "win32") {
       return { ok: false, error: "unsupported_platform" };
     }
@@ -599,7 +600,7 @@ $w.Stop()
   // when a clock-in fails because the geolocation fix is too coarse — the
   // root cause is almost always that the user has Windows Location Services
   // turned off, which is a fix the user has to make themselves in Settings.
-  ipcMain.handle("open-location-settings", async () => {
+  handleIpc("open-location-settings", async () => {
     try {
       if (process.platform === "win32") {
         await shell.openExternal("ms-settings:privacy-location");
@@ -626,7 +627,7 @@ $w.Stop()
     }
   });
 
-  ipcMain.handle("get-ip-location", async () => {
+  handleIpc("get-ip-location", async () => {
     console.log("[AINO] get-ip-location: attempting IP geolocation...");
     // Try a couple of providers for resilience; both are free / no key.
     const providers: {
@@ -684,7 +685,7 @@ $w.Stop()
     return { ok: false, error: "All IP geolocation providers failed" };
   });
 
-  ipcMain.on("screen-source-selected", (_e: IpcMainEvent, sourceId: string) => {
+  onIpc("screen-source-selected", (_e: IpcMainEvent, sourceId: string | null) => {
     if (!pendingSourceSelection) return;
     const { sources, callback } = pendingSourceSelection;
     pendingSourceSelection = null;
@@ -1053,10 +1054,10 @@ $w.Stop()
 
   // Notify renderer of maximize state changes (for window control icons)
   mainWindow.on("maximize", () =>
-    mainWindow?.webContents.send("maximize-change", true),
+    mainWindow && sendIpc(mainWindow.webContents, "maximize-change", true),
   );
   mainWindow.on("unmaximize", () =>
-    mainWindow?.webContents.send("maximize-change", false),
+    mainWindow && sendIpc(mainWindow.webContents, "maximize-change", false),
   );
 
   // ─── Notify renderer when the main window is hidden / shown ───
@@ -1066,7 +1067,7 @@ $w.Stop()
   const notifyHidden = (reason: string): void => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       try {
-        mainWindow.webContents.send("window-hidden", { reason });
+        sendIpc(mainWindow.webContents, "window-hidden", { reason });
       } catch {
         /* ignore */
       }
@@ -1075,7 +1076,7 @@ $w.Stop()
   const notifyShown = (reason: string): void => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       try {
-        mainWindow.webContents.send("window-shown", { reason });
+        sendIpc(mainWindow.webContents, "window-shown", { reason });
       } catch {
         /* ignore */
       }

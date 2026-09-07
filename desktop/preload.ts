@@ -1,29 +1,33 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import type { CallPipAction, CallPipState, ElectronAPI, ListenerContract, RendererInvoke, RendererSend, Unsubscribe, WindowVisibility } from "./ipc-contract";
 
-type Unsubscribe = () => void;
 type Listener<T> = (callback: (value: T) => void) => Unsubscribe;
+const invoke = ipcRenderer.invoke.bind(ipcRenderer) as RendererInvoke;
+const send = ipcRenderer.send.bind(ipcRenderer) as RendererSend;
 
-// Helper: subscribe to an IPC channel and return an unsubscribe function
-function createListener<T = unknown>(
-    channel: string,
-    transform?: (...args: unknown[]) => T
+// Channel and callback arguments are constrained by the checked-in contract.
+function createListener<C extends keyof ListenerContract, T = ListenerContract[C][0]>(
+    channel: C,
+    transform?: (...args: ListenerContract[C]) => T
 ): Listener<T> {
-    return (callback: (value: T) => void) => {
-        const handler = (_e: IpcRendererEvent, ...args: unknown[]) =>
+    return (callback) => {
+        const handler = (_e: IpcRendererEvent, ...rawArgs: unknown[]) => {
+            const args = rawArgs as ListenerContract[C];
             callback(transform ? transform(...args) : (args[0] as T));
+        };
         ipcRenderer.on(channel, handler);
         return () => ipcRenderer.removeListener(channel, handler);
     };
 }
 
-contextBridge.exposeInMainWorld("electronAPI", {
+const electronAPI = {
     platform: process.platform,
     isElectron: true,
-    getVersion: () => ipcRenderer.invoke("get-app-version"),
-    isMaximized: () => ipcRenderer.invoke("is-maximized"),
-    minimize: () => ipcRenderer.send("window-minimize"),
-    maximize: () => ipcRenderer.send("window-maximize"),
-    close: () => ipcRenderer.send("window-close"),
+    getVersion: () => invoke("get-app-version"),
+    isMaximized: () => invoke("is-maximized"),
+    minimize: () => send("window-minimize"),
+    maximize: () => send("window-maximize"),
+    close: () => send("window-close"),
     onMaximizeChange: (callback: (val: boolean) => void) => {
         const handler = (_e: IpcRendererEvent, val: boolean) => callback(val);
         ipcRenderer.on("maximize-change", handler);
@@ -46,22 +50,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
     onUpdateReminder: createListener("update-reminder"),
     onUpdateNotAvailable: createListener("update-not-available", () => ({})),
     onUpdateError: createListener("update-error"),
-    checkForUpdate: () => ipcRenderer.invoke("check-for-update"),
-    downloadUpdate: () => ipcRenderer.send("download-update"),
-    installUpdate: () => ipcRenderer.send("install-update"),
-    fetchReleaseNotes: (version: string) => ipcRenderer.invoke("fetch-release-notes", version),
+    checkForUpdate: () => invoke("check-for-update"),
+    downloadUpdate: () => send("download-update"),
+    installUpdate: () => send("install-update"),
+    fetchReleaseNotes: (version: string) => invoke("fetch-release-notes", version),
     // Screen source picker
     onScreenSources: createListener("screen-sources"),
-    selectScreenSource: (sourceId: string) => ipcRenderer.send("screen-source-selected", sourceId),
+    selectScreenSource: (sourceId: string | null) => send("screen-source-selected", sourceId),
     // Incoming call: flash taskbar and show/focus window
-    flashFrame: (flash: boolean) => ipcRenderer.send("flash-frame", flash),
-    showAndFocus: () => ipcRenderer.send("show-and-focus"),
+    flashFrame: (flash: boolean) => send("flash-frame", flash),
+    showAndFocus: () => send("show-and-focus"),
 
     // Unread badge: set the taskbar / dock unread count. The renderer computes
     // the combined unread total (chat + notifications) and forwards it here; the
     // main process renders it as a dock badge (macOS/Linux) or a numeric
     // taskbar overlay icon (Windows). Pass 0 to clear.
-    setBadgeCount: (count: number) => ipcRenderer.send("set-badge-count", count),
+    setBadgeCount: (count: number) => send("set-badge-count", count),
 
     // IP-based geolocation fallback for the attendance clock-in flow.
     // Resolves to { ok: true, latitude, longitude, accuracy } or
@@ -69,14 +73,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // navigator.geolocation has already failed (Chromium in Electron
     // requires a GOOGLE_API_KEY for its built-in geolocation, which we
     // can't ship publicly). See main.js → ipcMain.handle('get-ip-location').
-    getIpLocation: () => ipcRenderer.invoke("get-ip-location"),
-    getNativeLocation: () => ipcRenderer.invoke("get-native-location"),
+    getIpLocation: () => invoke("get-ip-location"),
+    getNativeLocation: () => invoke("get-native-location"),
 
     // Open the OS-level Location privacy settings page so users with a bad
     // geolocation fix (typical for packaged Electron builds) can flip on
     // Windows Location Services without leaving the app. No-op on platforms
     // that don't have a privacy-location URI scheme.
-    openLocationSettings: () => ipcRenderer.invoke("open-location-settings"),
+    openLocationSettings: () => invoke("open-location-settings"),
 
     // ─── Wi-Fi info reader (attendance clock-in Wi-Fi-first verification) ──
     // Returns { ok, bssid, ssid, signal } describing the AP the OS is
@@ -84,7 +88,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // BSSID alongside geolocation so the server can match against the org's
     // office Wi-Fi allow-list (more reliable than the geofence on laptops
     // where Chromium's geolocation is IP-based and wildly inaccurate).
-    getWifiInfo: () => ipcRenderer.invoke("get-wifi-info"),
+    getWifiInfo: () => invoke("get-wifi-info"),
 
     // ─── Main window hide/show lifecycle (renderer subscribers) ────────
     // Fired whenever the main BrowserWindow is minimized / hidden to the
@@ -92,13 +96,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // to automatically open the always-on-top mini PiP when the user
     // leaves the app during a call, and to drop back to the full overlay
     // when the user reopens the app.
-    onWindowHidden: (cb: (payload: unknown) => void) => {
-        const handler = (_e: IpcRendererEvent, payload: unknown) => cb(payload || {});
+    onWindowHidden: (cb: (payload: WindowVisibility) => void) => {
+        const handler = (_e: IpcRendererEvent, payload: WindowVisibility) => cb(payload || { reason: "unknown" });
         ipcRenderer.on("window-hidden", handler);
         return () => ipcRenderer.removeListener("window-hidden", handler);
     },
-    onWindowShown: (cb: (payload: unknown) => void) => {
-        const handler = (_e: IpcRendererEvent, payload: unknown) => cb(payload || {});
+    onWindowShown: (cb: (payload: WindowVisibility) => void) => {
+        const handler = (_e: IpcRendererEvent, payload: WindowVisibility) => cb(payload || { reason: "unknown" });
         ipcRenderer.on("window-shown", handler);
         return () => ipcRenderer.removeListener("window-shown", handler);
     },
@@ -111,9 +115,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // sendCallPipAction.
     callPip: {
         // ── Main window → main process ──
-        open: (state: unknown) => ipcRenderer.send("call:pip-open", state),
-        close: () => ipcRenderer.send("call:pip-close"),
-        updateState: (partial: unknown) => ipcRenderer.send("call:pip-update-state", partial),
+        open: (state: CallPipState) => send("call:pip-open", state),
+        close: () => send("call:pip-close"),
+        updateState: (partial: CallPipState) => send("call:pip-update-state", partial),
         // Subscribe to "user closed the floatie" — caller should restore
         // the in-app overlay. Returns an unsubscribe function.
         onWindowClosed: (cb: () => void) => {
@@ -123,19 +127,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
         },
         // Subscribe to actions the user took inside the pip window
         // (mute / unmute / restore / end). Returns an unsubscribe function.
-        onAction: (cb: (payload: unknown) => void) => {
-            const handler = (_e: IpcRendererEvent, payload: unknown) => cb(payload || {});
+        onAction: (cb: (payload: { action?: CallPipAction }) => void) => {
+            const handler = (_e: IpcRendererEvent, payload: { action?: CallPipAction }) => cb(payload || {});
             ipcRenderer.on("call:pip-action", handler);
             return () => ipcRenderer.removeListener("call:pip-action", handler);
         },
 
         // ── Pip window → main process ──
-        ready: () => ipcRenderer.send("call:pip-ready"),
-        sendAction: (action: string) => ipcRenderer.send("call:pip-action", { action }),
+        ready: () => send("call:pip-ready"),
+        sendAction: (action: CallPipAction) => send("call:pip-action", { action }),
         // Subscribe to state pushes from the main window (avatar, name,
         // duration tick, muted flag, …). Returns an unsubscribe function.
-        onState: (cb: (state: unknown) => void) => {
-            const handler = (_e: IpcRendererEvent, state: unknown) => cb(state || {});
+        onState: (cb: (state: CallPipState) => void) => {
+            const handler = (_e: IpcRendererEvent, state: CallPipState) => cb(state || {});
             ipcRenderer.on("call:pip-state", handler);
             return () => ipcRenderer.removeListener("call:pip-state", handler);
         },
@@ -147,15 +151,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // under Electron. See desktop/biometric.ts for the main-process logic.
     biometric: {
         // → { available, enrolled, platform }
-        available: () => ipcRenderer.invoke("biometric:available"),
+        available: () => invoke("biometric:available"),
         // Persist a freshly-enrolled credential behind the OS biometric.
         // → { ok, error? }
         enroll: (payload: { credentialId: string; deviceSecret: string }) =>
-            ipcRenderer.invoke("biometric:enroll", payload),
+            invoke("biometric:enroll", payload),
         // Prompt the OS biometric and return the stored secret on success.
         // → { ok, credentialId?, deviceSecret?, error? }
-        login: () => ipcRenderer.invoke("biometric:login"),
+        login: () => invoke("biometric:login"),
         // Forget the stored credential on this device. → { ok }
-        disable: () => ipcRenderer.invoke("biometric:disable"),
+        disable: () => invoke("biometric:disable"),
     },
-});
+} satisfies ElectronAPI;
+
+contextBridge.exposeInMainWorld("electronAPI", electronAPI);
