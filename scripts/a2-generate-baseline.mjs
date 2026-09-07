@@ -6,9 +6,9 @@
  *   and the workflow must be deploy-driven. So the baseline is derived from the
  *   code that is the source of truth today:
  *
- *     server/db.ts                        -> initTenantSchema()  (the bulk)
+ *     server/platform/db/tenantSchema/**  -> initTenantSchema()  (the bulk)
  *     server/utils/migrationRunner.ts     -> MIGRATIONS[]        (30 catch-ups)
- *     server/services/status/migration.ts -> status v2 DDL
+ *     server/platform/db/statusSchema.ts  -> status v2 DDL
  *
  *   analyze-migration-coverage.mjs proved 26 DDL objects live ONLY in
  *   MIGRATIONS[] (device_tokens/push, webauthn_credentials/biometric,
@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runnerPath = path.join(root, "server/utils/migrationRunner.ts");
-const statusPath = path.join(root, "server/services/status/migration.ts");
+const statusPath = path.join(root, "server/platform/db/statusSchema.ts");
 const outPath = path.join(root, "server/platform/db/migrations/0002_migration_catchup.sql");
 
 const src = fs.readFileSync(runnerPath, "utf8");
@@ -91,7 +91,7 @@ function harden(sql) {
 // Procedural migrations — see scripts/analyze-migration-logic.mjs
 const SPECIAL = new Set([
   "2026_06_v2_cleanup_dm_extra_participants", // data cleanup: no-op on a fresh DB
-  "2026_06_v4_status_service_v2_schema",      // delegates to services/status/migration.ts
+  "2026_06_v4_status_service_v2_schema",      // delegates to platform/db/statusSchema.ts
 ]);
 
 const chunks = [];
@@ -131,7 +131,7 @@ const statusStmts = [];
 if (statusStmts.length) {
   chunks.push(`-- ${"-".repeat(72)}`);
   chunks.push("-- 2026_06_v4_status_service_v2_schema");
-  chunks.push("--   Inlined from server/services/status/migration.ts");
+  chunks.push("--   Inlined from server/platform/db/statusSchema.ts");
   chunks.push(`-- ${"-".repeat(72)}`);
   for (const s of statusStmts) {
     chunks.push(`${s};`);

@@ -640,7 +640,8 @@ server/index.ts
 
 Two complementary mechanisms keep every tenant DB schema current:
 
-1. **`initTenantSchema()`** (`db.ts`) — the full idempotent base schema
+1. **`initTenantSchema()`** (`platform/db/tenantSchema.ts`) — the full idempotent base schema,
+   split into ordered, sub-600-line phases under `platform/db/tenantSchema/`
    (`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`). Run on tenant creation, and
    re-run for every tenant by `migrate.ts` on deploy (self-healing for partially-bootstrapped DBs).
 2. **Versioned SQL migrations** (`platform/db/migrations/*.sql`, loaded by
@@ -682,7 +683,8 @@ server/                            # TypeScript — compiled to dist/ by `npm ru
 │       ├── uploads.ts             # authenticated tenant/org/chat upload serving
 │       └── errors.ts              # final structured 500 handler
 ├── migrate.ts                     # Standalone pre-start migration runner (retry/backoff)
-├── db.ts                          # Master pool + initMasterDB() + initTenantSchema() (60+ tables)
+├── db.ts                          # Compatibility facade for platform/db
+├── platform/db/                   # Pools, migrations, master schema, ordered tenant schema phases
 ├── redis.ts                       # Redis client (fail-fast reconnect), tenant-scoped cache helpers, Pub/Sub
 ├── jobs.ts                        # BullMQ queues / setInterval fallback (7 job families)
 ├── jest.setup.ts                  # Jest test setup
@@ -762,7 +764,8 @@ server/                            # TypeScript — compiled to dist/ by `npm ru
 The **master DB** holds platform tables (`tenants`, `user_directory`, `platform_users`,
 `app_settings`, `service_desk_tickets`, `note_share_tokens`, `platform_audit_logs`,
 `tenant_access_requests`). Every **tenant DB** gets the full application schema below, created by
-`db.ts → initTenantSchema()` (idempotent) and evolved by `utils/migrationRunner.ts` (versioned,
+`platform/db/tenantSchema.ts → initTenantSchema()` (idempotent) and evolved by
+`platform/db/migrations.ts` (versioned,
 tracked per-DB in `_migrations`). The diagram shows the core entities; additional tenant tables
 cover agile customisation (`work_item_types`, `workflow_states`, `org_agile_settings`), device
 push tokens, tenant roles, branding, custom fields, compensation, and projects/integrations.

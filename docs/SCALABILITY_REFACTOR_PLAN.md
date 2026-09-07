@@ -716,7 +716,7 @@ Legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
 >
 > 1. **A2.4 cannot be generated from `initTenantSchema()` alone.** The completed implementation
 >    generates the catch-up SQL from the actual migration sources (`migrationRunner.ts` plus
->    `services/status/migration.ts`) and verifies all 26 missing objects. A `pg_dump` is optional
+>    the status DDL now owned by `platform/db/statusSchema.ts`) and verifies all 26 missing objects. A `pg_dump` is optional
 >    backup tooling, not an implementation dependency.
 > 2. **Pre-existing latent bug:** any tenant created today gets its schema from
 >    `initTenantSchema()` first — push notifications, biometric login and MFA tables only
@@ -728,7 +728,7 @@ Legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
 > The workstation network permits HTTPS/443 only (`:21659` and `:22` refused), so instead of
 > `pg_dump` the baseline is **generated from source code** by
 > `scripts/a2-generate-baseline.mjs`, which reads `db.ts`, `migrationRunner.ts` and
-> `services/status/migration.ts`. Everything applies **on the next deploy** —
+> `platform/db/statusSchema.ts`. Everything applies **on the next deploy** —
 > `migrate.ts` runs the sweep automatically. `scripts/a2-dump-databases.sh` and the
 > `a2-database-dump.yml` workflow remain available for optional backups.
 
@@ -750,7 +750,7 @@ Legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⛔ Blocked
       rows remain intact for the previous runner.
 - [x] **A2.4** ✅ Generated `server/platform/db/migrations/0002_migration_catchup.sql` —
       **170 SQL statements, 55 KB**, produced by `scripts/a2-generate-baseline.mjs` from
-      `migrationRunner.ts` + `services/status/migration.ts`. All 26 previously-missing objects
+      `migrationRunner.ts` + the status schema (now `platform/db/statusSchema.ts`). All 26 previously-missing objects
       verified present.
 - [x] **A2.5** ✅ Rewrote `utils/migrationRunner.ts`: **1,668 → 331 lines**. `MIGRATIONS[]` is gone;
       it now loads `platform/db/migrations/*.sql` in filename order. `_migrations` bookkeeping,

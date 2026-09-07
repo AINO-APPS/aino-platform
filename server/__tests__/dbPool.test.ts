@@ -31,6 +31,8 @@ describe("database pool boundary", () => {
 
     test("keeps the legacy db facade bound to the canonical pool exports", () => {
         const db = require("../db");
+        const masterSchema = require("../platform/db/masterSchema");
+        const agileDefaults = require("../platform/db/agileDefaults");
 
         expect(db.pool).toBe(poolModule.pool);
         expect(db.masterQuery).toBe(poolModule.masterQuery);
@@ -39,6 +41,8 @@ describe("database pool boundary", () => {
         expect(db.transaction).toBe(poolModule.transaction);
         expect(db.makePoolQuery).toBe(poolModule.makePoolQuery);
         expect(db.makePoolTransaction).toBe(poolModule.makePoolTransaction);
+        expect(db.initMasterDB).toBe(masterSchema.initMasterDB);
+        expect(db.seedAgileDefaults).toBe(agileDefaults.seedAgileDefaults);
     });
 
     test("releases a connected client after successful and failed queries", async () => {

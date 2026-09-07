@@ -78,7 +78,7 @@ for (const i of INDEXES) {
   else fail(`index  ${i} NOT FOUND`);
 }
 
-// ── 2. Status service v2 objects (inlined from services/status/migration.ts) ─
+// ── 2. Status service v2 objects (now owned by platform/db/statusSchema.ts) ──
 console.log("\n[2] Status service v2 DDL inlined");
 for (const t of ["user_presence_sessions", "user_status_events"]) {
   if (lower.includes(`create table if not exists ${t}`)) pass(`table  ${t}`);

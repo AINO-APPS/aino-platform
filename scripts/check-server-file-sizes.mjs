@@ -13,7 +13,6 @@ const LIMIT = 600;
 
 // Baseline captured 2026-08-21. Ceilings are intentionally exact.
 const grandfathered = {
-  "db.ts": 2257,
   "jobs.ts": 870,
   "routes/admin.ts": 1403,
   "routes/agile.ts": 788,

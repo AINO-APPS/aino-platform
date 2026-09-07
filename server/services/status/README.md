@@ -36,7 +36,7 @@ computes the "effective" status with a pure function.
 | `cache.js`        | Redis I/O only. Typed, prefixed keys.                                      |
 | `broadcaster.js`  | WS broadcast of the unified `user_status` event.                           |
 | `index.js`        | **`StatusService`** — public API that composes the four files above.       |
-| `migration.js`    | Idempotent schema migration (called from `db.js`).                         |
+| `migration.js`    | Compatibility export for the platform-owned idempotent status schema.      |
 | `__tests__/`      | Unit + integration tests next to source.                                   |
 
 Lint/grep rule (manual for now): the strings `'user_status'`, `'user_status_text'`,

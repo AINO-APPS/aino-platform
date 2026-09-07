@@ -39,6 +39,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../../utils/logger";
 import type { QueryFn, TransactionFn } from "../../types/domain";
+import { seedAgileDefaults } from "./agileDefaults";
 
 /**
  * Directory holding the `.sql` migration files.
@@ -278,7 +279,6 @@ async function runTenantMigrations(query: QueryFn, opts: MigrationOpts = {}): Pr
     // for orgs not yet seeded (or whose tasks still need backfilling), so every
     // tenant picks up Work Item Types / Workflow States on the next deploy.
     try {
-        const { seedAgileDefaults } = require("../../db");
         await seedAgileDefaults(query);
     } catch (err: unknown) {
         logger.error({ err: (err as Error).message, label }, "Agile defaults seeding failed (non-fatal)");
