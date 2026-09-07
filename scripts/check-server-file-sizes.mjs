@@ -17,7 +17,6 @@ const grandfathered = {
   "routes/admin.ts": 1403,
   "routes/agile.ts": 788,
   "routes/auth.ts": 1513,
-  "routes/chat.ts": 4489,
   "routes/compensation.ts": 1066,
   "routes/leavePolicy.ts": 686,
   "routes/leaves.ts": 727,
