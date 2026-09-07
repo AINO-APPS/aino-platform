@@ -32,7 +32,6 @@ const grandfathered = {
   "routes/tracker.ts": 925,
   "services/pushNotifications.ts": 866,
   "utils/mailer.ts": 608,
-  "utils/ws.ts": 3841,
 };
 
 function walk(dir) {

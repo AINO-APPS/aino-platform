@@ -36,6 +36,7 @@ const ALLOWED = new Set([
 // Files that participate in cross-replica realtime behaviour.
 const WATCHED = [
   "utils/ws.ts",
+  "realtime/fanout.ts",
   "realtime/signalStore.ts",
   "realtime/membershipCache.ts",
   "realtime/meetingLeaveStore.ts",

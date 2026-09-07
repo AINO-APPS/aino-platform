@@ -24,7 +24,11 @@ const asyncapi = read("contracts/asyncapi/aino-realtime.yaml");
 for (const marker of ["asyncapi: 2.6.0", "url: aino.org.in/ws", "cookieToken:", "queryToken:", "subprotocolToken:", "ChatMessageCommand:", "CallInitiateCommand:", "CallCancelCommand:"]) {
   check(asyncapi.includes(marker), `AsyncAPI missing ${marker}`);
 }
-const ws = read("server/utils/ws.ts");
+const ws = [
+  "server/utils/ws.ts",
+  "server/realtime/messageRouter.ts",
+  "server/realtime/fanout.ts",
+].map(read).join("\n");
 for (const marker of ['path: "/ws"', "cookies.token", 'searchParams.get("token")', 'headers["sec-websocket-protocol"]', 'ws.close(4001', 'ws.close(4003', 'ws.close(4029', 'JSON.stringify({ type, data })']) {
   check(ws.includes(marker), `documented WS behavior absent from server: ${marker}`);
 }
