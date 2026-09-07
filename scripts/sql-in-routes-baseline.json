@@ -9,7 +9,6 @@
   "routes/customFields.ts": 16,
   "routes/export.ts": 12,
   "routes/integrations.ts": 16,
-  "routes/internal.ts": 1,
   "routes/leavePolicy.ts": 38,
   "routes/leaves.ts": 42,
   "routes/manager.ts": 64,

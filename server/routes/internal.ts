@@ -16,13 +16,15 @@
  */
 import express from "express";
 import type { Request, Response } from "express";
-import type { DbContext } from "../types/domain";
 import { forEachTenant, getPoolStats } from "../utils/tenantManager";
+import { expectedMigrationCount } from "../platform/db/migrations";
+import { createInternalService } from "../modules/internal/internal.service";
 const authMiddleware = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
 const wsMetrics = require("../utils/wsMetrics");
 
 const router = express.Router();
+const service = createInternalService({ expectedMigrationCount, forEachTenant });
 
 // All internal endpoints require an authenticated platform admin.
 router.use(authMiddleware, loadUserContext, requireRole("platform_admin"));
@@ -65,24 +67,8 @@ router.get("/db-pool-stats", (_req: Request, res: Response) => {
  * can use it after deploys without making the load-balancer probe every DB.
  */
 router.get("/migration-status", async (_req: Request, res: Response) => {
-    const { expectedMigrationCount } = require("../platform/db/migrations");
-    const tenants: Record<string, number> = {};
-    let minApplied = Infinity;
-    const sweep = await forEachTenant(async (db: DbContext, tenant: any) => {
-        const r = await db.query("SELECT COUNT(*)::int AS count FROM _migrations");
-        const count = r.rows[0]?.count || 0;
-        tenants[tenant.slug || tenant.db_name] = count;
-        if (count < minApplied) minApplied = count;
-    }, { label: "migration-status", includeLegacyMaster: true });
-    if (minApplied === Infinity) minApplied = 0;
-    const ok = sweep.failed === 0 && (sweep.ok === 0 || minApplied >= expectedMigrationCount);
-    res.status(ok ? 200 : 503).json({
-        status: ok ? "ok" : "degraded",
-        expected: expectedMigrationCount,
-        minApplied,
-        tenants,
-        unreachableTenants: sweep.failed,
-    });
+    const result = await service.getMigrationStatus();
+    res.status(result.status === "ok" ? 200 : 503).json(result);
 });
 
 export = router;
