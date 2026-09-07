@@ -32,7 +32,12 @@ for (const type of ["chat_message", "call_initiate", "call_accept", "call_cancel
   check(ws.includes(`case "${type}"`), `documented inbound type absent from dispatcher: ${type}`);
   check(asyncapi.includes(`const: ${type}`), `dispatcher type absent from AsyncAPI: ${type}`);
 }
-const call = read("server/utils/wsHandlers/call.ts");
+const call = [
+  "server/utils/wsHandlers/call.ts",
+  "server/utils/wsHandlers/callLifecycle.ts",
+  "server/utils/wsHandlers/callTermination.ts",
+  "server/utils/wsHandlers/callSignaling.ts",
+].map(read).join("\n");
 for (const [wire, action] of [["call_accept", "answer"], ["call_reject", "reject"], ["call_end", "end"]]) {
   check(call.includes(`action: "${action}"`), `${wire} idempotency action mapping missing: ${action}`);
 }

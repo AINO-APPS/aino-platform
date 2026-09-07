@@ -33,8 +33,6 @@ const grandfathered = {
   "services/pushNotifications.ts": 866,
   "utils/mailer.ts": 608,
   "utils/ws.ts": 3841,
-  "utils/wsHandlers/call.ts": 1458,
-  "utils/wsHandlers/meeting.ts": 1459,
 };
 
 function walk(dir) {
