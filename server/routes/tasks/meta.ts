@@ -6,25 +6,14 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
+import * as taskService from "../../modules/tasks/tasks.service";
 
 const router = express.Router();
 
 // ─── Get assignable users (same org) ─────────────────────────────────────
 router.get('/assignable-users', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        let users;
-        if (req.userOrgId) {
-            // Exclude synthetic Platform Inspector users so they never
-            // appear as assignees in the task editor / @mention picker.
-            // They have org_id=NULL anyway, but the explicit filter is
-            // defence-in-depth in case the model evolves.
-            users = (await req.db!.query(
-                'SELECT id, username, full_name, avatar FROM users WHERE org_id = $1 AND is_active = TRUE AND hidden_from_directory = FALSE ORDER BY full_name ASC',
-                [req.userOrgId]
-            )).rows;
-        } else {
-            users = (await req.db!.query('SELECT id, username, full_name, avatar FROM users WHERE id = $1', [req.userId])).rows;
-        }
+        const users = await taskService.getAssignableUsers(req.db!, req.userOrgId || null, req.userId!);
         res.json(users);
     } catch (err) {
         req.log.error({ err: err }, 'Error fetching assignable users:');
@@ -35,10 +24,7 @@ router.get('/assignable-users', auth, loadUserContext, async (req: Request, res:
 // ─── Get labels for current user's org ───────────────────────────────────
 router.get('/labels', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        let labels: any[] = [];
-        if (req.userOrgId) {
-            labels = (await req.db!.query('SELECT id, name, color FROM task_labels WHERE org_id = $1 ORDER BY name ASC', [req.userOrgId])).rows;
-        }
+        const labels = req.userOrgId ? await taskService.getLabels(req.db!, req.userOrgId) : [];
         res.json(labels);
     } catch (err) {
         req.log.error({ err: err }, 'Error fetching labels:');

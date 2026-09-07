@@ -7,6 +7,7 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 
 const { loadAccessibleTask } = require('./_helpers/access');
+import * as taskService from "../../modules/tasks/tasks.service";
 
 const router = express.Router();
 
@@ -19,16 +20,7 @@ router.patch('/:id/block', auth, loadUserContext, async (req: Request, res: Resp
         const { is_blocked, blocked_reason } = req.body || {};
         const flag = !!is_blocked;
         const reason = flag ? (typeof blocked_reason === 'string' ? blocked_reason.slice(0, 500) : null) : null;
-        await req.db!.query(
-            'UPDATE tasks SET is_blocked = $1, blocked_reason = $2 WHERE id = $3',
-            [flag, reason, id]
-        );
-        await req.db!.query(
-            `INSERT INTO task_history (task_id, action, field, new_value, user_id)
-             VALUES ($1, $2, 'blocker', $3, $4)`,
-            [id, flag ? 'blocked' : 'unblocked', reason || (flag ? 'No reason given' : null), req.userId]
-        ).catch(() => { });
-        res.json({ id, is_blocked: flag, blocked_reason: reason });
+        res.json(await taskService.updateBlocker(req.db!, id, req.userId!, flag, reason));
     } catch (err) {
         req.log.error({ err }, 'Error toggling blocker');
         res.status(500).json({ error: 'Failed to update blocker' });

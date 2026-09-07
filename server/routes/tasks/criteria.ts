@@ -15,6 +15,7 @@ const { loadUserContext } = require('../../middleware/rbac');
 
 const { loadAccessibleTask } = require('./_helpers/access');
 const { normalizeAcceptanceCriteria } = require('./_helpers/agile');
+import * as taskService from "../../modules/tasks/tasks.service";
 
 const router = express.Router();
 
@@ -41,16 +42,7 @@ router.put('/:id/acceptance-criteria', auth, loadUserContext, async (req: Reques
         if (!Array.isArray(criteria)) return res.status(400).json({ error: 'criteria must be an array' });
         // Single source of truth for normalisation (Bug #12).
         const cleaned = normalizeAcceptanceCriteria(criteria) || [];
-        await req.db!.query(
-            'UPDATE tasks SET acceptance_criteria = $1::jsonb WHERE id = $2',
-            [JSON.stringify(cleaned), id]
-        );
-        await req.db!.query(
-            `INSERT INTO task_history (task_id, action, field, new_value, user_id)
-             VALUES ($1, 'updated', 'acceptance_criteria', $2, $3)`,
-            [id, `${cleaned.length} item(s)`, req.userId]
-        ).catch(() => { });
-        res.json({ criteria: cleaned });
+        res.json(await taskService.updateCriteria(req.db!, id, req.userId!, cleaned));
     } catch (err) {
         req.log.error({ err }, 'Error updating criteria');
         res.status(500).json({ error: 'Failed to update acceptance criteria' });
