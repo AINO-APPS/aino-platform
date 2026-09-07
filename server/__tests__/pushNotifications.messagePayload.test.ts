@@ -166,6 +166,71 @@ describe("pushNotifications.sendMessageNotification", () => {
         });
     });
 
+    test("purges invalid tokens while preserving per-device result counts", async () => {
+        sendEachForMulticast.mockImplementationOnce(async () => ({
+            responses: [
+                { success: true },
+                { success: false, error: { code: "messaging/registration-token-not-registered" } },
+                { success: false, error: { code: "messaging/internal-error" } },
+            ],
+            successCount: 1,
+            failureCount: 2,
+        }));
+        const mockQuery = jest.fn()
+            .mockResolvedValueOnce({
+                rows: [
+                    { device_token: "valid-token" },
+                    { device_token: "stale-token" },
+                    { device_token: "retryable-token" },
+                ],
+            })
+            .mockResolvedValueOnce({ rows: [] });
+
+        const result = await pushNotifications.sendMessageNotification(
+            mockQuery,
+            10,
+            1,
+            {
+                conversationId: 456,
+                messageId: 123,
+                senderId: 7,
+                senderName: "Alice",
+                messagePreview: "Hello from Alice",
+            },
+        );
+
+        expect(result).toEqual({ succeeded: 1, failed: 2 });
+        expect(mockQuery).toHaveBeenNthCalledWith(
+            2,
+            "DELETE FROM device_tokens WHERE device_token = ANY($1)",
+            [["stale-token"]],
+        );
+    });
+
+    test("reports every token as failed when Firebase dispatch rejects", async () => {
+        sendEachForMulticast.mockImplementationOnce(async () => {
+            throw new Error("firebase unavailable");
+        });
+        const mockQuery = jest.fn().mockResolvedValue({
+            rows: [{ device_token: "token1" }, { device_token: "token2" }],
+        });
+
+        const result = await pushNotifications.sendMessageNotification(
+            mockQuery,
+            10,
+            1,
+            {
+                conversationId: 456,
+                messageId: 123,
+                senderId: 7,
+                senderName: "Alice",
+                messagePreview: "Hello from Alice",
+            },
+        );
+
+        expect(result).toEqual({ succeeded: 0, failed: 2 });
+    });
+
     test("handles no device tokens gracefully", async () => {
         const mockQuery = jest.fn().mockResolvedValue({ rows: [] });
 

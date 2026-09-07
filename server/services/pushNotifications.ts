@@ -3,61 +3,22 @@
  * Manages FCM integration for calls, messages, and notifications.
  */
 
-import { initializeApp, getApp, cert, type App } from "firebase-admin/app";
-import { getMessaging, type SendResponse } from "firebase-admin/messaging";
+import type { App } from "firebase-admin/app";
 import { logger } from "../utils/logger";
 import type { QueryFn } from "../types/domain";
-
-interface FCMPayload {
-    // Optional: incoming-call pushes are intentionally DATA-ONLY so the mobile
-    // background/headless handler always runs (see sendCallNotification).
-    notification?: {
-        title: string;
-        body: string;
-    };
-    data: Record<string, string>;
-    // When true, the top-level `notification` block is NOT applied to the
-    // Android/multicast message (it is still used to render the webpush
-    // notification, and iOS still renders via `apns.payload.aps.alert`). This
-    // forces Android to deliver a DATA-ONLY message so the app's
-    // background/headless handler runs and renders the notification itself via
-    // Notifee — which is the ONLY way to attach the sender's CIRCULAR avatar as
-    // the notification largeIcon (an OS-rendered FCM `notification` message
-    // cannot carry an authed circular largeIcon, which is why messages showed
-    // no avatar while data-only CALLS did).
-    androidDataOnly?: boolean;
-    android?: {
-        priority: "high" | "normal";
-        // Optional. Do NOT set for Android call/message data pushes: if this is
-        // present, FCM may treat the message as OS-rendered notification traffic
-        // instead of reliably waking the app's background/headless data handler.
-        notification?: {
-            sound: string;
-            channelId: string;
-            priority?: "min" | "low" | "default" | "high" | "max";
-            visibility?: "private" | "public" | "secret";
-            notificationCount?: number;
-            defaultVibrateTimings?: boolean;
-            defaultLightSettings?: boolean;
-            click_action?: string;
-        };
-    };
-    apns?: {
-        headers?: Record<string, string>;
-        payload: {
-            aps: {
-                alert: {
-                    title: string;
-                    body: string;
-                };
-                badge?: number;
-                sound: string;
-                "mutable-content": number;
-                category?: string;
-            };
-        };
-    };
-}
+import {
+    dispatchPushNotifications,
+    type PushPayload as FCMPayload,
+} from "../platform/pushNotifications/dispatch";
+import {
+    assertRoutingPayloadContract,
+    buildCommonPushData,
+} from "../platform/pushNotifications/payloadContract";
+import {
+    getDeviceTokens,
+    registerDeviceToken,
+} from "../platform/pushNotifications/deviceTokens";
+import { initializePushFirebaseApp } from "../platform/pushNotifications/firebaseApp";
 
 class PushNotificationService {
     private initialized = false;
@@ -67,114 +28,9 @@ class PushNotificationService {
         this.initialize();
     }
 
-    private buildCommonData(base: Record<string, string>, tenantId: number | null): Record<string, string> {
-        return {
-            ...base,
-            tenantId: tenantId != null ? String(tenantId) : "",
-            sentAt: new Date().toISOString(),
-        };
-    }
-
-    private assertRoutingPayloadContract(
-        notificationType: "call" | "message" | "call_cancel",
-        data: Record<string, string>,
-    ): void {
-        // `call_cancel` is the DATA-ONLY teardown push (`call_handled_elsewhere`)
-        // that dismisses a ring on a backgrounded/locked/killed device. It is a
-        // DIFFERENT shape from both an incoming call and a chat message: it
-        // deliberately carries no caller/sender display fields (see
-        // sendCallCancellation), so it MUST NOT be validated against either of
-        // those contracts.
-        const FIELDS: Record<typeof notificationType, { present: string[]; nonEmpty: string[] }> = {
-            call: {
-                present: ["type", "callId", "conversationId", "callerId", "dedupeKey", "expiresAt", "sentAt"],
-                // For calls, callerName/callerAvatar are required only if hideSensitiveContent
-                // is false (i.e., when they are present in the payload).
-                nonEmpty: ["type", "callId", "conversationId", "callerId", "dedupeKey", "expiresAt", "sentAt"],
-            },
-            message: {
-                present: ["type", "conversationId", "messageId", "senderId", "dedupeKey", "sentAt"],
-                // For messages, senderName is always required (the preview is always shown).
-                nonEmpty: ["type", "conversationId", "messageId", "senderId", "senderName", "dedupeKey", "sentAt"],
-            },
-            call_cancel: {
-                present: ["type", "callId", "conversationId", "dedupeKey", "sentAt"],
-                nonEmpty: ["type", "callId", "conversationId", "dedupeKey", "sentAt"],
-            },
-        };
-
-        const { present: presentFields, nonEmpty: nonEmptyFields } = FIELDS[notificationType];
-
-        const missing = presentFields.filter((field) => !(field in data));
-        const empty = nonEmptyFields.filter((field) => !data[field]);
-        const invalid: string[] = [];
-
-        if (notificationType === "call") {
-            if (data.type !== "incoming_call") invalid.push("type");
-            if (!/^call:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
-            if (Number.isNaN(Date.parse(data.expiresAt || ""))) invalid.push("expiresAt");
-        } else if (notificationType === "call_cancel") {
-            if (data.type !== "call_handled_elsewhere") invalid.push("type");
-            if (!/^call_cancel:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
-        } else {
-            if (data.type !== "chat_message") invalid.push("type");
-            if (!/^msg:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
-        }
-
-        if (Number.isNaN(Date.parse(data.sentAt || ""))) invalid.push("sentAt");
-
-        if (missing.length > 0 || empty.length > 0 || invalid.length > 0) {
-            logger.error(
-                { notificationType, missing, empty, invalid },
-                "Push payload contract validation failed",
-            );
-            throw new Error(`Invalid ${notificationType} push payload contract`);
-        }
-    }
-
-    private buildAndroidNotification(
-        channelId: string,
-        priority: "high" | "max" = "high",
-        visibility: "private" | "public" = "private",
-    ): FCMPayload["android"] {
-        return {
-            priority: "high",
-            notification: {
-                sound: "default",
-                channelId: process.env.PUSH_DEFAULT_ANDROID_CHANNEL || channelId,
-                priority,
-                visibility,
-                notificationCount: 1,
-                defaultVibrateTimings: true,
-                defaultLightSettings: true,
-            },
-        };
-    }
-
     private initialize() {
-        try {
-            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-            if (!serviceAccountKey) {
-                logger.warn("FIREBASE_SERVICE_ACCOUNT_KEY not configured — push notifications disabled");
-                return;
-            }
-
-            const serviceAccount = JSON.parse(serviceAccountKey);
-            this.app = initializeApp({
-                credential: cert(serviceAccount),
-            }, "aino");
-            this.initialized = true;
-            // Log the resolved Firebase project_id so deploys can confirm the
-            // server's service account matches the mobile app's
-            // google-services.json project. A mismatch here means every send
-            // fails with `mismatched-credential` and NO push is delivered.
-            logger.info(
-                { projectId: serviceAccount.project_id || "unknown", clientEmail: serviceAccount.client_email || "unknown" },
-                "Firebase Cloud Messaging initialized",
-            );
-        } catch (err) {
-            logger.error({ err: (err as Error).message }, "Failed to initialize Firebase");
-        }
+        this.app = initializePushFirebaseApp(logger);
+        this.initialized = this.app !== null;
     }
 
     async registerDeviceToken(
@@ -184,27 +40,14 @@ class PushNotificationService {
         deviceToken: string,
         platform: "ios" | "android",
     ): Promise<void> {
-        if (!deviceToken || !deviceToken.trim()) {
-            throw new Error("Device token is required");
-        }
-
-        try {
-            // Upsert device token — if it exists, update last_seen_at; otherwise create it
-            await query(
-                `
-                INSERT INTO device_tokens (user_id, tenant_id, device_token, platform, last_seen_at, created_at)
-                VALUES ($1, $2, $3, $4, NOW(), NOW())
-                ON CONFLICT (user_id, device_token) DO UPDATE
-                SET platform = EXCLUDED.platform, last_seen_at = NOW()
-                `,
-                [userId, tenantId || null, deviceToken, platform],
-            );
-
-            logger.info({ userId, tenantId, platform }, "Device token registered");
-        } catch (err) {
-            logger.error({ err: (err as Error).message, userId }, "Failed to register device token");
-            throw err;
-        }
+        return registerDeviceToken(
+            query,
+            userId,
+            tenantId,
+            deviceToken,
+            platform,
+            logger,
+        );
     }
 
     async sendCallNotification(
@@ -268,7 +111,7 @@ class PushNotificationService {
         // terminated state. Title/body are carried in `data` for the client to
         // present the call screen.
         const payload: FCMPayload = {
-            data: this.buildCommonData({
+            data: buildCommonPushData({
                 type: "incoming_call",
                 title,
                 body,
@@ -312,7 +155,7 @@ class PushNotificationService {
                 },
             },
         };
-        this.assertRoutingPayloadContract("call", payload.data);
+        assertRoutingPayloadContract("call", payload.data, logger);
 
         logger.info(
             {
@@ -426,7 +269,7 @@ class PushNotificationService {
         // DATA-ONLY high-priority message — wakes the background/headless handler
         // so it can dismiss the active ring. No `notification` block on Android.
         const payload: FCMPayload = {
-            data: this.buildCommonData({
+            data: buildCommonPushData({
                 type: "call_handled_elsewhere",
                 callId: String(cancelData.callId),
                 conversationId: String(cancelData.conversationId),
@@ -472,7 +315,7 @@ class PushNotificationService {
         // payload purity, so a future contract drift can never again silently
         // leave a device ringing. We log loudly and still dispatch.
         try {
-            this.assertRoutingPayloadContract("call_cancel", payload.data);
+            assertRoutingPayloadContract("call_cancel", payload.data, logger);
         } catch (err: any) {
             logger.error(
                 {
@@ -564,7 +407,7 @@ class PushNotificationService {
                 body: notificationBody,
             },
             androidDataOnly: true,
-            data: this.buildCommonData({
+            data: buildCommonPushData({
                 type: "chat_message",
                 title: notificationTitle,
                 body: preview,
@@ -674,7 +517,7 @@ class PushNotificationService {
         // the browser/desktop alert. iOS keeps its visible APNs alert below.
         const badge = notificationData.badgeCount ?? 1;
         const payload: FCMPayload = {
-            data: this.buildCommonData({
+            data: buildCommonPushData({
                 notificationId: String(notificationData.notificationId),
                 type: notificationData.type || "notification",
                 title: notificationData.title,
@@ -725,31 +568,7 @@ class PushNotificationService {
         userId: number,
         tenantId: number | null,
     ): Promise<string[]> {
-        try {
-            const result = await query(
-                `SELECT device_token FROM device_tokens
-                 WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
-                 AND created_at > NOW() - INTERVAL '1 year'`,
-                [userId, tenantId || null],
-            );
-            return result.rows.map((r: any) => r.device_token);
-        } catch (err) {
-            const message = (err as Error).message || "";
-            // Distinguish a missing table (tenant DB schema not migrated) from a
-            // genuine query error. A missing `device_tokens` relation means the
-            // migration `2026_06_v13_push_notification_device_tokens` (or the
-            // base initTenantSchema) never ran for this tenant — device-token
-            // registration INSERTs are also failing, so NO push is ever sent.
-            if (/device_tokens.*does not exist|relation .*device_tokens/i.test(message)) {
-                logger.error(
-                    { err: message, userId, tenantId },
-                    "device_tokens table missing for tenant — run migrations (initTenantSchema / 2026_06_v13). Push notifications disabled until fixed.",
-                );
-            } else {
-                logger.error({ err: message, userId, tenantId }, "Failed to get device tokens");
-            }
-            return [];
-        }
+        return getDeviceTokens(query, userId, tenantId, logger);
     }
 
     private async sendToDevices(
@@ -762,103 +581,14 @@ class PushNotificationService {
             return { succeeded: 0, failed: 0 };
         }
 
-        let succeeded = 0;
-        let failed = 0;
-
-        try {
-            // `androidDataOnly` (chat messages) keeps the top-level
-            // `notification` block OFF the multicast so Android delivers a
-            // DATA-ONLY message — the app's headless/background handler then
-            // renders it via Notifee WITH the sender's circular avatar largeIcon
-            // (an OS-rendered FCM notification can't fetch the authed avatar).
-            // The webpush block below still renders the desktop/browser
-            // notification, and iOS still renders via `apns.payload.aps.alert`.
-            const includeTopLevelNotification =
-                !!payload.notification && !payload.androidDataOnly;
-            const response = await getMessaging(this.app!).sendEachForMulticast({
-                tokens,
-                // Omitted for data-only payloads (e.g. incoming calls AND chat
-                // messages) so Android delivers a data message that wakes the
-                // background/headless handler.
-                ...(includeTopLevelNotification
-                    ? { notification: payload.notification }
-                    : {}),
-                data: payload.data,
-                android: payload.android,
-                apns: payload.apns,
-                webpush: {
-                    data: payload.data,
-                    ...(payload.notification
-                        ? {
-                              notification: {
-                                  title: payload.notification.title,
-                                  body: payload.notification.body,
-                                  icon: "/icon-192.png",
-                              },
-                          }
-                        : {}),
-                },
-            });
-
-            const invalidTokens: string[] = [];
-            response.responses.forEach((resp: SendResponse, idx: number) => {
-                if (resp.success) {
-                    succeeded++;
-                } else {
-                    failed++;
-                    const error = resp.error?.code;
-                    // Collect invalid/unregistered tokens for cleanup
-                    if (
-                        error === "messaging/invalid-registration-token" ||
-                        error === "messaging/registration-token-not-registered"
-                    ) {
-                        invalidTokens.push(tokens[idx]);
-                    }
-                }
-            });
-
-            // Purge invalid tokens from DB so they don't waste future sends
-            if (invalidTokens.length > 0) {
-                query(
-                    `DELETE FROM device_tokens WHERE device_token = ANY($1)`,
-                    [invalidTokens],
-                ).catch((err: any) => {
-                    logger.warn({ err: err.message, count: invalidTokens.length }, "Failed to purge invalid device tokens");
-                });
-            }
-
-            logger.info(
-                {
-                    event: "push_dispatch_result",
-                    collapseKey,
-                    notificationType: payload.data.type || (payload.data.callId ? "call" : "notification"),
-                    tenantId: payload.data.tenantId || null,
-                    dedupeKey: payload.data.dedupeKey || null,
-                    channelId: payload.android?.notification?.channelId,
-                    tokenCount: tokens.length,
-                    sent: response.successCount,
-                    failed: response.failureCount,
-                },
-                "Push notifications sent",
-            );
-        } catch (err) {
-            logger.error(
-                {
-                    event: "push_dispatch_failed",
-                    err: (err as Error).message,
-                    collapseKey,
-                    notificationType: payload.data.type || (payload.data.callId ? "call" : "notification"),
-                    tenantId: payload.data.tenantId || null,
-                    dedupeKey: payload.data.dedupeKey || null,
-                    channelId: payload.android?.notification?.channelId,
-                    tokenCount: tokens.length,
-                },
-                "Failed to send push notifications",
-            );
-            failed = tokens.length;
-        }
-
-        return { succeeded, failed };
+        return dispatchPushNotifications({
+            app: this.app,
+            query,
+            tokens,
+            payload,
+            collapseKey,
+            logger,
+        });
     }
 }
 
