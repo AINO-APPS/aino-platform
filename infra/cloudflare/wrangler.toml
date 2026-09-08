@@ -6,4 +6,11 @@ compatibility_date = "2026-08-01"
 # Public origin hostnames are secrets/variables because each Railway service
 # gets its own domain. Never point an origin back at this Worker route.
 [vars]
-ROUTING_MODE = "legacy"
+# `legacy` sends every path to the ROLE=all rollback service and is the instant
+# rollback setting. `split` routes /api and /uploads to the web role, /ws and
+# /collab to the realtime role, and everything else to the SPA bucket.
+#
+# The split roles are not interchangeable: ROLE=web deliberately runs no
+# WebSocket server, so `split` is the only mode in which chat, calls and
+# collaborative notes work once traffic stops going to the ROLE=all service.
+ROUTING_MODE = "split"
