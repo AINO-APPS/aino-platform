@@ -28,6 +28,15 @@ import {
     type PeerEvent,
 } from "./peerConnectionMachine";
 import type { AnyRecord } from "../../types";
+import { createClientMessageId, normalizeChatText, PENDING_SEND_FAIL_AFTER_MS, PENDING_SEND_RETRY_EVERY_MS } from "./state/chat";
+import { legacyStatusForMeetingState } from "./state/lifecycle";
+import { acquireMeetingMedia } from "./state/media";
+import { buildAddParticipantPayload, buildMuteParticipantPayload, buildRaiseHandPayload } from "./state/moderation";
+import type { MeetingParticipant } from "./state/participants";
+import { clearPeerRecoveryTimers, PEER_CONNECT_TIMEOUT_MS } from "./state/reconnect";
+import { stopScreenStream } from "./state/screenShare";
+import { applyPublicTurnPolicy, hasRealTurn, OUTBOUND_QUEUE_MAX, queueSignalingFrame } from "./state/signaling";
+import { AUDIO_MAX_BITRATE, HIGH_COUNT_VIDEO_THRESHOLD, MAX_PRIORITY_VIDEO_PEERS, RECENT_SPEAKER_WINDOW_MS, selectPriorityVideoPeers, videoBitrateForPeerCount } from "./state/quality";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -45,7 +54,7 @@ type MeetingMessage = AnyRecord & {
     clientMsgId?: string;
 };
 
-type Participant = AnyRecord & { userId: number | string };
+type Participant = MeetingParticipant;
 
 /** Extended RTCPeerConnection with our custom bookkeeping props. */
 type ExtendedPC = RTCPeerConnection & {
@@ -96,67 +105,6 @@ interface UseMeetingStateParams {
     existingStream?: MediaStream | null;
 }
 
-/**
- * Generate a stable, collision-resistant id for in-flight chat messages.
- */
-function newClientMsgId(): string {
-    if (
-        typeof crypto !== "undefined" &&
-        typeof crypto.randomUUID === "function"
-    ) {
-        return crypto.randomUUID();
-    }
-    return `m_${Date.now().toString(36)}_${Math.random()
-        .toString(36)
-        .slice(2, 10)}`;
-}
-
-/** How long an outgoing message can sit in the pending-send queue before we
- *  surface it as `_failed` in the UI. */
-const PENDING_SEND_FAIL_AFTER_MS = 10_000;
-/** Retry cadence for the pending-send queue when WS is OPEN. */
-const PENDING_SEND_RETRY_EVERY_MS = 3_000;
-/** Phase 2.3 (G4) — cap on the outbound mesh-signal queue so a long offline
- *  window can't grow it unbounded. Oldest frames are dropped first. */
-const OUTBOUND_QUEUE_MAX = 500;
-/** Phase 3.2 (G5) — per-peer connect timeout. If a peer hasn't reached
- *  `connected` within this window (through the initial STUN attempt AND the
- *  relay-first fast-retry from 3.1), we stop the infinite spinner and surface a
- *  "Couldn't connect — Retry" tile so the user can trigger a manual rebuild. */
-const PEER_CONNECT_TIMEOUT_MS = 30_000;
-
-/** Phase 4.1 — Bandwidth governor. A WebRTC mesh uploads N−1 copies of our
- *  video, so the per-peer video cap must shrink as the call grows to keep the
- *  single uplink from saturating (saturation starves audio → the "laggy"
- *  report). Audio is ALWAYS prioritized (Opus, capped separately at
- *  `AUDIO_MAX_BITRATE`, never governed down by peer count). Tiered caps are
- *  shared verbatim with mobile `useMeetingMesh.videoBitrateForPeerCount`:
- *    ≤3 remote peers → 500 kbps, 4–6 → 300 kbps, 7+ → 150 kbps.
- *  `peerCount` here is the number of REMOTE peers (N−1). */
-function videoBitrateForPeerCount(peerCount: number): number {
-    if (peerCount <= 3) return 500_000;
-    if (peerCount <= 6) return 300_000;
-    return 150_000;
-}
-/** Phase 4.1 — Opus audio cap. Prioritized: never governed down by peer count
- *  so voice always survives even when video is squeezed at high counts. */
-const AUDIO_MAX_BITRATE = 48_000;
-
-/** Phase 4.2 — Active-speaker-driven video at high counts. A mesh only carries
- *  ~5–6 reliable video streams, so once the REMOTE-peer count exceeds this
- *  threshold we stop asking every peer for full video and demote the
- *  non-priority tiles to `q` (thumbnail → effectively audio+avatar). Below the
- *  threshold everyone keeps mid/full video (`h`/`f`). */
-const HIGH_COUNT_VIDEO_THRESHOLD = 6;
-/** Phase 4.2 — how long a peer stays in the "recent speaker" priority set after
- *  it last held the floor, so brief pauses don't instantly drop them to a
- *  thumbnail (avoids quality thrash during back-and-forth conversation). */
-const RECENT_SPEAKER_WINDOW_MS = 12_000;
-/** Phase 4.2 — cap on how many peers may hold full video simultaneously at high
- *  counts (presenter + dominant/recent speakers). Keeps the aggregate downlink
- *  bounded — "only the dominant speaker + a few". */
-const MAX_PRIORITY_VIDEO_PEERS = 4;
-
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
@@ -168,64 +116,6 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
     },
 ];
 
-// Phase 2.4 (G6) — Deterministic ICE-config gating + public-TURN policy, ported
-// from the proven 1:1 path (useWebRTC.ts P1.8/P1.9). These are the two mesh
-// equivalents:
-//   • hasRealTurn — a config carries "real" (provisioned) TURN only when the
-//     server returned managed creds (Cloudflare Calls / self-hosted coturn /
-//     a static provider) rather than the public Open Relay fallback or STUN.
-//     The server's `mode` is authoritative; when absent we sniff for a
-//     non-openrelay turn:/turns: URL. The FIRST mesh offer/answer must never
-//     negotiate against the public-only fallback — on a network that requires a
-//     relay this makes the first join hang ("Connecting…") even though a retry
-//     works once real creds are cached.
-//   • applyPublicTurnPolicy — when the server forbids the public fallback
-//     (`allowPublicFallback === false` / DISABLE_PUBLIC_TURN), strip the public
-//     openrelay.metered.ca TURN URLs from the ICE list we hand to
-//     RTCPeerConnection. STUN is ALWAYS kept.
-const REAL_TURN_MODES = new Set(["cloudflare-calls", "coturn-rest", "static"]);
-
-function hasRealTurn(
-    cfg: { mode?: string; iceServers?: RTCIceServer[] } | null | undefined,
-): boolean {
-    if (!cfg) return false;
-    if (cfg.mode && REAL_TURN_MODES.has(cfg.mode)) return true;
-    const servers = cfg.iceServers || [];
-    for (const s of servers) {
-        const urls = Array.isArray(s?.urls) ? s.urls : [s?.urls];
-        for (const u of urls) {
-            if (typeof u !== "string") continue;
-            const lower = u.toLowerCase();
-            if (
-                (lower.startsWith("turn:") || lower.startsWith("turns:")) &&
-                !lower.includes("openrelay.metered.ca")
-            ) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-function applyPublicTurnPolicy(
-    servers: RTCIceServer[],
-    allowPublic: boolean,
-): RTCIceServer[] {
-    if (allowPublic) return servers;
-    const out: RTCIceServer[] = [];
-    for (const s of servers || []) {
-        const urls = Array.isArray(s?.urls) ? s.urls : [s?.urls];
-        const kept = urls.filter(
-            (u) =>
-                typeof u === "string" &&
-                !u.toLowerCase().includes("openrelay.metered.ca"),
-        );
-        if (kept.length === 0) continue; // entry was entirely public TURN — drop it
-        out.push({ ...s, urls: kept.length === 1 ? kept[0] : kept });
-    }
-    return out;
-}
-
 // Phase 5.1 — per-peer state-machine dispatch. Drives an ExtendedPC's `_phase`
 // through the pure `peerConnectionReducer`. The reducer's `closed` phase is
 // ABSORBING, so once a PC instance is marked CLOSED any later event (e.g. a late
@@ -235,80 +125,6 @@ function applyPublicTurnPolicy(
 function dispatchPeerPhase(pc: ExtendedPC, event: PeerEvent): PeerPhase {
     pc._phase = peerConnectionReducer(pc._phase ?? initialPeerPhase(), event);
     return pc._phase;
-}
-
-function buildMeetingMediaProfiles(
-    wantVideo: boolean,
-): MediaStreamConstraints[] {
-    const audio = {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-    };
-    if (!wantVideo) return [{ audio, video: false }];
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile) {
-        return [
-            {
-                audio,
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    frameRate: { ideal: 24, max: 30 },
-                },
-            },
-            { audio, video: true },
-            { audio, video: false },
-        ];
-    }
-    return [
-        {
-            audio,
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                frameRate: { ideal: 30, max: 30 },
-            },
-        },
-        {
-            audio,
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                frameRate: { ideal: 24, max: 30 },
-            },
-        },
-        {
-            audio,
-            video: {
-                width: { ideal: 320 },
-                height: { ideal: 240 },
-                frameRate: { ideal: 15, max: 24 },
-            },
-        },
-        { audio, video: true },
-        { audio, video: false },
-    ];
-}
-
-async function acquireMeetingMedia(wantVideo: boolean): Promise<MediaStream> {
-    if (!navigator.mediaDevices?.getUserMedia)
-        throw new Error("NoMediaDevices");
-    const profiles = buildMeetingMediaProfiles(wantVideo);
-    let lastError: unknown;
-    for (let i = 0; i < profiles.length; i++) {
-        try {
-            const st = await navigator.mediaDevices.getUserMedia(profiles[i]);
-            if (i > 0)
-                console.warn(
-                    "[meeting] media acquired with reduced profile #" + i,
-                );
-            return st;
-        } catch (err) {
-            lastError = err;
-        }
-    }
-    throw lastError;
 }
 
 /**
@@ -365,11 +181,7 @@ export function useMeetingState({
         const next = fsmNext(cur, event);
         if (next !== cur) {
             setFsmState(next);
-            const legacy =
-                next === STATES.RECONNECTING || next === STATES.DEGRADED
-                    ? "connecting"
-                    : next;
-            setStatus(legacy);
+            setStatus(legacyStatusForMeetingState(next));
         }
     }, []);
     const [raisedHand, setRaisedHand] = useState(false);
@@ -495,10 +307,7 @@ export function useMeetingState({
         // dropping so the frame is replayed on the next `open`. Bound the queue
         // and evict oldest first so a long offline window can't grow it
         // unbounded.
-        const q = outboundQueueRef.current;
-        q.push({ type, data });
-        if (q.length > OUTBOUND_QUEUE_MAX)
-            q.splice(0, q.length - OUTBOUND_QUEUE_MAX);
+        queueSignalingFrame(outboundQueueRef.current, { type, data });
     }, []);
 
     const applyQualityCapForPeer = useCallback((peerId: number | string) => {
@@ -2475,17 +2284,15 @@ export function useMeetingState({
     const raiseHand = useCallback(() => {
         const next = !raisedHand;
         setRaisedHand(next);
-        wsSend("meeting_raise_hand", {
-            meetingId,
-            raised: next,
-            clientMsgId: newClientMsgId(),
-        });
+        wsSend("meeting_raise_hand", buildRaiseHandPayload(
+            meetingId, next, createClientMessageId(),
+        ));
     }, [raisedHand, meetingId, wsSend]);
 
     const enqueueChatSend = useCallback(
         (payload: AnyRecord, optimisticPatch: AnyRecord) => {
             const clientMsgId =
-                (payload.clientMsgId as string) || newClientMsgId();
+                (payload.clientMsgId as string) || createClientMessageId();
             const fullPayload = { ...payload, clientMsgId, meetingId };
             const now = Date.now();
             pendingSendsRef.current.set(clientMsgId, {
@@ -2513,9 +2320,9 @@ export function useMeetingState({
 
     const sendChatMessage = useCallback(
         (text: string) => {
-            if (!text || !text.trim()) return;
-            const trimmed = text.trim();
-            enqueueChatSend({ text: trimmed }, { text: trimmed });
+            const normalized = normalizeChatText(text);
+            if (!normalized) return;
+            enqueueChatSend({ text: normalized }, { text: normalized });
         },
         [enqueueChatSend],
     );
@@ -2526,7 +2333,7 @@ export function useMeetingState({
             const formData = new FormData();
             formData.append("file", file);
             const previewUrl = URL.createObjectURL(file);
-            const clientMsgId = newClientMsgId();
+            const clientMsgId = createClientMessageId();
 
             setMessages((prev) => [
                 ...prev,
@@ -2761,7 +2568,7 @@ export function useMeetingState({
 
     const cleanupMedia = useCallback(() => {
         if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach((t) => t.stop());
+            stopScreenStream(screenStreamRef.current);
             screenStreamRef.current = null;
             setScreenStream(null);
         }
@@ -2796,18 +2603,15 @@ export function useMeetingState({
     }, [meetingId, wsSend, cleanupMedia]);
     const muteParticipant = useCallback(
         (targetUserId: number | string, muted = true) => {
-            wsSend("meeting_mute_participant", {
-                meetingId,
-                targetUserId,
-                muted,
-                clientMsgId: newClientMsgId(),
-            });
+            wsSend("meeting_mute_participant", buildMuteParticipantPayload(
+                meetingId, targetUserId, muted, createClientMessageId(),
+            ));
         },
         [meetingId, wsSend],
     );
     const addParticipant = useCallback(
         (targetUserId: number | string) => {
-            wsSend("meeting_add_participant", { meetingId, targetUserId });
+            wsSend("meeting_add_participant", buildAddParticipantPayload(meetingId, targetUserId));
         },
         [meetingId, wsSend],
     );
@@ -2824,14 +2628,7 @@ export function useMeetingState({
             if (peerId == null) return;
             const existing = pcsRef.current.get(peerId);
             if (existing) {
-                if (existing._relayRetryTimer) {
-                    clearTimeout(existing._relayRetryTimer);
-                    existing._relayRetryTimer = null;
-                }
-                if (existing._connectTimeoutTimer) {
-                    clearTimeout(existing._connectTimeoutTimer);
-                    existing._connectTimeoutTimer = null;
-                }
+                clearPeerRecoveryTimers(existing);
                 try {
                     existing.close();
                 } catch {
@@ -3076,32 +2873,14 @@ export function useMeetingState({
             // High count — build the bounded priority set that keeps full
             // video: presenter first (always), then the dominant speaker, then
             // the most-recent speakers, up to `MAX_PRIORITY_VIDEO_PEERS`.
-            const priority = new Set<number | string>();
-            if (
-                presenterId != null &&
-                presenterId !== user?.id &&
-                participants.has(presenterId)
-            )
-                priority.add(presenterId);
-            if (
-                activeSpeakerId != null &&
-                activeSpeakerId !== user?.id &&
-                participants.has(activeSpeakerId) &&
-                priority.size < MAX_PRIORITY_VIDEO_PEERS
-            )
-                priority.add(activeSpeakerId);
-            if (priority.size < MAX_PRIORITY_VIDEO_PEERS) {
-                const recent = [...recentSpeakersRef.current.entries()]
-                    .filter(
-                        ([uid]) =>
-                            uid !== user?.id && participants.has(uid),
-                    )
-                    .sort((a, b) => b[1] - a[1]);
-                for (const [uid] of recent) {
-                    if (priority.size >= MAX_PRIORITY_VIDEO_PEERS) break;
-                    priority.add(uid);
-                }
-            }
+            const priority = selectPriorityVideoPeers({
+                participantIds: remotePeerIds,
+                localUserId: user?.id,
+                presenterId,
+                activeSpeakerId,
+                recentSpeakers: recentSpeakersRef.current,
+                maxPeers: MAX_PRIORITY_VIDEO_PEERS,
+            });
 
             for (const peerId of remotePeerIds) {
                 requestPeerQuality(
