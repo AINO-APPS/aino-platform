@@ -185,12 +185,53 @@ jobs:
       # The retry loop guards against transient 502s from
       # github.com/electron/electron/releases/download/... which periodically
       # bombs out and kills the macOS leg of the build.
+      # Code signing. electron-builder reads CSC_LINK / CSC_KEY_PASSWORD (and the
+      # notarization variables on macOS) straight from the environment, so the
+      # certificates are never written to disk here.
+      #
+      # Signing degrades gracefully: when the secrets are absent the build still
+      # produces installers, just unsigned. That keeps the pipeline usable before
+      # certificates are purchased, at the cost of a Windows SmartScreen warning
+      # and macOS Gatekeeper blocking the app until it is notarized.
+      #
+      # CSC_IDENTITY_AUTO_DISCOVERY must be explicitly false when unsigned,
+      # otherwise electron-builder searches the macOS runner's keychain, finds
+      # nothing and fails the build instead of falling back to unsigned.
+      - name: Determine signing availability
+        id: signing
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+        run: |
+          case "${{ matrix.os }}" in
+            windows-latest) [ -n "$WIN_CSC_LINK" ] && signed=true || signed=false ;;
+            macos-latest)   [ -n "$MAC_CSC_LINK" ] && signed=true || signed=false ;;
+            *)              signed=false ;;
+          esac
+          echo "signed=$signed" >> "$GITHUB_OUTPUT"
+          if [ "$signed" = "true" ]; then
+            echo "Code signing enabled for ${{ matrix.os }}."
+          else
+            echo "::warning::No signing certificate for ${{ matrix.os }} — producing an UNSIGNED build."
+          fi
+
       - name: Build Electron app (with retries)
         shell: bash
         working-directory: desktop
         env:
           # Quiet down electron-builder native dependency rebuild noise on CI
           USE_HARD_LINKS: "false"
+          # Windows Authenticode: base64-encoded .pfx and its password.
+          # macOS: base64-encoded Developer ID Application .p12 and its password.
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.signed }}
+          # Notarization. electron-builder only notarizes when all three are set;
+          # an unsigned macOS build skips it automatically.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           MAX_ATTEMPTS=4
           ATTEMPT=1

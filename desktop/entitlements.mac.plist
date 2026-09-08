@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Hardened runtime entitlements for Developer ID distribution.
+
+	  The first three are mandatory for Electron: V8 compiles JavaScript at
+	  runtime, which the hardened runtime blocks by default. Without them the
+	  signed app crashes on launch instead of failing at build time.
+	-->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+
+	<!--
+	  Peer-to-peer and mesh calls capture local audio/video and screen content.
+	  Usage descriptions live in Info.plist; these entitlements authorize the
+	  hardened runtime to grant the capability at all.
+	-->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+
+	<!-- WebRTC signalling, STUN/TURN and the API/WebSocket origins. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!--
+	  Direct peer-to-peer media: mesh calls accept inbound connections from
+	  other participants rather than relaying everything through a server.
+	-->
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

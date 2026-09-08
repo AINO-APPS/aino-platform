@@ -74,8 +74,12 @@ win:
         - x64
   icon: icons/icon.ico
   publisherName: AINO
-  # TODO: Enable once code signing certificate is set up.
-  # Without code signing, Windows SmartScreen will warn users on install.
+  # Left false deliberately, even though the release workflow can now sign.
+  # electron-updater checks that an incoming update's Authenticode publisher
+  # matches the installed app's. Every build published so far is unsigned, so
+  # enabling this now would make already-installed clients REJECT the first
+  # signed update and strand themselves. Flip it to true only in the release
+  # AFTER the first signed build has shipped and been adopted.
   verifyUpdateCodeSignature: false
 
 nsis:
@@ -94,6 +98,16 @@ mac:
         - arm64
   icon: icons/icon.png
   category: public.app-category.business
+  # Required for Developer ID distribution: Apple will not notarize a build
+  # without the hardened runtime. Harmless on an unsigned build.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: entitlements.mac.plist
+  entitlementsInherit: entitlements.mac.plist
+  # `notarize` is deliberately left at its default rather than forced to true.
+  # electron-builder notarizes automatically once the build is signed and
+  # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are present; forcing
+  # it true would hard-fail every unsigned build instead of skipping.
 
 dmg:
   contents:
