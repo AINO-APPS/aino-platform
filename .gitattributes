@@ -1,0 +1,26 @@
+# Normalize line endings so a local `npm run build:main` on Windows cannot
+# present the committed, LF-normalized desktop output as modified. Without this,
+# core.autocrlf=true rewrites the generated *.js with CRLF and `git status`
+# reports permanently "uncommitted changes" that carry no content difference.
+* text=auto eol=lf
+
+# Binary assets must never be EOL-converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary
+*.jar binary
+*.keystore binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Windows-only scripts need CRLF to stay executable.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -14,7 +14,7 @@ interface ImportMeta {
 
 // Electron preload bridge exposed via contextBridge in desktop/preload. Web
 // builds leave it undefined, so renderer call sites use optional chaining.
-type ElectronAPI = import("../desktop/ipc-contract").ElectronAPI;
+type ElectronAPI = import("../desktop/ipc-types").ElectronAPI;
 
 interface Window {
   electronAPI?: ElectronAPI;

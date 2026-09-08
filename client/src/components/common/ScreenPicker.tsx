@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { ScreenSource } from "../../../../desktop/ipc-contract";
+import type { ScreenSource } from "../../../../desktop/ipc-types";
 import s from "./ScreenPicker.module.css";
 
 const api = window.electronAPI;

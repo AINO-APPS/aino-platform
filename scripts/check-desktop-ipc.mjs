@@ -42,6 +42,20 @@ verify("invoke", contractChannels("INVOKE_CHANNELS"), invokes, invokes);
 verify("send", contractChannels("SEND_CHANNELS"), sends, sends);
 verify("listener", contractChannels("LISTENER_CHANNELS"), mainSends, listeners);
 if (/\[\s*key\s*:\s*string\s*\]\s*:\s*any/.test(fs.readFileSync(path.resolve("client/vite-env.d.ts"), "utf8"))) failures.push("renderer bridge has arbitrary index signature");
+
+// The client CI job typechecks `desktop/ipc-types.ts` (via renderer imports and
+// the `Window.electronAPI` declaration) without installing desktop dependencies.
+// An `electron` import there fails `client && npm run typecheck` in CI while
+// passing locally, where desktop/node_modules happens to exist.
+const sharedTypes = fs.readFileSync(path.join(desktopRoot, "ipc-types.ts"), "utf8");
+if (/\bfrom\s+["']electron["']|\brequire\(\s*["']electron["']\s*\)/.test(sharedTypes)) {
+  failures.push("ipc-types.ts must not reference electron; renderer-facing types have to typecheck without desktop dependencies");
+}
+for (const rendererFile of ["client/vite-env.d.ts", ...walk(path.resolve("client/src")).filter((file) => /\.tsx?$/.test(file))]) {
+  if (/desktop\/ipc-contract/.test(fs.readFileSync(rendererFile, "utf8"))) {
+    failures.push(`${path.relative(process.cwd(), rendererFile).replace(/\\/g, "/")}: import desktop/ipc-types instead of desktop/ipc-contract`);
+  }
+}
 if (failures.length) {
   console.error(`Desktop IPC contract guard failed:\n${failures.map((failure) => `  ${failure}`).join("\n")}`);
   process.exit(1);

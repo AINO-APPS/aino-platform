@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CallPipAction } from "../../../desktop/ipc-contract";
+import type { CallPipAction } from "../../../desktop/ipc-types";
 
 interface PipState {
     remoteName: string;
