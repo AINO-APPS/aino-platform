@@ -34,40 +34,53 @@ export default defineRailway(() => {
   });
 
   const commonEnv = {
-    NODE_ENV: "development",
+    // Production posture. `development` disabled real hardening: no HSTS,
+    // non-Secure auth cookies, localhost accepted as a CORS origin, an open
+    // /metrics when no token is set, and — most damaging on a multi-replica
+    // deployment — a silent BullMQ fallback to per-process setInterval, so
+    // every scheduled job would run once per replica.
+    NODE_ENV: "production",
     PORT: "5000",
+    // Required in production by bootstrap/env.ts: HTTPS-only cookies are gated
+    // on this in addition to NODE_ENV, so omitting it leaves `secure: false`.
+    USE_HTTPS: "true",
     // Railway resolves these references without exposing credentials in source.
     // First deployment connects directly to fresh Postgres. PgBouncer remains
     // provisioned for a later one-role-at-a-time canary after smoke testing.
     DATABASE_URL: Postgres.env.DATABASE_URL,
     DIRECT_DATABASE_URL: Postgres.env.DATABASE_URL,
     REDIS_URL: Redis.env.REDIS_URL,
-    STORAGE_DRIVER: "local",
+    // Must be r2 whenever NODE_ENV=production: the container is stateless with
+    // no mounted volume, so local uploads vanish on redeploy and are invisible
+    // to the other replicas. assertProductionStorage() refuses to boot on
+    // STORAGE_DRIVER=local in production, so these two move together.
+    STORAGE_DRIVER: "r2",
     DISABLE_PUBLIC_TURN: "true",
-    CORS_ORIGIN: "",
-    // Created out-of-band with cryptographic randomness and retained without
-    // decrypting or serializing their values into the IaC graph.
+    // Created out-of-band and retained without decrypting or serializing their
+    // values into the IaC graph. `preserve()` is also used for every operator-
+    // supplied integration credential below: hardcoding "" here would silently
+    // WIPE values already configured in Railway on the next apply.
     JWT_SECRET: preserve(),
     ENCRYPTION_KEY: preserve(),
     DESKTOP_UPLOAD_SECRET: preserve(),
     METRICS_TOKEN: preserve(),
-    // Empty optional integrations prevent email, push, TURN, R2, and API calls.
-    CLOUDFLARE_TURN_API_TOKEN: "",
-    CLOUDFLARE_TURN_TOKEN_ID: "",
-    FIREBASE_SERVICE_ACCOUNT_KEY: "",
-    GIPHY_API_KEY: "",
-    GMAIL_CLIENT_ID: "",
-    GMAIL_CLIENT_SECRET: "",
-    GMAIL_REFRESH_TOKEN: "",
-    GOOGLE_API_KEY: "",
-    R2_ACCESS_KEY_ID: "",
-    R2_ACCOUNT_ID: "",
-    R2_SECRET_ACCESS_KEY: "",
-    R2_UPLOADS_BUCKET: "",
-    SMTP_FROM: "",
-    SMTP_HOST: "",
-    SMTP_PASS: "",
-    SMTP_USER: "",
+    CORS_ORIGIN: preserve(),
+    CLOUDFLARE_TURN_API_TOKEN: preserve(),
+    CLOUDFLARE_TURN_TOKEN_ID: preserve(),
+    FIREBASE_SERVICE_ACCOUNT_KEY: preserve(),
+    GIPHY_API_KEY: preserve(),
+    GMAIL_CLIENT_ID: preserve(),
+    GMAIL_CLIENT_SECRET: preserve(),
+    GMAIL_REFRESH_TOKEN: preserve(),
+    GOOGLE_API_KEY: preserve(),
+    R2_ACCESS_KEY_ID: preserve(),
+    R2_ACCOUNT_ID: preserve(),
+    R2_SECRET_ACCESS_KEY: preserve(),
+    R2_UPLOADS_BUCKET: preserve(),
+    SMTP_FROM: preserve(),
+    SMTP_HOST: preserve(),
+    SMTP_PASS: preserve(),
+    SMTP_USER: preserve(),
   };
 
   const appService = (name: string, role: "web" | "realtime" | "worker" | "all") =>
