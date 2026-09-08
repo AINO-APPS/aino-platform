@@ -113,6 +113,6 @@ linux:
 
 publish:
   provider: github
-  owner: vvronline
-  repo: WorkPulse
+  owner: AINO-APPS
+  repo: aino-platform
   releaseType: release

@@ -10,7 +10,27 @@ const inventory = JSON.parse(fs.readFileSync(path.join(root, "contracts/http-rou
 const serverRoutes = inventory.endpoints.map(({ method, path: routePath }) => ({ method, path: routePath }));
 
 const git = (...args) => execFileSync("git", ["-C", legacyRepo, ...args], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-const resolvedCommit = git("rev-parse", legacyCommit).trim();
+
+// This map is derived from the pre-split monorepo, whose `mobile/` tree was never
+// copied into this repository. The generator therefore needs a local clone of the
+// archived legacy repository. Without this check `git -C` fails with an opaque
+// "not a git repository" (or a bare non-zero exit) that reads like a broken
+// script rather than a missing prerequisite. `contracts/mobile-route-map.json` is
+// committed and authoritative, so regeneration is deliberate and rare.
+const legacyHint =
+  `Set AINO_LEGACY_REPO (or pass the path as the first argument) to a clone of the archived\n` +
+  `legacy repository containing commit ${legacyCommit}.\n` +
+  `contracts/mobile-route-map.json is committed and authoritative; regenerate only to review\n` +
+  `classifications against that immutable history.`;
+if (!fs.existsSync(path.join(legacyRepo, ".git"))) {
+  throw new Error(`Legacy repository not found at ${legacyRepo}.\n${legacyHint}`);
+}
+let resolvedCommit;
+try {
+  resolvedCommit = git("rev-parse", legacyCommit).trim();
+} catch {
+  throw new Error(`Legacy commit ${legacyCommit} is not present in ${legacyRepo}.\n${legacyHint}`);
+}
 if (resolvedCommit !== legacyCommit) throw new Error(`Legacy commit did not resolve exactly to ${legacyCommit}`);
 
 const sourceFiles = git("grep", "-l", "-E", "api\\.(get|post|put|patch|delete)", legacyCommit, "--", "mobile/src/*.ts", "mobile/src/*.tsx")

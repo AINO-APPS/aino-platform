@@ -14,12 +14,16 @@
 param([switch]$Apply)
 
 $ErrorActionPreference = "Stop"
-$repo = "vvronline/WorkPulse"
+$repo = "AINO-APPS/aino-platform"
 $branch = "master"
+# Role topology of the isolated `aino-platform-next` project (MIG-0403). The
+# `aino-next-rollback` ROLE=all service is deliberately absent: it is a private,
+# sleeping recovery target that must be created and woken deliberately, never as
+# a side effect of running this helper.
 $services = @(
-    @{ Name = "aino-web";      Role = "web" },
-    @{ Name = "aino-realtime"; Role = "realtime" },
-    @{ Name = "aino-worker";   Role = "worker" }
+    @{ Name = "aino-next-web";      Role = "web" },
+    @{ Name = "aino-next-realtime"; Role = "realtime" },
+    @{ Name = "aino-next-worker";   Role = "worker" }
 )
 
 railway status --json | Out-Null

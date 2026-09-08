@@ -49,12 +49,14 @@ const DESKTOP_LATEST_JSON_URL = OTA_BASE_URL
   ? `${OTA_BASE_URL}/desktop/latest.json`
   : "";
 
-// GitHub repo that hosts the releases. Desktop releases are tagged `vX.Y.Z`;
-// mobile releases use `mobile-vX.Y.Z` and MUST be ignored here, otherwise
-// electron-updater would try to read a non-existent `latest.yml` from a mobile
-// release (the original cause of the 404 update error).
-const GITHUB_OWNER = "vvronline";
-const GITHUB_REPO = "WorkPulse";
+// GitHub repo that hosts the releases. The native Android and iOS apps now live
+// in their own repositories, so `mobile-vX.Y.Z` tags can no longer be published
+// here. The `vX.Y.Z` filter below is still enforced: installed clients built
+// before the split may see legacy mobile tags when this fallback is pointed at an
+// archived repository, and reading a mobile release's non-existent `latest.yml`
+// was the original cause of the 404 update error.
+const GITHUB_OWNER = "AINO-APPS";
+const GITHUB_REPO = "aino-platform";
 
 interface DesktopLatestManifest {
   /** e.g. "1.6.95" */

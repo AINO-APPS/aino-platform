@@ -17,7 +17,7 @@
       "approve": true,
       "matchCommandLine": true
     },
-    "/^Set-Location 'D:\\\\Learnings\\\\WorkPulse\\\\server'; npx jest __tests__/chat\\.routes\\.test\\.ts modules/chat/__tests__/chat\\.service\\.test\\.ts --forceExit --detectOpenHandles; if \\(\\$LASTEXITCODE -eq 0\\) \\{ npm run typecheck \\}; if \\(\\$LASTEXITCODE -eq 0\\) \\{ npm run lint:deps \\}; if \\(\\$LASTEXITCODE -eq 0\\) \\{ Set-Location 'D:\\\\Learnings\\\\WorkPulse'; npm run check:guardrails \\}$/": {
+    "/^Set-Location 'D:\\\\Learnings\\\\WorkPulse-Split\\\\aino-platform\\\\server'; npx jest __tests__/chat\\.routes\\.test\\.ts modules/chat/__tests__/chat\\.service\\.test\\.ts --forceExit --detectOpenHandles; if \\(\\$LASTEXITCODE -eq 0\\) \\{ npm run typecheck \\}; if \\(\\$LASTEXITCODE -eq 0\\) \\{ npm run lint:deps \\}; if \\(\\$LASTEXITCODE -eq 0\\) \\{ Set-Location 'D:\\\\Learnings\\\\WorkPulse-Split\\\\aino-platform'; npm run check:guardrails \\}$/": {
       "approve": true,
       "matchCommandLine": true
     }

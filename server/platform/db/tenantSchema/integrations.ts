@@ -156,7 +156,7 @@ async function initializeIntegrationTenantSchema(q: SchemaQuery): Promise<void> 
     // GitHub repos connected via OAuth. We persist the GitHub-side hook id
     // for every repo so disconnecting removes the webhook on GitHub instead
     // of leaving a dangling delivery destination. `full_name` is the
-    // canonical owner/repo string (e.g. "vvronline/WorkPulse").
+    // canonical owner/repo string (e.g. "AINO-APPS/aino-platform").
     await q(`
         CREATE TABLE IF NOT EXISTS github_repo_connections (
             id              SERIAL PRIMARY KEY,

@@ -19,6 +19,12 @@ jobs:
       - name: Reject tracked Graphify output
         run: npm run check:generated
 
+      # MIG-0904: a copied workflow or restored publish block that points back at
+      # the pre-split monorepo would silently misroute published releases and the
+      # installed desktop app's update feed. Fail fast instead.
+      - name: Enforce repository independence
+        run: npm run check:repo-independence
+
       - name: Verify Railway automatic-deploy configuration
         run: node scripts/verify-railway-config.mjs
 
@@ -211,4 +217,4 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Build Docker image
-        run: docker build -t workpulse:${{ github.sha }} .
+        run: docker build -t aino-platform:${{ github.sha }} .

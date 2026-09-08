@@ -1,7 +1,7 @@
 ﻿services:
   postgres:
     image: postgres:16
-    container_name: workpulse-postgres
+    container_name: aino-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: workpulse
@@ -20,7 +20,7 @@
 
   redis:
     image: redis:7-alpine
-    container_name: workpulse-redis
+    container_name: aino-redis
     restart: unless-stopped
     command: >
       redis-server
@@ -40,7 +40,7 @@
 
   workpulse:
     build: .
-    container_name: workpulse-app
+    container_name: aino-app
     restart: unless-stopped
     depends_on:
       postgres:
@@ -88,7 +88,7 @@
 
   caddy:
     image: caddy:2-alpine
-    container_name: workpulse-caddy
+    container_name: aino-caddy
     restart: unless-stopped
     depends_on:
       - workpulse

@@ -6,7 +6,20 @@ This directory records the server's first machine-readable HTTP contract baselin
 - `openapi.json` is an OpenAPI 3.1 document for health, authentication/bootstrap, profile, and the main mobile-facing groups (tracker, leaves, tasks, calendar, meetings, notifications, chat, presence, search, projects, and public bootstrap resources).
 - `generate-baseline.mjs` deterministically rebuilds both JSON files from the server route snapshot and the reviewed baseline metadata. Run it deliberately when server routes change, then review the diff.
 - `mobile-route-map.json` maps every Axios wrapper call from the immutable legacy mobile commit to the tested server inventory and classifies it as `active`, `stale`, or `method-mismatch`.
-- `generate-mobile-route-map.mjs` rebuilds that derived map without copying mobile source into this repository. Run `node contracts/generate-mobile-route-map.mjs D:\\Learnings\\WorkPulse d9d779c7520dbf052ba587ac2af649ec59920864`, then review the classifications.
+- `generate-mobile-route-map.mjs` rebuilds that derived map without copying mobile source into this repository.
+
+### Regenerating the mobile route map
+
+`mobile-route-map.json` is committed and authoritative. Regeneration is deliberate and rare, and it is the one task in this repository that still needs the pre-split monorepo: the `mobile/` tree it reads was never copied here.
+
+Point the generator at a clone of the **archived** legacy repository, which must be preserved read-only rather than deleted:
+
+```bash
+AINO_LEGACY_REPO=/path/to/legacy-clone node contracts/generate-mobile-route-map.mjs
+# or: node contracts/generate-mobile-route-map.mjs /path/to/legacy-clone
+```
+
+The legacy commit is pinned to `d9d779c7520dbf052ba587ac2af649ec59920864` and is also asserted by `scripts/validate-contracts.mjs`, so the map always describes that immutable history. The generator fails with an explicit message when the clone or the commit is unavailable. After regenerating, review the classification diff.
 
 Validate with `npm run contracts:validate` from the repository root.
 
