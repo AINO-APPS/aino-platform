@@ -56,6 +56,38 @@ for (const rendererFile of ["client/vite-env.d.ts", ...walk(path.resolve("client
     failures.push(`${path.relative(process.cwd(), rendererFile).replace(/\\/g, "/")}: import desktop/ipc-types instead of desktop/ipc-contract`);
   }
 }
+
+// windows.ts deliberately enables Electron's renderer sandbox. A sandboxed
+// preload gets a restricted CommonJS loader that supports Electron/Node
+// built-ins, but NOT arbitrary local modules. A relative runtime import compiles
+// to require("./...") and crashes the preload before exposeInMainWorld(), which
+// makes window.electronAPI undefined: the app still loads, but all desktop-only
+// UI (title-bar controls and Check for Updates) silently disappears.
+const windowsSource = fs.readFileSync(path.join(desktopRoot, "windows.ts"), "utf8");
+if (/sandbox:\s*true/.test(windowsSource)) {
+  const preloadSource = fs.readFileSync(path.join(desktopRoot, "preload.ts"), "utf8");
+  for (const rawLine of preloadSource.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.startsWith("import ") && !line.startsWith("import type ")) {
+      const match = /(?:\sfrom\s+|^import\s*)["'](\.\.?\/[^"']+)["']/.exec(line);
+      if (match) failures.push(`sandboxed preload must be self-contained; relative runtime import ${match[1]} will crash before electronAPI is exposed`);
+    }
+    if (!line.startsWith("//") && !line.startsWith("*") && !line.startsWith("/*")) {
+      const match = /\brequire\(\s*["'](\.\.?\/[^"']+)["']\s*\)/.exec(line);
+      if (match) failures.push(`sandboxed preload must be self-contained; relative runtime require ${match[1]} will crash before electronAPI is exposed`);
+    }
+  }
+
+  // When build:main has run locally, inspect the emitted artifact too. It is
+  // gitignored, so this cannot be the only check — clean CI checkouts lack it.
+  const compiledPath = path.join(desktopRoot, "preload.js");
+  if (fs.existsSync(compiledPath)) {
+    const compiledPreload = fs.readFileSync(compiledPath, "utf8");
+    for (const match of compiledPreload.matchAll(/^\s*(?:const|let|var)\b[^\n]*=\s*require\(\s*["'](\.\.?\/[^"']+)["']\s*\)/gm)) {
+      failures.push(`compiled sandboxed preload contains relative runtime import ${match[1]}`);
+    }
+  }
+}
 if (failures.length) {
   console.error(`Desktop IPC contract guard failed:\n${failures.map((failure) => `  ${failure}`).join("\n")}`);
   process.exit(1);

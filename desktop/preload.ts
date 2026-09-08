@@ -1,17 +1,47 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type { CallPipAction, CallPipState, ElectronAPI, ListenerContract, RendererInvoke, RendererSend, Unsubscribe, WindowVisibility } from "./ipc-contract";
-import { subscribe } from "./preloadListeners";
 
 type Listener<T> = (callback: (value: T) => void) => Unsubscribe;
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as RendererInvoke;
 const send = ipcRenderer.send.bind(ipcRenderer) as RendererSend;
+
+/**
+ * Sandboxed preloads may import Electron itself, but their restricted CommonJS
+ * loader cannot load arbitrary local modules. Keeping this helper in
+ * `preloadListeners.ts` made the compiled preload execute
+ * `require("./preloadListeners")`, so the preload crashed before
+ * `contextBridge.exposeInMainWorld()` and `window.electronAPI` was never
+ * installed. The authenticated navbar consequently hid its WindowControls and
+ * ProfileMenu update command at the same time.
+ *
+ * Keep the bridge self-contained instead of disabling the sandbox. The helper
+ * is deliberately small; the channel and argument types still come from the
+ * checked-in IPC contract and disappear at compile time.
+ */
+function subscribe<C extends keyof ListenerContract, T = ListenerContract[C][0]>(
+    channel: C,
+    callback: (value: T) => void,
+    transform?: (...args: ListenerContract[C]) => T,
+): Unsubscribe {
+    const handler = (_event: IpcRendererEvent, ...rawArgs: unknown[]) => {
+        const args = rawArgs as ListenerContract[C];
+        callback(transform ? transform(...args) : (args[0] as T));
+    };
+    ipcRenderer.on(channel, handler);
+    let subscribed = true;
+    return () => {
+        if (!subscribed) return;
+        subscribed = false;
+        ipcRenderer.removeListener(channel, handler);
+    };
+}
 
 // Channel and callback arguments are constrained by the checked-in contract.
 function createListener<C extends keyof ListenerContract, T = ListenerContract[C][0]>(
     channel: C,
     transform?: (...args: ListenerContract[C]) => T
 ): Listener<T> {
-    return (callback) => subscribe(ipcRenderer, channel, callback, transform);
+    return (callback) => subscribe(channel, callback, transform);
 }
 
 const electronAPI = {
