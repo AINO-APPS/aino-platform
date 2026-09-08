@@ -301,12 +301,7 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         if (await bcrypt.compare(new_password, user.password)) return res.status(400).json({ error: "New password must be different from current password" });
 
         const hash = await bcrypt.hash(new_password, BCRYPT_ROUNDS);
-        // platform_users has an updated_at column; tenant users does not.
-        // Keeping the platform-only assignment out of the tenant query is
-        // especially important for newly provisioned tenants, where PostgreSQL
-        // otherwise rejects the entire password update with undefined_column.
-        const updatedAtAssignment = isTenantlessPlatformUser ? ", updated_at = NOW()" : "";
-        await req.db!.query(`UPDATE ${userTable} SET password = $1, token_version = COALESCE(token_version, 0) + 1, must_change_password = FALSE${updatedAtAssignment} WHERE id = $2`, [hash, req.userId]);
+        await req.db!.query(`UPDATE ${userTable} SET password = $1, token_version = COALESCE(token_version, 0) + 1, must_change_password = FALSE${isTenantlessPlatformUser ? ", updated_at = NOW()" : ""} WHERE id = $2`, [hash, req.userId]);
         await redis.invalidateTokenVersion(req.tenantId, req.userId);
         // Clear other sessions, keep the current one
         if (req.sessionId) {
