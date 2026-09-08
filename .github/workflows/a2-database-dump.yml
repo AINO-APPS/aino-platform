@@ -28,6 +28,8 @@ name: A2 — Database Dump (manual)
 # including password hashes. Long-term storage belongs in the private R2 bucket.
 # =============================================================================
 
+# Manual only. Like db-backup.yml, this needs DATABASE_PUBLIC_URL and therefore a
+# Postgres public TCP proxy, which aino-platform-next does not expose by default.
 on:
   workflow_dispatch:
     inputs:

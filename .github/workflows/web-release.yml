@@ -1,5 +1,11 @@
 name: Web SPA — Publish to R2 (manual)
 
+# Publishes client/dist to the public SPA bucket (vars.R2_WEB_BUCKET), which must
+# stay separate from the private aino-uploads bucket per ADR-004. Assets are
+# uploaded before the HTML shell so a client never fetches an index.html whose
+# hashed chunks are not yet readable.
+#
+# Manual only: this writes to a live public origin, so there is no push trigger.
 on:
   workflow_dispatch:
     inputs:

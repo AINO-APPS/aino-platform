@@ -27,6 +27,10 @@ name: DB — Full Backup (manual)
 # including password hashes. Long-term storage belongs in a PRIVATE R2 bucket.
 # =============================================================================
 
+# Manual only. Requires the DATABASE_PUBLIC_URL secret, which points at the
+# Postgres public TCP proxy. The aino-platform-next Postgres does not expose one
+# by default (it is private-only per MIG-0404), so enable the proxy first or this
+# workflow will fail to connect.
 on:
   workflow_dispatch:
     inputs:
