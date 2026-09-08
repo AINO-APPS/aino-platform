@@ -396,7 +396,7 @@ describe("PUT /api/profile/password", () => {
         expect(jwt.decode(tokenCookie)).not.toHaveProperty("tenant_id");
     });
 
-    test("changes password successfully with valid credentials", async () => {
+    test("changes a tenant password without requiring a users.updated_at column", async () => {
         setupAuth();
         const hash = await bcrypt.hash("OldPass1!", 10);
         mockQuery.mockResolvedValueOnce({ rows: [{ password: hash }], rowCount: 1 }); // fetch pw
@@ -412,5 +412,8 @@ describe("PUT /api/profile/password", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toMatch(/updated/i);
+        const updateSql = mockQuery.mock.calls.find(([sql]) => /UPDATE users SET password/.test(sql))?.[0];
+        expect(updateSql).toBeDefined();
+        expect(updateSql).not.toContain("updated_at");
     });
 });
