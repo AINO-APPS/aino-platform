@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CallPipAction } from "../../../desktop/ipc-contract";
 
 interface PipState {
     remoteName: string;
@@ -50,7 +51,7 @@ export default function CallPipPage() {
         return () => { clearTimeout(t); try { off?.(); } catch { /* ignore */ } };
     }, [pip]);
 
-    const sendAction = (action: string) => {
+    const sendAction = (action: CallPipAction) => {
         try { pip?.sendAction(action); } catch { /* ignore */ }
     };
 
