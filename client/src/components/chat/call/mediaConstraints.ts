@@ -24,7 +24,7 @@ export function buildMediaConstraintProfiles(
       { audio, video: false },
     ];
   }
-  return [1280, 640, 320].map((width, index) => ({
+  const tieredProfiles: MediaStreamConstraints[] = [1280, 640, 320].map((width, index) => ({
     audio,
     video: {
       width: { ideal: width },
@@ -32,5 +32,6 @@ export function buildMediaConstraintProfiles(
       frameRate: { ideal: [30, 24, 15][index], max: index === 0 ? 30 : 24 + (index === 1 ? 6 : 0) },
       facingMode: "user",
     },
-  })).concat([{ audio, video: true }, { audio, video: false }]);
+  }));
+  return tieredProfiles.concat([{ audio, video: true }, { audio, video: false }]);
 }
