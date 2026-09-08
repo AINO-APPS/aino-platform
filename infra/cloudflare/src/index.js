@@ -47,6 +47,14 @@ export default {
     const outHeaders = new Headers(finalResponse.headers);
     outHeaders.set("Cache-Control", cacheHeaders(incoming.pathname));
     outHeaders.set("X-Content-Type-Options", "nosniff");
+    // Only SPA responses reach here; API/WS/upload responses returned earlier and
+    // already carry Helmet's headers from the origin. R2 serves no security
+    // headers of its own, so without this the HTML shell and assets would be the
+    // one part of the site with no HSTS -- silently weaker than before the split,
+    // when a single Railway service served both the SPA and the API.
+    outHeaders.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+    outHeaders.set("X-Frame-Options", "DENY");
+    outHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
     return new Response(finalResponse.body, {
       status: finalResponse.status,
       statusText: finalResponse.statusText,

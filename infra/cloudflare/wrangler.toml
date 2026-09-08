@@ -2,9 +2,26 @@ name = "aino-edge-router"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
-# Attach `aino.org.in/*` / `www.aino.org.in/*` only after staging validation.
-# Public origin hostnames are secrets/variables because each Railway service
-# gets its own domain. Never point an origin back at this Worker route.
+# Public origin hostnames are secrets, not vars, because each Railway service
+# gets its own domain. Never point an origin back at a Worker route below.
+#
+# Production hostnames, released from the legacy ROLE=all service so the Worker
+# can own them: a hostname can be served by only one Railway service or Worker
+# route at a time.
+#
+# Every hostname here must also appear in CORS_ORIGIN on the web, realtime and
+# rollback services. The /ws origin check compares Origin against
+# req.headers.host, which behind this Worker is the Railway host rather than the
+# browser-visible one, so a missing entry breaks chat, calls and collaborative
+# notes while ordinary HTTP keeps working.
+#
+# MUST stay top-level. Nested under [vars] these become an inert environment
+# variable and no traffic is routed, while the deploy still reports success.
+routes = [
+  { pattern = "aino.org.in/*", zone_name = "aino.org.in" },
+  { pattern = "www.aino.org.in/*", zone_name = "aino.org.in" },
+]
+
 [vars]
 # `legacy` sends every path to the ROLE=all rollback service and is the instant
 # rollback setting. `split` routes /api and /uploads to the web role, /ws and
