@@ -102,10 +102,20 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/verify-spa-build.mjs client/dist
+          # Skip the three mutable shell files. They are promoted in the NEXT
+          # step, by design, so requiring them here can never be satisfied on a
+          # first publish: index.html links /manifest.json, which the "stable
+          # public files" step deliberately excludes. Their presence and content
+          # are already checked locally by verify-spa-build.mjs, and the promote
+          # step uploads manifest.json and sw.js before index.html so the shell
+          # is still last to become visible.
           grep -oE '(src|href)="/[^"]+"' client/dist/index.html \
             | cut -d'"' -f2 \
             | while read -r ref; do
                 key="${ref#/}"
+                case "$key" in
+                  index.html|sw.js|manifest.json) continue ;;
+                esac
                 aws s3api head-object --bucket "$R2_WEB_BUCKET" --key "$key" \
                   --endpoint-url "$R2_ENDPOINT" >/dev/null
               done
