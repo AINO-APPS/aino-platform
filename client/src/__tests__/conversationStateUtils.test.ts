@@ -7,6 +7,8 @@ import { buildDraftKey } from "../pages/chat/useConversationDraft";
 import {
     applyRealtimeDelete,
     applyRealtimeEdit,
+    applyRealtimeConversationMessage,
+    applyRealtimeProfileUpdate,
     applyRealtimeReaction,
     mapRealtimeMessage,
     updateRealtimeMessage,
@@ -147,5 +149,29 @@ describe("conversation state utilities", () => {
             content: "canonical",
             _pending: false,
         });
+    });
+
+    it("updates a direct conversation's unread count and peer avatar from an incoming message", () => {
+        const conversation = { id: 4, other_user_id: 2, other_avatar: "/old.png", unread_count: 1 };
+        const updated = applyRealtimeConversationMessage(conversation, {
+            conversationId: 4, senderId: 2, senderAvatar: "/new.png",
+            content: "hello", createdAt: "2026-01-01T00:00:00Z",
+        }, 1, false);
+        expect(updated).toMatchObject({ unread_count: 2, other_avatar: "/new.png", last_message: "hello" });
+    });
+
+    it("does not replace the peer avatar or add unread for the current user's echo", () => {
+        const conversation = { id: 4, other_user_id: 2, other_avatar: "/peer.png", unread_count: 1 };
+        const updated = applyRealtimeConversationMessage(conversation, {
+            conversationId: 4, senderId: 1, senderAvatar: "/self.png", content: "sent",
+        }, 1, false);
+        expect(updated).toMatchObject({ unread_count: 1, other_avatar: "/peer.png" });
+    });
+
+    it("applies profile avatar events only to matching direct conversations", () => {
+        const direct = { id: 4, other_user_id: 2, other_avatar: "/old.png" };
+        const group = { id: 5, is_group: true, other_user_id: 2, other_avatar: "/old.png" };
+        expect(applyRealtimeProfileUpdate(direct, { userId: 2, avatar: "/new.png" })).toMatchObject({ other_avatar: "/new.png" });
+        expect(applyRealtimeProfileUpdate(group, { userId: 2, avatar: "/new.png" })).toBe(group);
     });
 });

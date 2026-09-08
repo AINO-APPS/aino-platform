@@ -148,6 +148,9 @@ describe("chatMessage handler — happy path", () => {
         expect(broadcasts[0][3].id).toBe(999);
         // 2 non-sender participants get unread bumped.
         expect(redis.incrUnread).toHaveBeenCalledTimes(2);
+        const recipientBroadcastIndex = send.mock.calls.findIndex((call: any[]) => call[1] === 8 && call[2] === "chat_message");
+        expect(recipientBroadcastIndex).toBeGreaterThanOrEqual(0);
+        expect(redis.incrUnread.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[recipientBroadcastIndex]);
     });
 
     test("rejects non-participant via auth check (no broadcast)", async () => {

@@ -229,10 +229,10 @@ router.post(
         };
 
         for (const p of participants) {
-          sendToUser(req.tenantId, p.user_id, "chat_message", outMsg);
           if (p.user_id !== req.userId) {
-            redis.incrUnread(req.tenantId, p.user_id, convIdNum);
+            await redis.incrUnread(req.tenantId, p.user_id, convIdNum);
           }
+          sendToUser(req.tenantId, p.user_id, "chat_message", outMsg);
         }
       }
 

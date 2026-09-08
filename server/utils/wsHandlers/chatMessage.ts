@@ -438,9 +438,11 @@ async function chatMessage({
   }
 
   for (const p of participants) {
+    if (p.user_id !== senderId) {
+      await redis.incrUnread(tenantId, p.user_id, conversationId);
+    }
     sendToUser(tenantId, p.user_id, "chat_message", outMsg);
     if (p.user_id !== senderId) {
-      redis.incrUnread(tenantId, p.user_id, conversationId);
 
       // Muted chats never dispatch pushes (WS delivery above still happens).
       if (mutedRecipients.has(p.user_id)) continue;

@@ -128,9 +128,11 @@ router.post(
       };
 
       for (const p of participants) {
+        if (p.user_id !== req.userId) {
+          await redis.incrUnread(req.tenantId, p.user_id, convId);
+        }
         sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
         if (p.user_id !== req.userId) {
-          redis.incrUnread(req.tenantId, p.user_id, convId);
           // Recipient total-unread badge + message push (best-effort; must
           // not block the send). Mirrors the WS handler's push dispatch.
           void (async () => {
@@ -355,10 +357,10 @@ router.post(
       };
 
       for (const p of participants) {
-        sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
         if (p.user_id !== req.userId) {
-          redis.incrUnread(req.tenantId, p.user_id, convId);
+          await redis.incrUnread(req.tenantId, p.user_id, convId);
         }
+        sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
       }
 
       // HTTP response — snake_case, matching GET /messages exactly so the

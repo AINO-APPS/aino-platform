@@ -19,7 +19,7 @@ const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../utils/uploadPa
 const { getStorage, randomFilename } = require("../platform/storage");
 const { isValidDescriptor, isPlausibleDescriptor, parseDescriptor, compareDescriptors, FACE_DESCRIPTOR_LENGTH } = require("../utils/face");
 const { ROLE_LEVEL } = require("../middleware/rbac");
-
+const { broadcastProfileUpdate } = require("../services/profileRealtime");
 const router = express.Router();
 // Tenantless platform users may read their profile and rotate their password.
 // All other profile operations remain tenant-only and therefore cannot run
@@ -106,16 +106,16 @@ router.post("/avatar", auth, loadUserContext, upload.single("avatar"), async (re
     });
 
     await deleteAvatarObject(oldAvatarPath);
-
+    await broadcastProfileUpdate(req.db!.query, req.tenantId, req.userId!, avatarPath);
     res.json({ avatar: avatarPath });
 });
-
 router.delete("/avatar", auth, async (req: Request, res: Response) => {
     const user = (await req.db!.query("SELECT avatar FROM users WHERE id = $1", [req.userId])).rows[0];
     if (user?.avatar) {
         await deleteAvatarObject(user.avatar);
     }
     await req.db!.query("UPDATE users SET avatar = NULL WHERE id = $1", [req.userId]);
+    await broadcastProfileUpdate(req.db!.query, req.tenantId, req.userId!, null);
     res.json({ avatar: null });
 });
 

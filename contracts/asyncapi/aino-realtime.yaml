@@ -38,6 +38,7 @@ channels:
           - $ref: '#/components/messages/Pong'
           - $ref: '#/components/messages/ChatMessageEvent'
           - $ref: '#/components/messages/ChatMessageError'
+          - $ref: '#/components/messages/UserProfileUpdatedEvent'
           - $ref: '#/components/messages/CallIncomingEvent'
           - $ref: '#/components/messages/CallAcceptedEvent'
           - $ref: '#/components/messages/CallRejectedEvent'
@@ -133,6 +134,19 @@ components:
                 type: object
                 required: [reason]
                 properties: { clientMsgId: { type: [string, 'null'] }, reason: { type: string } }
+    UserProfileUpdatedEvent:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: user_profile_updated }
+              data:
+                type: object
+                required: [userId, avatar]
+                properties:
+                  userId: { $ref: '#/components/schemas/PositiveId' }
+                  avatar: { type: [string, 'null'] }
     CallInitiateCommand:
       payload:
         allOf:

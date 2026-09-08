@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { searchChatUsers, createConversation, markConversationRead, ackDelivered } from "../../api/chat";
 import { useAuth } from "../../AuthContext";
 import { useChatUnread } from "../../ChatContext";
-import useWebSocket from "../../hooks/useWebSocket";
+import useWebSocket, { REALTIME_EVENT } from "../../hooks/useWebSocket";
 import type { WebSocketMessage } from "../../hooks/useWebSocket";
 import useChatNotification from "../../hooks/useChatNotification";
 import useCallState from "./useCallState";
@@ -15,6 +15,8 @@ import {
   applyRealtimeMediaJob,
   applyRealtimePin,
   applyRealtimeReaction,
+  applyRealtimeConversationMessage,
+  applyRealtimeProfileUpdate,
   mapRealtimeMessage,
   updateRealtimeMessage,
 } from "./chatRealtimeReducers";
@@ -25,7 +27,6 @@ import type { AnyRecord } from "../../types";
 
 type ChatMessage = AnyRecord & { id: number | string };
 type Conversation = AnyRecord & { id: number | string };
-
 export default function useChatState() {
   const { user } = useAuth();
   const { refreshUnread, updateUnreadFromConversations } = useChatUnread();
@@ -167,26 +168,10 @@ export default function useChatState() {
               loadConversations();
               return prev;
             }
-            const preview =
-              d.content || (d.fileName ? `📎 ${d.fileName}` : "🎤 Voice");
             return prev
               .map((c) =>
                 c.id === d.conversationId
-                  ? {
-                      ...c,
-                      last_message: preview,
-                      last_sender_id: d.senderId,
-                      last_message_at: d.createdAt,
-                      last_deleted: null,
-                      // A brand-new message hasn't been
-                      // read/delivered yet — reset the
-                      // sidebar tick to "sent".
-                      last_message_read: false,
-                      last_message_delivered: false,
-                      unread_count: isActive
-                        ? 0
-                        : ((c.unread_count as number) || 0) + 1,
-                    }
+                  ? applyRealtimeConversationMessage(c, d, user?.id, isActive)
                   : c,
               )
               .sort(
@@ -200,6 +185,9 @@ export default function useChatState() {
               )
               .reverse();
           });
+          if (d.senderId !== user?.id && !activeConvRef.current?.is_group && activeConvRef.current?.id === d.conversationId) {
+            setActiveConv((current) => current ? applyRealtimeConversationMessage(current, d, user?.id, true) : current);
+          }
           break;
         }
         case "chat_typing": {
@@ -494,6 +482,18 @@ export default function useChatState() {
   );
 
   const { sendMessage: wsSend } = useWebSocket(onWsMessage);
+
+  useEffect(() => {
+    const onProfileUpdate = (event: Event) => {
+      const message = (event as CustomEvent<WebSocketMessage>).detail;
+      if (message?.type !== "user_profile_updated") return;
+      const data = message.data as AnyRecord;
+      setConversations((current) => current.map((conversation) => applyRealtimeProfileUpdate(conversation, data)));
+      setActiveConv((current) => current ? applyRealtimeProfileUpdate(current, data) : current); void loadConversations();
+    };
+    window.addEventListener(REALTIME_EVENT, onProfileUpdate);
+    return () => window.removeEventListener(REALTIME_EVENT, onProfileUpdate);
+  }, [loadConversations]);
 
   // Keep wsSendRef in sync for useCallState
   useEffect(() => {

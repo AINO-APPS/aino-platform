@@ -10,6 +10,7 @@ import {
 import { getConversations } from "./api/chat";
 import { hasTenantContext, useAuth } from "./AuthContext";
 import type { Conversation } from "./types";
+import { REALTIME_EVENT, type WebSocketMessage } from "./hooks/useWebSocket";
 
 type UnreadConversation = {
     [key: string]: unknown;
@@ -66,6 +67,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         refreshUnread();
     }, [refreshUnread]);
+
+    useEffect(() => {
+        if (!tenantReady) return;
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+        const onRealtime = (event: Event) => {
+            const message = (event as CustomEvent<WebSocketMessage>).detail;
+            if (message?.type !== "chat_message") return;
+            if (refreshTimer) clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => void refreshUnread(), 50);
+        };
+        window.addEventListener(REALTIME_EVENT, onRealtime);
+        return () => {
+            window.removeEventListener(REALTIME_EVENT, onRealtime);
+            if (refreshTimer) clearTimeout(refreshTimer);
+        };
+    }, [tenantReady, refreshUnread]);
 
     // Mirror the unread total onto the desktop taskbar/dock badge (Electron)
     // and the PWA app badge so the OS shows e.g. "3" without the window open.

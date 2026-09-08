@@ -4,6 +4,37 @@ export type RealtimeChatMessage = AnyRecord & {
     id: number | string;
 };
 
+export type RealtimeConversation = AnyRecord & { id: number | string };
+
+export function applyRealtimeConversationMessage(
+    conversation: RealtimeConversation,
+    data: AnyRecord,
+    currentUserId: unknown,
+    isActive: boolean,
+): RealtimeConversation {
+    const fromPeer = Number(data.senderId) !== Number(currentUserId);
+    return {
+        ...conversation,
+        last_message: data.content || (data.fileName ? `📎 ${data.fileName}` : "🎤 Voice"),
+        last_sender_id: data.senderId,
+        last_message_at: data.createdAt,
+        last_deleted: null,
+        last_message_read: false,
+        last_message_delivered: false,
+        unread_count: isActive ? 0 : (Number(conversation.unread_count) || 0) + (fromPeer ? 1 : 0),
+        ...(fromPeer && !conversation.is_group ? { other_avatar: data.senderAvatar || null } : {}),
+    };
+}
+
+export function applyRealtimeProfileUpdate(
+    conversation: RealtimeConversation,
+    data: AnyRecord,
+): RealtimeConversation {
+    return !conversation.is_group && Number(conversation.other_user_id) === Number(data.userId)
+        ? { ...conversation, other_avatar: data.avatar || null }
+        : conversation;
+}
+
 export function mapRealtimeMessage(data: AnyRecord): RealtimeChatMessage {
     return {
         id: data.id as number | string,

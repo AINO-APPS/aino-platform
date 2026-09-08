@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification } from "../../api/notes";
 import useWebSocket from "../../hooks/useWebSocket";
 import useChatNotification from "../../hooks/useChatNotification";
-import { useChatUnread } from "../../ChatContext";
 import { hasTenantContext, useAuth } from "../../AuthContext";
 
 import { NOTIFICATION_POLL_INTERVAL } from "../../constants";
@@ -71,7 +70,6 @@ export default function NotificationBell() {
         return () => clearInterval(id);
     }, [tenantReady, fetchNotifs]);
 
-    const { refreshUnread: refreshChatUnread } = useChatUnread() as any;
     const { notifyGeneral, requestPermission } = useChatNotification() as any;
 
     // WebSocket: refresh notifications on real-time events
@@ -90,14 +88,11 @@ export default function NotificationBell() {
                 fetchNotifs();
                 notifyGeneral(msg.data?.title || msg.type.replace(/_/g, " "), msg.data?.body);
             }
-            if (msg.type === "chat_message") {
-                refreshChatUnread();
-            }
             if (msg.type === "meeting_started" && msg.data) {
                 window.dispatchEvent(new CustomEvent("meeting_started", { detail: msg.data }));
             }
         },
-        [fetchNotifs, refreshChatUnread, notifyGeneral],
+        [fetchNotifs, notifyGeneral],
     );
     useWebSocket(tenantReady ? onWsMessage : null);
 

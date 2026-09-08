@@ -20,6 +20,21 @@ const RECONNECT_MAX_MS = 15_000;
 const CHAT_ACK_RETRY_MS = 10_000;
 const CHAT_MAX_SEND_ATTEMPTS = 6;
 
+export const REALTIME_EVENT = "aino-realtime";
+let lastInboundFrame = "";
+let lastInboundAt = 0;
+
+function publishInboundFrame(msg: WebSocketMessage): void {
+  const serialized = JSON.stringify(msg);
+  const now = Date.now();
+  // The app has several feature-specific sockets. The server sends each event
+  // to all of them, so expose only one application-wide copy of each frame.
+  if (serialized === lastInboundFrame && now - lastInboundAt < 100) return;
+  lastInboundFrame = serialized;
+  lastInboundAt = now;
+  window.dispatchEvent(new CustomEvent(REALTIME_EVENT, { detail: msg }));
+}
+
 interface ReliableOutbound {
   clientMsgId: string;
   serialized: string;
@@ -233,6 +248,7 @@ export default function useWebSocket(onMessage: OnMessage) {
           reliableChatRef.current.delete(msg.data.clientMsgId);
         }
 
+        publishInboundFrame(msg);
         if (onMessageRef.current) onMessageRef.current(msg);
       } catch {
         /* ignore non-JSON */

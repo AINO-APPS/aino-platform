@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import useWebSocket from "../hooks/useWebSocket";
+import useWebSocket, { REALTIME_EVENT } from "../hooks/useWebSocket";
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -149,5 +149,21 @@ describe("useWebSocket reliable chat delivery", () => {
     expect(third.sent).toHaveLength(0);
     expect(onMessage).toHaveBeenCalledTimes(1);
     unmount();
+  });
+
+  test("publishes one application event when duplicate sockets receive the same frame", () => {
+    const globalListener = vi.fn();
+    window.addEventListener(REALTIME_EVENT, globalListener);
+    const firstHook = renderHook(() => useWebSocket(vi.fn()));
+    const secondHook = renderHook(() => useWebSocket(vi.fn()));
+    const payload = { type: "chat_message", data: { id: 501, conversationId: 4 } };
+    act(() => {
+      MockWebSocket.instances[0].receive(payload);
+      MockWebSocket.instances[1].receive(payload);
+    });
+    expect(globalListener).toHaveBeenCalledTimes(1);
+    firstHook.unmount();
+    secondHook.unmount();
+    window.removeEventListener(REALTIME_EVENT, globalListener);
   });
 });
