@@ -102,8 +102,12 @@ mac:
   # without the hardened runtime. Harmless on an unsigned build.
   hardenedRuntime: true
   gatekeeperAssess: false
-  entitlements: entitlements.mac.plist
-  entitlementsInherit: entitlements.mac.plist
+  # Paths are given explicitly. A bare `entitlements.mac.plist` is resolved
+  # against `directories.buildResources` (build/), and when the file is missing
+  # electron-builder falls back to the app directory and fails with the opaque
+  # "<path>/desktop not a file" rather than naming the entitlements file.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   # `notarize` is deliberately left at its default rather than forced to true.
   # electron-builder notarizes automatically once the build is signed and
   # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are present; forcing

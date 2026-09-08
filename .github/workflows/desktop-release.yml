@@ -197,22 +197,40 @@ jobs:
       # CSC_IDENTITY_AUTO_DISCOVERY must be explicitly false when unsigned,
       # otherwise electron-builder searches the macOS runner's keychain, finds
       # nothing and fails the build instead of falling back to unsigned.
+      # Export the certificate into GITHUB_ENV only when one actually exists.
+      #
+      # CSC_LINK must be absent, not empty, for an unsigned build. electron-builder
+      # treats a defined-but-empty CSC_LINK as a certificate *path* and resolves it
+      # relative to the app directory, then aborts with the misleading
+      # "<repo>/desktop not a file" — it never mentions signing or the certificate.
+      # Setting these with `env:` and a `|| ''` fallback therefore breaks every
+      # unsigned macOS build.
       - name: Determine signing availability
         id: signing
         shell: bash
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
         run: |
           case "${{ matrix.os }}" in
-            windows-latest) [ -n "$WIN_CSC_LINK" ] && signed=true || signed=false ;;
-            macos-latest)   [ -n "$MAC_CSC_LINK" ] && signed=true || signed=false ;;
-            *)              signed=false ;;
+            windows-latest) link="$WIN_CSC_LINK"; password="$WIN_CSC_KEY_PASSWORD" ;;
+            macos-latest)   link="$MAC_CSC_LINK"; password="$MAC_CSC_KEY_PASSWORD" ;;
+            *)              link=""; password="" ;;
           esac
-          echo "signed=$signed" >> "$GITHUB_OUTPUT"
-          if [ "$signed" = "true" ]; then
+
+          if [ -n "$link" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "CSC_LINK=$link" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$password" >> "$GITHUB_ENV"
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=true" >> "$GITHUB_ENV"
             echo "Code signing enabled for ${{ matrix.os }}."
           else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            # Explicitly false, otherwise electron-builder searches the macOS
+            # runner keychain, finds nothing, and fails instead of falling back.
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
             echo "::warning::No signing certificate for ${{ matrix.os }} — producing an UNSIGNED build."
           fi
 
@@ -222,13 +240,13 @@ jobs:
         env:
           # Quiet down electron-builder native dependency rebuild noise on CI
           USE_HARD_LINKS: "false"
-          # Windows Authenticode: base64-encoded .pfx and its password.
-          # macOS: base64-encoded Developer ID Application .p12 and its password.
-          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.signed }}
-          # Notarization. electron-builder only notarizes when all three are set;
-          # an unsigned macOS build skips it automatically.
+          # CSC_LINK, CSC_KEY_PASSWORD and CSC_IDENTITY_AUTO_DISCOVERY come from
+          # GITHUB_ENV via the step above, which sets them only when a certificate
+          # exists. Do not reintroduce them here with a `|| ''` fallback: an empty
+          # CSC_LINK is read as a certificate path and breaks unsigned builds.
+          #
+          # Notarization. electron-builder only notarizes when all three are set
+          # AND the app is signed; an unsigned macOS build skips it.
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
