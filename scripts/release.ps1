@@ -17,7 +17,7 @@ if (-not (Test-Path $packagePath)) { throw "Missing $packagePath" }
 if (-not (Test-Path $lockPath)) { throw "Missing $lockPath" }
 if (git -C $root status --porcelain) { throw "Working tree must be clean before releasing." }
 
-node -e "const fs=require('fs'); for (const p of ['desktop/package.json','desktop/package-lock.json']) { const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version=process.argv[1]; if (j.packages?.['']) j.packages[''].version=process.argv[1]; fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n'); }" $Version
+node (Join-Path $PSScriptRoot "set-desktop-version.mjs") $Version
 if ($LASTEXITCODE -ne 0) { throw "Failed to update desktop package metadata." }
 
 git -C $root add desktop/package.json desktop/package-lock.json
