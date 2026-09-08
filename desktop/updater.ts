@@ -8,10 +8,12 @@ import {
   app,
   BrowserWindow,
   nativeImage,
+  net,
   type IpcMainInvokeEvent,
   type IpcMainEvent,
 } from "electron";
 import { handleIpc, onIpc, sendIpc, type ListenerContract } from "./ipc-contract";
+import { getDesktopTag, type DesktopLatestManifest } from "./updaterFeed";
 
 autoUpdater.logger = console;
 
@@ -58,13 +60,6 @@ const DESKTOP_LATEST_JSON_URL = OTA_BASE_URL
 const GITHUB_OWNER = "AINO-APPS";
 const GITHUB_REPO = "aino-platform";
 
-interface DesktopLatestManifest {
-  /** e.g. "1.6.95" */
-  version?: string;
-  /** e.g. "v1.6.95" — the folder name under desktop/releases/ */
-  tag?: string;
-}
-
 interface DesktopFeed {
   /** Release tag, e.g. "v1.6.95". */
   tag: string;
@@ -72,74 +67,36 @@ interface DesktopFeed {
   url: string;
 }
 
-/** GET a URL and parse the body as JSON. Rejects on non-2xx / timeout. */
-function httpGetJson<T>(url: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const https = require("https");
-    const req = https.get(
-      url,
-      {
-        headers: {
-          "User-Agent": "WorkPulse-Desktop",
-          Accept: "application/json",
-          "Cache-Control": "no-cache",
-        },
-      },
-      (res: import("http").IncomingMessage) => {
-        let body = "";
-        res.on("data", (c: Buffer) => (body += c));
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            try {
-              resolve(JSON.parse(body) as T);
-            } catch (e) {
-              reject(e);
-            }
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}`));
-          }
-        });
-      },
-    );
-    req.on("error", reject);
-    req.setTimeout(10000, () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
+/**
+ * GET through Electron's Chromium network stack so packaged apps honour the
+ * user's system proxy and certificate configuration. Node's https.get bypasses
+ * that configuration and caused release discovery to fail on proxied networks.
+ */
+async function httpGet(url: string, accept: string): Promise<Response> {
+  const response = await net.fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: accept,
+      "Cache-Control": "no-cache",
+    },
+    signal: AbortSignal.timeout(10000),
   });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response;
+}
+
+/** GET a URL and parse the body as JSON. Rejects on non-2xx / timeout. */
+async function httpGetJson<T>(url: string): Promise<T> {
+  const response = await httpGet(url, "application/json");
+  return (await response.json()) as T;
 }
 
 /** GET a URL and return body text. Rejects on non-2xx / timeout. */
-function httpGetText(url: string): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const https = require("https");
-    const req = https.get(
-      url,
-      {
-        headers: {
-          "User-Agent": "WorkPulse-Desktop",
-          Accept: "text/html,application/xhtml+xml",
-          "Cache-Control": "no-cache",
-        },
-      },
-      (res: import("http").IncomingMessage) => {
-        let body = "";
-        res.on("data", (c: Buffer) => (body += c));
-        res.on("end", () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(body);
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}`));
-          }
-        });
-      },
-    );
-    req.on("error", reject);
-    req.setTimeout(10000, () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
-  });
+async function httpGetText(url: string): Promise<string> {
+  const response = await httpGet(url, "text/html,application/xhtml+xml");
+  return response.text();
 }
 
 /** Compare two semver strings (a.b.c). Returns 1 if a>b, -1 if a<b, 0 equal. */
@@ -170,9 +127,7 @@ async function resolveLatestDesktopTagFromR2(): Promise<string | null> {
     const manifest = await httpGetJson<DesktopLatestManifest>(
       DESKTOP_LATEST_JSON_URL,
     );
-    const tag =
-      manifest.tag || (manifest.version ? `v${manifest.version}` : null);
-    return tag || null;
+    return getDesktopTag(manifest);
   } catch (err) {
     console.error(
       "[updater] Failed to resolve latest desktop tag from R2:",

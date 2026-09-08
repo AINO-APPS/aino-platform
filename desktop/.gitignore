@@ -10,6 +10,7 @@ appIdentity.js
 preload.js
 tray.js
 updater.js
+updaterFeed.js
 callPipWindow.js
 generate-icons.js
 biometric.js

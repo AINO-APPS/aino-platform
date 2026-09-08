@@ -40,6 +40,7 @@ files:
   - preload.js
   - tray.js
   - updater.js
+  - updaterFeed.js
   - callPipWindow.js
   - biometric.js
   - ipc-contract.js
