@@ -4,7 +4,10 @@ exports.parseWindowsWifi = parseWindowsWifi;
 exports.parseMacWifi = parseMacWifi;
 exports.parseIpLocation = parseIpLocation;
 function parseWindowsWifi(output) {
-    const bssid = /^\s*BSSID\s*:\s*([0-9A-Fa-f:]{17})\s*$/m.exec(output)?.[1];
+    // Newer Windows 11 builds label the associated access point as "AP BSSID"
+    // while older builds use "BSSID". Accept both without accidentally matching
+    // the adapter's separate "Physical address" value.
+    const bssid = /^\s*(?:AP\s+)?BSSID\s*:\s*([0-9A-Fa-f:]{17})\s*$/mi.exec(output)?.[1];
     const ssid = /^\s*SSID\s*:\s*(.+?)\s*$/m.exec(output)?.[1] ?? null;
     const signal = /^\s*Signal\s*:\s*(\d+)\s*%/m.exec(output)?.[1];
     const state = /^\s*State\s*:\s*(.+?)\s*$/m.exec(output)?.[1];

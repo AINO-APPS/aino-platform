@@ -45,11 +45,11 @@ const FACE_CODES = new Set([
 ]);
 
 /**
- * Classify a server clock-in error (code + message) so the modal can show a
+ * Classify a server attendance error (code + message) so the modal can show a
  * specific "Location Mismatch" / "Face Mismatch" title + icon instead of a
  * single flat red line. Falls back to keyword sniffing when no code is sent.
  */
-function classifySubmitErr(message: string, code?: string): { kind: SubmitErrKind; title: string } {
+function classifySubmitErr(message: string, code?: string, action: "clock-in" | "clock-out" = "clock-in"): { kind: SubmitErrKind; title: string } {
     const lower = message.toLowerCase();
     const isLocation =
         (code && LOCATION_CODES.has(code)) ||
@@ -59,11 +59,11 @@ function classifySubmitErr(message: string, code?: string): { kind: SubmitErrKin
         (!code && lower.includes("face"));
     if (isLocation) return { kind: "location", title: "Location Mismatch" };
     if (isFace) return { kind: "face", title: "Face Mismatch" };
-    return { kind: "generic", title: "Login Failed" };
+    return { kind: "generic", title: action === "clock-out" ? "Clock-out Failed" : "Login Failed" };
 }
 
-interface ClockInPayload {
-    work_mode: WorkMode;
+export interface AttendanceVerifyPayload {
+    work_mode?: WorkMode;
     face_descriptor: number[] | Float32Array;
     latitude?: number;
     longitude?: number;
@@ -73,7 +73,8 @@ interface ClockInPayload {
 
 interface ClockInVerifyModalProps {
     workMode: WorkMode;
-    submitClockIn: (payload: ClockInPayload) => Promise<unknown>;
+    action?: "clock-in" | "clock-out";
+    submitAttendance: (payload: AttendanceVerifyPayload) => Promise<unknown>;
     onSuccess?: () => void;
     onClose?: () => void;
 }
@@ -87,7 +88,7 @@ function normaliseBssid(raw: unknown): string | null {
 }
 
 /**
- * Pre-flight verification before a `POST /tracker/clock-in` call.
+ * Pre-flight verification before a clock-in or clock-out request.
  *
  * Steps:
  *   1. (office / hybrid) Collect "office signals" — Wi-Fi BSSID + geolocation
@@ -96,13 +97,19 @@ function normaliseBssid(raw: unknown): string | null {
  *      verify on-site presence by BSSID alone and skip the geofence
  *      entirely (more reliable than GPS on packaged Electron builds).
  *   2. Open the webcam and extract a 128-float face descriptor.
- *   3. Call `submitClockIn({ work_mode, latitude, longitude, accuracy,
+ *   3. Call `submitAttendance({ work_mode?, latitude, longitude, accuracy,
  *      wifi_bssid, face_descriptor })`.
  *
- * `submitClockIn` returns the API response on success, or throws with an
+ * `submitAttendance` returns the API response on success, or throws with an
  * AxiosError that we surface in the modal so the user can retry.
  */
-export default function ClockInVerifyModal({ workMode, submitClockIn, onSuccess, onClose }: ClockInVerifyModalProps) {
+export default function ClockInVerifyModal({
+    workMode,
+    action = "clock-in",
+    submitAttendance,
+    onSuccess,
+    onClose,
+}: ClockInVerifyModalProps) {
     const needsLocation = workMode === "office" || workMode === "hybrid";
 
     const [step, setStep] = useState<"location" | "face" | "submitting">(needsLocation ? "location" : "face");
@@ -216,20 +223,20 @@ export default function ClockInVerifyModal({ workMode, submitClockIn, onSuccess,
         setStep("submitting");
         setSubmitErr(null);
         try {
-            const payload: ClockInPayload = {
-                work_mode: workMode,
+            const payload: AttendanceVerifyPayload = {
+                ...(action === "clock-in" ? { work_mode: workMode } : {}),
                 face_descriptor: descriptor,
                 latitude: location?.latitude,
                 longitude: location?.longitude,
                 accuracy: location?.accuracy,
                 wifi_bssid: (wifi && wifi.ok) ? wifi.bssid : undefined,
             };
-            await submitClockIn(payload);
+            await submitAttendance(payload);
             onSuccess?.();
         } catch (e) {
             const err = e as { response?: { data?: { error?: string; code?: string } } };
             const data = err?.response?.data;
-            const msg = data?.error || "Login failed. Please try again.";
+            const msg = data?.error || `${action === "clock-out" ? "Clock-out" : "Login"} failed. Please try again.`;
             setSubmitErr({ message: msg, code: data?.code });
             setStep("face");
         }
@@ -255,7 +262,7 @@ export default function ClockInVerifyModal({ workMode, submitClockIn, onSuccess,
         <div className={s.backdrop} onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose?.(); }}>
             <div className={s.modal} role="dialog" aria-modal="true">
                 <div className={s.head}>
-                    <h3><ShieldCheck size={18} /> Verify Login</h3>
+                    <h3><ShieldCheck size={18} /> Verify {action === "clock-out" ? "Clock Out" : "Login"}</h3>
                     <button className={s.close} onClick={onClose} disabled={busy} aria-label="Close">
                         <X size={18} />
                     </button>
@@ -339,7 +346,7 @@ export default function ClockInVerifyModal({ workMode, submitClockIn, onSuccess,
                                 )
                             )}
                             {submitErr && (() => {
-                                const { kind, title } = classifySubmitErr(submitErr.message, submitErr.code);
+                                const { kind, title } = classifySubmitErr(submitErr.message, submitErr.code, action);
                                 return (
                                     <VerifyError
                                         kind={kind}
@@ -366,7 +373,7 @@ export default function ClockInVerifyModal({ workMode, submitClockIn, onSuccess,
                                 // rejection, so a mismatch doesn't auto-retry
                                 // into the face-attempt rate limit.
                                 autoCapture={!submitErr}
-                                captureLabel="Verify & Login"
+                                captureLabel={`Verify & ${action === "clock-out" ? "Clock Out" : "Login"}`}
                                 capturingLabel="Verifying..."
                                 onCapture={handleFaceCapture}
                                 disabled={step === "submitting"}

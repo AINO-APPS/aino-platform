@@ -47,13 +47,16 @@ export const getStatus = (): Promise<AxiosResponse> => {
     return _statusInFlight;
 };
 
-interface ClockInPayload {
-    work_mode?: string;
+export interface AttendanceVerificationPayload {
     latitude?: number;
     longitude?: number;
     accuracy?: number;
-    face_descriptor?: number[];
+    face_descriptor?: number[] | Float32Array;
     wifi_bssid?: string;
+}
+
+interface ClockInPayload extends AttendanceVerificationPayload {
+    work_mode?: string;
 }
 export const clockIn = (payload?: string | ClockInPayload | null) => {
     // Backwards-compat: callers used to pass just the work_mode string.
@@ -65,7 +68,7 @@ export const clockIn = (payload?: string | ClockInPayload | null) => {
         latitude: payload.latitude,
         longitude: payload.longitude,
         accuracy: payload.accuracy,
-        face_descriptor: payload.face_descriptor,
+        face_descriptor: payload.face_descriptor ? Array.from(payload.face_descriptor) : undefined,
         wifi_bssid: payload.wifi_bssid,
     });
 };
@@ -78,7 +81,14 @@ export const enrollFace = (descriptor: number[]) =>
 export const clearFaceEnrollment = () => API.delete("/profile/face-enroll");
 export const breakStart = () => API.post("/tracker/break-start");
 export const breakEnd = () => API.post("/tracker/break-end");
-export const clockOut = () => API.post("/tracker/clock-out");
+export const clockOut = (payload: AttendanceVerificationPayload = {}) =>
+    API.post("/tracker/clock-out", {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        accuracy: payload.accuracy,
+        face_descriptor: payload.face_descriptor ? Array.from(payload.face_descriptor) : undefined,
+        wifi_bssid: payload.wifi_bssid,
+    });
 export const getHistory = (from?: string, to?: string) =>
     API.get("/tracker/history", { params: { from, to } });
 export const getAnalytics = (days?: number, from?: string, to?: string) =>

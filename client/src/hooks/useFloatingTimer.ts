@@ -40,6 +40,7 @@ export function useFloatingTimer() {
     const [actionLoading, setActionLoading] = useState("");
     const [error, setError] = useAutoDismiss("");
     const [showClockOutConfirm, setShowClockOutConfirm] = useState(false);
+    const [showClockOutVerify, setShowClockOutVerify] = useState(false);
     // Tenant's attendance-verification flag. We fetch the org config once on
     // mount so the WorkTimerCard knows whether to show the face+location
     // modal before the actual /tracker/clock-in POST.
@@ -209,6 +210,21 @@ export function useFloatingTimer() {
         },
         [fetchStatus],
     );
+    const submitVerifiedClockOut = useCallback(
+        async (payload: unknown) => {
+            setActionLoading("clockOut");
+            setError("");
+            try {
+                const res = await clockOut(payload as never);
+                await fetchStatus();
+                resetTimer();
+                return res;
+            } finally {
+                setActionLoading("");
+            }
+        },
+        [fetchStatus, resetTimer],
+    );
     const handleBreakStart = useCallback(async () => {
         await handleAction(breakStart, "breakStart");
     }, [handleAction]);
@@ -217,8 +233,12 @@ export function useFloatingTimer() {
     }, [handleAction]);
     const handleConfirmClockOut = useCallback(async () => {
         setShowClockOutConfirm(false);
+        if (verificationRequired && workMode === "office") {
+            setShowClockOutVerify(true);
+            return;
+        }
         await handleAction(clockOut, "clockOut");
-    }, [handleAction]);
+    }, [handleAction, verificationRequired, workMode]);
 
     const radius = 38;
     const circumference = 2 * Math.PI * radius;
@@ -260,6 +280,8 @@ export function useFloatingTimer() {
         targetMinutes,
         showClockOutConfirm,
         setShowClockOutConfirm,
+        showClockOutVerify,
+        setShowClockOutVerify,
         handleClockIn,
         handleBreakStart,
         handleBreakEnd,
@@ -269,5 +291,6 @@ export function useFloatingTimer() {
         strokeDashoffset,
         verificationRequired,
         submitVerifiedClockIn,
+        submitVerifiedClockOut,
     };
 }

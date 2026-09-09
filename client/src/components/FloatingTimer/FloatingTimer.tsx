@@ -18,9 +18,10 @@ export default function FloatingTimer() {
         completedTarget, remaining, overtimeMinutes,
         breakCount, estimatedClockOut, targetMinutes,
         showClockOutConfirm, setShowClockOutConfirm,
+        showClockOutVerify, setShowClockOutVerify,
         handleClockIn, handleBreakStart, handleBreakEnd, handleConfirmClockOut,
         radius, circumference, strokeDashoffset,
-        verificationRequired, submitVerifiedClockIn,
+        verificationRequired, submitVerifiedClockIn, submitVerifiedClockOut,
     } = useFloatingTimer();
 
     // Same flow as WorkTimerCard: if the tenant has attendance verification
@@ -224,9 +225,18 @@ export default function FloatingTimer() {
             {verifyOpen && (
                 <ClockInVerifyModal
                     workMode={workMode as any}
-                    submitClockIn={submitVerifiedClockIn}
+                    submitAttendance={submitVerifiedClockIn}
                     onSuccess={() => setVerifyOpen(false)}
                     onClose={() => setVerifyOpen(false)}
+                />
+            )}
+            {showClockOutVerify && (
+                <ClockInVerifyModal
+                    action="clock-out"
+                    workMode="office"
+                    submitAttendance={submitVerifiedClockOut}
+                    onSuccess={() => setShowClockOutVerify(false)}
+                    onClose={() => setShowClockOutVerify(false)}
                 />
             )}
         </>

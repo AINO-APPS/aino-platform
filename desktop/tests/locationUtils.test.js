@@ -4,6 +4,7 @@ const { parseWindowsWifi, parseMacWifi, parseIpLocation } = require("../location
 
 test("parses connected and disconnected Windows Wi-Fi output", () => {
   assert.deepEqual(parseWindowsWifi("State : connected\r\nSSID : Office\r\nBSSID : aa:bb:cc:dd:ee:ff\r\nSignal : 82%"), { ok: true, bssid: "AA:BB:CC:DD:EE:FF", ssid: "Office", signal: 82 });
+  assert.deepEqual(parseWindowsWifi("State : connected\r\nSSID : Office\r\nAP BSSID : c8:84:a1:71:9d:2e\r\nSignal : 100%"), { ok: true, bssid: "C8:84:A1:71:9D:2E", ssid: "Office", signal: 100 });
   assert.deepEqual(parseWindowsWifi("State : disconnected"), { ok: false, error: "wifi_disconnected" });
 });
 

@@ -17,9 +17,10 @@ export default function WorkTimerCard() {
         completedTarget, remaining, overtimeMinutes,
         breakCount, estimatedClockOut, targetMinutes,
         showClockOutConfirm, setShowClockOutConfirm,
+        showClockOutVerify, setShowClockOutVerify,
         handleClockIn, handleBreakStart, handleBreakEnd, handleConfirmClockOut,
         radius, circumference, strokeDashoffset,
-        verificationRequired, submitVerifiedClockIn,
+        verificationRequired, submitVerifiedClockIn, submitVerifiedClockOut,
     } = useFloatingTimer();
 
     // When the org has attendance verification enabled, the Login button
@@ -32,10 +33,10 @@ export default function WorkTimerCard() {
     // still looking at the Login button — the verify modal then opens with
     // the models already cached instead of stalling on a ~6 MB download.
     useEffect(() => {
-        if (verificationRequired && state === "logged_out" && !dailyTargetMet) {
+        if (verificationRequired && ((state === "logged_out" && !dailyTargetMet) || workMode === "office")) {
             preloadFaceModels();
         }
-    }, [verificationRequired, state, dailyTargetMet]);
+    }, [verificationRequired, state, dailyTargetMet, workMode]);
 
     const onLoginClick = () => {
         if (verificationRequired) {
@@ -233,9 +234,18 @@ export default function WorkTimerCard() {
             {verifyOpen && (
                 <ClockInVerifyModal
                     workMode={workMode as any}
-                    submitClockIn={submitVerifiedClockIn}
+                    submitAttendance={submitVerifiedClockIn}
                     onSuccess={() => setVerifyOpen(false)}
                     onClose={() => setVerifyOpen(false)}
+                />
+            )}
+            {showClockOutVerify && (
+                <ClockInVerifyModal
+                    action="clock-out"
+                    workMode="office"
+                    submitAttendance={submitVerifiedClockOut}
+                    onSuccess={() => setShowClockOutVerify(false)}
+                    onClose={() => setShowClockOutVerify(false)}
                 />
             )}
         </>

@@ -177,10 +177,17 @@ export default function ProfileMenu() {
 
     const confirmSignOut = async () => {
         if (workState === "on_floor" || workState === "on_break") {
+            if (workMode === "office") {
+                setSignoutConfirming(false);
+                alert("Please clock out from the Work Timer before signing out. Office clock-out requires location and face verification.");
+                return;
+            }
             try {
                 await apiClockOut();
-            } catch {
-                /* ignore */
+            } catch (err: any) {
+                alert(err.response?.data?.error || "Clock-out failed. Please clock out from the Work Timer before signing out.");
+                setSignoutConfirming(false);
+                return;
             }
         }
         logout();
