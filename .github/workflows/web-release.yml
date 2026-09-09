@@ -1,12 +1,15 @@
-name: Web SPA — Publish to R2 (manual)
+name: Web SPA — Publish to R2
 
 # Publishes client/dist to the public SPA bucket (vars.R2_WEB_BUCKET), which must
 # stay separate from the private aino-uploads bucket per ADR-004. Assets are
 # uploaded before the HTML shell so a client never fetches an index.html whose
 # hashed chunks are not yet readable.
 #
-# Manual only: this writes to a live public origin, so there is no push trigger.
+# Every push to master publishes after the client validation gates pass. Manual
+# runs remain available for recovery and require an explicit confirmation.
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
     inputs:
       confirm:
@@ -20,7 +23,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event.inputs.confirm == 'PUBLISH'
+    if: github.event_name == 'push' || github.event.inputs.confirm == 'PUBLISH'
     runs-on: ubuntu-latest
     permissions:
       contents: read

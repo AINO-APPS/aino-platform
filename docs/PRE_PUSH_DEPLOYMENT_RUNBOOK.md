@@ -1321,7 +1321,8 @@ Configure GitHub Actions:
 
 - [ ] Keep R2 public development URL disabled.
 - [ ] Attach a dedicated custom domain to the SPA bucket.
-- [ ] Run **Web SPA — Publish to R2 (manual)** and type `PUBLISH`.
+- [ ] Push to `master` and verify **Web SPA — Publish to R2** succeeds. For a
+      manual recovery publish, run the workflow and type `PUBLISH`.
 - [ ] Verify assets upload first and the HTML shell is promoted last.
 - [ ] Verify hashed `/assets/*` returns long immutable cache headers.
 - [ ] Verify `index.html`, `sw.js`, and `manifest.json` return no-store/no-cache.
