@@ -50,7 +50,7 @@ export default function NavLinks() {
     const p = location.pathname;
 
     return (
-        <div className={`${s["nav-links"]} ${s["nav-links-desktop"]}`}>
+        <div className={`${s["nav-links"]} ${s["nav-links-desktop"]}`} aria-label="Primary navigation">
             <NavLink
                 to="/"
                 className={p === "/" ? s.active : ""}
@@ -213,6 +213,9 @@ export default function NavLinks() {
                         className={`${s["more-btn"]} ${moreIsActive ? s.active : ""}`}
                         onClick={() => setMoreOpen((prev) => !prev)}
                         title="More"
+                        aria-label="More navigation options"
+                        aria-expanded={moreOpen}
+                        aria-haspopup="menu"
                     >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                             <path
@@ -224,7 +227,7 @@ export default function NavLinks() {
                         </svg>
                     </button>
                     {moreOpen && (
-                        <div className={s["more-dropdown"]}>
+                        <div className={s["more-dropdown"]} role="menu">
                             {moreItems.map((item) => (
                                 <NavLink
                                     key={item.to}

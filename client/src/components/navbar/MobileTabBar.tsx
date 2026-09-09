@@ -64,7 +64,7 @@ export default function MobileTabBar() {
     const p = location.pathname;
 
     return (
-        <div className={s["mobile-tab-bar"]}>
+        <nav className={s["mobile-tab-bar"]} aria-label="Mobile navigation">
             <NavLink to="/" className={p === "/" ? s.active : ""}>
                 <span className={s["nav-icon"]}>
                     <Home size={22} />
@@ -104,6 +104,9 @@ export default function MobileTabBar() {
                         mobileMoreOpen || moreIsActive ? s.active : ""
                     }`}
                     onClick={() => setMobileMoreOpen((prev) => !prev)}
+                    aria-label="More navigation options"
+                    aria-expanded={mobileMoreOpen}
+                    aria-haspopup="menu"
                 >
                     <span className={s["nav-icon"]}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -118,7 +121,7 @@ export default function MobileTabBar() {
                     <span className={s["tab-label"]}>More</span>
                 </button>
                 {mobileMoreOpen && (
-                    <div className={s["mobile-more-popup"]}>
+                    <div className={s["mobile-more-popup"]} role="menu">
                         {moreItems.map((item) => (
                             <NavLink
                                 key={item.to}
@@ -132,6 +135,6 @@ export default function MobileTabBar() {
                     </div>
                 )}
             </div>
-        </div>
+        </nav>
     );
 }
