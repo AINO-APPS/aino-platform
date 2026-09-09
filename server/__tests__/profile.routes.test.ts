@@ -75,8 +75,8 @@ const { app } = require("../index");
 const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
 
-function authCookie(userId = 1) {
-    const token = jwt.sign({ id: userId, username: "testuser", tv: 0 }, SECRET, { expiresIn: "1h" });
+function authCookie(userId = 1, tenantId?: number) {
+    const token = jwt.sign({ id: userId, username: "testuser", tv: 0, tenant_id: tenantId }, SECRET, { expiresIn: "1h" });
     return `token=${token}`;
 }
 
@@ -139,6 +139,24 @@ describe("GET /api/profile", () => {
         expect(res.body.username).toBe("testuser");
         expect(res.body.has_reports).toBe(false);
         expect(res.body.must_change_password).toBe(false);
+    });
+
+    test("returns the authenticated tenant id for a tenant profile", async () => {
+        setupAuthOnly();
+        const userRow = {
+            id: 1, username: "testuser", full_name: "Test User", email: "test@test.com",
+            avatar: null, role: "employee", org_id: 1, team_id: 1, department_id: 1,
+            must_change_password: false, team_name: "Dev",
+        };
+        mockQuery.mockResolvedValueOnce({ rows: [userRow], rowCount: 1 });
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+        const res = await request(app)
+            .get("/api/profile")
+            .set("Cookie", authCookie(1, 7));
+
+        expect(res.status).toBe(200);
+        expect(res.body.tenant_id).toBe(7);
     });
 
     test("returns a tenantless platform profile from platform_users", async () => {

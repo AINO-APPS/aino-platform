@@ -53,6 +53,7 @@ interface ClockInPayload {
     longitude?: number;
     accuracy?: number;
     face_descriptor?: number[];
+    wifi_bssid?: string;
 }
 export const clockIn = (payload?: string | ClockInPayload | null) => {
     // Backwards-compat: callers used to pass just the work_mode string.
@@ -65,6 +66,7 @@ export const clockIn = (payload?: string | ClockInPayload | null) => {
         longitude: payload.longitude,
         accuracy: payload.accuracy,
         face_descriptor: payload.face_descriptor,
+        wifi_bssid: payload.wifi_bssid,
     });
 };
 

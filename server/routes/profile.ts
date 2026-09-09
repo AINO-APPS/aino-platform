@@ -189,7 +189,7 @@ router.get("/", auth, async (req: Request, res: Response) => {
         }
         if (!user) return res.status(404).json({ error: "User not found" });
         user.must_change_password = !!user.must_change_password;
-        // Platform admins with tenant context should retain platform_admin role for the UI
+        user.tenant_id = req.tenantId ?? null;
         if (req.isPlatformUser) user.role = "platform_admin";
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];
         user.has_reports = !!hasReports;
