@@ -202,7 +202,9 @@ export function useFloatingTimer() {
             setError("");
             try {
                 const res = await clockIn(payload as never);
-                await fetchStatus();
+                // The attendance response is authoritative. Do not keep the
+                // verification modal open while a second status request runs.
+                void fetchStatus();
                 return res;
             } finally {
                 setActionLoading("");
@@ -216,8 +218,8 @@ export function useFloatingTimer() {
             setError("");
             try {
                 const res = await clockOut(payload as never);
-                await fetchStatus();
                 resetTimer();
+                void fetchStatus();
                 return res;
             } finally {
                 setActionLoading("");

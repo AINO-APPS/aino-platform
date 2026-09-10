@@ -210,6 +210,22 @@
     line-height: 1.4;
 }
 
+.signalError {
+    margin-bottom: 0.75rem;
+}
+
+.signalError .errMsg {
+    width: 100%;
+    margin-bottom: 0.55rem;
+}
+
+.signalActions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .foot {
     padding: 0.85rem 1.25rem;
     border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));

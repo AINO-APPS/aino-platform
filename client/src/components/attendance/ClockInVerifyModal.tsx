@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck, Loader2, X, AlertTriangle, CheckCircle2, Wifi, WifiOff, MapPin, ScanFace } from "lucide-react";
 import FaceCapture from "./FaceCapture";
 import { preloadFaceModels } from "../../utils/faceApi";
-import { getOfficeSignals, geolocationErrorMessage } from "../../utils/geolocation";
+import { getCurrentPosition, getWifiInfo, geolocationErrorMessage } from "../../utils/geolocation";
 import type { Position, WifiInfo, PositionSource } from "../../utils/geolocation";
 import { getCurrentOrg } from "../../api/organization";
 import { useNavigate } from "react-router-dom";
@@ -112,7 +112,7 @@ export default function ClockInVerifyModal({
 }: ClockInVerifyModalProps) {
     const needsLocation = workMode === "office" || workMode === "hybrid";
 
-    const [step, setStep] = useState<"location" | "face" | "submitting">(needsLocation ? "location" : "face");
+    const [step, setStep] = useState<"face" | "submitting">("face");
     const [location, setLocation] = useState<Position | null>(null);
     const [wifi, setWifi] = useState<WifiInfo | null>(null);
     // locErr is { message, code, accuracy, source } once set — `accuracy` /
@@ -126,6 +126,8 @@ export default function ClockInVerifyModal({
     // authoritative, but we want to give the user accurate UI feedback
     // *before* they hit submit).
     const [orgWifi, setOrgWifi] = useState<OrgWifiState | null>(null);
+    const signalRequestRef = useRef(0);
+    const submittingRef = useRef(false);
     const navigate = useNavigate();
 
     // Warm the face-api models the moment the modal opens, in parallel with
@@ -135,70 +137,85 @@ export default function ClockInVerifyModal({
         preloadFaceModels();
     }, []);
 
-    useEffect(() => {
-        let cancelled = false;
-        getCurrentOrg()
-            .then(res => {
-                if (cancelled) return;
-                const data = res?.data as Record<string, unknown> | undefined;
-                const rawList = data?.office_wifi_bssids;
-                const list = Array.isArray(rawList) ? rawList : [];
-                const set = new Set<string>(
+    const loadOrgWifi = useCallback(async (): Promise<OrgWifiState> => {
+        try {
+            const res = await getCurrentOrg();
+            const data = res?.data as Record<string, unknown> | undefined;
+            const rawList = data?.office_wifi_bssids;
+            const list = Array.isArray(rawList) ? rawList : [];
+            return {
+                enabled: !!data?.office_wifi_verification_enabled,
+                bssids: new Set(
                     list
-                        .map((e: unknown) => normaliseBssid(typeof e === "string" ? e : (e as { bssid?: string })?.bssid))
-                        .filter((v): v is string => Boolean(v))
-                );
-                setOrgWifi({
-                    enabled: !!data?.office_wifi_verification_enabled,
-                    bssids: set,
-                });
-            })
-            .catch(() => { /* leave null — fall back to geofence-only UI */ });
-        return () => { cancelled = true; };
+                        .map((entry: unknown) => normaliseBssid(
+                            typeof entry === "string" ? entry : (entry as { bssid?: string })?.bssid,
+                        ))
+                        .filter((value): value is string => Boolean(value)),
+                ),
+            };
+        } catch {
+            // The server remains authoritative. If configuration cannot be
+            // loaded, fall back to collecting a geofence fix.
+            return { enabled: false, bssids: new Set() };
+        }
     }, []);
 
-    async function requestSignals() {
+    const requestSignals = useCallback(async () => {
+        const requestId = ++signalRequestRef.current;
         setLocErr(null);
         setBusy(true);
-        try {
-            const { wifi: wifiRes, location: locRes, locError } = await getOfficeSignals();
-            setWifi(wifiRes);
-            setLocation(locRes);
-            // If we got at least one usable signal we can move on. The server
-            // will decide whether either is sufficient given the org config.
-            const haveWifi = !!(wifiRes && wifiRes.ok && wifiRes.bssid);
-            const haveLoc = !!locRes;
-            if (haveWifi || haveLoc) {
-                setStep("face");
-            } else {
-                // Only fail hard when both signals failed. Pass the accuracy
-                // and source from the rejected fix (if any) so the message
-                // can be specific — see geolocationErrorMessage().
-                setLocErr({
-                    message: geolocationErrorMessage(locError?.code ?? "", {
-                        accuracy: locError?.accuracy,
-                        source: locError?.source,
+        setLocation(null);
+        setWifi(null);
+
+        // Start all independent work immediately. In particular, do not wait
+        // for the potentially 15-second Windows location provider before
+        // accepting a registered office Wi-Fi BSSID.
+        const orgPromise = loadOrgWifi();
+        const wifiPromise = getWifiInfo();
+        const locationPromise = getCurrentPosition().then(
+            (position) => ({ position, error: null as LocErrState | null }),
+            (error: { code?: string; accuracy?: number; source?: PositionSource }) => ({
+                position: null,
+                error: {
+                    message: geolocationErrorMessage(error?.code ?? "", {
+                        accuracy: error?.accuracy,
+                        source: error?.source,
                     }),
-                    code: locError?.code,
-                    accuracy: locError?.accuracy,
-                    source: locError?.source,
+                    code: error?.code,
+                    accuracy: error?.accuracy,
+                    source: error?.source,
+                } satisfies LocErrState,
+            }),
+        );
+
+        try {
+            const [wifiRes, wifiConfig] = await Promise.all([wifiPromise, orgPromise]);
+            if (requestId !== signalRequestRef.current) return;
+            setWifi(wifiRes);
+            setOrgWifi(wifiConfig);
+
+            const bssid = wifiRes.ok ? normaliseBssid(wifiRes.bssid) : null;
+            const registeredWifi = !!(
+                wifiConfig.enabled && bssid && wifiConfig.bssids.has(bssid)
+            );
+            if (registeredWifi) {
+                // Location is still allowed to settle in the background, but
+                // it no longer blocks camera verification or attendance.
+                setBusy(false);
+                void locationPromise.then(({ position }) => {
+                    if (requestId === signalRequestRef.current && position) setLocation(position);
                 });
+                return;
             }
-        } catch (e) {
-            const err = e as { code?: string; accuracy?: number; source?: PositionSource };
-            setLocErr({
-                message: geolocationErrorMessage(err?.code ?? "", {
-                    accuracy: err?.accuracy,
-                    source: err?.source,
-                }),
-                code: err?.code,
-                accuracy: err?.accuracy,
-                source: err?.source,
-            });
+
+            const { position, error } = await locationPromise;
+            if (requestId !== signalRequestRef.current) return;
+            setLocation(position);
+            setLocErr(position ? null : error);
         } finally {
-            setBusy(false);
+            if (requestId === signalRequestRef.current) setBusy(false);
         }
-    }
+    }, [loadOrgWifi]);
 
     // Open the OS-level Location privacy settings (Windows / macOS) so the
     // user can flip Location Services on. Only exposed inside Electron.
@@ -211,15 +228,16 @@ export default function ClockInVerifyModal({
     }
     const inElectron = !!(window?.electronAPI?.openLocationSettings);
 
-    // Auto-collect signals as soon as the modal opens for office/hybrid.
+    // Auto-collect signals as soon as the modal opens for office/hybrid. The
+    // camera is mounted at the same time below, so both warm up concurrently.
     useEffect(() => {
-        if (needsLocation && step === "location" && !location && !wifi) {
-            requestSignals();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        if (needsLocation) void requestSignals();
+        return () => { signalRequestRef.current++; };
+    }, [needsLocation, requestSignals]);
 
-    async function handleFaceCapture(descriptor: number[] | Float32Array) {
+    async function handleFaceCapture(descriptor: number[] | Float32Array): Promise<boolean> {
+        if (submittingRef.current || !presenceReady) return false;
+        submittingRef.current = true;
         setStep("submitting");
         setSubmitErr(null);
         try {
@@ -233,12 +251,15 @@ export default function ClockInVerifyModal({
             };
             await submitAttendance(payload);
             onSuccess?.();
+            return true;
         } catch (e) {
             const err = e as { response?: { data?: { error?: string; code?: string } } };
             const data = err?.response?.data;
             const msg = data?.error || `${action === "clock-out" ? "Clock-out" : "Login"} failed. Please try again.`;
             setSubmitErr({ message: msg, code: data?.code });
             setStep("face");
+            submittingRef.current = false;
+            return false;
         }
     }
 
@@ -257,6 +278,7 @@ export default function ClockInVerifyModal({
     // connection without a matching BSSID does NOT count as office-verified.
     const wifiVerified = wifiMatchesOffice;
     const wifiConnected = !!(wifi && wifi.ok && wifi.bssid);
+    const presenceReady = !needsLocation || wifiVerified || !!location;
 
     return (
         <div className={s.backdrop} onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose?.(); }}>
@@ -271,7 +293,7 @@ export default function ClockInVerifyModal({
                 {/* Step indicator */}
                 <ol className={s.steps}>
                     {needsLocation && (
-                        <li className={`${s.step} ${(step === "location") ? s.active : ((location || wifiVerified) ? s.done : "")}`}>
+                        <li className={`${s.step} ${presenceReady ? s.done : s.active}`}>
                             <span className={s.stepNum}>
                                 {(location || wifiVerified) ? <CheckCircle2 size={14} /> : "1"}
                             </span>
@@ -288,36 +310,31 @@ export default function ClockInVerifyModal({
                 </ol>
 
                 <div className={s.body}>
-                    {step === "location" && (
-                        <div className={s.locBox}>
-                            {locErr ? (
-                                <>
+                    {(step === "face" || step === "submitting") && (
+                        <>
+                            <p className={s.helpText}>
+                                Look at the camera. Verification will run automatically when your face and office presence are ready.
+                            </p>
+                            {needsLocation && busy && !presenceReady && (
+                                <div className={s.locInfo}>
+                                    <Loader2 size={14} className={s.spin} /> Detecting office Wi-Fi and location…
+                                </div>
+                            )}
+                            {needsLocation && locErr && !presenceReady && (
+                                <div className={s.signalError}>
                                     <div className={s.errMsg}><AlertTriangle size={16} /> {locErr.message}</div>
-                                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                                        <button className="btn btn-primary" onClick={requestSignals} disabled={busy}>
+                                    <div className={s.signalActions}>
+                                        <button className="btn btn-primary btn-sm" onClick={requestSignals} disabled={busy}>
                                             {busy ? <><Loader2 size={14} className={s.spin} /> Requesting…</> : "Try again"}
                                         </button>
                                         {inElectron && (locErr.code === "POSITION_UNAVAILABLE" || locErr.code === "PERMISSION_DENIED" || (Number.isFinite(locErr.accuracy) && (locErr.accuracy ?? 0) > 200)) && (
-                                            <button className="btn btn-secondary" onClick={openLocationSettings} disabled={busy}>
+                                            <button className="btn btn-secondary btn-sm" onClick={openLocationSettings} disabled={busy}>
                                                 Open Location Settings
                                             </button>
                                         )}
                                     </div>
-                                </>
-                            ) : (
-                                <>
-                                    <Loader2 size={28} className={s.spin} />
-                                    <div>Detecting your office signals…</div>
-                                </>
+                                </div>
                             )}
-                        </div>
-                    )}
-
-                    {(step === "face" || step === "submitting") && (
-                        <>
-                            <p className={s.helpText}>
-                                Look at the camera. We'll compare this image to your enrolled face.
-                            </p>
                             {needsLocation && wifiVerified && (
                                 <div className={s.locDone}>
                                     <Wifi size={14} /> Connected to&nbsp;<strong>{wifi?.ssid || "office Wi-Fi"}</strong>
@@ -372,11 +389,11 @@ export default function ClockInVerifyModal({
                                 // frame — but only until the first server
                                 // rejection, so a mismatch doesn't auto-retry
                                 // into the face-attempt rate limit.
-                                autoCapture={!submitErr}
+                                autoCapture={presenceReady && !submitErr}
                                 captureLabel={`Verify & ${action === "clock-out" ? "Clock Out" : "Login"}`}
                                 capturingLabel="Verifying..."
                                 onCapture={handleFaceCapture}
-                                disabled={step === "submitting"}
+                                disabled={step === "submitting" || !presenceReady}
                             />
                         </>
                     )}

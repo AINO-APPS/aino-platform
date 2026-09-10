@@ -23,7 +23,7 @@ interface FaceCaptureProps {
     autoCapture?: boolean;
     captureLabel?: string;
     capturingLabel?: string;
-    onCapture?: (descriptor: number[] | Float32Array) => void | Promise<void>;
+    onCapture?: (descriptor: number[] | Float32Array) => void | boolean | Promise<void | boolean>;
     onError?: (msg: string) => void;
     disabled?: boolean;
 }
@@ -61,6 +61,7 @@ export default function FaceCapture({
 }: FaceCaptureProps) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const captureInFlightRef = useRef(false);
     const [state, setState] = useState<CaptureState>("idle");
     const [error, setError] = useState<string | null>(null);
     // Live coaching quality + how many consecutive confident frames we've seen
@@ -73,13 +74,29 @@ export default function FaceCapture({
         setState("loading");
         setError(null);
         try {
-            // Load the model weights first (one-time, cached by the browser).
-            await loadFaceModels();
+            // Camera permission/startup and model loading are independent and
+            // can each take seconds on a cold launch, so overlap them.
+            const modelsPromise = loadFaceModels();
             const stream = await getWebcamStream();
+            try {
+                await modelsPromise;
+            } catch (modelError) {
+                stopStream(stream);
+                throw modelError;
+            }
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play().catch(() => { /* autoplay may fail silently */ });
+                if (videoRef.current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+                    await new Promise<void>((resolve) => {
+                        const video = videoRef.current;
+                        if (!video) return resolve();
+                        const done = () => resolve();
+                        video.addEventListener("loadeddata", done, { once: true });
+                        setTimeout(done, 1000);
+                    });
+                }
             }
             setState("ready");
         } catch (err) {
@@ -105,7 +122,8 @@ export default function FaceCapture({
     }, []);
 
     const handleCapture = useCallback(async () => {
-        if (!videoRef.current || state !== "ready") return;
+        if (!videoRef.current || state !== "ready" || captureInFlightRef.current) return;
+        captureInFlightRef.current = true;
         setState("capturing");
         setError(null);
         try {
@@ -113,9 +131,15 @@ export default function FaceCapture({
             if (!descriptor) {
                 setError("Couldn't detect a face. Make sure your face is clearly visible and well-lit.");
                 setState("ready");
+                captureInFlightRef.current = false;
                 return;
             }
-            await onCapture?.(descriptor);
+            const accepted = await onCapture?.(descriptor);
+            if (accepted === false) {
+                captureInFlightRef.current = false;
+                setState("ready");
+                return;
+            }
             // Brief success affirmation before the parent tears down the modal.
             setState("success");
             return;
@@ -123,6 +147,7 @@ export default function FaceCapture({
             const msg = (err as Error)?.message || "Failed to capture face";
             setError(msg);
             setState("ready");
+            captureInFlightRef.current = false;
             onError?.(msg);
         }
     }, [onCapture, onError, state]);
