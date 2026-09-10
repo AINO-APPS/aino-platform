@@ -62,6 +62,9 @@ export default function FaceCapture({
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const captureInFlightRef = useRef(false);
+    const stateRef = useRef<CaptureState>("idle");
+    const onCaptureRef = useRef(onCapture);
+    const onErrorRef = useRef(onError);
     const [state, setState] = useState<CaptureState>("idle");
     const [error, setError] = useState<string | null>(null);
     // Live coaching quality + how many consecutive confident frames we've seen
@@ -70,8 +73,16 @@ export default function FaceCapture({
     const [quality, setQuality] = useState<CaptureQuality>("none");
     const [progressHits, setProgressHits] = useState(0);
 
+    useEffect(() => { onCaptureRef.current = onCapture; }, [onCapture]);
+    useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
+    const updateState = useCallback((next: CaptureState) => {
+        stateRef.current = next;
+        setState(next);
+    }, []);
+
     const start = useCallback(async () => {
-        setState("loading");
+        updateState("loading");
         setError(null);
         try {
             // Camera permission/startup and model loading are independent and
@@ -98,14 +109,14 @@ export default function FaceCapture({
                     });
                 }
             }
-            setState("ready");
+            updateState("ready");
         } catch (err) {
             const msg = (err as Error)?.message || "Failed to start camera";
             setError(msg);
-            setState("error");
-            onError?.(msg);
+            updateState("error");
+            onErrorRef.current?.(msg);
         }
-    }, [onError]);
+    }, [updateState]);
 
     const stop = useCallback(() => {
         stopStream(streamRef.current);
@@ -122,35 +133,35 @@ export default function FaceCapture({
     }, []);
 
     const handleCapture = useCallback(async () => {
-        if (!videoRef.current || state !== "ready" || captureInFlightRef.current) return;
+        if (!videoRef.current || stateRef.current !== "ready" || captureInFlightRef.current) return;
         captureInFlightRef.current = true;
-        setState("capturing");
+        updateState("capturing");
         setError(null);
         try {
             const descriptor = await extractDescriptor(videoRef.current);
             if (!descriptor) {
                 setError("Couldn't detect a face. Make sure your face is clearly visible and well-lit.");
-                setState("ready");
                 captureInFlightRef.current = false;
+                updateState("ready");
                 return;
             }
-            const accepted = await onCapture?.(descriptor);
+            const accepted = await onCaptureRef.current?.(descriptor);
             if (accepted === false) {
                 captureInFlightRef.current = false;
-                setState("ready");
+                updateState("ready");
                 return;
             }
             // Brief success affirmation before the parent tears down the modal.
-            setState("success");
+            updateState("success");
             return;
         } catch (err) {
             const msg = (err as Error)?.message || "Failed to capture face";
             setError(msg);
-            setState("ready");
             captureInFlightRef.current = false;
-            onError?.(msg);
+            updateState("ready");
+            onErrorRef.current?.(msg);
         }
-    }, [onCapture, onError, state]);
+    }, [updateState]);
 
     // Auto-capture loop: cheap detector polls the live video; after N
     // consecutive confident hits we run the full capture automatically.
@@ -172,8 +183,12 @@ export default function FaceCapture({
                     // A face is present but not confident enough -> coach;
                     // a confident frame means capture is imminent.
                     setQuality(score >= QUALITY_GOOD_SCORE ? "good" : "weak");
-                    if (hits >= AUTO_CONSECUTIVE_HITS) {
-                        handleCapture();
+                    // A single strong frame is safe to capture immediately;
+                    // marginal detections still need two consecutive hits.
+                    // This avoids getting stuck on "Hold still" when detector
+                    // confidence oscillates around the strong threshold.
+                    if (score >= QUALITY_GOOD_SCORE || hits >= AUTO_CONSECUTIVE_HITS) {
+                        void handleCapture();
                         return; // state change re-arms the effect after capture
                     }
                 } else {
