@@ -149,6 +149,7 @@ jobs:
           echo "SPA shell verified at ${SPA_PUBLIC_ORIGIN}"
 
       - name: Upload build as rollback artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: web-spa-${{ github.sha }}
