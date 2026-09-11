@@ -20,6 +20,14 @@ compatibility_date = "2026-08-01"
 routes = [
   { pattern = "aino.org.in/*", zone_name = "aino.org.in" },
   { pattern = "www.aino.org.in/*", zone_name = "aino.org.in" },
+  # Platform Console (PR-B). Served by the same Worker and the same Railway
+  # services — the split is by AUTH REALM, not by deployment. The console host
+  # gets its own cookie (`aino_console`) because cookies are host-scoped, so a
+  # control-plane session can never be sent to the application host.
+  #
+  # Requires: a proxied DNS record for `console` in this zone, and CONSOLE_HOST
+  # set on the web service. See docs/CONSOLE_HOST_SETUP.md.
+  { pattern = "console.aino.org.in/*", zone_name = "aino.org.in" },
 ]
 
 [vars]

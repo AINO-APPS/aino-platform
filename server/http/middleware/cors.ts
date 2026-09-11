@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { consoleHost } from "../../platform/reservedHosts";
 
 function installCors(app: Express): void {
     const port = process.env.PORT || 5000;
@@ -12,6 +13,11 @@ function installCors(app: Express): void {
             }
             const host = req.headers.host;
             if (host && (origin === `https://${host}` || origin === `http://${host}`)) return true;
+            // The console is served from its own hostname; the same-host rule
+            // above already covers it, but naming it explicitly keeps the
+            // allowlist honest if the console is ever served from a separate
+            // origin (e.g. a static build hitting the API cross-origin).
+            if (consoleHost() && (origin === `https://${consoleHost()}` || origin === `http://${consoleHost()}`)) return true;
             // Accept both schemes until all legacy desktop builds have updated.
             if (origin.startsWith("workpulse://") || origin.startsWith("aino://")) return true;
             if (process.env.NODE_ENV !== "production") {

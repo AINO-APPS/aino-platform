@@ -31,6 +31,8 @@ export interface User {
     tenant_plan?: string;
     tenant_features?: Record<string, boolean> | null;
     has_reports?: boolean;
+    has_linked_realm?: boolean;
+    platform_role?: string;
     impersonated?: boolean;
     impersonated_by_name?: string | null;
     impersonated_tenant_name?: string | null;

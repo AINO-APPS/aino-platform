@@ -409,8 +409,14 @@ describe("PUT /api/profile/password", () => {
             expect.anything(), "platform_admin_change_password", "platform_user", 9,
             { sessions_revoked: true },
         );
-        const tokenCookie = res.headers["set-cookie"][0].match(/^token=([^;]+)/)?.[1];
-        expect(jwt.decode(tokenCookie)).toMatchObject({ platform: true, tv: 1 });
+        // PR-B: a tenantless platform principal is re-issued into the CONSOLE
+        // cookie (`aino_console`), not the tenant cookie. Asserting the name
+        // here is deliberate — writing this token to `token` would put a
+        // control-plane session on the application host.
+        const setCookie = res.headers["set-cookie"][0];
+        expect(setCookie).toMatch(/^aino_console=/);
+        const tokenCookie = setCookie.match(/^aino_console=([^;]+)/)?.[1];
+        expect(jwt.decode(tokenCookie)).toMatchObject({ platform: true, tv: 1, aud: "platform" });
         expect(jwt.decode(tokenCookie)).not.toHaveProperty("tenant_id");
     });
 

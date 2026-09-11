@@ -42,17 +42,30 @@ function webauthnConfig(req: Request): { rpID: string; rpName: string; origin: s
     return { rpID, rpName: "AINO", origin };
 }
 
-const { cookieOptions } = require("../utils/cookie");
+const {
+    cookieOptions, cookieNameForRealm, cookieNameForRequest, readAuthToken,
+    TENANT_COOKIE: TENANT_COOKIE_NAME, PLATFORM_COOKIE: PLATFORM_COOKIE_NAME,
+} = require("../utils/cookie");
+import { realmClaims, expectedRealm, TENANT_REALM, PLATFORM_REALM, type Realm } from "../platform/realm";
+import { consoleHost } from "../platform/reservedHosts";
+import {
+    createHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
+} from "../services/realmHandoff";
 
 // Native mobile clients (React Native) can't use HttpOnly cookies, so they need
 // the JWT in the response body. This wraps res.cookie/res.json once for the
-// whole auth router: whenever an auth flow sets the `token` cookie, the same
-// token is mirrored into the JSON body as `token`. Web/desktop clients keep
-// using the cookie and simply ignore the extra field.
+// whole auth router: whenever an auth flow sets an auth cookie, the same token
+// is mirrored into the JSON body as `token`. Web/desktop clients keep using the
+// cookie and simply ignore the extra field.
+//
+// PR-B: match on EITHER realm cookie. Hardcoding "token" here silently stopped
+// mirroring once platform login moved to `aino_console`, which would have
+// broken every body-token consumer of a platform auth response.
+const AUTH_COOKIE_NAMES = new Set([TENANT_COOKIE_NAME, PLATFORM_COOKIE_NAME]);
 router.use((req: Request, res: Response, next: NextFunction) => {
     const originalCookie = res.cookie.bind(res);
     res.cookie = ((name: string, value: string, options?: any) => {
-        if (name === "token") res.locals.authToken = value;
+        if (AUTH_COOKIE_NAMES.has(name)) res.locals.authToken = value;
         return originalCookie(name, value, options);
     }) as any;
 
@@ -89,10 +102,14 @@ async function getTenantDb(tenantId: number): Promise<any> {
  * Checks user_directory (email) then platform_users (username/email).
  */
 async function resolveDefaultDomainUser(identifier: string): Promise<any> {
-    // 1. Try user_directory (email or username)
+    const normalized = identifier.toLowerCase();
+    let tenantCandidate: any = null;
+    let platformCandidate: any = null;
+
+    // 1. Tenant principal from the global login directory.
     const dirRes = await masterQuery(
         "SELECT tenant_id, user_id FROM user_directory WHERE email = $1 OR username = $1",
-        [identifier.toLowerCase()]
+        [normalized]
     );
     if (dirRes.rows[0]) {
         const { tenant_id, user_id } = dirRes.rows[0];
@@ -100,74 +117,39 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
         if (!tdb) return { error: "Organization is not available." };
         const userRes = await tdb.query("SELECT * FROM users WHERE id = $1", [user_id]);
         if (userRes.rows[0]) {
-            // Check if this user is also a platform admin
-            const platCheck = await masterQuery(
-                "SELECT * FROM platform_users WHERE LOWER(username) = $1 OR LOWER(email) = $1",
-                [identifier.toLowerCase()]
-            );
-            const isPlatformUser = !!platCheck.rows[0];
-            if (isPlatformUser) {
-                return { user: platCheck.rows[0], db: { query: masterQuery }, tenantId: null, isPlatformUser: true };
-            }
-
-            // ── Self-heal: platform admin polluted into a CUSTOMER tenant ──
-            // A historical bug seeded platform admins into the first active
-            // tenant (not the default platform tenant) and left a sticky
-            // user_directory row pointing there. Platform admins must only
-            // live in the default tenant; customer tenants are reached
-            // exclusively via consent-gated impersonation. When we detect a
-            // platform admin whose directory row points at a NON-default
-            // tenant, scrub the stale data and fall through to the pure
-            // platform_users login path below (finishLogin then homes them
-            // in the default tenant correctly).
-            if (isPlatformUser && tdb.tenant && !tdb.tenant.is_default) {
-                logger.warn(
-                    { identifier: identifier.toLowerCase(), tenantId: tenant_id },
-                    "Platform admin found in non-default tenant — scrubbing stale membership"
-                );
-                try {
-                    await masterQuery(
-                        "DELETE FROM user_directory WHERE tenant_id = $1 AND user_id = $2",
-                        [tenant_id, user_id]
-                    );
-                } catch (e: any) {
-                    logger.warn({ err: e?.message }, "self-heal: user_directory cleanup failed");
-                }
-                try {
-                    await tdb.query(
-                        "UPDATE users SET is_active = FALSE, hidden_from_directory = TRUE WHERE id = $1",
-                        [user_id]
-                    );
-                } catch (e: any) {
-                    logger.warn({ err: e?.message }, "self-heal: tenant users row cleanup failed");
-                }
-                // Fall through to the platform_users lookup below.
-            } else {
-                // Return the tenant record (carries .slug) so flows that need the
-                // tenant slug can access it.
-                return { user: userRes.rows[0], db: tdb, tenantId: tenant_id, isPlatformUser, tenant: tdb.tenant };
-            }
+            tenantCandidate = {
+                user: userRes.rows[0], db: tdb, tenantId: tenant_id,
+                isPlatformUser: false, tenant: tdb.tenant, realm: TENANT_REALM,
+            };
         }
     }
 
-    // 2. Try platform_users
+    // 2. Independent platform principal. Never replaces or mutates the tenant
+    // principal. The old code deactivated/hidden the tenant row here; PR-C
+    // deliberately removes that destructive "self-heal".
     const platRes = await masterQuery(
-        "SELECT * FROM platform_users WHERE username = $1 OR email = $1",
-        [identifier]
+        "SELECT * FROM platform_users WHERE LOWER(username) = $1 OR LOWER(email) = $1",
+        [normalized]
     );
     if (platRes.rows[0]) {
-        return { user: platRes.rows[0], db: { query: masterQuery }, tenantId: null, isPlatformUser: true };
+        platformCandidate = {
+            user: platRes.rows[0], db: { query: masterQuery }, tenantId: null,
+            isPlatformUser: true, realm: PLATFORM_REALM,
+        };
     }
 
-    // Legacy single-DB fallback removed (was: SELECT * FROM users in master DB).
-    // After migration to per-tenant databases, every real user lives in either
-    // user_directory (mapped to a tenant DB) or platform_users. Falling back
-    // to a master-DB users lookup masked routing bugs and added attack surface
-    // (an unbounded auth lookup against the master pool).
-    //
-    // If you are still on a pre-migration deployment, run the migration script
-    // to backfill user_directory rows before upgrading.
-    return { user: null };
+    // Both identities are selectable only when explicitly linked. A matching
+    // email/username is not authority by itself.
+    let link: any = null;
+    if (tenantCandidate && platformCandidate) {
+        link = (await masterQuery(
+            `SELECT default_realm FROM platform_user_links
+              WHERE platform_user_id = $1 AND tenant_id = $2 AND tenant_user_id = $3`,
+            [platformCandidate.user.id, tenantCandidate.tenantId, tenantCandidate.user.id],
+        )).rows[0] || null;
+    }
+
+    return { tenantCandidate, platformCandidate, link };
 }
 
 /**
@@ -355,12 +337,14 @@ router.post("/register", async (req: Request, res: Response) => {
         }
 
         const sid = await createSession(result.id, req.headers["user-agent"], db, tenantId);
+        // Registration always produces a TENANT identity — platform operators
+        // are provisioned by an existing operator, never self-registered.
         const token = jwt.sign(
-            { id: result.id, username, tv: 0, sid, tenant_id: tenantId },
+            { id: result.id, username, tv: 0, sid, tenant_id: tenantId, ...realmClaims(TENANT_REALM) },
             process.env.JWT_SECRET,
             { expiresIn: "8h" },
         );
-        res.cookie("token", token, cookieOptions(req));
+        res.cookie(cookieNameForRealm(TENANT_REALM), token, cookieOptions(req));
         res.json({ user: { id: result.id, username, full_name, email, avatar: null, role: result.role, org_id: assignedOrgId, tenant_id: tenantId } });
     } catch (err: any) {
         if (err.message === "INVITE_EXHAUSTED") {
@@ -388,12 +372,20 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
         db = { query: masterQuery };
     }
     const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId);
+    // The realm travels with the token as `aud`, so a console session can
+    // never authenticate an app-host request (and vice-versa). See PR-B /
+    // platform/realm.ts.
+    const realm: Realm = isPlatformUser ? PLATFORM_REALM : TENANT_REALM;
     const token = jwt.sign(
-        { id: user.id, username: user.username, tv: user.token_version || 0, sid, tenant_id: tenantId, platform: isPlatformUser || undefined },
+        {
+            id: user.id, username: user.username, tv: user.token_version || 0, sid,
+            tenant_id: tenantId, platform: isPlatformUser || undefined,
+            ...realmClaims(realm),
+        },
         process.env.JWT_SECRET,
         { expiresIn: "8h" },
     );
-    res.cookie("token", token, cookieOptions(req));
+    res.cookie(cookieNameForRealm(realm), token, cookieOptions(req));
 
     if (isPlatformUser) {
         // Platform identities always remain in master context. Customer-tenant
@@ -436,6 +428,127 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
     });
 }
 
+function tenantAppUrl(tenant: any): string {
+    const host = tenant?.custom_domain || process.env.APP_HOST || "aino.org.in";
+    return `https://${host}`;
+}
+
+function platformConsoleUrl(): string {
+    return `https://${consoleHost() || "console.aino.org.in"}`;
+}
+
+async function linkedPrincipals(platformUserId: number, tenantId: number, tenantUserId: number) {
+    const link = (await masterQuery(
+        `SELECT pul.*, t.org_name, t.slug, t.custom_domain, t.status, t.db_name, t.db_host
+           FROM platform_user_links pul
+           JOIN tenants t ON t.id = pul.tenant_id
+          WHERE pul.platform_user_id = $1 AND pul.tenant_id = $2 AND pul.tenant_user_id = $3`,
+        [platformUserId, tenantId, tenantUserId],
+    )).rows[0];
+    if (!link || link.status !== "active") return null;
+    const platform = (await masterQuery("SELECT * FROM platform_users WHERE id = $1", [platformUserId])).rows[0];
+    const tenantDb = await getTenantDb(tenantId);
+    if (!platform || !platform.is_active || !tenantDb) return null;
+    const tenantUser = (await tenantDb.query("SELECT * FROM users WHERE id = $1", [tenantUserId])).rows[0];
+    if (!tenantUser || !tenantUser.is_active) return null;
+    return { link, platform, tenantUser, tenantDb };
+}
+
+// Complete a 60-second login realm choice. Consuming the ticket first makes it
+// single-use across replicas. If the selected realm belongs to another host,
+// return a second 30-second handoff instead of attempting to set a cross-host
+// cookie (browsers correctly forbid that).
+router.post("/login/realm", async (req: Request, res: Response) => {
+    const { login_ticket, realm: selectedRealm } = req.body || {};
+    if (!login_ticket || ![TENANT_REALM, PLATFORM_REALM].includes(selectedRealm)) {
+        return res.status(400).json({ error: "A valid login ticket and realm are required" });
+    }
+    const choice = await consumeLoginChoice(String(login_ticket));
+    if (!choice) return res.status(401).json({ error: "Login choice expired or was already used", code: "LOGIN_CHOICE_INVALID" });
+    const pair = await linkedPrincipals(choice.platform_user_id, choice.tenant_id, choice.tenant_user_id);
+    if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
+
+    if (expectedRealm(req) !== selectedRealm) {
+        const handoff = await createHandoff({
+            source_realm: "login", target_realm: selectedRealm,
+            platform_user_id: choice.platform_user_id,
+            tenant_id: choice.tenant_id, tenant_user_id: choice.tenant_user_id,
+        });
+        const base = selectedRealm === PLATFORM_REALM ? platformConsoleUrl() : tenantAppUrl(pair.link);
+        return res.json({ redirect: `${base}/auth/handoff#t=${encodeURIComponent(handoff)}` });
+    }
+    return selectedRealm === PLATFORM_REALM
+        ? finishLogin(req, res, { user: pair.platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true })
+        : finishLogin(req, res, { user: pair.tenantUser, db: pair.tenantDb, tenantId: choice.tenant_id, isPlatformUser: false });
+});
+
+// Redeem a cross-host, 30-second, single-use handoff and establish the target
+// realm's host-scoped session. The endpoint refuses redemption on the wrong
+// host, so a leaked handoff cannot install its cookie anywhere else.
+router.post("/handoff", async (req: Request, res: Response) => {
+    const targetHere = expectedRealm(req);
+    const handoff = await consumeHandoff(String(req.body?.ticket || ""), targetHere);
+    if (!handoff) return res.status(401).json({ error: "Handoff expired or was already used", code: "HANDOFF_INVALID" });
+    const pair = await linkedPrincipals(handoff.platform_user_id, handoff.tenant_id, handoff.tenant_user_id);
+    if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
+    return handoff.target_realm === PLATFORM_REALM
+        ? finishLogin(req, res, { user: pair.platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true })
+        : finishLogin(req, res, { user: pair.tenantUser, db: pair.tenantDb, tenantId: handoff.tenant_id, isPlatformUser: false });
+});
+
+// Step-up realm switch for an already-authenticated linked principal. The
+// platform password is always required; this prevents a stolen tenant session
+// alone from opening the provider console. MFA-required accounts fail closed
+// until provider MFA enrollment/verification lands.
+router.post("/switch-realm", auth, async (req: Request, res: Response) => {
+    const { target_realm, password, tenant_id } = req.body || {};
+    if (![TENANT_REALM, PLATFORM_REALM].includes(target_realm) || typeof password !== "string") {
+        return res.status(400).json({ error: "target_realm and password are required" });
+    }
+    if (target_realm === req.realm) return res.status(400).json({ error: "Already in that realm", code: "ALREADY_IN_REALM" });
+
+    let link: any;
+    if (req.realm === PLATFORM_REALM) {
+        const params: any[] = [req.userId];
+        let tenantFilter = "";
+        if (tenant_id) { params.push(Number(tenant_id)); tenantFilter = " AND pul.tenant_id = $2"; }
+        const links = await masterQuery(`SELECT * FROM platform_user_links pul WHERE pul.platform_user_id = $1${tenantFilter} ORDER BY pul.linked_at`, params);
+        if (links.rows.length !== 1) {
+            return res.status(409).json({ error: "Choose a linked tenant", code: "TENANT_CHOICE_REQUIRED", links: links.rows.map((l: any) => ({ tenant_id: l.tenant_id })) });
+        }
+        link = links.rows[0];
+    } else {
+        link = (await masterQuery(
+            "SELECT * FROM platform_user_links WHERE tenant_id = $1 AND tenant_user_id = $2",
+            [req.tenantId, req.userId],
+        )).rows[0];
+    }
+    if (!link) return res.status(403).json({ error: "This account is not linked to the other realm", code: "REALM_LINK_REQUIRED" });
+    const platform = (await masterQuery("SELECT * FROM platform_users WHERE id = $1", [link.platform_user_id])).rows[0];
+    if (!platform || !platform.is_active || !(await bcrypt.compare(password, platform.password))) {
+        return res.status(401).json({ error: "Password did not match", code: "STEP_UP_FAILED" });
+    }
+    if (platform.mfa_required) {
+        return res.status(403).json({ error: "Platform MFA verification is required before switching realms", code: "MFA_REQUIRED" });
+    }
+    const pair = await linkedPrincipals(link.platform_user_id, link.tenant_id, link.tenant_user_id);
+    if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
+    const handoff = await createHandoff({
+        source_realm: req.realm as Realm, target_realm,
+        platform_user_id: link.platform_user_id,
+        tenant_id: link.tenant_id, tenant_user_id: link.tenant_user_id,
+    });
+    const base = target_realm === PLATFORM_REALM ? platformConsoleUrl() : tenantAppUrl(pair.link);
+    // Platform audit actor_id references platform_users, so tenant-realm
+    // requests must be attributed to the linked platform principal rather
+    // than the tenant-local user id (a different keyspace).
+    await logPlatformAction({ ...req, userId: link.platform_user_id } as Request,
+        "realm_switch_requested", "platform_user", link.platform_user_id, {
+        source_realm: req.realm, target_realm, tenant_id: link.tenant_id,
+    }, link.tenant_id);
+    res.json({ redirect: `${base}/auth/handoff#t=${encodeURIComponent(handoff)}` });
+});
+
 // Login
 router.post("/login", async (req: Request, res: Response) => {
     try {
@@ -444,7 +557,7 @@ router.post("/login", async (req: Request, res: Response) => {
             return res.status(400).json({ error: "Username and password are required" });
         }
 
-        let user: any, db: any, tenantId: number | null, isPlatformUser = false;
+        let user: any = null, db: any = null, tenantId: number | null = null, isPlatformUser = false;
 
         if (req.tenant) {
             // ─── Custom domain → query tenant DB directly ───
@@ -458,10 +571,81 @@ router.post("/login", async (req: Request, res: Response) => {
             // ─── Default domain → cross-tenant resolution ───
             const resolved = await resolveDefaultDomainUser(username);
             if (resolved.error) return res.status(403).json({ error: resolved.error });
-            user = resolved.user;
-            db = resolved.db;
-            tenantId = resolved.tenantId || null;
-            isPlatformUser = !!resolved.isPlatformUser;
+            const tenant = resolved.tenantCandidate;
+            const platform = resolved.platformCandidate;
+
+            if (tenant && platform && resolved.link) {
+                // Verify against BOTH principals before offering a choice. A
+                // matching identifier or link row is not sufficient proof;
+                // credentials may differ across the two identity stores.
+                const [tenantOk, platformOk] = await Promise.all([
+                    bcrypt.compare(password, tenant.user.password),
+                    bcrypt.compare(password, platform.user.password),
+                ]);
+                if (tenantOk && platformOk) {
+                    const loginTicket = await createLoginChoice({
+                        platform_user_id: platform.user.id,
+                        tenant_id: tenant.tenantId,
+                        tenant_user_id: tenant.user.id,
+                    });
+                    return res.status(409).json({
+                        error: "Choose where you want to sign in.",
+                        code: "REALM_CHOICE_REQUIRED",
+                        realm_choice_required: true,
+                        login_ticket: loginTicket,
+                        realms: [
+                            {
+                                realm: TENANT_REALM,
+                                label: `${tenant.tenant.org_name} — Employee`,
+                                tenant_id: tenant.tenantId,
+                                default: resolved.link.default_realm === TENANT_REALM,
+                            },
+                            {
+                                realm: PLATFORM_REALM,
+                                label: "AINO Platform Console",
+                                default: resolved.link.default_realm === PLATFORM_REALM,
+                            },
+                        ],
+                    });
+                }
+                // If only one password matches, authenticate only that
+                // principal. This supports independently rotated passwords.
+                const selected = platformOk ? platform : tenantOk ? tenant : null;
+                if (selected) {
+                    user = selected.user; db = selected.db;
+                    tenantId = selected.tenantId || null;
+                    isPlatformUser = !!selected.isPlatformUser;
+                }
+            } else {
+                // No explicit link: preserve ordinary single-principal login.
+                // If an identifier exists in both stores but is not linked,
+                // tenant wins — merely sharing an email must never grant
+                // platform authority.
+                const selected = tenant || platform;
+                user = selected?.user;
+                db = selected?.db;
+                tenantId = selected?.tenantId || null;
+                isPlatformUser = !!selected?.isPlatformUser;
+            }
+        }
+
+        // A single-principal platform login belongs on the console host. A
+        // host-scoped `aino_console` cookie set by the application host would
+        // be stranded there and unavailable to console. Linked identities use
+        // the chooser/handoff path above; pure platform identities are told to
+        // sign in at the correct host.
+        if (isPlatformUser && expectedRealm(req) !== PLATFORM_REALM && consoleHost()) {
+            return res.status(403).json({
+                error: "Platform accounts sign in through the Platform Console.",
+                code: "PLATFORM_LOGIN_HOST_REQUIRED",
+                redirect: `${platformConsoleUrl()}/login`,
+            });
+        }
+        if (!isPlatformUser && user && expectedRealm(req) === PLATFORM_REALM) {
+            return res.status(403).json({
+                error: "Tenant accounts sign in through their workspace.",
+                code: "TENANT_LOGIN_HOST_REQUIRED",
+            });
         }
 
         // Check account lockout — return generic message to prevent account enumeration
@@ -667,6 +851,11 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
         };
         // Preserve platform_admin flag across refreshes
         if (req.isPlatformUser) claims.platform = true;
+        // Re-stamp the realm. This is also how pre-PR-B (realmless) tokens get
+        // upgraded: a refresh mints a token carrying `aud`, which is why the
+        // legacy-token counter decays to zero within one token lifetime.
+        const refreshRealm: Realm = req.realm === PLATFORM_REALM ? PLATFORM_REALM : TENANT_REALM;
+        Object.assign(claims, realmClaims(refreshRealm));
         // Preserve impersonation state
         if (req.isImpersonated) {
             claims.impersonated = true;
@@ -675,7 +864,7 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
         }
 
         const token = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: "8h" });
-        res.cookie("token", token, cookieOptions(req));
+        res.cookie(cookieNameForRealm(refreshRealm), token, cookieOptions(req));
         res.json({ message: "Token refreshed" });
     } catch (err) {
         req.log.error({ err }, "Token refresh error");
@@ -695,8 +884,10 @@ router.post("/activity", auth, async (req: Request, res: Response) => {
 // Logout — always succeeds even without a valid token
 router.post("/logout", async (req: Request, res: Response) => {
     try {
-        const authHeader = req.headers.authorization;
-        const token = req.cookies.token || (typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null);
+        // Realm-scoped: logging out of the console must not end the user's
+        // tenant session, and vice-versa. Only this host's cookie is read and
+        // only its session row is deleted.
+        const token = readAuthToken(req);
         if (token) {
             const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
             if (decoded.sid) {
@@ -744,7 +935,7 @@ router.post("/logout", async (req: Request, res: Response) => {
     // (Electron uses sameSite=none+secure, production uses secure, dev uses
     // sameSite=strict without secure). Reuse it here so set/clear stay in
     // sync — only override maxAge to 0 to expire immediately.
-    res.clearCookie("token", cookieOptions(req, 0));
+    res.clearCookie(cookieNameForRequest(req), cookieOptions(req, 0));
     res.json({ message: "Logged out successfully" });
 });
 

@@ -162,4 +162,20 @@ describe("tenant management route characterization", () => {
         });
         expect(mockLoadPlanCatalog).toHaveBeenCalledTimes(1);
     });
+
+    test("requires platform_owner for linked-principal management", async () => {
+        mockMasterQuery.mockResolvedValueOnce({ rows: [{ platform_role: "platform_operator" }], rowCount: 1 });
+        const res = await request(makeApp()).get("/api/admin/tenants/platform-users/9/links");
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe("PLATFORM_OWNER_REQUIRED");
+    });
+
+    test("platform_owner can list a platform user's linked tenant principals", async () => {
+        mockMasterQuery
+            .mockResolvedValueOnce({ rows: [{ platform_role: "platform_owner" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ platform_user_id: 9, tenant_id: 1, tenant_user_id: 2, org_name: "AINO" }], rowCount: 1 });
+        const res = await request(makeApp()).get("/api/admin/tenants/platform-users/9/links");
+        expect(res.status).toBe(200);
+        expect(res.body.links).toEqual([expect.objectContaining({ tenant_id: 1, tenant_user_id: 2 })]);
+    });
 });

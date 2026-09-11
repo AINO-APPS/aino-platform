@@ -318,17 +318,26 @@ async function getActiveSession(tenantId: number): Promise<AccessRequestRow | nu
  * request access to in the first place.
  *
  * Anything describing what the tenant's people are actually DOING - user rows
- * (PII) and business-activity metrics - is tenant-private. For the default
- * tenant the platform admin is a first-class member, so it is visible. For
- * every other tenant it requires an approved, live, unrevoked session obtained
- * through the consent flow.
+ * (PII) and business-activity metrics - is tenant-private. It requires an
+ * approved, live, unrevoked session obtained through the consent flow.
+ *
+ * DENY BY DEFAULT FOR EVERY TENANT, INCLUDING THE DEFAULT (AINO) TENANT.
+ *
+ * This function used to short-circuit with `if (tenant.is_default) return true`,
+ * which gave every platform_users account permanent, unaudited, unapproved
+ * read access to the default tenant's employee PII. The default tenant is a
+ * customer of the platform like any other: its staff are administered from the
+ * tenant Admin panel (/admin), and platform operators reach it only through the
+ * same consent-gated flow used for external customers.
+ *
+ * See docs/adr/ADR-012-default-tenant-has-no-data-privilege.md and
+ * docs/PLATFORM_TENANT_SEPARATION_PLAN.md (PR-A / item A1).
  */
 async function hasTenantDataConsent(
     tenant: { id: number; is_default?: boolean } | null | undefined,
     req: { userId?: number; impersonatedBy?: number },
 ): Promise<boolean> {
     if (!tenant) return false;
-    if (tenant.is_default) return true;
     try {
         const session = await getActiveSession(tenant.id);
         if (!session) return false;

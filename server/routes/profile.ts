@@ -31,7 +31,8 @@ router.use((req: Request, res: Response, next) => {
     return requireTenant(req, res, next);
 });
 
-const { cookieOptions } = require("../utils/cookie");
+const { cookieOptions, cookieNameForRealm, cookieNameForRequest } = require("../utils/cookie");
+import { realmClaims, TENANT_REALM, PLATFORM_REALM } from "../platform/realm";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -130,13 +131,18 @@ router.get("/", auth, async (req: Request, res: Response) => {
 
         if (req.isPlatformUser && !req.tenantId && !req.isImpersonated) {
             const platformUser = (await masterQuery(`
-                SELECT id, username, full_name, email, avatar, role, must_change_password
+                SELECT id, username, full_name, email, avatar, role, must_change_password, platform_role
                 FROM platform_users
                 WHERE id = $1 AND is_active = TRUE
             `, [req.userId])).rows[0];
             if (!platformUser) return res.status(404).json({ error: "User not found" });
+            const hasLinkedRealm = !!(await masterQuery(
+                "SELECT 1 FROM platform_user_links WHERE platform_user_id = $1 LIMIT 1",
+                [req.userId],
+            )).rows[0];
             return res.json({
                 ...platformUser,
+                has_linked_realm: hasLinkedRealm,
                 must_change_password: !!platformUser.must_change_password,
                 org_id: null,
                 team_id: null,
@@ -193,6 +199,12 @@ router.get("/", auth, async (req: Request, res: Response) => {
         if (req.isPlatformUser) user.role = "platform_admin";
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];
         user.has_reports = !!hasReports;
+        if (!req.isImpersonated && req.tenantId) {
+            user.has_linked_realm = !!(await masterQuery(
+                "SELECT 1 FROM platform_user_links WHERE tenant_id = $1 AND tenant_user_id = $2 LIMIT 1",
+                [req.tenantId, req.userId],
+            )).rows[0];
+        }
         // Include impersonation info so the UI can show a banner
         if (req.isImpersonated) {
             user.impersonated = true;
@@ -314,8 +326,12 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         const tokenPayload: Record<string, unknown> = { id: req.userId, username: req.username, tv: updated.token_version || 0, sid: req.sessionId };
         if (req.tenantId) tokenPayload.tenant_id = req.tenantId;
         if (req.isPlatformUser) tokenPayload.platform = true;
+        // Re-issue in the SAME realm the request arrived on, so a console
+        // password change cannot hand back an app-host session.
+        const pwRealm = isTenantlessPlatformUser ? PLATFORM_REALM : TENANT_REALM;
+        Object.assign(tokenPayload, realmClaims(pwRealm));
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "8h" });
-        res.cookie("token", token, cookieOptions(req));
+        res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req));
         if (isTenantlessPlatformUser) {
             await logPlatformAction(req, "platform_admin_change_password", "platform_user", req.userId, { sessions_revoked: true });
         } else {
@@ -495,7 +511,7 @@ router.delete("/", auth, async (req: Request, res: Response) => {
             } catch { /* ignore if table doesn't exist */ }
         }
 
-        res.clearCookie("token", { httpOnly: true, sameSite: "strict", path: "/" });
+        res.clearCookie(cookieNameForRequest(req), { httpOnly: true, sameSite: "strict", path: "/" });
         res.json({ message: "Account deleted successfully" });
     } catch (err) {
         req.log.error({ err }, "DELETE /profile error");

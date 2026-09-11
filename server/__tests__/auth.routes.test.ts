@@ -223,7 +223,10 @@ describe("POST /api/auth/login", () => {
             must_change_password: true,
         });
         const token = jwt.decode(res.body.token);
-        expect(token).toMatchObject({ platform: true, tenant_id: null });
+        // PR-B: platform tokens carry aud="platform" so they cannot be replayed
+        // against the application host.
+        expect(token).toMatchObject({ platform: true, tenant_id: null, aud: "platform" });
+        expect(res.headers["set-cookie"][0]).toMatch(/^aino_console=/);
         expect(mockQuery.mock.calls.some(([sql]) => /FROM tenants/.test(sql))).toBe(false);
     });
 
@@ -282,6 +285,44 @@ describe("POST /api/auth/login", () => {
         expect(res.body.user.username).toBe("john");
         expect(res.body.user.full_name).toBe("John Doe");
         expect(res.headers["set-cookie"]).toBeDefined();
+    });
+
+    test("linked dual principal returns a realm chooser and never deactivates the tenant row", async () => {
+        const hash = await bcrypt.hash("SharedPass1!", 10);
+        const tenantUser = {
+            id: 2, username: "dual", email: "dual@example.test", password: hash,
+            full_name: "Dual User", is_active: true, role: "employee", failed_login_attempts: 0,
+        };
+        const platformUser = {
+            id: 9, username: "dual", email: "dual@example.test", password: hash,
+            full_name: "Dual User", is_active: true, role: "platform_admin", failed_login_attempts: 0,
+        };
+        const tm = require("../utils/tenantManager");
+        tm.getTenantById.mockResolvedValueOnce({
+            id: 1, slug: "aino", org_name: "AINO", db_name: "wp_aino", db_host: null, status: "active",
+        });
+        const tenantQuery = jest.fn().mockResolvedValueOnce({ rows: [tenantUser], rowCount: 1 });
+        tm.getTenantPool.mockResolvedValueOnce({ query: tenantQuery, transaction: jest.fn() });
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ tenant_id: 1, user_id: 2 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [platformUser], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ default_realm: "tenant" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // persist realm_login_choices
+
+        const res = await request(app).post("/api/auth/login").set(CSRF)
+            .send({ username: "dual", password: "SharedPass1!" });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("REALM_CHOICE_REQUIRED");
+        expect(res.body.realms).toEqual(expect.arrayContaining([
+            expect.objectContaining({ realm: "tenant", default: true }),
+            expect.objectContaining({ realm: "platform" }),
+        ]));
+        expect(res.body.login_ticket).toBeTruthy();
+        // The historical bug did both of these. They must never return.
+        expect(mockQuery.mock.calls.some(([sql]) => /DELETE FROM user_directory/i.test(sql))).toBe(false);
+        expect(tenantQuery.mock.calls.some(([sql]) => /UPDATE users SET is_active = FALSE/i.test(sql))).toBe(false);
+        expect(res.headers["set-cookie"]).toBeUndefined();
     });
 
     test("returns 403 for deactivated user", async () => {

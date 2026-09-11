@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import RealmHandoff from "./pages/RealmHandoff";
 import Navbar from "./components/navbar/Navbar";
 import AxiosInterceptor from "./components/common/AxiosInterceptor";
 import ErrorBoundary from "./components/common/ErrorBoundary";
@@ -73,7 +74,14 @@ interface ProtectedRouteProps {
 function ProtectedRoute({ children, minRole }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuth() as any;
   if (!isAuthenticated) return <Navigate to="/login" />;
-  // Force password change before accessing any route
+  // Force password change before accessing any route.
+  //
+  // Realm-scoped (PR-B): `must_change_password` is a property of the principal
+  // that owns THIS realm's session. A dual principal whose platform account is
+  // flagged must not be bounced while working as a tenant employee, and vice-
+  // versa. Because each realm has its own cookie and its own /profile call,
+  // `user` here is already the correct principal — the guard simply must not
+  // be widened to consider the other realm.
   if (user?.must_change_password) return <Navigate to="/change-password" />;
   if (minRole) {
     // Allow manager route if user has direct reports (even if role < team_lead)
@@ -191,6 +199,9 @@ function AppRoutes() {
                 </PublicRoute>
               }
             />
+            {/* Public one-time cross-host realm handoff. The ticket is signed,
+                30-second and atomically consumed by the server. */}
+            <Route path="/auth/handoff" element={<RealmHandoff />} />
             <Route
               path="/meeting/:code"
               element={

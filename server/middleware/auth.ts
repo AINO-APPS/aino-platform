@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
-const jwt = require("jsonwebtoken");
 import { logger } from "../utils/logger";
 import * as redis from "../redis";
 import { masterQuery } from "../db";
 import { validateSession } from "../services/authSessions";
+import { readAuthToken } from "../utils/cookie";
+import { verifyRealmToken, expectedRealm } from "../platform/realm";
 
 // ── Impersonation revocation cache ────────────────────────────────────────
 // Cache the per-request liveness check for an access-request row for 10s so
@@ -42,26 +43,42 @@ async function checkImpersonationStillAllowed(requestId: number): Promise<boolea
 }
 
 async function authMiddleware(req: any, res: Response, next: NextFunction): Promise<void | Response> {
-    // Web/desktop clients send the JWT in an HttpOnly cookie. Native mobile
-    // clients (React Native) can't manage cookies easily, so fall back to an
-    // `Authorization: Bearer <jwt>` header. Cookie takes precedence.
-    const authHeader = req.headers?.authorization;
-    const token =
-        req.cookies.token ||
-        (typeof authHeader === "string" && authHeader.startsWith("Bearer ")
-            ? authHeader.slice(7)
-            : null);
+    // Which cookie to read depends on the realm, which depends on the Host
+    // header — the console host uses `aino_console`, everything else `token`.
+    // Native mobile clients (tenant realm only) may still use a Bearer header.
+    const token = readAuthToken(req);
     if (!token) {
         return res.status(401).json({ error: "No token provided" });
     }
     try {
         // The tenant-resolution middleware already verified this exact token
-        // (same cookie-then-bearer priority) and stashed the payload on
-        // req.decodedToken. Reuse it to avoid a second jwt.verify() per
-        // request; fall back to verifying here (which surfaces the proper
-        // expired/invalid error paths) when tenant middleware didn't run or
-        // verification failed there.
-        const decoded: any = req.decodedToken || jwt.verify(token, process.env.JWT_SECRET);
+        // and stashed the payload on req.decodedToken. Reuse it to avoid a
+        // second jwt.verify() per request; otherwise verify here.
+        //
+        // REALM CHECK (PR-B): a token minted for one plane must never
+        // authenticate a request on the other. resolveTenant performs the same
+        // check and only sets req.decodedToken when it passed, so reusing the
+        // stashed payload is safe.
+        let decoded: any = req.decodedToken;
+        if (!decoded) {
+            const verified = verifyRealmToken(token, req);
+            if (!verified.ok) {
+                if (verified.reason === "wrong_realm") {
+                    logger.warn(
+                        { expected: verified.expected, actual: verified.actual, host: req.headers?.host },
+                        "auth: token realm does not match host realm",
+                    );
+                    return res.status(401).json({
+                        error: "This session is not valid for this site. Please sign in again.",
+                        code: "WRONG_REALM",
+                    });
+                }
+                throw verified.error;
+            }
+            decoded = verified.payload;
+            req.realm = verified.realm;
+        }
+        req.realm = req.realm || expectedRealm(req);
         const tokenVersion = decoded.tv ?? 0;
         const isPlatformUser = !!decoded.platform;
         const isVirtualImpersonation = !!decoded.impersonated && !!decoded.is_virtual;

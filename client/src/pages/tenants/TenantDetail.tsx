@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { getTenant, getTenantStats, getTenantUsers, suspendTenant, reactivateTenant, deleteTenantApi, updateTenant, updateTenantDomain, updateTenantLimits, getAdminOrganizations, updateAdminOrganization, getPlanCatalog, updateTenantPlan, updateTenantFeatures } from "../../api/organization";
+import { getTenant, getTenantStats, suspendTenant, reactivateTenant, deleteTenantApi, updateTenant, updateTenantDomain, updateTenantLimits, getPlanCatalog, updateTenantPlan, updateTenantFeatures } from "../../api/organization";
 import {
     ArrowLeft, Building2, Users, Shield, Globe, Database, HardDrive,
-    BarChart3, ExternalLink, Clock, Calendar, Settings2, Loader2,
-    Pause, Play, Pencil, Building, UsersRound, GitBranch, X,
+    BarChart3, ExternalLink, Settings2, Loader2,
+    Pause, Play, X,
 } from "lucide-react";
-import Departments from "../../components/organization/Departments";
-import Teams from "../../components/organization/Teams";
-import OrgChartView from "../../components/organization/OrgChartView";
-import OrgModal from "../admin/OrgModal";
 import RequestAccessModal from "./RequestAccessModal";
 import s from "./Tenants.module.css";
 
@@ -69,12 +65,6 @@ function Badge({ status }: { status?: string }) {
     return <span className={s.badge} style={{ background: c.bg, color: c.fg }}>{status}</span>;
 }
 
-function formatWorkDays(wd?: string | number | null) {
-    if (!wd) return "Mon–Fri";
-    const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    return String(wd).split(",").map(d => names[+d] || d).join(", ");
-}
-
 interface TenantDetailProps {
     tenantId: number | string;
     onBack: () => void;
@@ -83,12 +73,9 @@ interface TenantDetailProps {
 export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
     const [tenant, setTenant] = useState<any>(null);
     const [stats, setStats] = useState<any>(null);
-    const [users, setUsers] = useState<any[]>([]);
-    const [orgs, setOrgs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [tab, setTab] = useState("overview");
-    const [editingOrg, setEditingOrg] = useState<any>(null);
     const [showAccessModal, setShowAccessModal] = useState(false);
     // Password-confirm modal for destructive lifecycle actions (suspend/delete).
     // { action: 'suspend' | 'delete', hard?: boolean }
@@ -98,19 +85,20 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
     const [confirmBusy, setConfirmBusy] = useState(false);
     const [confirmError, setConfirmError] = useState("");
 
+    // Only platform facts are loaded here. Tenant-private data — user rows
+    // (PII), org structure, business-activity metrics — is NOT fetched: the
+    // server denies it without an approved access session, for every tenant
+    // including the default one. Operators reach it through Request Access.
+    // See docs/PLATFORM_TENANT_SEPARATION_PLAN.md (PR-A item A6).
     const loadData = useCallback(async () => {
         try {
             setLoading(true);
-            const [tenantRes, statsRes, usersRes, orgsRes] = await Promise.all([
+            const [tenantRes, statsRes] = await Promise.all([
                 getTenant(tenantId as any),
                 getTenantStats(tenantId as any).catch(() => ({ data: null })),
-                getTenantUsers(tenantId as any).catch(() => ({ data: { users: [] } })),
-                getAdminOrganizations().catch(() => ({ data: { data: [] } })),
             ]);
             setTenant(tenantRes.data);
             setStats(statsRes.data);
-            setUsers((usersRes.data as any).users || []);
-            setOrgs((orgsRes.data as any).data || orgsRes.data || []);
         } catch (e: any) {
             setError(e.response?.data?.error || "Failed to load tenant");
         } finally {
@@ -119,8 +107,6 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
     }, [tenantId]);
 
     useEffect(() => { loadData(); }, [loadData]);
-
-    const org = tenant && orgs.find(o => o.slug === tenant.slug || o.name === tenant.org_name);
 
     // Open the multi-step consent flow instead of dropping in silently. The
     // legacy direct-impersonate path was removed in the consent-gated
@@ -158,11 +144,6 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
         } finally {
             setConfirmBusy(false);
         }
-    };
-
-    const handleOrgUpdate = async (id: number | string, data: any) => {
-        try { await updateAdminOrganization(id as any, data); setEditingOrg(null); loadData(); }
-        catch (e: any) { setError(e.response?.data?.error || "Failed to update"); }
     };
 
     if (loading) return <div className={s.detailPage}><div className={s.loading}><Loader2 size={20} className={s.spinner} /> Loading tenant…</div></div>;
@@ -215,19 +196,10 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
             <div className={s.detailTabs}>
                 {[
                     { key: "overview", label: "Overview", icon: BarChart3 },
-                    // Individual user data (PII) is only exposed for the default tenant —
-                    // for privacy, every other tenant's user list is hidden here. The
-                    // aggregate user count is still surfaced on the Overview tab.
-                    ...(tenant.is_default ? [{ key: "users", label: `Users (${users.length})`, icon: Users }] : []),
-                    // Org structure is resolved from the caller's own tenant DB, so it
-                    // is only meaningful for the default tenant. For every other tenant
-                    // structure is managed inside the workspace itself, reachable only
-                    // through the consent-gated Request Access flow.
-                    ...(tenant.is_default ? [
-                        { key: "departments", label: "Departments", icon: Building },
-                        { key: "teams", label: "Teams", icon: UsersRound },
-                        { key: "chart", label: "Org Chart", icon: GitBranch },
-                    ] : []),
+                    // No Users / Departments / Teams / Org Chart tabs. Those render
+                    // tenant-private data, which the console must never hold — for
+                    // ANY tenant, the default one included. They are reached through
+                    // an approved access session inside the tenant workspace.
                     { key: "settings", label: "Settings", icon: Settings2 },
                 ].map(({ key, label, icon: Icon }) => (
                     <button key={key} onClick={() => setTab(key)}
@@ -260,65 +232,55 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
                             />}
                         />
                     )}
-                    {/* Business-activity metrics are tenant-private: the server only
-                        returns them for the default tenant or during an approved
-                        access session. Hide the cards rather than show zeroes. */}
+                    {/* Business-activity metrics are tenant-private: the server
+                        returns them only during an approved access session, for
+                        every tenant. Hide the cards rather than show zeroes. */}
                     {stats && !stats.activity_restricted && <>
                         <InfoCard icon={BarChart3} label="Tasks" value={stats.task_count} />
                         <InfoCard icon={ExternalLink} label="Messages" value={stats.message_count} />
                     </>}
-                    {stats?.activity_restricted && (
-                        <div className={s.emptyMsg} style={{ gridColumn: "1 / -1" }}>
-                            Activity metrics are hidden. Request access to view this tenant's activity.
+                </div>
+            )}
+
+            {/* Tenant-private data notice. Everything describing what the
+                tenant's people are doing — user rows (PII), org structure,
+                activity metrics — lives behind the consent-gated access flow.
+                This applies to every tenant, including the default one: the
+                console holds platform facts only. */}
+            {tab === "overview" && stats?.activity_restricted && (
+                <div className={s.fieldset} style={{ marginTop: 16 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <Shield size={18} className={s.iconAccent} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                                Tenant-private data is not shown here
+                            </div>
+                            <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                                User accounts, departments, teams, org chart and activity
+                                metrics belong to <strong>{tenant.org_name}</strong>. Viewing them
+                                requires a time-boxed access session approved by one of their
+                                administrators. Every action during a session is recorded in the
+                                audit trail and visible to the tenant.
+                            </div>
+                            {tenant.status === "active" && (
+                                <button
+                                    className={s.btnPrimary}
+                                    style={{ marginTop: 12 }}
+                                    onClick={openAccessFlow}
+                                >
+                                    <Shield size={14} /> Request Access
+                                </button>
+                            )}
                         </div>
-                    )}
-                    {org && <>
-                        <InfoCard icon={Clock} label="Work Hours" value={`${org.work_hours_per_day || 8}h / day`} />
-                        <InfoCard icon={Calendar} label="Work Days" value={formatWorkDays(org.work_days)} />
-                        <InfoCard icon={Globe} label="Timezone" value={org.timezone || "UTC"} />
-                    </>}
+                    </div>
                 </div>
             )}
 
-            {/* Users — default tenant only (PII privacy guard) */}
-            {tab === "users" && tenant.is_default && (
-                <div>
-                    {users.length === 0 ? <div className={s.emptyMsg}>No users found</div> : (
-                        <table className={s.table}>
-                            <thead>
-                                <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th></tr>
-                            </thead>
-                            <tbody>
-                                {users.map(u => (
-                                    <tr key={u.id}>
-                                        <td className={s.cellBold}>{u.full_name}</td>
-                                        <td className={s.cellMono}>{u.username}</td>
-                                        <td className={s.cellSecondary}>{u.email}</td>
-                                        <td><span className={s.badgeRole}>{u.role}</span></td>
-                                        <td>{u.is_active !== false ? <span className={s.badgeActive}>active</span> : <span className={s.badgeInactive}>inactive</span>}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-            )}
-
-            {/* Departments / Teams / Org Chart — default tenant only. The
-                `is_default` check is repeated here (not just in the tab list)
-                because `tab` state survives navigating between tenants. */}
-            {tab === "departments" && tenant.is_default && (org ? <Departments orgId={org.id} userRole="platform_admin" /> : <div className={s.emptyMsg}>No linked organization found</div>)}
-
-            {tab === "teams" && tenant.is_default && (org ? <Teams orgId={org.id} userRole="platform_admin" /> : <div className={s.emptyMsg}>No linked organization found</div>)}
-
-            {tab === "chart" && tenant.is_default && (org ? <OrgChartView orgId={org.id} /> : <div className={s.emptyMsg}>No linked organization found</div>)}
-
-            {/* Settings */}
+            {/* Settings — plan, features, domain, limits. All platform facts;
+                no tenant-private data is rendered or editable here. */}
             {tab === "settings" && (
-                <TenantSettings tenant={tenant} org={org} onEditOrg={() => setEditingOrg(org)} onReload={loadData} />
+                <TenantSettings tenant={tenant} onReload={loadData} />
             )}
-
-            {editingOrg && <OrgModal org={editingOrg} onClose={() => setEditingOrg(null)} onSave={(data: any) => handleOrgUpdate(editingOrg.id, data)} />}
 
             {showAccessModal && (
                 <RequestAccessModal
@@ -389,7 +351,7 @@ export default function TenantDetail({ tenantId, onBack }: TenantDetailProps) {
 }
 
 /* ── Tenant Settings sub-section ── */
-function TenantSettings({ tenant, org, onEditOrg, onReload }: { tenant: any; org: any; onEditOrg: () => void; onReload: () => void }) {
+function TenantSettings({ tenant, onReload }: { tenant: any; onReload: () => void }) {
     const [orgName, setOrgName] = useState(tenant.org_name || "");
     const [domain, setDomain] = useState(tenant.custom_domain || "");
     const [maxUsers, setMaxUsers] = useState<number | string>(tenant.max_users || "");
@@ -600,19 +562,11 @@ function TenantSettings({ tenant, org, onEditOrg, onReload }: { tenant: any; org
                 </div>
             </fieldset>
 
-            {org && (
-                <fieldset className={s.fieldset}>
-                    <legend className={s.legend}>Organization Settings</legend>
-                    <div className={s.fieldRowWrap}>
-                        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                            Timezone: <strong>{org.timezone || "UTC"}</strong> · Work hours: <strong>{org.work_hours_per_day || 8}h</strong> · Work days: <strong>{formatWorkDays(org.work_days)}</strong> · Fiscal year: <strong>Month {org.fiscal_year_start || 1}</strong>
-                        </span>
-                        <button onClick={onEditOrg} className={s.btnSmall}>
-                            <Pencil size={13} /> Edit Org Settings
-                        </button>
-                    </div>
-                </fieldset>
-            )}
+            {/* Organization settings (timezone, work hours, work days, fiscal
+                year) are tenant configuration, not platform configuration. They
+                are edited by the tenant's own admins in Admin -> Organization.
+                Rendering them here required reading the tenant DB from the
+                console, which PR-A removes. */}
         </div>
     );
 }

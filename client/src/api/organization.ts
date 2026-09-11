@@ -187,6 +187,9 @@ export const updateTenantPlan = (
 
 // Platform Admin Management (platform_admin)
 export const getPlatformUsers = () => API.get("/admin/tenants/platform-users");
+export const getPlatformUserLinks = (id: number | string) => API.get(`/admin/tenants/platform-users/${id}/links`);
+export const createPlatformUserLink = (id: number | string, data: AnyData) => API.post(`/admin/tenants/platform-users/${id}/links`, data);
+export const deletePlatformUserLink = (id: number | string, tenantId: number | string) => API.delete(`/admin/tenants/platform-users/${id}/links/${tenantId}`);
 export const createPlatformUser = (data: AnyData) =>
     API.post("/admin/tenants/platform-users", data);
 export const deactivatePlatformUser = (id: number | string) =>

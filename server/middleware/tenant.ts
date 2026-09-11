@@ -20,6 +20,9 @@ import { masterQuery } from "../db";
 import { getTenantPool, getTenantById } from "../utils/tenantManager";
 import * as redis from "../redis";
 import { logger } from "../utils/logger";
+import { readAuthToken } from "../utils/cookie";
+import { verifyRealmToken, PLATFORM_REALM } from "../platform/realm";
+import { isReservedHost, normalizeHost, requestHost } from "../platform/reservedHosts";
 
 const DOMAIN_CACHE_TTL = 5 * 60; // 5 minutes
 
@@ -29,28 +32,30 @@ const DOMAIN_CACHE_TTL = 5 * 60; // 5 minutes
  * which database pool is attached to the request.
  */
 async function resolveFromJwt(req: any): Promise<number | null> {
-    const jwt = require("jsonwebtoken");
-    // Web/desktop send the JWT in a cookie; native mobile clients send it as
-    // an `Authorization: Bearer <jwt>` header. Support both so tenant context
-    // resolves before the auth middleware runs.
-    const authHeader = req.headers?.authorization;
-    const token =
-        req.cookies?.token ||
-        (typeof authHeader === "string" && authHeader.startsWith("Bearer ")
-            ? authHeader.slice(7)
-            : null);
+    // The cookie to read is realm-dependent (console host -> `aino_console`).
+    const token = readAuthToken(req);
     if (!token) return null;
 
-    try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET);
-        // Stash the verified payload so the auth middleware doesn't have to
-        // run a second jwt.verify() on the same token for the same request.
-        req.decodedToken = decoded;
-        if (decoded?.tenant_id) {
-            return decoded.tenant_id;
-        }
-    } catch {
-        // Invalid/expired token — let auth middleware handle the full error response
+    // Verify signature AND realm. Stashing a payload that failed the realm
+    // check would let auth middleware reuse it and skip the check entirely,
+    // so only a fully-valid token is cached on the request.
+    const verified = verifyRealmToken(token, req);
+    if (!verified.ok) {
+        // Invalid, expired, or wrong-realm — auth middleware produces the
+        // user-facing error. We simply decline to resolve a tenant.
+        return null;
+    }
+
+    req.decodedToken = verified.payload;
+    req.realm = verified.realm;
+
+    // A platform-realm token must never attach a tenant pool: the control
+    // plane runs on the master DB. Belt-and-braces alongside the reserved-host
+    // check in resolveTenant().
+    if (verified.realm === PLATFORM_REALM) return null;
+
+    if (verified.payload?.tenant_id) {
+        return verified.payload.tenant_id;
     }
     return null;
 }
@@ -62,8 +67,12 @@ async function resolveFromJwt(req: any): Promise<number | null> {
 async function resolveFromDomain(host: string | undefined): Promise<any> {
     if (!host) return null;
 
-    // Strip port if present
-    const domain = host.split(":")[0].toLowerCase();
+    const domain = normalizeHost(host);
+
+    // Reserved control-plane hostnames (CONSOLE_HOST and friends) must never
+    // map to a tenant. Checked before the DB lookup so even a stale
+    // `custom_domain` row pointing at the console cannot hijack it.
+    if (isReservedHost(domain)) return null;
 
     // Skip localhost and Railway default domains
     if (domain === "localhost" || domain.endsWith(".railway.app") || domain.endsWith(".up.railway.app")) {
@@ -130,6 +139,22 @@ function attachMasterDb(req: any): void {
  */
 async function resolveTenant(req: any, res: Response, next: NextFunction): Promise<void | Response> {
     try {
+        // 0. Reserved control-plane host → master context, unconditionally.
+        //    The console never operates inside a tenant database; tenant access
+        //    happens only through the consent-gated session flow. Short-
+        //    circuiting here means no JWT claim or custom-domain row can pull a
+        //    tenant pool onto a console request.
+        // requestHost() (not req.headers.host) because behind the Cloudflare
+        // Worker the raw Host is the Railway origin — the browser-visible name
+        // arrives in X-Forwarded-Host.
+        if (isReservedHost(requestHost(req))) {
+            req.realm = PLATFORM_REALM;
+            attachMasterDb(req);
+            // Still decode the token so downstream auth can reuse it.
+            await resolveFromJwt(req);
+            return next();
+        }
+
         // 1. Try JWT tenant_id (fast path for authenticated requests)
         const jwtTenantId = await resolveFromJwt(req);
         if (jwtTenantId) {
@@ -159,9 +184,10 @@ async function resolveTenant(req: any, res: Response, next: NextFunction): Promi
             // JWT has tenant_id but tenant not found — fall through to domain resolution
         }
 
-        // 2. Try Host header for custom domain resolution
-        const host = req.headers.host;
-        const domainTenant = await resolveFromDomain(host);
+        // 2. Try the browser-visible host for custom domain resolution.
+        //    Using req.headers.host here would try to resolve the Railway
+        //    origin as a tenant custom domain behind the Worker.
+        const domainTenant = await resolveFromDomain(requestHost(req));
         if (domainTenant) {
             if (domainTenant.status === "suspended") {
                 return res.status(503).json({

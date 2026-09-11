@@ -10,6 +10,11 @@ export const trendingGiphy = (type: "gifs" | "stickers" = "gifs") =>
 
 // Auth
 export const login = (data: AnyData) => API.post("/auth/login", data);
+export const chooseLoginRealm = (login_ticket: string, realm: "tenant" | "platform") =>
+    API.post("/auth/login/realm", { login_ticket, realm });
+export const switchRealm = (target_realm: "tenant" | "platform", password: string, tenant_id?: number) =>
+    API.post("/auth/switch-realm", { target_realm, password, tenant_id });
+export const redeemRealmHandoff = (ticket: string) => API.post("/auth/handoff", { ticket });
 export const logoutUser = () => API.post("/auth/logout");
 export const refreshToken = () => API.post("/auth/refresh");
 export const recordSessionActivity = () => API.post("/auth/activity");

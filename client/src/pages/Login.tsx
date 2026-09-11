@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { useBranding } from "../BrandingContext";
-import { login as loginApi } from "../api/workforce";
+import { login as loginApi, chooseLoginRealm } from "../api/workforce";
 import { serverURL } from "../api/client";
 import { ArrowRight, Fingerprint } from "lucide-react";
 import PasswordInput from "../components/common/PasswordInput";
@@ -26,6 +26,7 @@ export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useAutoDismiss("") as [string, (v: string) => void];
   const [loading, setLoading] = useState(false);
+  const [realmChoice, setRealmChoice] = useState<any>(null);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   // Desktop (Electron) biometric: only offered when running in the desktop
   // app AND a credential is already enrolled on this device. On web this stays
@@ -50,10 +51,33 @@ export default function Login() {
       const { data } = await loginApi(form);
       saveAuth((data as any).user);
     } catch (err: any) {
+      if (err.response?.data?.code === "REALM_CHOICE_REQUIRED") {
+        setRealmChoice(err.response.data);
+        return;
+      }
+      if (err.response?.data?.redirect) {
+        window.location.assign(err.response.data.redirect);
+        return;
+      }
       setError(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectRealm = async (realm: "tenant" | "platform") => {
+    setLoading(true); setError("");
+    try {
+      const { data } = await chooseLoginRealm(realmChoice.login_ticket, realm);
+      if ((data as any).redirect) {
+        window.location.assign((data as any).redirect);
+        return;
+      }
+      saveAuth((data as any).user);
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Realm selection failed");
+      setRealmChoice(null);
+    } finally { setLoading(false); }
   };
 
   // Desktop: detect an enrolled biometric credential on mount so we can show
@@ -167,7 +191,18 @@ export default function Login() {
         )}
         {error && <div className="error-msg">{error}</div>}
 
-        <form onSubmit={handleSubmit}>
+        {realmChoice ? (
+          <div>
+            <p style={{ color: "var(--text-secondary)", marginBottom: 12 }}>Choose where you want to work:</p>
+            {(realmChoice.realms || []).map((r: any) => (
+              <button key={r.realm} type="button" className="btn btn-secondary btn-fullwidth"
+                style={{ marginBottom: 10 }} disabled={loading} onClick={() => selectRealm(r.realm)}>
+                {r.label}{r.default ? " (default)" : ""}
+              </button>
+            ))}
+            <button type="button" className="btn btn-fullwidth" onClick={() => setRealmChoice(null)}>Back</button>
+          </div>
+        ) : <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="login-username">Username</label>
             <input
@@ -212,7 +247,7 @@ export default function Login() {
               </span>
             )}
           </button>
-        </form>
+        </form>}
         {isDesktop && desktopBioEnrolled && (
           <>
             <div className={s["auth-divider"]}>

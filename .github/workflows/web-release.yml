@@ -39,6 +39,11 @@ jobs:
       # public release artifacts (ADR-004).
       R2_WEB_BUCKET: ${{ vars.R2_WEB_BUCKET }}
       SPA_PUBLIC_ORIGIN: ${{ vars.SPA_PUBLIC_ORIGIN }}
+      # Public, non-secret build-time constant. The same SPA is served on the
+      # application and console hosts; this tells it which hostname represents
+      # the platform realm. Must be present in the R2 build — setting it only
+      # on Railway cannot affect static assets already compiled here.
+      VITE_CONSOLE_HOST: console.aino.org.in
 
     steps:
       - uses: actions/checkout@v6

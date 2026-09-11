@@ -19,7 +19,9 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { startSession: startImpSession, getSession: getImpSession, endSession: endImpSession } = require("../middleware/impersonationAudit");
-const { cookieOptions } = require("../utils/cookie");
+const { cookieOptions, readAuthToken, TENANT_COOKIE } = require("../utils/cookie");
+import { realmClaims, TENANT_REALM } from "../platform/realm";
+import { isReservedHost } from "../platform/reservedHosts";
 const {
     PLANS, PLAN_KEYS, FEATURE_LABELS,
     getEffectiveFeatures, getPlanLimits,
@@ -40,10 +42,11 @@ const { invalidateMaintenanceCache } = require("../middleware/maintenanceMode");
 const { tenantStorageStatsFields } = require("../services/tenantStorageUsage");
 const router = express.Router();
 // Message returned alongside `activity_restricted` when tenant-private
-// activity metrics are withheld. See hasTenantDataConsent() in
-// utils/impersonationApproval for the full consent model.
-const NON_DEFAULT_ACTIVITY_MSG =
-    "Tenant activity data is only accessible via approved access.";
+// activity metrics are withheld. Applies to every tenant, including the
+// default one. See hasTenantDataConsent() in utils/impersonationApproval
+// for the full consent model.
+const TENANT_ACTIVITY_MSG =
+    "Tenant activity data requires an approved access session.";
 router.use(auth, loadUserContext, requireRole("platform_admin"), requirePlatformIdentity);
 interface ActorCheck {
     ok?: boolean;
@@ -279,7 +282,9 @@ router.get("/overview", async (req: Request, res: Response) => {
 router.get("/platform-users", async (req: Request, res: Response) => {
     try {
         const result = await masterQuery(
-            "SELECT id, username, full_name, email, avatar, is_active, created_at FROM platform_users ORDER BY created_at DESC"
+            `SELECT id, username, full_name, email, avatar, is_active, created_at,
+                    platform_role, mfa_required
+               FROM platform_users ORDER BY created_at DESC`
         );
         res.json(result.rows);
     } catch (err) {
@@ -399,6 +404,88 @@ router.post("/platform-users/:id/reset-password", async (req: Request, res: Resp
         logger.error({ err }, "Reset platform user password error");
         res.status(500).json({ error: "Failed to reset password" });
     }
+});
+
+async function requirePlatformOwner(req: Request, res: Response): Promise<boolean> {
+    const actor = (await masterQuery(
+        "SELECT platform_role FROM platform_users WHERE id = $1 AND is_active = TRUE",
+        [req.userId],
+    )).rows[0];
+    if (actor?.platform_role !== "platform_owner") {
+        res.status(403).json({ error: "Platform owner role required", code: "PLATFORM_OWNER_REQUIRED" });
+        return false;
+    }
+    return true;
+}
+
+// Linked principals: a platform account and an existing tenant account remain
+// separate identities. This relationship only permits explicit realm choice /
+// step-up switching; it never copies permissions between them.
+router.get("/platform-users/:id/links", async (req: Request, res: Response) => {
+    if (!(await requirePlatformOwner(req, res))) return;
+    const platformUserId = Number(req.params.id);
+    const result = await masterQuery(
+        `SELECT pul.platform_user_id, pul.tenant_id, pul.tenant_user_id,
+                pul.default_realm, pul.linked_at, t.org_name, t.slug, t.status
+           FROM platform_user_links pul
+           JOIN tenants t ON t.id = pul.tenant_id
+          WHERE pul.platform_user_id = $1 ORDER BY pul.linked_at`,
+        [platformUserId],
+    );
+    res.json({ links: result.rows });
+});
+
+router.post("/platform-users/:id/links", async (req: Request, res: Response) => {
+    if (!(await requirePlatformOwner(req, res))) return;
+    const platformUserId = Number(req.params.id);
+    const tenantId = Number(req.body?.tenant_id);
+    const tenantUserId = Number(req.body?.tenant_user_id);
+    const defaultRealm = req.body?.default_realm === "platform" ? "platform" : "tenant";
+    if (!platformUserId || !tenantId || !tenantUserId) {
+        return res.status(400).json({ error: "tenant_id and tenant_user_id are required" });
+    }
+    const platformUser = (await masterQuery("SELECT id FROM platform_users WHERE id = $1", [platformUserId])).rows[0];
+    const tenant = await getTenantById(tenantId);
+    if (!platformUser || !tenant) return res.status(404).json({ error: "Platform user or tenant not found" });
+    const db = await getTenantPool(tenant.db_name, tenant.db_host);
+    const tenantUser = (await db.query(
+        "SELECT id, username, full_name, email, is_active, hidden_from_directory FROM users WHERE id = $1",
+        [tenantUserId],
+    )).rows[0];
+    if (!tenantUser || !tenantUser.is_active || tenantUser.hidden_from_directory) {
+        return res.status(400).json({ error: "An active, visible tenant user is required", code: "INVALID_TENANT_PRINCIPAL" });
+    }
+    const result = await masterQuery(
+        `INSERT INTO platform_user_links
+            (platform_user_id, tenant_id, tenant_user_id, default_realm, linked_by)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (platform_user_id, tenant_id) DO UPDATE
+             SET tenant_user_id = EXCLUDED.tenant_user_id,
+                 default_realm = EXCLUDED.default_realm,
+                 linked_by = EXCLUDED.linked_by,
+                 linked_at = NOW()
+         RETURNING *`,
+        [platformUserId, tenantId, tenantUserId, defaultRealm, req.userId],
+    );
+    await logPlatformAction(req, "platform_principal_linked", "platform_user", platformUserId, {
+        tenant_id: tenantId, tenant_user_id: tenantUserId, default_realm: defaultRealm,
+    }, tenantId);
+    res.status(201).json({ link: result.rows[0], tenant_user: tenantUser });
+});
+
+router.delete("/platform-users/:id/links/:tenantId", async (req: Request, res: Response) => {
+    if (!(await requirePlatformOwner(req, res))) return;
+    const platformUserId = Number(req.params.id);
+    const tenantId = Number(req.params.tenantId);
+    const result = await masterQuery(
+        "DELETE FROM platform_user_links WHERE platform_user_id = $1 AND tenant_id = $2 RETURNING *",
+        [platformUserId, tenantId],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Link not found" });
+    await logPlatformAction(req, "platform_principal_unlinked", "platform_user", platformUserId, {
+        tenant_id: tenantId, tenant_user_id: result.rows[0].tenant_user_id,
+    }, tenantId);
+    res.json({ message: "Linked tenant principal removed" });
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -1074,8 +1161,12 @@ router.get("/:id/stats", async (req: Request, res: Response) => {
 
         // Business-activity metrics describe what the tenant's staff are doing
         // and serve no platform-operations purpose, so they follow the same
-        // consent model as user PII. Seat count, database size and storage
-        // usage stay visible: max_users / max_storage_mb enforcement needs them.
+        // consent model as user PII — for EVERY tenant, the default one
+        // included (PR-A item A4).
+        //
+        // Seat count, database size and storage usage stay visible without
+        // consent: they are platform facts needed to run the business
+        // (max_users / max_storage_mb enforcement, billing, capacity).
         const activityAllowed = await hasTenantDataConsent(tenant, req);
         const db = await getTenantPool(tenant.db_name, tenant.db_host);
         const safeCount = (q: string) => db.query(q).then((r: any) => parseInt(r.rows[0].count, 10)).catch(() => 0);
@@ -1099,7 +1190,7 @@ router.get("/:id/stats", async (req: Request, res: Response) => {
             last_activity: lastActivity.rows[0]?.last_activity ?? null,
             // Lets the Console hide activity cards rather than show false zeroes.
             activity_restricted: !activityAllowed,
-            ...(activityAllowed ? {} : { activity_restricted_reason: NON_DEFAULT_ACTIVITY_MSG }),
+            ...(activityAllowed ? {} : { activity_restricted_reason: TENANT_ACTIVITY_MSG }),
         });
     } catch (err) {
         logger.error({ err }, "Tenant stats error");
@@ -1122,6 +1213,19 @@ router.put("/:id/domain", async (req: Request, res: Response) => {
         // Basic domain validation
         if (custom_domain && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(custom_domain)) {
             return res.status(400).json({ error: "Invalid domain format" });
+        }
+
+        // A tenant must never be able to claim a control-plane hostname. If it
+        // could, requests to the console would resolve to that tenant and the
+        // plane boundary would collapse. resolveFromDomain() also refuses to
+        // map reserved hosts, so this is defence in depth — but rejecting at
+        // write time gives the operator a clear error instead of a silent
+        // no-op row. (PR-B item B2.)
+        if (custom_domain && isReservedHost(custom_domain)) {
+            return res.status(409).json({
+                error: "That hostname is reserved for the platform console and cannot be assigned to a tenant.",
+                code: "RESERVED_DOMAIN",
+            });
         }
 
         // Clear old domain cache
@@ -1472,6 +1576,12 @@ router.post("/:id/impersonate", async (req: Request, res: Response) => {
                 access_request_id: request?.id || null,
                 break_glass: isBreakGlass || false,
                 scope: request?.scope || "write",
+                // An impersonation session operates INSIDE the tenant, so the
+                // token is a tenant-realm token even though a platform
+                // operator minted it. It is therefore valid on the app host
+                // and rejected on the console host — which is correct: the
+                // console never renders tenant data.
+                ...realmClaims(TENANT_REALM),
             },
             process.env.JWT_SECRET,
             { expiresIn: `${ttlMinutes}m` },
@@ -1524,13 +1634,19 @@ router.post("/:id/impersonate", async (req: Request, res: Response) => {
         // Start in-memory session tracker for action recording
         startImpSession(req.userId, tid, auditLogId);
 
-        // Save the original platform admin token so we can restore it on exit
-        const origToken = req.cookies.token;
+        // Save the original platform token so we can restore it on exit.
+        const origToken = readAuthToken(req);
 
-        // Set impersonation token as HttpOnly cookie (replaces existing auth cookie)
+        // The impersonation token is a TENANT-realm token, so it is written to
+        // the tenant cookie. On a single-host deployment this replaces the
+        // operator's session cookie in place (today's behaviour). Once the
+        // console runs on its own host the cookie cannot be set cross-host by
+        // this response — the body also returns the token, and the client
+        // redirects to the app host to install it. Either way the platform
+        // session in `aino_console` is left untouched.
         const ttlMs = ttlMinutes * 60 * 1000;
-        res.cookie("token", impersonationToken, cookieOptions(req, ttlMs));
-        // Store original token in a separate HttpOnly cookie for restoration
+        res.cookie(TENANT_COOKIE, impersonationToken, cookieOptions(req, ttlMs));
+        // Store the original token for restoration on exit.
         if (origToken) {
             res.cookie("_wp_orig_token", origToken, cookieOptions(req, ttlMs));
         }
@@ -1596,7 +1712,7 @@ router.post("/:id/exit-impersonate", async (req: Request, res: Response) => {
         // Restore the original platform admin token from the saved cookie
         const origToken = req.cookies._wp_orig_token;
         if (origToken) {
-            res.cookie("token", origToken, cookieOptions(req, 8 * 60 * 60 * 1000));
+            res.cookie(TENANT_COOKIE, origToken, cookieOptions(req, 8 * 60 * 60 * 1000));
             res.clearCookie("_wp_orig_token", { httpOnly: true, sameSite: "strict", path: "/" });
         }
 
@@ -1627,17 +1743,20 @@ router.get("/:id/impersonation-session", async (req: Request, res: Response) => 
 //  CROSS-TENANT USER MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 
-// Default-tenant guard: per the privacy model, platform admins may only see
-// individual user data (PII) for the DEFAULT tenant. For every other tenant,
-// row-level user access is gated behind the consent-based impersonation flow.
-// Aggregate counts (no PII) are unaffected — only these row-returning user
-// endpoints are restricted.
-const NON_DEFAULT_USER_DATA_MSG =
-    "User data for non-default tenants is only accessible via approved impersonation.";
+// Tenant-private data guard: row-level user access (PII) is gated behind the
+// consent-based access flow for EVERY tenant, including the default (AINO)
+// tenant. Aggregate counts (no PII) are unaffected — only these row-returning
+// user endpoints are restricted.
+//
+// The default tenant is deliberately NOT exempt: it is a customer of the
+// platform like any other. Its staff are administered from the tenant Admin
+// panel (/admin) by its own super_admin. See ADR-012 and PR-A item A2.
+const TENANT_USER_DATA_MSG =
+    "Tenant user data requires an approved access session.";
 
-async function ensureDefaultTenant(tenant: any, res: Response, req: Request): Promise<boolean> {
+async function assertTenantDataAccess(tenant: any, res: Response, req: Request): Promise<boolean> {
     if (await hasTenantDataConsent(tenant, req)) return true;
-    res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
+    res.status(403).json({ error: TENANT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
     return false;
 }
 
@@ -1647,7 +1766,7 @@ router.get("/:id/users", async (req: Request, res: Response) => {
         const tid = Number(req.params.id);
         const tenant = await getTenantById(tid);
         if (!tenant) return res.status(404).json({ error: "Tenant not found" });
-        if (!(await ensureDefaultTenant(tenant, res, req))) return;
+        if (!(await assertTenantDataAccess(tenant, res, req))) return;
 
         const db = await getTenantPool(tenant.db_name, tenant.db_host);
         const { search, limit: rawLimit, offset } = req.query as Record<string, string>;
@@ -1680,6 +1799,16 @@ router.get("/:id/users", async (req: Request, res: Response) => {
             [...params, limit, off]
         );
 
+        // Audit the READ. Platform access to tenant PII is an Access-
+        // Transparency event: the tenant must be able to see that its user
+        // directory was read, by whom, and under which approved session — not
+        // just that something was mutated. (PR-A item A3.)
+        logPlatformAction(req, "platform_tenant_user_read", "tenant", tid, {
+            returned: usersRes.rows.length,
+            total: parseInt(countRes.rows[0].count, 10),
+            search: search || null,
+        }, tid);
+
         res.json({ total: parseInt(countRes.rows[0].count, 10), users: usersRes.rows });
     } catch (err) {
         logger.error({ err }, "List tenant users error");
@@ -1711,14 +1840,18 @@ router.post("/:id/users", async (req: Request, res: Response) => {
                 code: "INITIAL_ADMIN_ROLE_REQUIRED",
             });
         }
-        // Default-tenant guard, with a bootstrap exception: platform admins may
-        // create the INITIAL tenant administrator for a brand-new non-default
-        // tenant during onboarding. Once the tenant has its own (non-platform)
-        // user, further row-level user management is gated behind the
-        // consent-based impersonation flow (see NON_DEFAULT_USER_DATA_MSG).
-        if (tenant.is_default) {
-            return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
-        }
+        // One-shot bootstrap, uniform across ALL tenants including the default
+        // one: platform admins may create the INITIAL tenant administrator
+        // during onboarding. Once the tenant has any non-platform user, this
+        // endpoint is closed and further user management belongs to the
+        // tenant's own admins (or a consent-gated access session).
+        //
+        // The default tenant previously hit an unconditional 403 here. Keeping
+        // it on the same bootstrap path makes this the break-glass route if
+        // AINO ever loses every super_admin — the alternative was an
+        // unrecoverable tenant. The advisory lock + "already bootstrapped"
+        // check below make it safe to expose. (PR-A item A5.)
+
         // Check global uniqueness
         const dirCheck = await masterQuery(
             "SELECT 1 FROM user_directory WHERE email = $1 OR username = $2",
@@ -1743,7 +1876,7 @@ router.post("/:id/users", async (req: Request, res: Response) => {
                 "SELECT 1 FROM users WHERE role <> 'platform_admin' LIMIT 1"
             );
             if (existing.rows[0]) {
-                throw Object.assign(new Error(NON_DEFAULT_USER_DATA_MSG), { code: "TENANT_ALREADY_BOOTSTRAPPED" });
+                throw Object.assign(new Error(TENANT_USER_DATA_MSG), { code: "TENANT_ALREADY_BOOTSTRAPPED" });
             }
             return client.query(
                 "INSERT INTO users (username, password, full_name, email, org_id, role, must_change_password) VALUES ($1,$2,$3,$4,1,'super_admin',TRUE) RETURNING id, username, full_name, email, role",
@@ -1759,7 +1892,7 @@ router.post("/:id/users", async (req: Request, res: Response) => {
         res.status(201).json({ user: result.rows[0] });
     } catch (err: any) {
         if (err.code === "TENANT_ALREADY_BOOTSTRAPPED") {
-            return res.status(403).json({ error: NON_DEFAULT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
+            return res.status(403).json({ error: TENANT_USER_DATA_MSG, code: "TENANT_USER_DATA_RESTRICTED" });
         }
         logger.error({ err }, "Create tenant user error");
         res.status(500).json({ error: "Failed to create user" });
@@ -1773,7 +1906,7 @@ router.put("/:tenantId/users/:userId/deactivate", async (req: Request, res: Resp
         const uid = Number(req.params.userId);
         const tenant = await getTenantById(tid);
         if (!tenant) return res.status(404).json({ error: "Tenant not found" });
-        if (!(await ensureDefaultTenant(tenant, res, req))) return;
+        if (!(await assertTenantDataAccess(tenant, res, req))) return;
 
         const db = await getTenantPool(tenant.db_name, tenant.db_host);
         const result = await db.query(
@@ -1782,7 +1915,10 @@ router.put("/:tenantId/users/:userId/deactivate", async (req: Request, res: Resp
         );
         if (!result.rows[0]) return res.status(404).json({ error: "User not found" });
 
-        logPlatformAction(req, "tenant_user_deactivated", "user", uid, { tenant_id: tid }, tid);
+        logPlatformAction(req, "platform_tenant_user_deactivated", "user", uid, {
+            tenant_id: tid,
+            username: result.rows[0].username,
+        }, tid);
         res.json({ message: "User deactivated", user: result.rows[0] });
     } catch (err) {
         logger.error({ err }, "Deactivate tenant user error");

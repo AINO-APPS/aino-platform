@@ -27,6 +27,11 @@ declare global {
       impersonatedBy?: number;
       impersonatedTenantName?: string | null;
       isPlatformUser?: boolean;
+      /**
+       * Authentication realm this request belongs to (PR-B).
+       * Derived from the Host header and verified against the JWT `aud` claim.
+       */
+      realm?: "tenant" | "platform";
       user?: Record<string, unknown>;
       db?: {
         query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number; [key: string]: unknown }>;

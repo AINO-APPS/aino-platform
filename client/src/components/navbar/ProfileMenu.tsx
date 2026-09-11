@@ -4,10 +4,11 @@ import { useAuth } from "../../AuthContext";
 import { useTheme } from "../../ThemeContext";
 import { useWorkState } from "../../WorkStateContext";
 import { useStatus } from "../../status/useStatus";
-import { clockOut as apiClockOut } from "../../api/workforce";
+import { clockOut as apiClockOut, switchRealm } from "../../api/workforce";
 import { uploadAvatar, removeAvatar } from "../../api/organization";
 import { baseURL } from "../../api/client";
-import { Camera, Building2, House, Bell, ScanFace } from "lucide-react";
+import { Camera, Building2, House, Bell, ScanFace, Repeat2 } from "lucide-react";
+import { currentRealm } from "../../AuthContext";
 import EditProfileModal from "../profile/EditProfileModal";
 import NotificationSoundsModal from "../profile/NotificationSoundsModal";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -34,6 +35,7 @@ export default function ProfileMenu() {
     const [soundsModalOpen, setSoundsModalOpen] = useState(false);
     const [signoutConfirming, setSignoutConfirming] = useState(false);
     const [removeAvatarConfirming, setRemoveAvatarConfirming] = useState(false);
+    const [switchingRealm, setSwitchingRealm] = useState(false);
 
     const profileRef = useRef<HTMLDivElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -191,6 +193,19 @@ export default function ProfileMenu() {
             }
         }
         logout();
+    };
+
+    const handleRealmSwitch = async () => {
+        const password = window.prompt("Enter your platform password to switch workspace:");
+        if (!password) return;
+        setSwitchingRealm(true);
+        try {
+            const target = currentRealm() === "platform" ? "tenant" : "platform";
+            const { data } = await switchRealm(target, password);
+            if ((data as any).redirect) window.location.assign((data as any).redirect);
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Could not switch workspace");
+        } finally { setSwitchingRealm(false); }
     };
 
     return (
@@ -424,6 +439,14 @@ export default function ProfileMenu() {
                     </div>
 
                     <div className={s["profile-dropdown-divider"]} />
+
+                    {user?.has_linked_realm && (
+                        <button className={s["profile-dropdown-item"]} disabled={switchingRealm}
+                            onClick={() => { setProfileOpen(false); handleRealmSwitch(); }}>
+                            <span className={s["dd-item-icon"]}><Repeat2 size={14} /></span>
+                            {switchingRealm ? "Switching…" : currentRealm() === "platform" ? "Switch to Workspace" : "Switch to Platform Console"}
+                        </button>
+                    )}
 
                     <button
                         className={s["profile-dropdown-signout"]}

@@ -26,9 +26,26 @@ describe("hasTenantDataConsent", () => {
         mockQuery.mockResolvedValue({ rows: [], rowCount: 0 });
     });
 
-    it("always allows the default tenant without hitting the database", async () => {
+    // PR-A / item A1. The default (AINO) tenant used to short-circuit to
+    // `true`, handing every platform_users account permanent, unapproved,
+    // unaudited read access to its employee PII. It is now treated exactly
+    // like any customer tenant: consent required, no exceptions.
+    // See docs/adr/ADR-012-default-tenant-has-no-data-privilege.md
+    it("denies the default tenant when there is no live session", async () => {
+        mockQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+        await expect(hasTenantDataConsent(DEFAULT_TENANT, { userId: 42 })).resolves.toBe(false);
+        // It must actually consult the session table rather than short-circuit.
+        expect(mockQuery).toHaveBeenCalled();
+    });
+
+    it("allows the default tenant only with an approved live session", async () => {
+        mockQuery.mockResolvedValue({ rows: [{ id: 9, tenant_id: 1, requested_by: 42 }], rowCount: 1 });
         await expect(hasTenantDataConsent(DEFAULT_TENANT, { userId: 42 })).resolves.toBe(true);
-        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    it("denies the default tenant when the session belongs to another admin", async () => {
+        mockQuery.mockResolvedValue({ rows: [{ id: 9, tenant_id: 1, requested_by: 99 }], rowCount: 1 });
+        await expect(hasTenantDataConsent(DEFAULT_TENANT, { userId: 42 })).resolves.toBe(false);
     });
 
     it("denies a non-default tenant when there is no live session", async () => {

@@ -2,7 +2,7 @@
 import { Suspense, lazy, useRef } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
-import { isTenantlessPlatformAdmin } from "../../AuthContext";
+import { isTenantlessPlatformAdmin, currentRealm, type Realm } from "../../AuthContext";
 import { ROLE_LEVEL } from "../../constants";
 import PageSkeleton from "./PageSkeleton";
 
@@ -35,6 +35,24 @@ const ROLE_REQUIREMENTS: Record<string, string> = {
 
 export function canMountTenantPage(user: any, path: string): boolean {
     return !isTenantlessPlatformAdmin(user) || path === "/tenants";
+}
+
+/**
+ * Realm gate (PR-B). Once the console runs on its own hostname the two planes
+ * must not render each other's pages:
+ *
+ *   platform realm (console.aino.org.in) → only /tenants
+ *   tenant realm   (app host)            → everything except /tenants
+ *
+ * The server already refuses cross-realm API calls, so this is a UX guard —
+ * it prevents rendering a shell whose every request would 401. When no console
+ * host is configured, both planes share one origin and nothing is restricted,
+ * which is the pre-split behaviour.
+ */
+export function canMountInRealm(path: string, realm: Realm = currentRealm()): boolean {
+    const configured = (import.meta.env.VITE_CONSOLE_HOST || "").trim();
+    if (!configured) return true;
+    return realm === "platform" ? path === "/tenants" : path !== "/tenants";
 }
 
 function TenantRequiredState() {
@@ -87,6 +105,12 @@ export default function KeepAlive() {
     if (user?.must_change_password) return <Navigate to="/change-password" />;
 
     if (!canMountTenantPage(user, current)) return <TenantRequiredState />;
+
+    // Wrong plane for this hostname — send the user to that realm's home
+    // rather than rendering a shell whose API calls would all 401.
+    if (!canMountInRealm(current)) {
+        return <Navigate to={currentRealm() === "platform" ? "/tenants" : "/"} replace />;
+    }
 
     // Role check for current path
     const minRole = ROLE_REQUIREMENTS[current];

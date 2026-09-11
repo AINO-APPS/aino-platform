@@ -30,6 +30,30 @@ export function isTenantlessPlatformAdmin(user: User | null | undefined): boolea
   return user?.role === "platform_admin" && !hasTenantContext(user);
 }
 
+/**
+ * Which realm this browser tab is operating in (PR-B).
+ *
+ * Derived from the hostname, matching the server's `realmForHost()`. The
+ * console is served from its own host (VITE_CONSOLE_HOST, e.g.
+ * console.aino.org.in) and carries its own session cookie, so the two realms
+ * never share state.
+ *
+ * Falls back to "tenant" when no console host is configured, which is exactly
+ * the single-host behaviour that existed before the split.
+ */
+export type Realm = "tenant" | "platform";
+
+export function currentRealm(): Realm {
+  const configured = (import.meta.env.VITE_CONSOLE_HOST || "").trim().toLowerCase();
+  if (!configured) return "tenant";
+  if (typeof window === "undefined") return "tenant";
+  return window.location.hostname.toLowerCase() === configured ? "platform" : "tenant";
+}
+
+export function isPlatformRealm(): boolean {
+  return currentRealm() === "platform";
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Only cache display-safe fields in localStorage to prevent privilege escalation

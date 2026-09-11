@@ -11,6 +11,8 @@
     "lint:deps:graph": "depcruise index.ts routes services utils platform middleware modules --config .dependency-cruiser.cjs --output-type dot",
     "migrate": "tsx migrate.ts",
     "bootstrap:platform-admin": "tsx scripts/bootstrap-platform-admin.ts",
+    "preflight:default-admin": "tsx scripts/preflight-default-tenant-admin.ts",
+    "backfill:platform-links": "tsx scripts/backfill-platform-user-links.ts",
     "start:prod": "npm run build && node dist/index.js",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit --detectOpenHandles",

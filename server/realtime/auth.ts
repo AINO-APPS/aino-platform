@@ -2,6 +2,8 @@ import type { IncomingMessage } from "http";
 import * as cookie from "cookie";
 import jwt from "jsonwebtoken";
 import type { DbLike, ExtWS } from "./types";
+import { TENANT_COOKIE } from "../utils/cookie";
+import { PLATFORM_REALM } from "../platform/realm";
 
 export interface RealtimeClaims {
   id: number;
@@ -10,12 +12,16 @@ export interface RealtimeClaims {
   tv?: number;
   exp?: number;
   platform?: boolean;
+  aud?: string | string[];
   [key: string]: unknown;
 }
 
 function resolveRealtimeToken(req: IncomingMessage): string | undefined {
+  // Tenant realm only — realtime (chat/presence/calls) is a product feature and
+  // the control plane has no WebSocket surface. Deliberately reads the tenant
+  // cookie and never `aino_console`.
   const cookies = cookie.parse(req.headers.cookie || "");
-  if (cookies.token) return cookies.token;
+  if (cookies[TENANT_COOKIE]) return cookies[TENANT_COOKIE];
   try {
     const queryToken = new URL(req.url || "", "http://localhost").searchParams.get("token");
     if (queryToken) return queryToken;
@@ -30,7 +36,15 @@ function resolveRealtimeToken(req: IncomingMessage): string | undefined {
 
 function verifyRealtimeToken(token: string, secret: string | undefined): RealtimeClaims {
   if (!secret) throw new Error("JWT_SECRET is required");
-  return jwt.verify(token, secret) as unknown as RealtimeClaims;
+  const claims = jwt.verify(token, secret) as unknown as RealtimeClaims;
+  // A control-plane token must never open a product socket. Realmless
+  // (pre-PR-B) tokens are tenant tokens and remain accepted during the grace
+  // window; only an explicit platform `aud` is rejected.
+  const aud = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
+  if (aud === PLATFORM_REALM) {
+    throw new Error("Platform-realm token cannot open a realtime connection");
+  }
+  return claims;
 }
 
 async function revalidateSocketSession(

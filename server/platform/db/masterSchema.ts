@@ -123,6 +123,55 @@ async function initMasterDB(): Promise<void> {
     `);
     await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`);
     await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE`);
+    // PR-B: least-privilege operator tiers. Mirrors master migration 0004 so a
+    // brand-new install gets the columns without waiting for the sweep.
+    // Enforcement lands in Phase 2; the columns are surfaced by the console now.
+    await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS platform_role TEXT NOT NULL DEFAULT 'platform_operator'`);
+    await masterQuery(`DO $$ BEGIN ALTER TABLE platform_users ADD CONSTRAINT platform_users_platform_role_check CHECK (platform_role IN ('platform_owner','platform_operator','platform_support','platform_auditor')); EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
+    await masterQuery(`ALTER TABLE platform_users ADD COLUMN IF NOT EXISTS mfa_required BOOLEAN NOT NULL DEFAULT FALSE`);
+
+    // PR-C linked principals. Foreign keys cannot reference tenant-database
+    // users, so (tenant_id, tenant_user_id) is protected by a unique index and
+    // validated by the application before every use.
+    await masterQuery(`
+        CREATE TABLE IF NOT EXISTS platform_user_links (
+            platform_user_id INTEGER NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            tenant_user_id INTEGER NOT NULL,
+            default_realm TEXT NOT NULL DEFAULT 'tenant' CHECK(default_realm IN ('tenant','platform')),
+            linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            linked_by INTEGER REFERENCES platform_users(id) ON DELETE SET NULL,
+            PRIMARY KEY(platform_user_id, tenant_id),
+            UNIQUE(tenant_id, tenant_user_id)
+        )
+    `);
+    await masterQuery(`CREATE INDEX IF NOT EXISTS idx_platform_user_links_tenant ON platform_user_links(tenant_id, tenant_user_id)`);
+    await masterQuery(`
+        CREATE TABLE IF NOT EXISTS realm_handoffs (
+            jti UUID PRIMARY KEY,
+            source_realm TEXT NOT NULL CHECK(source_realm IN ('tenant','platform','login')),
+            target_realm TEXT NOT NULL CHECK(target_realm IN ('tenant','platform')),
+            platform_user_id INTEGER REFERENCES platform_users(id) ON DELETE CASCADE,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            tenant_user_id INTEGER,
+            expires_at TIMESTAMPTZ NOT NULL,
+            consumed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await masterQuery(`CREATE INDEX IF NOT EXISTS idx_realm_handoffs_expiry ON realm_handoffs(expires_at) WHERE consumed_at IS NULL`);
+    await masterQuery(`
+        CREATE TABLE IF NOT EXISTS realm_login_choices (
+            jti UUID PRIMARY KEY,
+            platform_user_id INTEGER NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            tenant_user_id INTEGER NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            consumed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await masterQuery(`CREATE INDEX IF NOT EXISTS idx_realm_login_choices_expiry ON realm_login_choices(expires_at) WHERE consumed_at IS NULL`);
 
     // ---- App settings (platform-wide) ----
     await masterQuery(`

@@ -28,6 +28,12 @@ decisions.
 | [006](ADR-006-redis-mandatory-in-production.md) | Redis is mandatory in production | Accepted |
 | [007](ADR-007-stay-on-railway.md) | Stay on Railway | Accepted |
 | [008](ADR-008-metrics-cardinality-and-access.md) | Metrics: bounded cardinality, fail-closed access | Accepted |
+| [009](ADR-009-control-plane-vs-application-plane.md) | Control plane and application plane are separate hosts and realms | Accepted |
+| [011](ADR-011-realm-scoped-linked-principals.md) | One human may hold linked principals in separate realms | Accepted |
+| [012](ADR-012-default-tenant-has-no-data-privilege.md) | The default tenant has no data privilege | Accepted |
+
+> 010 is reserved for the remaining GDAP-style JIT-access hardening. See
+> [`../PLATFORM_TENANT_SEPARATION_PLAN.md`](../PLATFORM_TENANT_SEPARATION_PLAN.md).
 
 ## Adding one
 

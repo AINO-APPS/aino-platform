@@ -29,6 +29,34 @@ function validateEnvironment(): void {
         throw new Error("REDIS_URL is required in production");
     }
 
+    // ── Control-plane host (PR-B) ──
+    // CONSOLE_HOST separates the Platform Console onto its own hostname, which
+    // is what gives the two realms independent, host-scoped session cookies.
+    // It is optional so existing single-host deployments keep working, but a
+    // malformed value must fail loudly rather than silently disable the split.
+    if (process.env.CONSOLE_HOST) {
+        const host = process.env.CONSOLE_HOST.trim().toLowerCase();
+        if (host.includes("/") || host.includes(":") || !/^[a-z0-9.-]+$/.test(host)) {
+            logger.fatal(
+                { CONSOLE_HOST: process.env.CONSOLE_HOST },
+                "CONSOLE_HOST must be a bare hostname (no scheme, port or path). Server cannot start.",
+            );
+            throw new Error("CONSOLE_HOST must be a bare hostname");
+        }
+    } else if (process.env.NODE_ENV === "production") {
+        logger.warn(
+            "CONSOLE_HOST is not set — the platform console shares the application hostname. " +
+            "Control-plane and tenant sessions are separated by JWT audience only, not by cookie scope.",
+        );
+    }
+
+    // STRICT_REALM closes the grace window that accepts pre-PR-B tokens with no
+    // `aud` claim. Flip it once aino_legacy_realmless_token_total reaches zero.
+    if (process.env.STRICT_REALM && !["true", "false"].includes(process.env.STRICT_REALM)) {
+        logger.fatal({ STRICT_REALM: process.env.STRICT_REALM }, "STRICT_REALM must be 'true' or 'false'.");
+        throw new Error("STRICT_REALM must be 'true' or 'false'");
+    }
+
     // Local disk cannot be shared between replicas. Surface this at boot rather
     // than after one instance writes a file another cannot see.
     if (process.env.NODE_ENV !== "test") {
