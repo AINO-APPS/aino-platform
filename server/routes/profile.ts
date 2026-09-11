@@ -33,6 +33,7 @@ router.use((req: Request, res: Response, next) => {
 
 const { cookieOptions, cookieNameForRealm, cookieNameForRequest } = require("../utils/cookie");
 import { realmClaims, TENANT_REALM, PLATFORM_REALM } from "../platform/realm";
+import { hasLinkedTenantRealm, platformProfile } from "../services/realmPrincipals";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -130,26 +131,8 @@ router.get("/", auth, async (req: Request, res: Response) => {
         }
 
         if (req.isPlatformUser && !req.tenantId && !req.isImpersonated) {
-            const platformUser = (await masterQuery(`
-                SELECT id, username, full_name, email, avatar, role, must_change_password, platform_role
-                FROM platform_users
-                WHERE id = $1 AND is_active = TRUE
-            `, [req.userId])).rows[0];
-            if (!platformUser) return res.status(404).json({ error: "User not found" });
-            const hasLinkedRealm = !!(await masterQuery(
-                "SELECT 1 FROM platform_user_links WHERE platform_user_id = $1 LIMIT 1",
-                [req.userId],
-            )).rows[0];
-            return res.json({
-                ...platformUser,
-                has_linked_realm: hasLinkedRealm,
-                must_change_password: !!platformUser.must_change_password,
-                org_id: null,
-                team_id: null,
-                department_id: null,
-                tenant_id: null,
-                has_reports: false,
-            });
+            const user = await platformProfile(req.userId!);
+            return user ? res.json(user) : res.status(404).json({ error: "User not found" });
         }
 
         // Virtual impersonation: platform admin in a tenant with no users
@@ -200,10 +183,7 @@ router.get("/", auth, async (req: Request, res: Response) => {
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];
         user.has_reports = !!hasReports;
         if (!req.isImpersonated && req.tenantId) {
-            user.has_linked_realm = !!(await masterQuery(
-                "SELECT 1 FROM platform_user_links WHERE tenant_id = $1 AND tenant_user_id = $2 LIMIT 1",
-                [req.tenantId, req.userId],
-            )).rows[0];
+            user.has_linked_realm = await hasLinkedTenantRealm(Number(req.tenantId), req.userId!);
         }
         // Include impersonation info so the UI can show a banner
         if (req.isImpersonated) {

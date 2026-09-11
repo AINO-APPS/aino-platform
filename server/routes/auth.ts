@@ -51,6 +51,7 @@ import { consoleHost } from "../platform/reservedHosts";
 import {
     createHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
 } from "../services/realmHandoff";
+import { findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
 
 // Native mobile clients (React Native) can't use HttpOnly cookies, so they need
 // the JWT in the response body. This wraps res.cookie/res.json once for the
@@ -428,32 +429,6 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
     });
 }
 
-function tenantAppUrl(tenant: any): string {
-    const host = tenant?.custom_domain || process.env.APP_HOST || "aino.org.in";
-    return `https://${host}`;
-}
-
-function platformConsoleUrl(): string {
-    return `https://${consoleHost() || "console.aino.org.in"}`;
-}
-
-async function linkedPrincipals(platformUserId: number, tenantId: number, tenantUserId: number) {
-    const link = (await masterQuery(
-        `SELECT pul.*, t.org_name, t.slug, t.custom_domain, t.status, t.db_name, t.db_host
-           FROM platform_user_links pul
-           JOIN tenants t ON t.id = pul.tenant_id
-          WHERE pul.platform_user_id = $1 AND pul.tenant_id = $2 AND pul.tenant_user_id = $3`,
-        [platformUserId, tenantId, tenantUserId],
-    )).rows[0];
-    if (!link || link.status !== "active") return null;
-    const platform = (await masterQuery("SELECT * FROM platform_users WHERE id = $1", [platformUserId])).rows[0];
-    const tenantDb = await getTenantDb(tenantId);
-    if (!platform || !platform.is_active || !tenantDb) return null;
-    const tenantUser = (await tenantDb.query("SELECT * FROM users WHERE id = $1", [tenantUserId])).rows[0];
-    if (!tenantUser || !tenantUser.is_active) return null;
-    return { link, platform, tenantUser, tenantDb };
-}
-
 // Complete a 60-second login realm choice. Consuming the ticket first makes it
 // single-use across replicas. If the selected realm belongs to another host,
 // return a second 30-second handoff instead of attempting to set a cross-host
@@ -465,7 +440,7 @@ router.post("/login/realm", async (req: Request, res: Response) => {
     }
     const choice = await consumeLoginChoice(String(login_ticket));
     if (!choice) return res.status(401).json({ error: "Login choice expired or was already used", code: "LOGIN_CHOICE_INVALID" });
-    const pair = await linkedPrincipals(choice.platform_user_id, choice.tenant_id, choice.tenant_user_id);
+    const pair = await linkedPrincipals(choice.platform_user_id, choice.tenant_id, choice.tenant_user_id, getTenantDb);
     if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
 
     if (expectedRealm(req) !== selectedRealm) {
@@ -489,7 +464,7 @@ router.post("/handoff", async (req: Request, res: Response) => {
     const targetHere = expectedRealm(req);
     const handoff = await consumeHandoff(String(req.body?.ticket || ""), targetHere);
     if (!handoff) return res.status(401).json({ error: "Handoff expired or was already used", code: "HANDOFF_INVALID" });
-    const pair = await linkedPrincipals(handoff.platform_user_id, handoff.tenant_id, handoff.tenant_user_id);
+    const pair = await linkedPrincipals(handoff.platform_user_id, handoff.tenant_id, handoff.tenant_user_id, getTenantDb);
     if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
     return handoff.target_realm === PLATFORM_REALM
         ? finishLogin(req, res, { user: pair.platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true })
@@ -509,19 +484,13 @@ router.post("/switch-realm", auth, async (req: Request, res: Response) => {
 
     let link: any;
     if (req.realm === PLATFORM_REALM) {
-        const params: any[] = [req.userId];
-        let tenantFilter = "";
-        if (tenant_id) { params.push(Number(tenant_id)); tenantFilter = " AND pul.tenant_id = $2"; }
-        const links = await masterQuery(`SELECT * FROM platform_user_links pul WHERE pul.platform_user_id = $1${tenantFilter} ORDER BY pul.linked_at`, params);
+        const links = await findLinkedPrincipal({ platformUserId: req.userId!, tenantId: tenant_id ? Number(tenant_id) : undefined });
         if (links.rows.length !== 1) {
             return res.status(409).json({ error: "Choose a linked tenant", code: "TENANT_CHOICE_REQUIRED", links: links.rows.map((l: any) => ({ tenant_id: l.tenant_id })) });
         }
         link = links.rows[0];
     } else {
-        link = (await masterQuery(
-            "SELECT * FROM platform_user_links WHERE tenant_id = $1 AND tenant_user_id = $2",
-            [req.tenantId, req.userId],
-        )).rows[0];
+        link = (await findLinkedPrincipal({ tenantId: Number(req.tenantId), tenantUserId: req.userId! })).rows[0];
     }
     if (!link) return res.status(403).json({ error: "This account is not linked to the other realm", code: "REALM_LINK_REQUIRED" });
     const platform = (await masterQuery("SELECT * FROM platform_users WHERE id = $1", [link.platform_user_id])).rows[0];
@@ -531,7 +500,7 @@ router.post("/switch-realm", auth, async (req: Request, res: Response) => {
     if (platform.mfa_required) {
         return res.status(403).json({ error: "Platform MFA verification is required before switching realms", code: "MFA_REQUIRED" });
     }
-    const pair = await linkedPrincipals(link.platform_user_id, link.tenant_id, link.tenant_user_id);
+    const pair = await linkedPrincipals(link.platform_user_id, link.tenant_id, link.tenant_user_id, getTenantDb);
     if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
     const handoff = await createHandoff({
         source_realm: req.realm as Realm, target_realm,

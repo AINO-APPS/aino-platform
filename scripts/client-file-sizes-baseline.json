@@ -28,5 +28,5 @@
   "pages/integrations/GitHubIntegration.tsx": 706,
   "pages/meeting/useMeetingState.ts": 2971,
   "pages/tasks/TaskDetailModal.tsx": 948,
-  "pages/tenants/TenantDetail.tsx": 618
+  "pages/tenants/TenantDetail.tsx": 572
 }

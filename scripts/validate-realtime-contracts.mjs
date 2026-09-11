@@ -30,7 +30,7 @@ const ws = [
   "server/realtime/messageRouter.ts",
   "server/realtime/fanout.ts",
 ].map(read).join("\n");
-for (const marker of ['path: "/ws"', "cookies.token", 'searchParams.get("token")', 'headers["sec-websocket-protocol"]', 'ws.close(4001', 'ws.close(4003', 'ws.close(4029', 'JSON.stringify({ type, data })']) {
+for (const marker of ['path: "/ws"', "cookies[TENANT_COOKIE]", 'searchParams.get("token")', 'headers["sec-websocket-protocol"]', 'ws.close(4001', 'ws.close(4003', 'ws.close(4029', 'JSON.stringify({ type, data })']) {
   check(ws.includes(marker), `documented WS behavior absent from server: ${marker}`);
 }
 for (const type of ["chat_message", "call_initiate", "call_accept", "call_cancel", "call_reject", "call_end"]) {
