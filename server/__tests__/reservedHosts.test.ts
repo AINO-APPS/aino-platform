@@ -109,6 +109,50 @@ describe("requestHost — behind the Cloudflare Worker", () => {
         expect(reserved.requestHost(req)).toBe("console.aino.org.in");
     });
 
+    // REGRESSION. Railway's edge proxy overwrites X-Forwarded-Host with its own
+    // origin hostname, so the Worker's value never reaches Express. Reading only
+    // that header resolved every console request to the tenant realm, and
+    // POST /api/auth/login answered a real platform admin with
+    // 403 PLATFORM_LOGIN_HOST_REQUIRED pointing at the host already in use.
+    it("prefers the vendor header when Railway has rewritten X-Forwarded-Host", () => {
+        const req = {
+            headers: {
+                host: "aino-next-web-production.up.railway.app",
+                "x-forwarded-host": "aino-next-web-production.up.railway.app",
+                "x-aino-forwarded-host": "console.aino.org.in",
+            },
+        };
+        expect(reserved.requestHost(req)).toBe("console.aino.org.in");
+        expect(reserved.realmForRequest(req)).toBe("platform");
+    });
+
+    it("does not promote the app host to the platform realm via the vendor header", () => {
+        const req = {
+            headers: {
+                host: "aino-next-web-production.up.railway.app",
+                "x-forwarded-host": "aino-next-web-production.up.railway.app",
+                "x-aino-forwarded-host": "aino.org.in",
+            },
+        };
+        expect(reserved.realmForRequest(req)).toBe("tenant");
+    });
+
+    it("ignores a blank vendor header and falls back to X-Forwarded-Host", () => {
+        const req = {
+            headers: {
+                host: "aino-web.up.railway.app",
+                "x-aino-forwarded-host": "   ",
+                "x-forwarded-host": "console.aino.org.in",
+            },
+        };
+        expect(reserved.requestHost(req)).toBe("console.aino.org.in");
+    });
+
+    it("normalises the vendor header like every other host spelling", () => {
+        const req = { headers: { "x-aino-forwarded-host": "CONSOLE.Aino.Org.In:443" } };
+        expect(reserved.realmForRequest(req)).toBe("platform");
+    });
+
     it("falls back to Host when no proxy header is present (local dev)", () => {
         expect(reserved.requestHost({ headers: { host: "localhost:5000" } })).toBe("localhost");
     });

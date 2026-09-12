@@ -72,6 +72,16 @@ function reservedSet(): Set<string> {
 }
 
 /**
+ * Headers that may carry the browser-visible hostname, in priority order.
+ *
+ * The vendor-prefixed header is set by the Cloudflare Worker and is checked
+ * first because Railway's edge proxy replaces `X-Forwarded-Host` with its own
+ * origin hostname before the request reaches this process. Keep this list in
+ * sync with `FORWARDED_HOST_HEADER` in `infra/cloudflare/src/router.js`.
+ */
+const FORWARDED_HOST_HEADERS = ["x-aino-forwarded-host", "x-forwarded-host"] as const;
+
+/**
  * Strip port, lowercase, drop a trailing dot (`example.com.` is the same host
  * as `example.com` — without this a tenant could bypass the reservation).
  */
@@ -86,12 +96,21 @@ export function normalizeHost(host: string | undefined | null): string {
  * CRITICAL behind the Cloudflare Worker (infra/cloudflare/src/index.js): the
  * Worker rewrites the request URL to a Railway origin, so `Host` arrives as
  * `aino-web.up.railway.app`, not `console.aino.org.in`. The Worker preserves
- * the real host in `X-Forwarded-Host` precisely so cookies, CORS, WebAuthn and
- * redirects keep working — realm resolution has to use it too, or the console
- * would never be recognised and every request would resolve to the tenant
- * realm.
+ * the real host precisely so cookies, CORS, WebAuthn and redirects keep
+ * working — realm resolution has to use it too, or the console would never be
+ * recognised and every request would resolve to the tenant realm.
  *
- * `X-Forwarded-Host` may be a comma-separated chain when several proxies are
+ * HEADER PRECEDENCE. `X-AINO-Forwarded-Host` is checked BEFORE
+ * `X-Forwarded-Host` because Railway's edge proxy overwrites the standard
+ * header with its own `*.up.railway.app` hostname before the request reaches
+ * this process. Relying on `X-Forwarded-Host` alone made every console request
+ * resolve to the tenant realm, so `POST /api/auth/login` answered a genuine
+ * platform admin with 403 PLATFORM_LOGIN_HOST_REQUIRED — an unbreakable loop,
+ * because the host it redirected to was the host already being used. The
+ * standard header is still honoured as a fallback for deployments that sit
+ * behind a proxy which preserves it.
+ *
+ * Either header may be a comma-separated chain when several proxies are
  * involved; the first entry is the client-facing one.
  *
  * TRUST: the app runs with `trust proxy = 2` (Cloudflare + Railway), so this
@@ -102,10 +121,12 @@ export function normalizeHost(host: string | undefined | null): string {
  */
 export function requestHost(req: { headers?: Record<string, unknown> } | null | undefined): string {
     const headers = req?.headers || {};
-    const forwarded = headers["x-forwarded-host"];
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    if (typeof first === "string" && first.trim()) {
-        return normalizeHost(first.split(",")[0]);
+    for (const name of FORWARDED_HOST_HEADERS) {
+        const forwarded = headers[name];
+        const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+        if (typeof first === "string" && first.trim()) {
+            return normalizeHost(first.split(",")[0]);
+        }
     }
     return normalizeHost(headers.host as string | undefined);
 }

@@ -15,6 +15,23 @@ export function selectOrigin(pathname, mode, origins) {
   return origins.spa;
 }
 
+/**
+ * Header carrying the browser-visible hostname to the origin.
+ *
+ * NOT `X-Forwarded-Host`: Railway's edge proxy rewrites that header with the
+ * hostname it received (the `*.up.railway.app` origin), so anything the Worker
+ * puts there is discarded before Express sees it. The server would then resolve
+ * every console request to the tenant realm and platform login would be
+ * rejected with PLATFORM_LOGIN_HOST_REQUIRED. A vendor-prefixed header is left
+ * untouched by both hops.
+ */
+export const FORWARDED_HOST_HEADER = "X-AINO-Forwarded-Host";
+
+/** Cloudflare Web Analytics beacon injected into SPA HTML at the edge. */
+export function isCloudflareRumRequest(method, pathname) {
+  return method === "POST" && pathname === "/cdn-cgi/rum";
+}
+
 export function assertOrigins(publicHost, origins, mode = "legacy") {
   const required = mode === "split"
     ? Object.entries(origins)

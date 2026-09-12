@@ -295,5 +295,54 @@ serve the app. No migration to reverse; `0004_platform_roles.sql` is additive.
 | Console behaves as a tenant surface; `/tenants` 403s | `CONSOLE_HOST` unset or misspelt on the web service |
 | Everything 401s on the console | `VITE_CONSOLE_HOST` missing from the client build, so the SPA sends tenant-shaped requests |
 | WebSocket/chat breaks after adding the host | Console origin missing from `CORS_ORIGIN` on the **realtime** service |
-| Tenant cookie works on the console (check 4 returns 200) | Grey-cloud DNS record — Worker never runs, `X-Forwarded-Host` absent |
+| Tenant cookie works on the console (check 4 returns 200) | Grey-cloud DNS record — Worker never runs, no forwarded host header |
 | `Error: CONSOLE_HOST must be a bare hostname` at boot | Value includes `https://`, a port, or a trailing path |
+| **`403 PLATFORM_LOGIN_HOST_REQUIRED` on the console itself** | The browser-visible hostname is not reaching Express — see below |
+| `503`/`404` on `/cdn-cgi/rum` after login | Worker not absorbing the Cloudflare Browser Insights beacon; cosmetic, but it masks the real error |
+
+### `PLATFORM_LOGIN_HOST_REQUIRED` while already on the console
+
+The most confusing failure mode in this setup: the console SPA loads, the login
+form posts, and the server answers
+
+```json
+{"error":"Platform accounts sign in through the Platform Console.",
+ "code":"PLATFORM_LOGIN_HOST_REQUIRED",
+ "redirect":"https://console.aino.org.in/login"}
+```
+
+— redirecting to the page the user is already on. Platform login is impossible
+and the only visible console error may be an unrelated `/cdn-cgi/rum` failure.
+
+**Cause.** `routes/auth.ts` refuses a platform login unless
+`expectedRealm(req) === "platform"`, and that realm comes from the
+browser-visible hostname. Behind the edge the raw `Host` is the Railway origin,
+so the Worker forwards the real hostname separately — but **Railway's edge proxy
+overwrites `X-Forwarded-Host` with its own `*.up.railway.app` hostname** before
+the request reaches the container. The Worker's value is destroyed in transit,
+every console request resolves to the tenant realm, and a genuine platform admin
+is bounced.
+
+The Worker therefore also sends `X-AINO-Forwarded-Host`, a vendor-prefixed
+header no hop rewrites, and `platform/reservedHosts.ts` reads it first
+(`X-Forwarded-Host` remains a fallback). **Both sides must be deployed:** the
+server change alone does nothing, and the Worker change alone does nothing.
+
+**One-command diagnosis** — `logout` clears the realm's own cookie, so it
+reports the realm without any credentials:
+
+```bash
+curl -sD - -o /dev/null -X POST \
+  -H 'Content-Type: application/json' -H 'X-Requested-With: AINO' --data '{}' \
+  https://console.aino.org.in/api/auth/logout | grep -i set-cookie
+```
+
+| Result | Meaning |
+|---|---|
+| `aino_console=; ...` | Correct — the console resolves to the platform realm |
+| `token=; ...` | **Broken** — the console is being served as tenant traffic |
+
+`STRICT_REALM` is **not** a fix for this and must stay unset here. It only closes
+the legacy no-`aud` grace window; setting it while the realm is misresolved
+changes nothing about the 403 and additionally signs out tenant users holding
+pre-PR-B tokens.

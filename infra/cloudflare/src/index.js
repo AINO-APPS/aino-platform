@@ -1,8 +1,21 @@
-import { selectOrigin, assertOrigins, cacheHeaders } from "./router.js";
+import {
+  selectOrigin, assertOrigins, cacheHeaders,
+  isCloudflareRumRequest, FORWARDED_HOST_HEADER,
+} from "./router.js";
 
 export default {
   async fetch(request, env) {
     const incoming = new URL(request.url);
+    // Cloudflare Browser Insights injects a beacon that POSTs here. This path is
+    // not an SPA object and must not fall through to the public R2 origin, where
+    // it produces a misleading 503/404 in the console even though the login
+    // request itself succeeded.
+    if (isCloudflareRumRequest(request.method, incoming.pathname)) {
+      return new Response(null, {
+        status: 204,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const origins = {
       legacy: env.LEGACY_ORIGIN,
       web: env.WEB_ORIGIN,
@@ -22,6 +35,12 @@ export default {
     // WebAuthn, CORS, logs and generated redirects.
     headers.set("X-Forwarded-Host", incoming.host);
     headers.set("X-Forwarded-Proto", incoming.protocol.replace(":", ""));
+    // Railway's edge proxy overwrites X-Forwarded-Host with its own origin
+    // hostname, so the line above never survives to Express. Send the
+    // browser-visible host under a vendor-prefixed name that no hop rewrites;
+    // `server/platform/reservedHosts.ts` reads this first. Without it the
+    // console resolves to the tenant realm and platform login is refused.
+    headers.set(FORWARDED_HOST_HEADER, incoming.host);
     if (env.ORIGIN_SECRET) headers.set("X-AINO-Origin-Secret", env.ORIGIN_SECRET);
 
     const response = await fetch(new Request(upstream, {

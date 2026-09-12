@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectOrigin, assertOrigins, cacheHeaders } from "../src/router.js";
+import {
+  selectOrigin, assertOrigins, cacheHeaders,
+  isCloudflareRumRequest, FORWARDED_HOST_HEADER,
+} from "../src/router.js";
 
 const origins = {
   legacy: "https://legacy.up.railway.app",
@@ -53,6 +56,22 @@ test("split mode requires every split origin", () => {
     ...origins,
     realtime: undefined,
   }, "split"), /Missing realtime origin/);
+});
+
+test("absorbs the Cloudflare RUM beacon instead of routing it to the SPA bucket", () => {
+  // The beacon path is not an object in R2, so letting it fall through to the
+  // static origin surfaces a 503/404 in the console right after a successful
+  // login and makes authentication look broken.
+  assert.equal(isCloudflareRumRequest("POST", "/cdn-cgi/rum"), true);
+  assert.equal(isCloudflareRumRequest("GET", "/cdn-cgi/rum"), false);
+  assert.equal(isCloudflareRumRequest("POST", "/api/auth/login"), false);
+});
+
+test("forwards the browser-visible host under a header Railway does not rewrite", () => {
+  // Railway's edge proxy overwrites X-Forwarded-Host with its own origin
+  // hostname, so realm detection cannot depend on the standard header alone.
+  assert.equal(FORWARDED_HOST_HEADER, "X-AINO-Forwarded-Host");
+  assert.notEqual(FORWARDED_HOST_HEADER.toLowerCase(), "x-forwarded-host");
 });
 
 test("cache headers distinguish immutable assets from mutable shell files", () => {

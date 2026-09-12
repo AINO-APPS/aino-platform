@@ -106,3 +106,39 @@ jobs:
           }
           jq -e '.error == "Invalid credentials"' /tmp/console-login.json >/dev/null
           echo "Console API routing verified."
+
+          # THE REALM CHECK. A 401 above only proves Express was reached; it does
+          # not prove the server resolved the console host to the PLATFORM realm.
+          # Logout is the cheapest unauthenticated probe that reveals the realm,
+          # because it clears the realm's own cookie: `aino_console` on the
+          # console, `token` on the app host. Seeing `token` here means the
+          # browser-visible hostname never survived to Express, every console
+          # request is being treated as tenant traffic, and platform login will
+          # fail with 403 PLATFORM_LOGIN_HOST_REQUIRED while the SPA still loads.
+          logout_cookie=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --dump-header - --output /dev/null \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H 'X-Requested-With: WorkPulse' \
+            --data '{}' \
+            "${origin}/api/auth/logout" | grep -i '^set-cookie:' || true)
+          case "$logout_cookie" in
+            *aino_console=*)
+              echo "Console realm verified (aino_console cookie scoped to the console host)."
+              ;;
+            *)
+              echo "$logout_cookie"
+              echo "::error::Console host did not resolve to the platform realm. The browser-visible hostname is not reaching Express — check that the Worker sets X-AINO-Forwarded-Host and that CONSOLE_HOST is set on the web service."
+              exit 1
+              ;;
+          esac
+
+          rum_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' --data '{}' \
+            "${origin}/cdn-cgi/rum")
+          test "$rum_status" = "204" || {
+            echo "::error::Cloudflare RUM endpoint returned HTTP ${rum_status}, expected 204."
+            exit 1
+          }
+          echo "Cloudflare RUM endpoint verified."
