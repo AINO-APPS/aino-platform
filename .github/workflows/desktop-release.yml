@@ -4,13 +4,22 @@ on:
   push:
     tags:
       - "v*" # Triggers on version tags like v1.0.0, v1.2.3
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to build (for example v3.0.23)"
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
-  cancel-in-progress: true
+  group: desktop-release-production
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -19,11 +28,20 @@ jobs:
       version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
 
       - name: Validate tag matches package.json version
         id: check
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must match vX.Y.Z"
+            exit 1
+          fi
+          git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          TAG_VERSION="${RELEASE_TAG#v}"
           PKG_VERSION=$(node -p "require('./desktop/package.json').version")
           echo "Tag version: $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
@@ -33,39 +51,41 @@ jobs:
           fi
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
 
-  build-client:
+  prepare-release:
     needs: validate
     runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install client dependencies
-        working-directory: client
-        run: npm ci
-
-      - name: Build client for Electron
-        working-directory: client
+      - name: Create or reset the draft release
+        id: release
         env:
-          VITE_WS_URL: wss://www.aino.org.in/ws
-          VITE_ELECTRON: "true"
-        run: npm run build
-
-      - name: Upload client build
-        uses: actions/upload-artifact@v4
-        with:
-          name: client-dist
-          path: client/dist
-          retention-days: 1
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/${{ github.repository }}/releases/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Release v${VERSION} is already published; immutable releases cannot be overwritten."
+            exit 1
+          fi
+          id=$(gh api --paginate "repos/${{ github.repository }}/releases" \
+            --jq ".[] | select(.draft == true and (.name == \"v${VERSION}\" or .name == \"${VERSION}\")) | .id" \
+            | head -1)
+          if [ -z "$id" ]; then
+            id=$(gh api -X POST "repos/${{ github.repository }}/releases" \
+              -f tag_name="v${VERSION}" -f name="v${VERSION}" -F draft=true \
+              --jq '.id')
+          else
+            for asset_id in $(gh api --paginate \
+              "repos/${{ github.repository }}/releases/${id}/assets" --jq '.[].id'); do
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/${asset_id}"
+            done
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+          echo "Prepared draft release id=${id}"
 
   build:
-    needs: [validate, build-client]
+    needs: [validate, prepare-release]
     strategy:
       fail-fast: false
       matrix:
@@ -81,19 +101,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            client/package-lock.json
+            desktop/package-lock.json
 
-      - name: Download client build
-        uses: actions/download-artifact@v4
-        with:
-          name: client-dist
-          path: client/dist
+      - name: Install and build Electron renderer
+        working-directory: client
+        env:
+          VITE_WS_URL: wss://www.aino.org.in/ws
+          VITE_ELECTRON: "true"
+        run: |
+          npm ci
+          npm run build
 
       - name: Install desktop dependencies
         working-directory: desktop
@@ -288,13 +315,6 @@ jobs:
           done
           cat checksums.txt
 
-      - name: Upload checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: checksums-${{ matrix.os }}
-          path: desktop/dist/checksums.txt
-          retention-days: 30
-
       - name: Stage installers for upload
         shell: bash
         working-directory: desktop/dist
@@ -306,8 +326,8 @@ jobs:
           shopt -s nullglob
           for f in *.exe *.exe.blockmap \
                    *.dmg *.dmg.blockmap *.zip *.zip.blockmap \
-                   *.AppImage *.deb \
-                   latest.yml latest-mac.yml latest-linux.yml; do
+                   *.AppImage *.AppImage.blockmap *.deb \
+                   *.yml *.yaml; do
             if [ -f "$f" ]; then
               cp "$f" "../../release-assets/${{ matrix.os }}/"
               echo "Staged: $f"
@@ -317,29 +337,65 @@ jobs:
           echo "Total staged files:"
           ls -la "../../release-assets/${{ matrix.os }}/"
 
-      - name: Upload installers as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: installers-${{ matrix.os }}
-          path: release-assets/${{ matrix.os }}/
-          retention-days: 7
-          if-no-files-found: error
+      - name: Upload installers and checksums to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          cp desktop/dist/checksums.txt "release-assets/${{ matrix.os }}/checksums-${{ matrix.os }}.txt"
+          test -n "$(find release-assets/${{ matrix.os }} -maxdepth 1 -type f -print -quit)"
+          for file in release-assets/${{ matrix.os }}/*; do
+            name=$(basename "$file")
+            encoded_name=$(jq -rn --arg value "$name" '$value|@uri')
+            case "$name" in
+              *.yml|*.yaml) content_type="text/yaml" ;;
+              *.exe) content_type="application/vnd.microsoft.portable-executable" ;;
+              *.dmg) content_type="application/x-apple-diskimage" ;;
+              *.zip|*.blockmap) content_type="application/zip" ;;
+              *.AppImage) content_type="application/x-executable" ;;
+              *.deb) content_type="application/vnd.debian.binary-package" ;;
+              *) content_type="application/octet-stream" ;;
+            esac
+            code=$(curl --silent --show-error --output upload-response.json --write-out '%{http_code}' \
+              -X POST -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: ${content_type}" --data-binary "@${file}" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${encoded_name}")
+            if [ "$code" != "201" ]; then
+              cat upload-response.json
+              echo "::error::Failed to upload ${name} to draft release (HTTP ${code})"
+              exit 1
+            fi
+          done
 
   release-notes:
-    # Do not publish the GitHub Release until the production R2 channel and its
-    # public pointer have both been verified by publish-r2.
-    needs: [validate, build, publish-r2]
+    # Do not publish the GitHub Release until its immutable production R2 files
+    # have been uploaded and verified. The stable latest.json pointer is promoted
+    # only after the draft itself is successfully published below.
+    needs: [validate, prepare-release, build, publish-r2]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
-      - name: Download all checksums
-        uses: actions/download-artifact@v4
-        with:
-          pattern: checksums-*
-          path: checksums
+      - name: Download checksums from draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p checksums
+          gh api --paginate "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | select(.name | startswith("checksums-")) | [.id, .name] | @tsv' \
+            | while IFS=$'\t' read -r id name; do
+                gh api -H 'Accept: application/octet-stream' \
+                  "repos/${{ github.repository }}/releases/assets/${id}" > "checksums/${name}"
+              done
+          test "$(find checksums -type f | wc -l)" -eq 3
 
       - name: Generate release notes
         id: notes
@@ -372,7 +428,7 @@ jobs:
 
           # Append checksums
           NOTES+="### 🔒 Checksums (SHA-256)\n\`\`\`\n"
-          for f in checksums/checksums-*/checksums.txt; do
+          for f in checksums/checksums-*.txt; do
             if [ -f "$f" ]; then
               NOTES+="$(cat "$f")\n"
             fi
@@ -383,97 +439,11 @@ jobs:
           echo -e "$NOTES" > release-notes.md
           cat release-notes.md
 
-      - name: Download all installers
-        uses: actions/download-artifact@v4
-        with:
-          pattern: installers-*
-          path: installers
-          merge-multiple: true
-
-      - name: List downloaded installers
-        run: |
-          echo "Files staged for upload to v${{ needs.validate.outputs.version }}:"
-          ls -la installers/ || true
-          echo "Total size:"
-          du -sh installers/ || true
-
-      - name: Clean up any duplicate / orphaned drafts for this version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.validate.outputs.version }}
-        run: |
-          # Previous runs of this workflow (when electron-builder --publish always was
-          # racing) left behind duplicate draft releases named "${VERSION}" (no v) and
-          # "v${VERSION}" with overlapping/missing assets. Delete every draft that
-          # references this version so we start from a clean slate.
-          DRAFTS=$(gh api --paginate "repos/${{ github.repository }}/releases" \
-            --jq ".[] | select(.draft == true) | select(.tag_name == \"v${VERSION}\" or .name == \"v${VERSION}\" or .name == \"${VERSION}\") | .id")
-          if [ -z "$DRAFTS" ]; then
-            echo "No leftover drafts for v${VERSION}"
-          else
-            for id in $DRAFTS; do
-              echo "Deleting orphan draft id=${id}"
-              gh api -X DELETE "repos/${{ github.repository }}/releases/${id}" || true
-            done
-          fi
-
-      - name: Create or find the release
-        id: release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.validate.outputs.version }}
-        run: |
-          # If a release for this tag already exists (published OR draft), reuse it.
-          # Otherwise create one as draft so the upload step below can populate it
-          # before we flip it live.
-          #
-          # IMPORTANT: `gh api` writes the raw response body to stdout on HTTP errors
-          # (e.g. 404) and does NOT apply --jq in that case. Capturing without
-          # checking the exit code would put a JSON error blob into RELEASE_ID and
-          # poison every subsequent API call. So we run gh api into a tempfile,
-          # check the exit code explicitly, and only then parse out .id.
-          RELEASE_ID=""
-          TMP=$(mktemp)
-          if gh api "repos/${{ github.repository }}/releases/tags/v${VERSION}" >"$TMP" 2>/dev/null; then
-            RELEASE_ID=$(jq -r '.id // empty' <"$TMP")
-            echo "Reusing existing release id=${RELEASE_ID} for v${VERSION} (via tag lookup)"
-          else
-            # Tag lookup only finds PUBLISHED releases. Draft releases must be
-            # discovered via the list endpoint.
-            RELEASE_ID=$(gh api --paginate "repos/${{ github.repository }}/releases" \
-              --jq ".[] | select(.tag_name == \"v${VERSION}\") | .id" | head -1)
-            if [ -n "$RELEASE_ID" ]; then
-              echo "Reusing existing draft release id=${RELEASE_ID} for v${VERSION} (via list)"
-            fi
-          fi
-          rm -f "$TMP"
-
-          if [ -z "$RELEASE_ID" ]; then
-            echo "Creating fresh draft release for v${VERSION}"
-            RELEASE_ID=$(gh api -X POST \
-              "repos/${{ github.repository }}/releases" \
-              -f tag_name="v${VERSION}" \
-              -f name="v${VERSION}" \
-              -F draft=true \
-              -F prerelease=false \
-              --jq '.id')
-            echo "Created release id=${RELEASE_ID}"
-          fi
-
-          # Sanity check: RELEASE_ID must be purely numeric. If it isn't, we picked
-          # up an error blob somewhere and need to fail fast rather than poison
-          # downstream URL construction.
-          if ! [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::Got non-numeric RELEASE_ID='${RELEASE_ID}' for v${VERSION}"
-            exit 1
-          fi
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-
       - name: Update release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
-          RELEASE_ID: ${{ steps.release.outputs.release_id }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
         run: |
           if gh api -X PATCH \
             "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
@@ -482,98 +452,6 @@ jobs:
           else
             echo "::warning::Failed to update release notes for v${VERSION} (id=${RELEASE_ID}); continuing"
           fi
-
-      - name: Ensure all installer assets are attached to the release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.validate.outputs.version }}
-          RELEASE_ID: ${{ steps.release.outputs.release_id }}
-        run: |
-          if ! ls installers/* >/dev/null 2>&1; then
-            echo "::error::No installer files were downloaded from the build jobs"
-            exit 1
-          fi
-          echo "Uploading to release id=${RELEASE_ID} (v${VERSION})"
-
-          # Build a set of names already attached so we know whether to delete-then-upload
-          # (the assets API returns 422 on duplicate names; there is no PATCH).
-          EXISTING=$(gh api --paginate \
-            "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
-            --jq '.[] | "\(.id)\t\(.name)"' || true)
-          echo "Existing assets on release:"
-          echo "$EXISTING"
-
-          FILE_COUNT=$(ls -1 installers/ | wc -l)
-          echo "Attaching ${FILE_COUNT} files to release id=${RELEASE_ID} (v${VERSION})..."
-
-          # URL-encode a string for use in a query parameter (handles spaces,
-          # parentheses, etc. that appear in installer names like
-          # "WorkPulse Setup 1.4.63.exe"). curl rejects unencoded spaces in
-          # the URL with "Malformed input to a URL function", so we have to
-          # do this ourselves.
-          urlencode() {
-            jq -rn --arg v "$1" '$v|@uri'
-          }
-
-          FAIL=0
-          for f in installers/*; do
-            name=$(basename "$f")
-            # Delete existing asset with same name if present (clobber behaviour).
-            existing_id=$(echo "$EXISTING" | awk -F'\t' -v n="$name" '$2 == n { print $1; exit }')
-            if [ -n "$existing_id" ]; then
-              echo "Deleting existing asset id=${existing_id} name=${name}"
-              gh api -X DELETE \
-                "repos/${{ github.repository }}/releases/assets/${existing_id}" || true
-            fi
-
-            # Detect content type so GitHub serves the file correctly.
-            case "$name" in
-              *.yml|*.yaml) ctype="text/yaml" ;;
-              *.json)       ctype="application/json" ;;
-              *.exe)        ctype="application/vnd.microsoft.portable-executable" ;;
-              *.dmg)        ctype="application/x-apple-diskimage" ;;
-              *.zip|*.blockmap) ctype="application/zip" ;;
-              *.AppImage)   ctype="application/x-executable" ;;
-              *.deb)        ctype="application/vnd.debian.binary-package" ;;
-              *)            ctype="application/octet-stream" ;;
-            esac
-
-            encoded_name=$(urlencode "$name")
-            echo "Uploading ${name} (${ctype})..."
-            # Upload directly to uploads.github.com. We use curl here (rather than
-            # `gh api --hostname uploads.github.com`) because gh's Go HTTP client
-            # was producing `unsupported protocol scheme ""` for the upload host —
-            # it was treating the path as a relative URL. curl with an explicit
-            # absolute https:// URL is unambiguous and matches what electron-builder
-            # / hub / the GitHub docs all recommend.
-            HTTP_CODE=$(curl -sS -o /tmp/upload-resp.json -w "%{http_code}" \
-              -X POST \
-              -H "Authorization: token ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: ${ctype}" \
-              --data-binary "@${f}" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${encoded_name}")
-            if [ "$HTTP_CODE" != "201" ]; then
-              echo "::error::Failed to upload ${name} (HTTP ${HTTP_CODE})"
-              cat /tmp/upload-resp.json || true
-              echo
-              FAIL=1
-            fi
-          done
-
-          if [ "$FAIL" -ne 0 ]; then
-            echo "::error::One or more asset uploads failed for v${VERSION}"
-            echo "Currently attached assets:"
-            gh api --paginate \
-              "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
-              --jq '.[].name' || true
-            exit 1
-          fi
-
-          echo "All assets uploaded. Final asset list on release:"
-          gh api --paginate \
-            "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
-            --jq '.[] | {name, size, download_count}'
 
       - name: Publish draft release
         env:
@@ -585,7 +463,7 @@ jobs:
           # That makes both `gh release view v${VERSION}` and
           # `select(.tag_name == "v${VERSION}")` fail to find the draft.
           # We MUST go straight to the release id.
-          RELEASE_ID: ${{ steps.release.outputs.release_id }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
         run: |
           if [ -z "$RELEASE_ID" ]; then
             echo "::error::No RELEASE_ID was passed in from the create-or-find step"
@@ -613,6 +491,42 @@ jobs:
             --jq '{id, tag_name, draft, name}' || true
           echo "Token scope check (whoami):"
           gh api user --jq '.login' || true
+          exit 1
+
+      # Announce the version to desktop clients only after both the immutable R2
+      # files and the GitHub Release are live. A failed draft publication must
+      # never advance the production updater pointer.
+      - name: Promote and verify desktop latest.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '{"version":"%s","tag":"v%s"}' "$VERSION" "$VERSION" > latest.json
+          aws s3 cp latest.json "s3://${R2_BUCKET}/desktop/latest.json" \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type "application/json" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          expected=$(cat latest.json)
+          url="${R2_PUBLIC_BASE_URL}/desktop/latest.json"
+          for attempt in 1 2 3 4 5; do
+            actual=$(curl --fail --silent --show-error \
+              -H 'Cache-Control: no-cache' \
+              "${url}?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}") || true
+            if [ "$actual" = "$expected" ]; then
+              echo "Verified ${url}: ${actual}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Public desktop pointer did not match ${expected}"
           exit 1
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -651,7 +565,7 @@ jobs:
   # GitHub repo stays PRIVATE. Keeps the newest 5 releases and prunes older ones.
   # ──────────────────────────────────────────────────────────────────────────
   publish-r2:
-    needs: [validate, build, r2-config]
+    needs: [validate, prepare-release, build, r2-config]
     if: needs.r2-config.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     env:
@@ -667,18 +581,30 @@ jobs:
       R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
-      - name: Download all installers
-        uses: actions/download-artifact@v4
-        with:
-          pattern: installers-*
-          path: installers
-          merge-multiple: true
+      - name: Download installers from draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p installers
+          gh api --paginate "repos/${{ github.repository }}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | select(.name | startswith("checksums-") | not) | [.id, .name] | @tsv' \
+            | while IFS=$'\t' read -r id name; do
+                gh api -H 'Accept: application/octet-stream' \
+                  "repos/${{ github.repository }}/releases/assets/${id}" > "installers/${name}"
+              done
+          test -n "$(find installers -maxdepth 1 -type f -print -quit)"
 
       - name: Upload installers to R2 (immutable, long cache)
         run: |
           set -euo pipefail
           TAG="v${VERSION}"
           DEST="s3://${R2_BUCKET}/desktop/releases/${TAG}/"
+          if aws s3 ls "$DEST" --recursive --endpoint-url "$R2_ENDPOINT" | grep -q .; then
+            echo "::error::Immutable release prefix ${DEST} already contains files. Publish a new patch version instead of overwriting it."
+            exit 1
+          fi
           echo "Uploading $(ls -1 installers | wc -l) files to ${DEST}"
           # Installers + blockmaps: versioned folder is immutable, cache forever.
           aws s3 cp installers/ "$DEST" --recursive \
@@ -693,50 +619,31 @@ jobs:
             --cache-control "no-cache" \
             --exclude "*" --include "*.yml" --include "*.yaml"
 
-      - name: Write desktop latest.json (stable pointer, no-cache)
+      - name: Verify immutable release files are public
         run: |
           set -euo pipefail
-          printf '{"version":"%s","tag":"v%s"}' "$VERSION" "$VERSION" > latest.json
-          cat latest.json
-          aws s3 cp latest.json "s3://${R2_BUCKET}/desktop/latest.json" \
-            --endpoint-url "$R2_ENDPOINT" \
-            --content-type "application/json" \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-      - name: Verify the public desktop update pointer
-        run: |
-          set -euo pipefail
-          expected=$(cat latest.json)
-          url="${R2_PUBLIC_BASE_URL}/desktop/latest.json"
-          for attempt in 1 2 3 4 5; do
-            actual=$(curl --fail --silent --show-error \
-              -H "Cache-Control: no-cache" \
-              "${url}?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}") || true
-            if [ "$actual" = "$expected" ]; then
-              echo "Verified ${url}: ${actual}"
-              exit 0
-            fi
-            echo "Attempt ${attempt}: public pointer has not propagated yet"
-            sleep 5
-          done
-          echo "::error::Public R2 pointer did not match the uploaded latest.json"
-          echo "Expected: ${expected}"
-          echo "Actual:   ${actual:-<request failed>}"
-          exit 1
+          manifest=$(find installers -maxdepth 1 -name 'latest*.yml' -type f | head -1)
+          test -n "$manifest"
+          curl --fail --silent --show-error \
+            "${R2_PUBLIC_BASE_URL}/desktop/releases/v${VERSION}/$(basename "$manifest")?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            >/dev/null
 
       - name: Prune old desktop releases (keep newest 5)
         run: |
           set -euo pipefail
+          current="v${VERSION}"
           all=$(aws s3 ls "s3://${R2_BUCKET}/desktop/releases/" --endpoint-url "$R2_ENDPOINT" \
                 | awk '{print $2}' | sed 's#/##' | grep -E '^v[0-9]' || true)
           if [ -z "$all" ]; then echo "Nothing to prune"; exit 0; fi
-          sorted=$(echo "$all" | sort -V)
-          total=$(echo "$sorted" | grep -c . || true)
-          if [ "${total:-0}" -gt 5 ]; then
-            for r in $(echo "$sorted" | head -n $((total - 5))); do
+          # Always retain the release this run is publishing, even when manually
+          # recovering an older tag. Fill the remaining four slots with the newest
+          # other versions and prune everything else.
+          keep=$(printf '%s\n%s\n' "$current" \
+            "$(echo "$all" | grep -vxF "$current" | sort -Vr | head -n 4)" \
+            | grep -E '^v[0-9]' | sort -u)
+          for r in $all; do
+            if ! echo "$keep" | grep -qxF "$r"; then
               echo "Pruning desktop/releases/${r}"
               aws s3 rm "s3://${R2_BUCKET}/desktop/releases/${r}/" --recursive --endpoint-url "$R2_ENDPOINT"
-            done
-          else
-            echo "Only ${total:-0} desktop releases; keeping all"
-          fi
+            fi
+          done
