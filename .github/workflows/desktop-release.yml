@@ -310,7 +310,7 @@ jobs:
         working-directory: desktop/dist
         run: |
           echo "## Checksums (SHA-256)" > checksums.txt
-          for f in *.exe *.dmg *.AppImage *.deb *.zip *.blockmap *.yml *.yaml; do
+          for f in *.exe *.dmg *.AppImage *.deb *.zip *.blockmap latest*.yml; do
             [ -f "$f" ] && sha256sum "$f" >> checksums.txt
           done
           cat checksums.txt
@@ -327,7 +327,7 @@ jobs:
           for f in *.exe *.exe.blockmap \
                    *.dmg *.dmg.blockmap *.zip *.zip.blockmap \
                    *.AppImage *.AppImage.blockmap *.deb \
-                   *.yml *.yaml; do
+                   latest.yml latest-mac.yml latest-linux.yml; do
             if [ -f "$f" ]; then
               cp "$f" "../../release-assets/${{ matrix.os }}/"
               echo "Staged: $f"
