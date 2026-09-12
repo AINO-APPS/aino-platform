@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectOrigin, assertOrigins, cacheHeaders } from "../src/router.js";
+import { selectOrigin, assertOrigins, cacheHeaders, isCloudflareRumRequest } from "../src/router.js";
 
 const origins = {
   legacy: "https://legacy.up.railway.app",
@@ -61,4 +61,12 @@ test("cache headers distinguish immutable assets from mutable shell files", () =
   assert.match(cacheHeaders("/index.html"), /no-store/);
   assert.match(cacheHeaders("/sw.js"), /no-store/);
   assert.equal(cacheHeaders("/tasks/1"), "no-cache");
+});
+
+test("recognizes only the injected Cloudflare Browser Insights POST", () => {
+  assert.equal(isCloudflareRumRequest("POST", "/cdn-cgi/rum"), true);
+  assert.equal(isCloudflareRumRequest("GET", "/cdn-cgi/rum"), false);
+  assert.equal(isCloudflareRumRequest("POST", "/cdn-cgi/rum/"), false);
+  assert.equal(isCloudflareRumRequest("POST", "/cdn-cgi/challenge-platform"), false);
+  assert.equal(isCloudflareRumRequest("POST", "/api/cdn-cgi/rum"), false);
 });

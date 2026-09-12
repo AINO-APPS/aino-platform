@@ -106,3 +106,13 @@ jobs:
           }
           jq -e '.error == "Invalid credentials"' /tmp/console-login.json >/dev/null
           echo "Console API routing verified."
+
+          rum_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' --data '{}' \
+            "${origin}/cdn-cgi/rum")
+          test "$rum_status" = "204" || {
+            echo "::error::Cloudflare RUM endpoint returned HTTP ${rum_status}, expected 204."
+            exit 1
+          }
+          echo "Cloudflare RUM endpoint verified."
