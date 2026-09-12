@@ -2,7 +2,7 @@
 import { Suspense, lazy, useRef } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
-import { isTenantlessPlatformAdmin, currentRealm, type Realm } from "../../AuthContext";
+import { isTenantlessPlatformAdmin, currentRealm, realmHomePath, type Realm } from "../../AuthContext";
 import { ROLE_LEVEL } from "../../constants";
 import PageSkeleton from "./PageSkeleton";
 
@@ -55,6 +55,16 @@ export function canMountInRealm(path: string, realm: Realm = currentRealm()): bo
     return realm === "platform" ? path === "/tenants" : path !== "/tenants";
 }
 
+export function realmBoundaryRedirect(
+    path: string,
+    realm: Realm = currentRealm(),
+    consoleConfigured = Boolean((import.meta.env.VITE_CONSOLE_HOST || "").trim()),
+): "/" | "/tenants" | null {
+    if (!consoleConfigured) return null;
+    const allowed = realm === "platform" ? path === "/tenants" : path !== "/tenants";
+    return allowed ? null : realmHomePath(realm);
+}
+
 function TenantRequiredState() {
     return (
         <main style={{ maxWidth: 1400, margin: "2rem auto", padding: "0 2.5rem" }}>
@@ -104,13 +114,17 @@ export default function KeepAlive() {
     // Force password change
     if (user?.must_change_password) return <Navigate to="/change-password" />;
 
-    if (!canMountTenantPage(user, current)) return <TenantRequiredState />;
-
     // Wrong plane for this hostname — send the user to that realm's home
     // rather than rendering a shell whose API calls would all 401.
-    if (!canMountInRealm(current)) {
-        return <Navigate to={currentRealm() === "platform" ? "/tenants" : "/"} replace />;
+    const realmRedirect = realmBoundaryRedirect(current);
+    if (realmRedirect) {
+        return <Navigate to={realmRedirect} replace />;
     }
+
+    // Evaluate tenant context only after the hostname realm has selected its
+    // landing page. A tenantless platform admin initially redirected from
+    // /login to / must reach /tenants, not the tenant-required empty state.
+    if (!canMountTenantPage(user, current)) return <TenantRequiredState />;
 
     // Role check for current path
     const minRole = ROLE_REQUIREMENTS[current];

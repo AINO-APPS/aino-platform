@@ -54,6 +54,10 @@ export function isPlatformRealm(): boolean {
   return currentRealm() === "platform";
 }
 
+export function realmHomePath(realm: Realm = currentRealm()): "/" | "/tenants" {
+  return realm === "platform" ? "/tenants" : "/";
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Only cache display-safe fields in localStorage to prevent privilege escalation

@@ -1,17 +1,8 @@
-import { selectOrigin, assertOrigins, cacheHeaders, isCloudflareRumRequest } from "./router.js";
+import { selectOrigin, assertOrigins, cacheHeaders } from "./router.js";
 
 export default {
   async fetch(request, env) {
     const incoming = new URL(request.url);
-    // Cloudflare Browser Insights injects a beacon that POSTs here. This path is
-    // not an SPA object and must not fall through to the public R2 origin, where
-    // it produces a misleading 503 even though authentication succeeded.
-    if (isCloudflareRumRequest(request.method, incoming.pathname)) {
-      return new Response(null, {
-        status: 204,
-        headers: { "Cache-Control": "no-store" },
-      });
-    }
     const origins = {
       legacy: env.LEGACY_ORIGIN,
       web: env.WEB_ORIGIN,

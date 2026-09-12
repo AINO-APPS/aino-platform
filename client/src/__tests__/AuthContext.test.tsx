@@ -17,7 +17,7 @@ vi.mock("../api/workforce", () => ({
 }));
 
 // Must import after mocks
-import { AuthProvider, hasTenantContext, isTenantlessPlatformAdmin, useAuth } from "../AuthContext";
+import { AuthProvider, hasTenantContext, isTenantlessPlatformAdmin, realmHomePath, useAuth } from "../AuthContext";
 
 function TestConsumer() {
   const { user, isAuthenticated, saveAuth, logout } = useAuth() as any;
@@ -244,6 +244,11 @@ describe("AuthContext", () => {
 });
 
 describe("tenant context predicates", () => {
+  test("uses the platform console as the platform realm landing page", () => {
+    expect(realmHomePath("platform")).toBe("/tenants");
+    expect(realmHomePath("tenant")).toBe("/");
+  });
+
   test("identifies a tenantless platform administrator", () => {
     const user = { id: 1, role: "platform_admin", tenant_id: null };
     expect(isTenantlessPlatformAdmin(user)).toBe(true);

@@ -6,7 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { AuthProvider, isTenantlessPlatformAdmin, useAuth } from "./AuthContext";
+import { AuthProvider, isTenantlessPlatformAdmin, realmHomePath, useAuth } from "./AuthContext";
 import { FeaturesProvider, useFeatures } from "./FeaturesContext";
 import { ROLE_LEVEL } from "./constants";
 import { ThemeProvider } from "./ThemeContext";
@@ -97,7 +97,9 @@ function ProtectedRoute({ children, minRole }: ProtectedRouteProps) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth() as any;
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/" />;
+  return !isAuthenticated
+    ? <>{children}</>
+    : <Navigate to={realmHomePath()} replace />;
 }
 
 // Keep-alive paths that map to static protected pages

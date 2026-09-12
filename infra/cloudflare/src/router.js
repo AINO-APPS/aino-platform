@@ -15,11 +15,6 @@ export function selectOrigin(pathname, mode, origins) {
   return origins.spa;
 }
 
-/** Cloudflare Web Analytics beacon injected into SPA HTML at the edge. */
-export function isCloudflareRumRequest(method, pathname) {
-  return method === "POST" && pathname === "/cdn-cgi/rum";
-}
-
 export function assertOrigins(publicHost, origins, mode = "legacy") {
   const required = mode === "split"
     ? Object.entries(origins)
