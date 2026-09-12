@@ -60,3 +60,49 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
         run: npm run deploy
+
+      - name: Verify console SPA and API routing
+        working-directory: .
+        run: |
+          set -euo pipefail
+          origin="https://console.aino.org.in"
+
+          # Cloudflare route and R2 SPA fallback must both be live. Retry briefly
+          # because route propagation can lag a successful Wrangler deployment.
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+                -H 'Cache-Control: no-cache' \
+                "${origin}/login?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+                --output /tmp/console-login.html \
+                && grep -q '<div id="root"></div>' /tmp/console-login.html; then
+              echo "Console SPA verified on attempt ${attempt}."
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "::error::Console SPA did not become reachable after Worker deployment."
+              exit 1
+            fi
+            sleep 5
+          done
+
+          ready=$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            "${origin}/readyz?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
+          echo "$ready" | jq -e '.status == "ready" and .role == "web"' >/dev/null
+
+          # An invalid login must reach Express through the console route. A
+          # timeout/HTML response indicates the Worker route or API origin is
+          # broken even when the static shell happens to load.
+          status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output /tmp/console-login.json \
+            --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -H 'X-Requested-With: WorkPulse' \
+            --data '{"username":"__console_route_probe__","password":"invalid"}' \
+            "${origin}/api/auth/login")
+          test "$status" = "401" || {
+            cat /tmp/console-login.json
+            echo "::error::Console login route returned HTTP ${status}, expected 401."
+            exit 1
+          }
+          jq -e '.error == "Invalid credentials"' /tmp/console-login.json >/dev/null
+          echo "Console API routing verified."
