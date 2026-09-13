@@ -284,9 +284,9 @@ describe("POST /api/auth/login", () => {
     });
 
     test.each([
-        ["locked", true, new Date(Date.now() + 600000).toISOString(), 401],
+        ["previously locked", true, new Date(Date.now() + 600000).toISOString(), 200],
         ["inactive", false, null, 403],
-    ])("does not mint a platform-only handoff for a %s account", async (_state, isActive, lockedUntil, status) => {
+    ])("handles a %s platform account without creating an unsafe handoff", async (_state, isActive, lockedUntil, status) => {
         const previousConsoleHost = process.env.CONSOLE_HOST;
         process.env.CONSOLE_HOST = "console.example.test";
         try {
@@ -303,11 +303,30 @@ describe("POST /api/auth/login", () => {
                 .send({ username: "operator", password: "CorrectPass1!" });
 
             expect(res.status).toBe(status);
-            expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO realm_handoffs/i.test(sql))).toBe(false);
+            expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO realm_handoffs/i.test(sql))).toBe(status === 200);
         } finally {
             if (previousConsoleHost === undefined) delete process.env.CONSOLE_HOST;
             else process.env.CONSOLE_HOST = previousConsoleHost;
         }
+    });
+
+    test("does not apply a timed account lock to a platform admin after repeated failures", async () => {
+        const hash = await bcrypt.hash("CorrectPass1!", 10);
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [{
+                id: 9, username: "operator", password: hash, is_active: true,
+                failed_login_attempts: 4,
+            }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+        const res = await request(app).post("/api/auth/login").set(CSRF)
+            .send({ username: "operator", password: "WrongPass1!" });
+
+        expect(res.status).toBe(401);
+        const update = mockQuery.mock.calls.find(([sql]) => /UPDATE platform_users SET failed_login_attempts/i.test(sql));
+        expect(update).toBeDefined();
+        expect(update[0]).not.toContain("locked_until");
     });
 
     test("returns 200 with user data and cookie on valid login", async () => {

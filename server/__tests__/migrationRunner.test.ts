@@ -35,6 +35,19 @@ describe("migration files", () => {
         expect(sql).toContain("partition by user_id");
     });
 
+    it("allows concurrent platform sessions without changing tenant session policy", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "master", "0007_concurrent_platform_sessions.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("drop index if exists uq_user_sessions_user");
+        expect(sql).toContain("create index if not exists idx_user_sessions_user");
+        expect(sql).not.toContain("create unique index");
+    });
+
+    it("creates master-backed global announcements", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "master", "0006_platform_announcements.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("create table if not exists platform_announcements");
+        expect(sql).toContain("references platform_users");
+    });
+
     it("uses zero-padded numeric prefixes so lexical order == apply order", () => {
         const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
         for (const f of files) {

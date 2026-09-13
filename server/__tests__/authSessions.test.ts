@@ -1,6 +1,6 @@
 export {};
 
-const { SESSION_IDLE_MS, replaceSession, validateSession, touchSession } = require("../services/authSessions");
+const { SESSION_IDLE_MS, replaceSession, createConcurrentSession, validateSession, touchSession } = require("../services/authSessions");
 
 describe("authentication sessions", () => {
     test("atomically replaces the user's only session", async () => {
@@ -9,6 +9,13 @@ describe("authentication sessions", () => {
         expect(typeof sid).toBe("string");
         expect(query).toHaveBeenCalledTimes(1);
         expect(query.mock.calls[0][0]).toContain("ON CONFLICT (user_id) DO UPDATE");
+        expect(query.mock.calls[0][1]).toEqual([sid, 7, "browser"]);
+    });
+
+    test("inserts an independent concurrent platform session", async () => {
+        const query = jest.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+        const sid = await createConcurrentSession(7, "browser", { query });
+        expect(query.mock.calls[0][0]).not.toContain("ON CONFLICT");
         expect(query.mock.calls[0][1]).toEqual([sid, 7, "browser"]);
     });
 
@@ -24,6 +31,14 @@ describe("authentication sessions", () => {
             .mockResolvedValueOnce({ rows: [], rowCount: 1 });
         await expect(validateSession(7, "sid", { query })).resolves.toBe("idle");
         expect(query.mock.calls[1][0]).toContain("DELETE FROM user_sessions");
+    });
+
+    test("does not idle-expire a platform session", async () => {
+        const query = jest.fn().mockResolvedValue({
+            rows: [{ last_activity_at: new Date(Date.now() - SESSION_IDLE_MS * 2) }], rowCount: 1,
+        });
+        await expect(validateSession(7, "sid", { query }, { ignoreIdle: true })).resolves.toBe("active");
+        expect(query).toHaveBeenCalledTimes(1);
     });
 
     test("renews activity only for a still-active session", async () => {

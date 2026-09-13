@@ -12,7 +12,7 @@ import * as redis from "../../redis";
  * pin every limiter to per-instance memory.
  */
 function makeStore(prefix: string) {
-    if (!process.env.REDIS_URL) return undefined;
+    if (process.env.NODE_ENV === "test" || !process.env.REDIS_URL) return undefined;
     return new RedisStore({
         sendCommand: async (...args: unknown[]) => {
             await redis.initRedis();

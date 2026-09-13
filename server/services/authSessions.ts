@@ -21,28 +21,38 @@ async function replaceSession(userId: number, device: unknown, db: DbLike): Prom
     return sid;
 }
 
-async function validateSession(userId: number, sid: string, db: DbLike): Promise<"active" | "missing" | "idle"> {
+async function createConcurrentSession(userId: number, device: unknown, db: DbLike): Promise<string> {
+    const sid = randomUUID();
+    await db.query(
+        `INSERT INTO user_sessions (id, user_id, device, created_at, last_activity_at)
+         VALUES ($1, $2, $3, NOW(), NOW())`,
+        [sid, userId, device || null],
+    );
+    return sid;
+}
+
+async function validateSession(userId: number, sid: string, db: DbLike, options: { ignoreIdle?: boolean } = {}): Promise<"active" | "missing" | "idle"> {
     const row = (await db.query(
         "SELECT last_activity_at FROM user_sessions WHERE id = $1 AND user_id = $2",
         [sid, userId],
     )).rows[0];
     if (!row) return "missing";
     const lastActivity = new Date(row.last_activity_at).getTime();
-    if (!Number.isFinite(lastActivity) || Date.now() - lastActivity >= SESSION_IDLE_MS) {
+    if (!options.ignoreIdle && (!Number.isFinite(lastActivity) || Date.now() - lastActivity >= SESSION_IDLE_MS)) {
         await db.query("DELETE FROM user_sessions WHERE id = $1 AND user_id = $2", [sid, userId]);
         return "idle";
     }
     return "active";
 }
 
-async function touchSession(userId: number, sid: string, db: DbLike): Promise<boolean> {
+async function touchSession(userId: number, sid: string, db: DbLike, options: { ignoreIdle?: boolean } = {}): Promise<boolean> {
     const result = await db.query(
         `UPDATE user_sessions SET last_activity_at = NOW()
          WHERE id = $1 AND user_id = $2
-           AND last_activity_at > NOW() - INTERVAL '2 days'`,
+           ${options.ignoreIdle ? "" : "AND last_activity_at > NOW() - INTERVAL '2 days'"}`,
         [sid, userId],
     );
     return (result.rowCount || 0) > 0;
 }
 
-export { SESSION_IDLE_MS, replaceSession, validateSession, touchSession };
+export { SESSION_IDLE_MS, replaceSession, createConcurrentSession, validateSession, touchSession };

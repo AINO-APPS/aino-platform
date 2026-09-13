@@ -310,8 +310,8 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         // password change cannot hand back an app-host session.
         const pwRealm = isTenantlessPlatformUser ? PLATFORM_REALM : TENANT_REALM;
         Object.assign(tokenPayload, realmClaims(pwRealm));
-        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: "8h" });
-        res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req));
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: isTenantlessPlatformUser ? "30d" : "8h" });
+        res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req, isTenantlessPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
         if (isTenantlessPlatformUser) {
             await logPlatformAction(req, "platform_admin_change_password", "platform_user", req.userId, { sessions_revoked: true });
         } else {

@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const crypto = require("crypto");
-const { replaceSession, touchSession } = require("../services/authSessions");
+import { createConcurrentSession, replaceSession, touchSession } from "../services/authSessions";
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
@@ -138,8 +138,10 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
  * Create the user's sole active authentication session.
  * Returns the new session ID.
  */
-async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null): Promise<string> {
-    const sid = await replaceSession(userId, deviceInfo, db);
+async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null, concurrent = false): Promise<string> {
+    const sid = concurrent
+        ? await createConcurrentSession(userId, deviceInfo, db)
+        : await replaceSession(userId, deviceInfo, db);
     await redis.invalidateUserSessions(tenantId, userId);
     return sid;
 }
@@ -353,7 +355,7 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
         tenantId = null;
         db = { query: masterQuery };
     }
-    const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId);
+    const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId, Boolean(isPlatformUser));
     // The realm travels with the token as `aud`, so a console session can
     // never authenticate an app-host request (and vice-versa). See PR-B /
     // platform/realm.ts.
@@ -365,9 +367,9 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
             ...realmClaims(realm),
         },
         process.env.JWT_SECRET,
-        { expiresIn: "8h" },
+        { expiresIn: isPlatformUser ? "30d" : "8h" },
     );
-    res.cookie(cookieNameForRealm(realm), token, cookieOptions(req));
+    res.cookie(cookieNameForRealm(realm), token, cookieOptions(req, isPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
 
     if (isPlatformUser) {
         // Platform identities always remain in master context. Customer-tenant
@@ -546,7 +548,7 @@ router.post("/login", async (req: Request, res: Response) => {
                 ]);
                 const now = new Date();
                 const tenantAvailable = tenantOk && tenant.user.is_active && !(tenant.user.locked_until && new Date(tenant.user.locked_until) > now);
-                const platformAvailable = platformOk && platform.user.is_active && !(platform.user.locked_until && new Date(platform.user.locked_until) > now);
+                const platformAvailable = platformOk && platform.user.is_active;
                 if (tenantAvailable && platformAvailable) {
                     const loginTicket = await createLoginChoice({
                         platform_user_id: platform.user.id,
@@ -602,7 +604,7 @@ router.post("/login", async (req: Request, res: Response) => {
         }
 
         // Check account lockout — return generic message to prevent account enumeration
-        if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
+        if (!isPlatformUser && user && user.locked_until && new Date(user.locked_until) > new Date()) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
@@ -610,7 +612,7 @@ router.post("/login", async (req: Request, res: Response) => {
         if (!user || !(await bcrypt.compare(password, user ? user.password : DUMMY_HASH))) {
             if (user && db) {
                 const attempts = (user.failed_login_attempts || 0) + 1;
-                const lockQuery = attempts >= 5
+                const lockQuery = !isPlatformUser && attempts >= 5
                     ? "failed_login_attempts = $1, locked_until = NOW() + INTERVAL '15 minutes'"
                     : "failed_login_attempts = $1";
                 if (isPlatformUser && !tenantId) {
@@ -824,8 +826,8 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
             if (req.impersonatedTenantName) claims.impersonated_tenant_name = req.impersonatedTenantName;
         }
 
-        const token = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: "8h" });
-        res.cookie(cookieNameForRealm(refreshRealm), token, cookieOptions(req));
+        const token = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: req.isPlatformUser ? "30d" : "8h" });
+        res.cookie(cookieNameForRealm(refreshRealm), token, cookieOptions(req, req.isPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
         res.json({ message: "Token refreshed" });
     } catch (err) {
         req.log.error({ err }, "Token refresh error");
@@ -836,7 +838,7 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
 // Renew the two-day inactivity window only after real foreground user input.
 router.post("/activity", auth, async (req: Request, res: Response) => {
     if (!req.userId || !req.sessionId) return res.status(401).json({ error: "Active session required" });
-    const touched = await touchSession(req.userId, req.sessionId, req.db!);
+    const touched = await touchSession(req.userId, req.sessionId, req.db!, { ignoreIdle: Boolean(req.isPlatformUser && !req.tenantId) });
     if (!touched) return res.status(401).json({ error: "Session expired due to inactivity", code: "SESSION_IDLE_EXPIRED" });
     await redis.invalidateUserSessions(req.tenantId, req.userId);
     res.json({ ok: true });

@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { logger } = require("../utils/logger");
+import { listPlatformAnnouncements } from "../services/platformAnnouncements";
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -280,14 +281,25 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 router.get("/announcements", async (req: Request, res: Response) => {
     try {
-        const rows = (await req.db!.query(`
+        const [tenantRows, platformRows] = await Promise.all([
+            req.db!.query(`
             SELECT a.id, a.message, a.type, a.created_at, u.full_name AS author
             FROM announcements a
             LEFT JOIN users u ON u.id = a.created_by
             WHERE a.is_active = TRUE AND (a.org_id IS NULL OR a.org_id = $1)
               AND (a.expires_at IS NULL OR a.expires_at > NOW())
             ORDER BY a.created_at DESC LIMIT 20
-        `, [req.userOrgId])).rows;
+        `, [req.userOrgId]),
+            listPlatformAnnouncements(true),
+        ]);
+        const rows = [
+            ...tenantRows.rows.map((row: any) => ({ ...row, scope: "tenant", source_id: row.id, id: `tenant:${row.id}` })),
+            ...platformRows.map((row: any) => ({
+                id: `platform:${row.id}`, source_id: row.id, scope: "platform",
+                message: row.message, type: row.type, created_at: row.created_at,
+                author: row.created_by_name || null,
+            })),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 20);
         res.json({ data: rows });
     } catch (err) {
         req.log.error({ err }, "Error fetching announcements");

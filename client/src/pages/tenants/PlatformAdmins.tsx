@@ -183,9 +183,11 @@ export default function PlatformAdmins() {
                                     <Link2 size={13} />
                                 </button>
                             )}
-                            <button className={s.btnSmall} title="Reset Password" onClick={() => { setNewPassword(""); setResetModal({ open: true, id: a.id, name: a.full_name }); }}>
-                                <Key size={13} />
-                            </button>
+                            {a.id !== user?.id && (
+                                <button className={s.btnSmall} title="Reset Password" onClick={() => { setNewPassword(""); setResetModal({ open: true, id: a.id, name: a.full_name }); }}>
+                                    <Key size={13} />
+                                </button>
+                            )}
                             {a.id !== user?.id && (
                                 <button className={s.btnSmall} title={a.is_active ? "Deactivate" : "Reactivate"}
                                     style={{ color: a.is_active ? "var(--danger)" : "var(--success)" }}

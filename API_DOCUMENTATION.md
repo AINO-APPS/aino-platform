@@ -700,6 +700,20 @@ Update sprint configuration for a team.
 
 Base path: `/api/admin`
 
+### Platform global announcements
+
+Platform-console administrators manage announcements stored in the master database:
+
+- `GET /api/admin/tenants/announcements`
+- `POST /api/admin/tenants/announcements` with `{ message, type, duration? }`
+- `PUT /api/admin/tenants/announcements/:id` with any of `{ message, type, is_active, duration }`
+- `DELETE /api/admin/tenants/announcements/:id`
+
+These routes require a tenantless `platform_admin` identity. Active, unexpired
+platform announcements are merged into every tenant's
+`GET /api/notifications/announcements` response. Tenant administrators continue
+to manage organization-scoped announcements through `/api/admin/announcements`.
+
 ### GET `/api/admin/organizations`
 List all organizations (platform admin only, paginated).
 

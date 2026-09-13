@@ -409,8 +409,27 @@ describe("GET /api/notifications/announcements", () => {
             .set("Cookie", authCookie());
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ data: rows });
+        expect(res.body).toEqual({ data: [{
+            ...rows[0], id: "tenant:4", source_id: 4, scope: "tenant",
+        }] });
         const announcementCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM announcements a"));
         expect(announcementCall[1]).toEqual([1]);
+    });
+
+    test("merges master global announcements into the tenant feed", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 4, message: "Tenant", type: "info", created_at: "2026-09-06T10:00:00.000Z", author: null }] })
+            .mockResolvedValueOnce({ rows: [{ id: 8, message: "Global", type: "urgent", created_at: "2026-09-07T10:00:00.000Z", created_by_name: "Owner" }] });
+
+        const res = await request(app)
+            .get("/api/notifications/announcements")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toEqual([
+            expect.objectContaining({ id: "platform:8", source_id: 8, scope: "platform", message: "Global", author: "Owner" }),
+            expect.objectContaining({ id: "tenant:4", source_id: 4, scope: "tenant", message: "Tenant" }),
+        ]);
     });
 });

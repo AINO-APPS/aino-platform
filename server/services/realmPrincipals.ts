@@ -16,7 +16,7 @@ export async function availablePlatformPrincipal(userId: number): Promise<any | 
         "SELECT * FROM platform_users WHERE id = $1 AND is_active = TRUE",
         [userId],
     )).rows[0];
-    return user && (!user.locked_until || new Date(user.locked_until) <= new Date()) ? user : null;
+    return user || null;
 }
 
 export async function linkedPrincipals(

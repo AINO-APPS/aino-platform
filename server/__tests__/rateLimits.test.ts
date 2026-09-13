@@ -20,8 +20,10 @@ jest.mock("express-rate-limit", () => {
 
 describe("distributed rate-limit stores", () => {
     const oldRedisUrl = process.env.REDIS_URL;
+    const oldNodeEnv = process.env.NODE_ENV;
 
     beforeEach(() => {
+        process.env.NODE_ENV = "development";
         process.env.REDIS_URL = "redis://example.invalid:6379";
         stores.length = 0;
         initRedis.mockReset().mockResolvedValue(undefined);
@@ -32,6 +34,7 @@ describe("distributed rate-limit stores", () => {
     afterAll(() => {
         if (oldRedisUrl === undefined) delete process.env.REDIS_URL;
         else process.env.REDIS_URL = oldRedisUrl;
+        process.env.NODE_ENV = oldNodeEnv;
     });
 
     test("waits for Redis initialization before issuing store commands", async () => {

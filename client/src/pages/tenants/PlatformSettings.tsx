@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getImpersonationPolicy, updateImpersonationPolicy, getPlatformConfig, updatePlatformConfig } from "../../api/organization";
+import { getPlatformAnnouncements, createPlatformAnnouncement, updatePlatformAnnouncement, deletePlatformAnnouncement, getImpersonationPolicy, updateImpersonationPolicy, getPlatformConfig, updatePlatformConfig } from "../../api/organization";
 import {
     Loader2, X, Megaphone, Trash2, ToggleLeft, ToggleRight, Shield, Save,
     Wrench, Lock, Database,
@@ -40,7 +40,7 @@ export default function PlatformSettings() {
 
     useEffect(() => {
         Promise.all([
-            getAdminAnnouncements().then(r => setAnnouncements(Array.isArray(r.data) ? r.data : [])).catch(() => {}),
+            getPlatformAnnouncements().then(r => setAnnouncements((r.data as any)?.data || [])).catch(() => {}),
             getImpersonationPolicy().then(r => { setPolicy(r.data); setPolicyDraft(r.data); }).catch(() => {}),
             getPlatformConfig().then(r => { setConfig(r.data); setConfigDraft(r.data); }).catch(() => {}),
         ]).finally(() => setLoading(false));
@@ -89,12 +89,12 @@ export default function PlatformSettings() {
         if (!newMsg.trim()) return;
         setError(""); setSuccess("");
         try {
-            await createAnnouncement({ message: newMsg.trim(), type: newType, duration: newDuration || null });
+            await createPlatformAnnouncement({ message: newMsg.trim(), type: newType, duration: newDuration || null });
             setNewMsg("");
             setNewType("info");
             setNewDuration("");
-            const res = await getAdminAnnouncements();
-            setAnnouncements(res.data as any);
+            const res = await getPlatformAnnouncements();
+            setAnnouncements((res.data as any)?.data || []);
             setSuccess("Announcement created");
         } catch (e: any) {
             setError(e.response?.data?.error || "Failed");
@@ -103,9 +103,9 @@ export default function PlatformSettings() {
 
     const handleToggleAnnouncement = async (ann: any) => {
         try {
-            await updateAnnouncement(ann.id, { is_active: !ann.is_active });
-            const res = await getAdminAnnouncements();
-            setAnnouncements(res.data as any);
+            await updatePlatformAnnouncement(ann.id, { is_active: !ann.is_active });
+            const res = await getPlatformAnnouncements();
+            setAnnouncements((res.data as any)?.data || []);
         } catch (e: any) {
             setError(e.response?.data?.error || "Failed");
         }
@@ -115,9 +115,9 @@ export default function PlatformSettings() {
         const { id } = deleteModal;
         setDeleteModal({ open: false, id: null });
         try {
-            await deleteAnnouncement(id);
-            const res = await getAdminAnnouncements();
-            setAnnouncements(res.data as any);
+            await deletePlatformAnnouncement(id);
+            const res = await getPlatformAnnouncements();
+            setAnnouncements((res.data as any)?.data || []);
         } catch (e: any) {
             setError(e.response?.data?.error || "Failed");
         }
@@ -276,20 +276,10 @@ export default function PlatformSettings() {
                         <Lock size={14} /> Security
                     </legend>
                     <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "0 0 12px" }}>
-                        Platform-wide password and session policies. Changes apply to all tenants.
+                        Platform-wide password policies. Console administrators remain signed in until explicit logout, account deactivation, or password change.
                     </p>
 
                     <div className={s.fieldRowWrap}>
-                        <div>
-                            <label className={s.fieldLabel}>Session timeout (minutes)</label>
-                            <input
-                                type="number" min="15" max="1440"
-                                value={configDraft.session_timeout_minutes}
-                                onChange={e => updateDraft("session_timeout_minutes", e.target.value)}
-                                className={s.inputSmall}
-                            />
-                            <small style={{ color: "var(--text-muted)", fontSize: 11, display: "block" }}>15–1440 min (default: 480)</small>
-                        </div>
                         <div>
                             <label className={s.fieldLabel}>Password min length</label>
                             <input
@@ -345,12 +335,12 @@ export default function PlatformSettings() {
                     <button
                         className={s.btnPrimary}
                         onClick={() => handleSaveConfig([
-                            "session_timeout_minutes", "password_min_length",
+                            "password_min_length",
                             "password_require_uppercase", "password_require_number", "password_require_special",
                             "allowed_email_domains",
                         ])}
                         disabled={!configChanged([
-                            "session_timeout_minutes", "password_min_length",
+                            "password_min_length",
                             "password_require_uppercase", "password_require_number", "password_require_special",
                             "allowed_email_domains",
                         ]) || configSaving}

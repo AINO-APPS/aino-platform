@@ -337,7 +337,6 @@ async function initMasterDB(): Promise<void> {
         INSERT INTO app_settings (key, value) VALUES
             ('maintenance_mode',             'false'),
             ('maintenance_message',          ''),
-            ('session_timeout_minutes',      '480'),
             ('password_min_length',          '8'),
             ('password_require_uppercase',   'true'),
             ('password_require_number',      'true'),

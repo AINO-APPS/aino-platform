@@ -110,6 +110,12 @@ export const updateAnnouncement = (id: number | string, data: AnyData) =>
     API.put(`/admin/announcements/${id}`, data);
 export const deleteAnnouncement = (id: number | string) =>
     API.delete(`/admin/announcements/${id}`);
+export const getPlatformAnnouncements = () => API.get("/admin/tenants/announcements");
+export const createPlatformAnnouncement = (data: AnyData) => API.post("/admin/tenants/announcements", data);
+export const updatePlatformAnnouncement = (id: number | string, data: AnyData) =>
+    API.put(`/admin/tenants/announcements/${id}`, data);
+export const deletePlatformAnnouncement = (id: number | string) =>
+    API.delete(`/admin/tenants/announcements/${id}`);
 
 // â”€â”€â”€ Platform-Access (consent-gated impersonation) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Platform-side (the inspector â€” runs while authenticated as platform_admin):

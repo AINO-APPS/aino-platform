@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 31,
-    "concreteEndpoints": 453,
-    "openApiOperations": 192
+    "concreteEndpoints": 464,
+    "openApiOperations": 196
   },
   "standaloneRoutes": [
     {
@@ -50,7 +50,7 @@
       "mountPath": "/api/auth",
       "source": "server/routes/auth.ts",
       "coverage": "baseline",
-      "endpointCount": 18
+      "endpointCount": 22
     },
     {
       "id": "tracker",
@@ -106,14 +106,14 @@
       "mountPath": "/api/admin",
       "source": "server/routes/admin.ts",
       "coverage": "inventory-only",
-      "endpointCount": 74
+      "endpointCount": 81
     },
     {
       "id": "tenants",
       "mountPath": "/api/admin/tenants",
       "source": "server/routes/tenants.ts",
       "coverage": "inventory-only",
-      "endpointCount": 37
+      "endpointCount": 44
     },
     {
       "id": "platform-access",
@@ -514,6 +514,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/admin/tenants/announcements",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/announcements",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/tenants/announcements/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/tenants/announcements/:id",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
       "path": "/api/admin/tenants/audit-logs",
       "coverage": "inventory-only"
     },
@@ -570,6 +590,21 @@
     {
       "method": "PUT",
       "path": "/api/admin/tenants/platform-users/:id/deactivate",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/tenants/platform-users/:id/links",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tenants/platform-users/:id/links",
+      "coverage": "inventory-only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/tenants/platform-users/:id/links/:tenantId",
       "coverage": "inventory-only"
     },
     {
@@ -728,6 +763,11 @@
       "coverage": "inventory-only"
     },
     {
+      "method": "POST",
+      "path": "/api/auth/activity",
+      "coverage": "operation"
+    },
+    {
       "method": "GET",
       "path": "/api/auth/biometric",
       "coverage": "operation"
@@ -759,7 +799,17 @@
     },
     {
       "method": "POST",
+      "path": "/api/auth/handoff",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
       "path": "/api/auth/login",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login/realm",
       "coverage": "operation"
     },
     {
@@ -785,6 +835,11 @@
     {
       "method": "POST",
       "path": "/api/auth/reset-password",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/switch-realm",
       "coverage": "operation"
     },
     {

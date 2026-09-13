@@ -117,7 +117,9 @@ async function authMiddleware(req: any, res: Response, next: NextFunction): Prom
             // sid-less JWTs remain accepted only for the bounded lifetime of
             // tokens issued before this rollout.
             if (decoded.sid) {
-                const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery });
+                const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery }, {
+                    ignoreIdle: isPlatformUser && !hasTenantContext,
+                });
                 if (state === "missing") {
                     return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
                 }

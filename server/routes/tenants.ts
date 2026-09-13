@@ -44,6 +44,7 @@ import {
     createPlatformUser, linkPlatformUser, listPlatformUserLinks, listPlatformUsers,
     resetPlatformUserPassword, togglePlatformUser, unlinkPlatformUser,
 } from "../services/platformUserManagement";
+import platformAnnouncementsRoutes from "./platformAnnouncements";
 const router = express.Router();
 // Message returned alongside `activity_restricted` when tenant-private
 // activity metrics are withheld. Applies to every tenant, including the
@@ -278,10 +279,6 @@ router.get("/overview", async (req: Request, res: Response) => {
     }
 });
 
-// ═══════════════════════════════════════════════════════════════
-//  PLATFORM ADMIN MANAGEMENT
-// ═══════════════════════════════════════════════════════════════
-
 router.get("/platform-users", listPlatformUsers);
 router.post("/platform-users", createPlatformUser);
 router.put("/platform-users/:id/deactivate", togglePlatformUser);
@@ -289,6 +286,8 @@ router.post("/platform-users/:id/reset-password", resetPlatformUserPassword);
 router.get("/platform-users/:id/links", listPlatformUserLinks);
 router.post("/platform-users/:id/links", linkPlatformUser);
 router.delete("/platform-users/:id/links/:tenantId", unlinkPlatformUser);
+
+router.use("/announcements", platformAnnouncementsRoutes);
 
 // ═══════════════════════════════════════════════════════════════
 //  IMPERSONATION POLICY  (platform-wide settings)

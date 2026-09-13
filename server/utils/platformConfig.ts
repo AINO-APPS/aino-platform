@@ -19,7 +19,6 @@ import { logger } from "./logger";
 const PLATFORM_KEYS = [
     "maintenance_mode",
     "maintenance_message",
-    "session_timeout_minutes",
     "password_min_length",
     "password_require_uppercase",
     "password_require_number",
@@ -33,7 +32,6 @@ const PLATFORM_KEYS = [
 const DEFAULTS: Record<string, string> = {
     maintenance_mode: "false",
     maintenance_message: "",
-    session_timeout_minutes: "480",
     password_min_length: "8",
     password_require_uppercase: "true",
     password_require_number: "true",
@@ -141,13 +139,6 @@ async function getAllowedEmailDomains(): Promise<string[]> {
     return raw.split(",").map((d: string) => d.trim().toLowerCase()).filter(Boolean);
 }
 
-async function getSessionTimeout(): Promise<number> {
-    const res = await masterQuery(
-        `SELECT value FROM app_settings WHERE key = 'session_timeout_minutes'`,
-    );
-    return parseInt10(res.rows[0]?.value, 480);
-}
-
 async function getRetentionPolicy(): Promise<RetentionPolicy> {
     const res = await masterQuery(
         `SELECT key, value FROM app_settings WHERE key = ANY($1::text[])`,
@@ -169,7 +160,6 @@ export {
     getMaintenanceMessage,
     getPasswordPolicy,
     getAllowedEmailDomains,
-    getSessionTimeout,
     getRetentionPolicy,
     PLATFORM_KEYS,
     DEFAULTS,

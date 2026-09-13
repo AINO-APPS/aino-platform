@@ -56,7 +56,19 @@ export async function togglePlatformUser(req: Request, res: Response) {
                 code: "LAST_PLATFORM_ADMIN",
             });
         }
-        await masterQuery("UPDATE platform_users SET is_active = $1, updated_at = NOW() WHERE id = $2", [newActive, uid]);
+        await masterQuery(
+            `UPDATE platform_users
+                SET is_active = $1,
+                    token_version = CASE WHEN $1 = FALSE THEN COALESCE(token_version, 0) + 1 ELSE token_version END,
+                    updated_at = NOW()
+              WHERE id = $2`,
+            [newActive, uid],
+        );
+        if (!newActive) {
+            await masterQuery("DELETE FROM user_sessions WHERE user_id = $1", [uid]);
+            await redis.invalidateTokenVersion(null, uid);
+            await redis.invalidateUserSessions(null, uid);
+        }
         logPlatformAction(req, newActive ? "platform_admin_reactivated" : "platform_admin_deactivated", "platform_user", uid, { full_name: target.full_name });
         res.json({ message: `${target.full_name} has been ${newActive ? "reactivated" : "deactivated"}`, is_active: newActive });
     } catch (err) {
@@ -68,6 +80,10 @@ export async function togglePlatformUser(req: Request, res: Response) {
 export async function resetPlatformUserPassword(req: Request, res: Response) {
     try {
         const uid = Number(req.params.id);
+        if (uid === req.userId) return res.status(400).json({
+            error: "Use Change Password to update your own password without unexpectedly ending this console session.",
+            code: "SELF_PASSWORD_RESET_DENIED",
+        });
         const { new_password } = req.body;
         if (!new_password || new_password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
         if (new_password.length > 72) return res.status(400).json({ error: "Password must be 72 characters or less" });

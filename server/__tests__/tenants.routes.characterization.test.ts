@@ -178,4 +178,40 @@ describe("tenant management route characterization", () => {
         expect(res.status).toBe(200);
         expect(res.body.links).toEqual([expect.objectContaining({ tenant_id: 1, tenant_user_id: 2 })]);
     });
+
+    test("creates a master-backed global announcement", async () => {
+        const row = { id: 12, message: "Global notice", type: "urgent", is_active: true };
+        mockMasterQuery.mockResolvedValueOnce({ rows: [row], rowCount: 1 });
+
+        const res = await request(makeApp())
+            .post("/api/admin/tenants/announcements")
+            .send({ message: "Global notice", type: "urgent", duration: 24 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data).toEqual(row);
+        expect(mockMasterQuery.mock.calls[0][0]).toContain("INSERT INTO platform_announcements");
+        expect(mockLogPlatformAction).toHaveBeenCalledWith(
+            expect.objectContaining({ userId: 41 }), "create_announcement", "platform_announcement", 12,
+            { type: "urgent" },
+        );
+    });
+
+    test("rejects administrative self password reset", async () => {
+        const res = await request(makeApp())
+            .post("/api/admin/tenants/platform-users/41/reset-password")
+            .send({ new_password: "NewPassword1!" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe("SELF_PASSWORD_RESET_DENIED");
+        expect(mockMasterQuery).not.toHaveBeenCalled();
+    });
+
+    test("rejects platform-admin self deactivation", async () => {
+        const res = await request(makeApp())
+            .put("/api/admin/tenants/platform-users/41/deactivate");
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/yourself/i);
+        expect(mockMasterQuery).not.toHaveBeenCalled();
+    });
 });
