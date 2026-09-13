@@ -24,34 +24,15 @@ const {
 
 const router = express.Router();
 
-// ── WebAuthn / passkey configuration ──────────────────────────────────────
-// rpID is the registrable domain (no scheme/port), e.g. "app.workpulse.com".
-// origin is the full scheme+host the browser sends, e.g. "https://app.workpulse.com".
-// Both can be overridden via env for multi-domain / custom-domain deployments.
-function webauthnConfig(req: Request): { rpID: string; rpName: string; origin: string } {
-    const envRpId = process.env.WEBAUTHN_RP_ID;
-    const envOrigin = process.env.WEBAUTHN_ORIGIN || process.env.CORS_ORIGIN;
-    // Derive from the request host as a sensible default in dev / single-domain.
-    const host = (req.headers.host || "localhost:5000").split(",")[0].trim();
-    const hostname = host.split(":")[0];
-    const proto = (req.headers["x-forwarded-proto"] as string) || (req.secure ? "https" : "http");
-    const rpID = envRpId || hostname;
-    const origin = envOrigin
-        ? envOrigin.split(",")[0].trim()
-        : `${proto}://${host}`;
-    return { rpID, rpName: "AINO", origin };
-}
-
 const {
     cookieOptions, cookieNameForRealm, cookieNameForRequest, readAuthToken,
     TENANT_COOKIE: TENANT_COOKIE_NAME, PLATFORM_COOKIE: PLATFORM_COOKIE_NAME,
 } = require("../utils/cookie");
 import { realmClaims, expectedRealm, TENANT_REALM, PLATFORM_REALM, type Realm } from "../platform/realm";
 import { consoleHost } from "../platform/reservedHosts";
-import {
-    createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
-} from "../services/realmHandoff";
-import { findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
+import { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } from "../services/realmHandoff";
+import { availablePlatformPrincipal, findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
+import { webauthnConfig } from "../utils/webauthnConfig";
 
 // Native mobile clients (React Native) can't use HttpOnly cookies, so they need
 // the JWT in the response body. This wraps res.cookie/res.json once for the
@@ -465,13 +446,10 @@ router.post("/handoff", async (req: Request, res: Response) => {
     const handoff = await consumeHandoff(String(req.body?.ticket || ""), targetHere);
     if (!handoff) return res.status(401).json({ error: "Handoff expired or was already used", code: "HANDOFF_INVALID" });
     if (handoff.tenant_id === null && handoff.tenant_user_id === null) {
-        // Platform-only login handoffs never resolve or acquire a tenant. Check
-        // current account state again in case it changed during the 30s window.
-        const platform = (await masterQuery(
-            "SELECT * FROM platform_users WHERE id = $1 AND is_active = TRUE",
-            [handoff.platform_user_id],
-        )).rows[0];
-        if (!platform || (platform.locked_until && new Date(platform.locked_until) > new Date())) {
+        // Platform-only handoffs never acquire a tenant. Revalidate account state
+        // in case it changed during the ticket's 30-second lifetime.
+        const platform = await availablePlatformPrincipal(handoff.platform_user_id);
+        if (!platform) {
             return res.status(403).json({ error: "Platform account is no longer available", code: "PLATFORM_ACCOUNT_UNAVAILABLE" });
         }
         return finishLogin(req, res, { user: platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true });
@@ -567,10 +545,8 @@ router.post("/login", async (req: Request, res: Response) => {
                     bcrypt.compare(password, platform.user.password),
                 ]);
                 const now = new Date();
-                const tenantAvailable = tenantOk && tenant.user.is_active
-                    && !(tenant.user.locked_until && new Date(tenant.user.locked_until) > now);
-                const platformAvailable = platformOk && platform.user.is_active
-                    && !(platform.user.locked_until && new Date(platform.user.locked_until) > now);
+                const tenantAvailable = tenantOk && tenant.user.is_active && !(tenant.user.locked_until && new Date(tenant.user.locked_until) > now);
+                const platformAvailable = platformOk && platform.user.is_active && !(platform.user.locked_until && new Date(platform.user.locked_until) > now);
                 if (tenantAvailable && platformAvailable) {
                     const loginTicket = await createLoginChoice({
                         platform_user_id: platform.user.id,
@@ -599,8 +575,7 @@ router.post("/login", async (req: Request, res: Response) => {
                 }
                 // If only one password matches, authenticate only that
                 // principal. This supports independently rotated passwords.
-                const selected = platformAvailable ? platform : tenantAvailable ? tenant
-                    : platformOk ? platform : tenantOk ? tenant : null;
+                const selected = platformAvailable ? platform : tenantAvailable ? tenant : platformOk ? platform : tenantOk ? tenant : null;
                 if (selected) {
                     user = selected.user; db = selected.db;
                     tenantId = selected.tenantId || null;
@@ -659,9 +634,7 @@ router.post("/login", async (req: Request, res: Response) => {
             }
         }
 
-        // Credentials, lockout and active-state checks deliberately precede
-        // minting. The ticket can establish only a platform session and carries
-        // no tenant identity or authority.
+        // Mint only after credential/account checks; the ticket has no tenant authority.
         if (isPlatformUser && expectedRealm(req) !== PLATFORM_REALM && consoleHost()) {
             const handoff = await createPlatformLoginHandoff(user.id);
             return res.json({

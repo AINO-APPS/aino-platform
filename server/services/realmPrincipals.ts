@@ -10,6 +10,15 @@ export function platformConsoleUrl(): string {
     return `https://${consoleHost() || "console.aino.org.in"}`;
 }
 
+/** Revalidate a platform principal immediately before establishing a session. */
+export async function availablePlatformPrincipal(userId: number): Promise<any | null> {
+    const user = (await masterQuery(
+        "SELECT * FROM platform_users WHERE id = $1 AND is_active = TRUE",
+        [userId],
+    )).rows[0];
+    return user && (!user.locked_until || new Date(user.locked_until) <= new Date()) ? user : null;
+}
+
 export async function linkedPrincipals(
     platformUserId: number,
     tenantId: number,
