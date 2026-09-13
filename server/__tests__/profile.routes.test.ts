@@ -403,6 +403,8 @@ describe("PUT /api/profile/password", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.must_change_password).toBe(false);
+        expect(res.body.token).toEqual(expect.any(String));
+        expect(jwt.decode(res.body.token)).toMatchObject({ platform: true, tv: 1, aud: "platform" });
         expect(mockQuery.mock.calls.some(([sql]) => /UPDATE platform_users/.test(sql))).toBe(true);
         expect(mockQuery.mock.calls.some(([sql]) => /DELETE FROM user_sessions/.test(sql))).toBe(true);
         expect(mockLogPlatformAction).toHaveBeenCalledWith(
@@ -436,6 +438,8 @@ describe("PUT /api/profile/password", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toMatch(/updated/i);
+        expect(res.body.token).toEqual(expect.any(String));
+        expect(jwt.decode(res.body.token)).toMatchObject({ tv: 1, aud: "tenant" });
         const updateSql = mockQuery.mock.calls.find(([sql]) => /UPDATE users SET password/.test(sql))?.[0];
         expect(updateSql).toBeDefined();
         expect(updateSql).not.toContain("updated_at");
