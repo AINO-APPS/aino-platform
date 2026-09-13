@@ -6,9 +6,13 @@ import Login from "../pages/Login";
 
 // Mock the api module
 const mockLoginApi = vi.fn();
+const mockCompleteLogin = vi.fn();
 vi.mock("../api/workforce", () => ({
     login: (...args: any[]) => mockLoginApi(...args),
     logoutUser: vi.fn(),
+}));
+vi.mock("../auth/completeLogin", () => ({
+    completeLogin: (...args: any[]) => mockCompleteLogin(...args),
 }));
 vi.mock("../api/organization", () => ({
     getProfile: vi.fn().mockRejectedValue(new Error("not logged in")),
@@ -40,6 +44,7 @@ describe("Login page", () => {
     beforeEach(() => {
         mockLoginApi.mockReset();
         mockSaveAuth.mockReset();
+        mockCompleteLogin.mockReset();
     });
 
     test("renders form with username and password", () => {
@@ -68,7 +73,10 @@ describe("Login page", () => {
         await waitFor(() => {
             expect(mockLoginApi).toHaveBeenCalledWith({ username: "testuser", password: "password123" });
         });
-        expect(mockSaveAuth).toHaveBeenCalledWith({ id: 1, username: "test" });
+        expect(mockCompleteLogin).toHaveBeenCalledWith(
+            { user: { id: 1, username: "test" } },
+            mockSaveAuth,
+        );
     });
 
     test("shows error on failed login", async () => {
@@ -105,6 +113,6 @@ describe("Login page", () => {
 
         // Resolve to prevent act warning
         resolveLogin!({ data: { user: { id: 1 } } });
-        await waitFor(() => expect(mockSaveAuth).toHaveBeenCalled());
+        await waitFor(() => expect(mockCompleteLogin).toHaveBeenCalled());
     });
 });

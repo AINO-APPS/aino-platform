@@ -17,6 +17,7 @@ import {
   desktopBiometricStatus,
   desktopBiometricLogin,
 } from "../auth/desktopBiometric";
+import { completeLogin } from "../auth/completeLogin";
 import s from "./Auth.module.css";
 
 export default function Login() {
@@ -49,7 +50,7 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await loginApi(form);
-      saveAuth((data as any).user);
+      completeLogin(data as any, saveAuth);
     } catch (err: any) {
       if (err.response?.data?.code === "REALM_CHOICE_REQUIRED") {
         setRealmChoice(err.response.data);
@@ -69,11 +70,7 @@ export default function Login() {
     setLoading(true); setError("");
     try {
       const { data } = await chooseLoginRealm(realmChoice.login_ticket, realm);
-      if ((data as any).redirect) {
-        window.location.assign((data as any).redirect);
-        return;
-      }
-      saveAuth((data as any).user);
+      completeLogin(data as any, saveAuth);
     } catch (err: any) {
       setError(err.response?.data?.error || "Realm selection failed");
       setRealmChoice(null);
