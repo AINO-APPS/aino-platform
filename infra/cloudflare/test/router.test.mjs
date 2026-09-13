@@ -62,9 +62,24 @@ test("absorbs the Cloudflare RUM beacon instead of routing it to the SPA bucket"
   // The beacon path is not an object in R2, so letting it fall through to the
   // static origin surfaces a 503/404 in the console right after a successful
   // login and makes authentication look broken.
+  //
+  // NOTE: `/cdn-cgi/*` is reserved by Cloudflare and served at the edge before
+  // Worker routes are evaluated, so in production this branch is generally not
+  // reached (a live probe shows no `cfWorker` entry in Server-Timing). It is
+  // kept as defence in depth, but the beacon's status is cosmetic and must
+  // never gate a deploy — see docs/CONSOLE_HOST_SETUP.md.
   assert.equal(isCloudflareRumRequest("POST", "/cdn-cgi/rum"), true);
   assert.equal(isCloudflareRumRequest("GET", "/cdn-cgi/rum"), false);
   assert.equal(isCloudflareRumRequest("POST", "/api/auth/login"), false);
+});
+
+test("login always routes to the web origin, never the static bucket", () => {
+  // The console login failure was an edge-routing/identity bug, so pin the two
+  // paths whose misrouting produces it: authentication must reach Express.
+  for (const mode of ["split"]) {
+    assert.equal(selectOrigin("/api/auth/login", mode, origins), origins.web);
+    assert.equal(selectOrigin("/api/auth/logout", mode, origins), origins.web);
+  }
 });
 
 test("forwards the browser-visible host under a header Railway does not rewrite", () => {

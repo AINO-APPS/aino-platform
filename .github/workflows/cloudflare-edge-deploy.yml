@@ -133,12 +133,29 @@ jobs:
               ;;
           esac
 
+          # The Cloudflare Browser Insights beacon POSTs to /cdn-cgi/rum. This is
+          # INFORMATIONAL ONLY and must never gate the deploy.
+          #
+          # `/cdn-cgi/*` is reserved by Cloudflare and is answered at the edge
+          # before Worker routes are evaluated, so the Worker's RUM short-circuit
+          # cannot run for it and a 204 is not achievable from our code. Probing
+          # the path shows no `cfWorker` entry in Server-Timing, proving the
+          # Worker was never invoked. When Browser Insights is not enabled for
+          # the zone the edge answers 404 (previously surfaced as 503).
+          #
+          # Asserting 204 here failed the workflow *after* a successful
+          # `wrangler deploy`, which made a completed edge rollout look like a
+          # failed one — the reason the X-AINO-Forwarded-Host fix sat undeployed
+          # while platform login stayed broken with 403.
           rum_status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
             --output /dev/null --write-out '%{http_code}' \
             -X POST -H 'Content-Type: application/json' --data '{}' \
-            "${origin}/cdn-cgi/rum")
-          test "$rum_status" = "204" || {
-            echo "::error::Cloudflare RUM endpoint returned HTTP ${rum_status}, expected 204."
-            exit 1
-          }
-          echo "Cloudflare RUM endpoint verified."
+            "${origin}/cdn-cgi/rum" || echo "000")
+          case "$rum_status" in
+            204|404|503)
+              echo "Cloudflare RUM beacon returned HTTP ${rum_status} (cosmetic, edge-handled)."
+              ;;
+            *)
+              echo "::warning::Cloudflare RUM beacon returned HTTP ${rum_status}."
+              ;;
+          esac

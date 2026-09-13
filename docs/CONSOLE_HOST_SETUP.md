@@ -298,7 +298,7 @@ serve the app. No migration to reverse; `0004_platform_roles.sql` is additive.
 | Tenant cookie works on the console (check 4 returns 200) | Grey-cloud DNS record — Worker never runs, no forwarded host header |
 | `Error: CONSOLE_HOST must be a bare hostname` at boot | Value includes `https://`, a port, or a trailing path |
 | **`403 PLATFORM_LOGIN_HOST_REQUIRED` on the console itself** | The browser-visible hostname is not reaching Express — see below |
-| `503`/`404` on `/cdn-cgi/rum` after login | Worker not absorbing the Cloudflare Browser Insights beacon; cosmetic, but it masks the real error |
+| `503`/`404` on `/cdn-cgi/rum` after login | Cosmetic Browser Insights beacon — **never the cause of a login failure**; see below |
 
 ### `PLATFORM_LOGIN_HOST_REQUIRED` while already on the console
 
@@ -346,3 +346,36 @@ curl -sD - -o /dev/null -X POST \
 the legacy no-`aud` grace window; setting it while the realm is misresolved
 changes nothing about the 403 and additionally signs out tenant users holding
 pre-PR-B tokens.
+
+**If the probe already reports `aino_console` but login still 403s in the
+browser, the server is fine and the Worker is stale.** Confirm which commit the
+edge is actually running:
+
+```bash
+gh api repos/:owner/:repo/actions/runs/<run-id> --jq .head_sha
+```
+
+A `head_sha` older than the commit that introduced `X-AINO-Forwarded-Host`
+means the server-side reader is deployed but the Worker never started sending
+the header. Redeploy the edge:
+
+```bash
+gh workflow run cloudflare-edge-deploy.yml --ref master -f confirm=DEPLOY
+```
+
+### `/cdn-cgi/rum` returns 404/503 — cosmetic, never the cause
+
+`/cdn-cgi/*` is **reserved by Cloudflare and answered at the edge before Worker
+routes are evaluated**, so the Worker's RUM short-circuit in
+`infra/cloudflare/src/index.js` cannot run for it. Confirm with:
+
+```bash
+curl -sD - -o /dev/null -X POST https://console.aino.org.in/cdn-cgi/rum \
+  | grep -i server-timing
+```
+
+No `cfWorker` entry in `Server-Timing` proves the Worker was never invoked. The
+404 simply means Browser Insights is not enabled for the zone. It is a beacon
+for analytics only — **it cannot fail a login**, and because it is the loudest
+message in the browser console it is routinely mistaken for the real error.
+The deploy workflow therefore reports this status without gating on it.
