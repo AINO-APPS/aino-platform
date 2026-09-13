@@ -317,13 +317,7 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         } else {
             logAction(req, "change_password", "user", req.userId, {});
         }
-        // Native clients authenticate with the bearer token mirrored by auth
-        // flows. Password rotation increments token_version, which immediately
-        // invalidates the token used for this request, so return the replacement
-        // token as well as setting the browser cookie. Without this field a
-        // mobile client completes the mandatory change and is logged out by its
-        // very next API request.
-        res.json({ message: "Password updated successfully", must_change_password: false, token });
+        res.json({ message: "Password updated successfully", must_change_password: false, token }); // Replacement for native bearer clients.
     } catch (err) {
         req.log.error({ err }, "PUT /profile/password error");
         res.status(500).json({ error: "Failed to change password" });
