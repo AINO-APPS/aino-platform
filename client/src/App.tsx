@@ -6,7 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { AuthProvider, isTenantlessPlatformAdmin, realmHomePath, useAuth } from "./AuthContext";
+import { AuthProvider, isTenantlessPlatformAdmin, platformConsoleRouteRedirect, realmHomePath, useAuth } from "./AuthContext";
 import { FeaturesProvider, useFeatures } from "./FeaturesContext";
 import { ROLE_LEVEL } from "./constants";
 import { ThemeProvider } from "./ThemeContext";
@@ -73,6 +73,7 @@ interface ProtectedRouteProps {
 
 function ProtectedRoute({ children, minRole }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuth() as any;
+  const { pathname } = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" />;
   // Force password change before accessing any route.
   //
@@ -83,6 +84,8 @@ function ProtectedRoute({ children, minRole }: ProtectedRouteProps) {
   // `user` here is already the correct principal — the guard simply must not
   // be widened to consider the other realm.
   if (user?.must_change_password) return <Navigate to="/change-password" />;
+  const consoleRedirect = platformConsoleRouteRedirect(user, pathname);
+  if (consoleRedirect) return <Navigate to={consoleRedirect} replace />;
   if (minRole) {
     // Allow manager route if user has direct reports (even if role < team_lead)
     if (minRole === "team_lead" && user?.has_reports) return <>{children}</>;
@@ -153,6 +156,15 @@ function AppRoutes() {
   // A cached profile intentionally omits role and permissions. Wait for the
   // server verification before mounting tenant-scoped pages or navbar polling.
   if (isAuthenticated && isInitializing) return <PageSkeleton />;
+
+  // Apply the control-plane boundary above both keep-alive pages and dynamic
+  // authenticated routes. Handoff and required password change remain usable.
+  const consoleRedirect = isAuthenticated
+    ? platformConsoleRouteRedirect(user, location.pathname)
+    : null;
+  if (consoleRedirect && !user?.must_change_password) {
+    return <Navigate to={consoleRedirect} replace />;
+  }
 
   return (
     <div className="app">

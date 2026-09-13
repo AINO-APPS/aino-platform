@@ -16,8 +16,10 @@ interface HandoffClaims {
     source_realm: "tenant" | "platform" | "login";
     target_realm: Realm;
     platform_user_id: number;
-    tenant_id: number;
-    tenant_user_id: number;
+    // Platform-only login handoffs have no tenant principal. Linked-principal
+    // handoffs continue to carry both values.
+    tenant_id: number | null;
+    tenant_user_id: number | null;
 }
 
 async function createHandoff(claims: Omit<HandoffClaims, "jti">): Promise<string> {
@@ -35,6 +37,17 @@ async function createHandoff(claims: Omit<HandoffClaims, "jti">): Promise<string
     });
 }
 
+/** Mint the narrowly-scoped app-host -> console handoff for a platform-only login. */
+async function createPlatformLoginHandoff(platformUserId: number): Promise<string> {
+    return createHandoff({
+        source_realm: "login",
+        target_realm: "platform",
+        platform_user_id: platformUserId,
+        tenant_id: null,
+        tenant_user_id: null,
+    });
+}
+
 /** Atomically consume once. A replay, expiry, or claim mismatch returns null. */
 async function consumeHandoff(token: string, expectedTarget?: Realm): Promise<HandoffClaims | null> {
     let claims: any;
@@ -43,6 +56,16 @@ async function consumeHandoff(token: string, expectedTarget?: Realm): Promise<Ha
     } catch {
         return null;
     }
+    const tenantClaimsArePaired =
+        (claims.tenant_id === null && claims.tenant_user_id === null)
+        || (Number.isInteger(claims.tenant_id) && Number.isInteger(claims.tenant_user_id));
+    const platformOnlyLogin = claims.source_realm === "login"
+        && claims.target_realm === "platform"
+        && claims.tenant_id === null
+        && claims.tenant_user_id === null;
+    const linkedHandoff = claims.tenant_id !== null && claims.tenant_user_id !== null;
+    if (!Number.isInteger(claims.platform_user_id) || !tenantClaimsArePaired
+        || (!platformOnlyLogin && !linkedHandoff)) return null;
     // Reject before the UPDATE so presenting a valid ticket to the wrong host
     // cannot burn it and deny the legitimate switch.
     if (expectedTarget && claims.target_realm !== expectedTarget) return null;
@@ -50,7 +73,9 @@ async function consumeHandoff(token: string, expectedTarget?: Realm): Promise<Ha
         `UPDATE realm_handoffs SET consumed_at = NOW()
           WHERE jti = $1 AND consumed_at IS NULL AND expires_at > NOW()
             AND source_realm = $2 AND target_realm = $3
-            AND platform_user_id = $4 AND tenant_id = $5 AND tenant_user_id = $6
+            AND platform_user_id = $4
+            AND tenant_id IS NOT DISTINCT FROM $5
+            AND tenant_user_id IS NOT DISTINCT FROM $6
           RETURNING jti`,
         [claims.jti, claims.source_realm, claims.target_realm, claims.platform_user_id,
             claims.tenant_id, claims.tenant_user_id],
@@ -98,5 +123,6 @@ async function consumeLoginChoice(token: string): Promise<LoginChoiceClaims | nu
 
 export {
     HANDOFF_TTL_SECONDS, LOGIN_CHOICE_TTL_SECONDS,
-    createHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
+    createHandoff, createPlatformLoginHandoff, consumeHandoff,
+    createLoginChoice, consumeLoginChoice,
 };

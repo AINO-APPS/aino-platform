@@ -2,7 +2,7 @@
 import { Suspense, lazy, useRef } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
-import { isTenantlessPlatformAdmin, currentRealm, realmHomePath, type Realm } from "../../AuthContext";
+import { isTenantlessPlatformAdmin, platformConsoleRouteRedirect, currentRealm, realmHomePath, type Realm } from "../../AuthContext";
 import { ROLE_LEVEL } from "../../constants";
 import PageSkeleton from "./PageSkeleton";
 
@@ -124,7 +124,8 @@ export default function KeepAlive() {
     // Evaluate tenant context only after the hostname realm has selected its
     // landing page. A tenantless platform admin initially redirected from
     // /login to / must reach /tenants, not the tenant-required empty state.
-    if (!canMountTenantPage(user, current)) return <TenantRequiredState />;
+    const consoleRedirect = platformConsoleRouteRedirect(user, current);
+    if (consoleRedirect) return <Navigate to={consoleRedirect} replace />;
 
     // Role check for current path
     const minRole = ROLE_REQUIREMENTS[current];

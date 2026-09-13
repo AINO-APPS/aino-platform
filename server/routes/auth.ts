@@ -49,7 +49,7 @@ const {
 import { realmClaims, expectedRealm, TENANT_REALM, PLATFORM_REALM, type Realm } from "../platform/realm";
 import { consoleHost } from "../platform/reservedHosts";
 import {
-    createHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
+    createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice,
 } from "../services/realmHandoff";
 import { findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
 
@@ -464,6 +464,21 @@ router.post("/handoff", async (req: Request, res: Response) => {
     const targetHere = expectedRealm(req);
     const handoff = await consumeHandoff(String(req.body?.ticket || ""), targetHere);
     if (!handoff) return res.status(401).json({ error: "Handoff expired or was already used", code: "HANDOFF_INVALID" });
+    if (handoff.tenant_id === null && handoff.tenant_user_id === null) {
+        // Platform-only login handoffs never resolve or acquire a tenant. Check
+        // current account state again in case it changed during the 30s window.
+        const platform = (await masterQuery(
+            "SELECT * FROM platform_users WHERE id = $1 AND is_active = TRUE",
+            [handoff.platform_user_id],
+        )).rows[0];
+        if (!platform || (platform.locked_until && new Date(platform.locked_until) > new Date())) {
+            return res.status(403).json({ error: "Platform account is no longer available", code: "PLATFORM_ACCOUNT_UNAVAILABLE" });
+        }
+        return finishLogin(req, res, { user: platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true });
+    }
+    if (handoff.tenant_id === null || handoff.tenant_user_id === null) {
+        return res.status(401).json({ error: "Handoff expired or was already used", code: "HANDOFF_INVALID" });
+    }
     const pair = await linkedPrincipals(handoff.platform_user_id, handoff.tenant_id, handoff.tenant_user_id, getTenantDb);
     if (!pair) return res.status(403).json({ error: "Linked account is no longer available", code: "LINK_UNAVAILABLE" });
     return handoff.target_realm === PLATFORM_REALM
@@ -551,7 +566,12 @@ router.post("/login", async (req: Request, res: Response) => {
                     bcrypt.compare(password, tenant.user.password),
                     bcrypt.compare(password, platform.user.password),
                 ]);
-                if (tenantOk && platformOk) {
+                const now = new Date();
+                const tenantAvailable = tenantOk && tenant.user.is_active
+                    && !(tenant.user.locked_until && new Date(tenant.user.locked_until) > now);
+                const platformAvailable = platformOk && platform.user.is_active
+                    && !(platform.user.locked_until && new Date(platform.user.locked_until) > now);
+                if (tenantAvailable && platformAvailable) {
                     const loginTicket = await createLoginChoice({
                         platform_user_id: platform.user.id,
                         tenant_id: tenant.tenantId,
@@ -579,7 +599,8 @@ router.post("/login", async (req: Request, res: Response) => {
                 }
                 // If only one password matches, authenticate only that
                 // principal. This supports independently rotated passwords.
-                const selected = platformOk ? platform : tenantOk ? tenant : null;
+                const selected = platformAvailable ? platform : tenantAvailable ? tenant
+                    : platformOk ? platform : tenantOk ? tenant : null;
                 if (selected) {
                     user = selected.user; db = selected.db;
                     tenantId = selected.tenantId || null;
@@ -598,18 +619,6 @@ router.post("/login", async (req: Request, res: Response) => {
             }
         }
 
-        // A single-principal platform login belongs on the console host. A
-        // host-scoped `aino_console` cookie set by the application host would
-        // be stranded there and unavailable to console. Linked identities use
-        // the chooser/handoff path above; pure platform identities are told to
-        // sign in at the correct host.
-        if (isPlatformUser && expectedRealm(req) !== PLATFORM_REALM && consoleHost()) {
-            return res.status(403).json({
-                error: "Platform accounts sign in through the Platform Console.",
-                code: "PLATFORM_LOGIN_HOST_REQUIRED",
-                redirect: `${platformConsoleUrl()}/login`,
-            });
-        }
         if (!isPlatformUser && user && expectedRealm(req) === PLATFORM_REALM) {
             return res.status(403).json({
                 error: "Tenant accounts sign in through their workspace.",
@@ -648,6 +657,16 @@ router.post("/login", async (req: Request, res: Response) => {
             } else {
                 await db.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
             }
+        }
+
+        // Credentials, lockout and active-state checks deliberately precede
+        // minting. The ticket can establish only a platform session and carries
+        // no tenant identity or authority.
+        if (isPlatformUser && expectedRealm(req) !== PLATFORM_REALM && consoleHost()) {
+            const handoff = await createPlatformLoginHandoff(user.id);
+            return res.json({
+                redirect: `${platformConsoleUrl()}/auth/handoff#t=${encodeURIComponent(handoff)}`,
+            });
         }
 
         return finishLogin(req, res, { user, db, tenantId, isPlatformUser });

@@ -230,6 +230,86 @@ describe("POST /api/auth/login", () => {
         expect(mockQuery.mock.calls.some(([sql]) => /FROM tenants/.test(sql))).toBe(false);
     });
 
+    test("hands a verified platform-only login from the app host to the console", async () => {
+        const previousConsoleHost = process.env.CONSOLE_HOST;
+        process.env.CONSOLE_HOST = "console.example.test";
+        try {
+            const hash = await bcrypt.hash("CorrectPass1!", 10);
+            mockQuery
+                .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user_directory miss
+                .mockResolvedValueOnce({ rows: [{
+                    id: 9, username: "operator", password: hash, full_name: "Operator",
+                    is_active: true, failed_login_attempts: 0,
+                }], rowCount: 1 })
+                .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // realm_handoffs insert
+
+            const res = await request(app).post("/api/auth/login").set(CSRF)
+                .set("Host", "app.example.test")
+                .send({ username: "operator", password: "CorrectPass1!" });
+
+            expect(res.status).toBe(200);
+            expect(res.body.redirect).toMatch(/^https:\/\/console\.example\.test\/auth\/handoff#t=/);
+            expect(res.headers["set-cookie"]).toBeUndefined();
+            const insert = mockQuery.mock.calls.find(([sql]) => /INSERT INTO realm_handoffs/i.test(sql));
+            expect(insert?.[1]).toEqual(expect.arrayContaining(["login", "platform", 9, null, null]));
+        } finally {
+            if (previousConsoleHost === undefined) delete process.env.CONSOLE_HOST;
+            else process.env.CONSOLE_HOST = previousConsoleHost;
+        }
+    });
+
+    test("does not mint a platform-only handoff before credential and account checks pass", async () => {
+        const previousConsoleHost = process.env.CONSOLE_HOST;
+        process.env.CONSOLE_HOST = "console.example.test";
+        try {
+            const hash = await bcrypt.hash("CorrectPass1!", 10);
+            mockQuery
+                .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+                .mockResolvedValueOnce({ rows: [{
+                    id: 9, username: "operator", password: hash, is_active: true,
+                    failed_login_attempts: 4,
+                }], rowCount: 1 })
+                .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // failed-attempt update
+
+            const res = await request(app).post("/api/auth/login").set(CSRF)
+                .set("Host", "app.example.test")
+                .send({ username: "operator", password: "WrongPass1!" });
+
+            expect(res.status).toBe(401);
+            expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO realm_handoffs/i.test(sql))).toBe(false);
+        } finally {
+            if (previousConsoleHost === undefined) delete process.env.CONSOLE_HOST;
+            else process.env.CONSOLE_HOST = previousConsoleHost;
+        }
+    });
+
+    test.each([
+        ["locked", true, new Date(Date.now() + 600000).toISOString(), 401],
+        ["inactive", false, null, 403],
+    ])("does not mint a platform-only handoff for a %s account", async (_state, isActive, lockedUntil, status) => {
+        const previousConsoleHost = process.env.CONSOLE_HOST;
+        process.env.CONSOLE_HOST = "console.example.test";
+        try {
+            const hash = await bcrypt.hash("CorrectPass1!", 10);
+            mockQuery
+                .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+                .mockResolvedValueOnce({ rows: [{
+                    id: 9, username: "operator", password: hash, is_active: isActive,
+                    failed_login_attempts: 0, locked_until: lockedUntil,
+                }], rowCount: 1 });
+
+            const res = await request(app).post("/api/auth/login").set(CSRF)
+                .set("Host", "app.example.test")
+                .send({ username: "operator", password: "CorrectPass1!" });
+
+            expect(res.status).toBe(status);
+            expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO realm_handoffs/i.test(sql))).toBe(false);
+        } finally {
+            if (previousConsoleHost === undefined) delete process.env.CONSOLE_HOST;
+            else process.env.CONSOLE_HOST = previousConsoleHost;
+        }
+    });
+
     test("returns 200 with user data and cookie on valid login", async () => {
         // Post-migration login path: user_directory hit → tenant DB lookup.
         // The legacy "users in master DB" fallback was removed; tests must

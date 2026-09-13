@@ -31,6 +31,25 @@ export function isTenantlessPlatformAdmin(user: User | null | undefined): boolea
 }
 
 /**
+ * Tenantless platform principals belong to the control plane. They may finish
+ * a required password change or consume a cross-realm handoff, but must never
+ * enter tenant application routes without an impersonated tenant context.
+ */
+export function platformConsoleRouteRedirect(
+  user: User | null | undefined,
+  pathname: string,
+): "/tenants" | null {
+  if (!isTenantlessPlatformAdmin(user)) return null;
+
+  const normalized = pathname !== "/" ? pathname.replace(/\/$/, "") : pathname;
+  const allowed = normalized === "/tenants"
+    || normalized === "/change-password"
+    || normalized === "/auth/handoff";
+
+  return allowed ? null : "/tenants";
+}
+
+/**
  * Which realm this browser tab is operating in (PR-B).
  *
  * Derived from the hostname, matching the server's `realmForHost()`. The

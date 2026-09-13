@@ -4,7 +4,7 @@ const mockQuery = jest.fn();
 jest.mock("../db", () => ({ masterQuery: (...a: any[]) => mockQuery(...a) }));
 
 import jwt from "jsonwebtoken";
-const { createHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } = require("../services/realmHandoff");
+const { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } = require("../services/realmHandoff");
 
 beforeAll(() => { process.env.JWT_SECRET = "realm-handoff-test-secret-32-characters"; });
 beforeEach(() => mockQuery.mockReset());
@@ -44,6 +44,29 @@ describe("realm handoff", () => {
         const token = await createHandoff(claims);
         mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
         await expect(consumeHandoff(token, "platform")).resolves.toBeNull();
+    });
+
+    it("supports a platform-only login without granting tenant claims", async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+        const token = await createPlatformLoginHandoff(9);
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!, { audience: "realm-handoff" });
+        expect(decoded).toMatchObject({
+            source_realm: "login", target_realm: "platform", platform_user_id: 9,
+            tenant_id: null, tenant_user_id: null,
+        });
+        expect(decoded.exp - decoded.iat).toBe(30);
+
+        mockQuery.mockResolvedValueOnce({ rows: [{ jti: "ok" }], rowCount: 1 });
+        await expect(consumeHandoff(token, "platform")).resolves.toMatchObject({ tenant_id: null, tenant_user_id: null });
+        expect(String(mockQuery.mock.calls[1][0])).toContain("tenant_id IS NOT DISTINCT FROM $5");
+    });
+
+    it("does not let a platform-only login ticket target the tenant realm", async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+        const token = await createPlatformLoginHandoff(9);
+        mockQuery.mockClear();
+        await expect(consumeHandoff(token, "tenant")).resolves.toBeNull();
+        expect(mockQuery).not.toHaveBeenCalled();
     });
 });
 
