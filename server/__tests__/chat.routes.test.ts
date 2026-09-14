@@ -689,6 +689,29 @@ describe("POST /api/chat/conversations/:id/messages", () => {
             ),
         ).toBe(false);
     });
+
+    test("replays a client message id without duplicate fan-out side effects", async () => {
+        setupAuth();
+        const createdAt = new Date().toISOString();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ ok: 1 }], rowCount: 1 }) // participant
+            .mockResolvedValueOnce({ rows: [{ is_group: true, group_name: "Team" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: 77, created_at: createdAt, inserted: false }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ full_name: "Sender", avatar: null, username: "sender" }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/chat/conversations/10/messages")
+            .set("Cookie", authCookie(1))
+            .set(CSRF)
+            .send({ content: "Hello", clientMsgId: "android-123" });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toMatchObject({ id: 77, client_msg_id: "android-123" });
+        const sqlCalls = mockQuery.mock.calls.map(([sql]: any[]) => String(sql));
+        expect(sqlCalls.some((sql: string) => sql.includes("UPDATE conversations SET updated_at"))).toBe(false);
+        expect(sqlCalls.some((sql: string) => sql.includes("INSERT INTO message_reads"))).toBe(false);
+        expect(sqlCalls.some((sql: string) => sql.includes("SELECT user_id FROM conversation_participants"))).toBe(false);
+    });
 });
 
 describe("POST /api/chat/messages/:id/reactions", () => {

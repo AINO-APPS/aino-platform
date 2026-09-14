@@ -60,6 +60,12 @@ router.post(
       if (content.length > 5000) {
         return res.status(400).json({ error: "Message too long" });
       }
+      const clientMsgId = req.body.clientMsgId == null
+        ? null
+        : String(req.body.clientMsgId).trim();
+      if (clientMsgId !== null && (!clientMsgId || clientMsgId.length > 64)) {
+        return res.status(400).json({ error: "clientMsgId must be 1-64 characters" });
+      }
       const replyToId = req.body.replyToId
         ? parseInt(String(req.body.replyToId), 10)
         : null;
@@ -75,11 +81,15 @@ router.post(
       }
 
       const result = (
-        await service.query(req.db!, "q037", [convId, req.userId, content, replyToId])
+        await service.query(req.db!, "q037", [convId, req.userId, content, replyToId, clientMsgId])
       ).rows[0];
+      if (!result) return res.status(500).json({ error: "Failed to persist message" });
+      const isDuplicateReplay = result.inserted === false;
 
-      await service.query(req.db!, "q005", [convId]);
-      await service.query(req.db!, "q038", [convId, req.userId, result.created_at]);
+      if (!isDuplicateReplay) {
+        await service.query(req.db!, "q005", [convId]);
+        await service.query(req.db!, "q038", [convId, req.userId, result.created_at]);
+      }
 
       const sender = (
         await service.query(req.db!, "q039", [req.userId])
@@ -104,7 +114,7 @@ router.post(
         }
       }
 
-      const participants = (
+      const participants = isDuplicateReplay ? [] : (
         await service.query(req.db!, "q006", [convId])
       ).rows;
 
@@ -125,6 +135,7 @@ router.post(
         replyFileType,
         replyFileName,
         createdAt: result.created_at,
+        clientMsgId,
       };
 
       for (const p of participants) {
@@ -189,6 +200,7 @@ router.post(
         sender_username: sender?.username,
         content,
         created_at: result.created_at,
+        client_msg_id: clientMsgId,
         reply_to_id: replyToId,
         reply_to_content: replyContent,
         reply_to_sender_name: replySenderName,

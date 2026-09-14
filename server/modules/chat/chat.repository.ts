@@ -103,7 +103,12 @@ export const sql = {
     q034: "WITH me AS ( SELECT COALESCE((notification_prefs->>'readReceipts')::boolean, TRUE) AS receipts_on FROM users WHERE id = $2 ) SELECT mr.user_id, mr.last_read_at, u.full_name FROM message_reads mr JOIN users u ON u.id = mr.user_id CROSS JOIN me WHERE mr.conversation_id = $1 AND mr.user_id != $2 AND me.receipts_on AND COALESCE((u.notification_prefs->>'readReceipts')::boolean, TRUE)",
     q035: "SELECT is_group, name AS group_name FROM conversations WHERE id = $1",
     q036: "SELECT 1 FROM blocked_users b JOIN conversation_participants cp ON cp.conversation_id = $1 AND cp.user_id != $2 WHERE (b.blocker_id = $2 AND b.blocked_id = cp.user_id) OR (b.blocker_id = cp.user_id AND b.blocked_id = $2) LIMIT 1",
-    q037: "INSERT INTO messages (conversation_id, sender_id, content, reply_to_id) VALUES ($1, $2, $3, $4) RETURNING id, created_at",
+    q037: `WITH inserted AS (INSERT INTO messages (conversation_id, sender_id, content, reply_to_id, client_msg_id)
+        VALUES ($1, $2, $3, $4, $5) ON CONFLICT (conversation_id, sender_id, client_msg_id)
+        WHERE client_msg_id IS NOT NULL DO NOTHING RETURNING id, created_at, TRUE AS inserted)
+        SELECT id, created_at, inserted FROM inserted UNION ALL SELECT id, created_at, FALSE AS inserted
+        FROM messages WHERE conversation_id = $1 AND sender_id = $2 AND client_msg_id = $5
+        AND NOT EXISTS (SELECT 1 FROM inserted) LIMIT 1`,
     q038: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, $3) ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = $3",
     q039: "SELECT full_name, avatar, username FROM users WHERE id = $1",
     q040: "SELECT m.content, m.file_url, m.file_type, m.file_name, u.full_name AS sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = $1 AND m.conversation_id = $2",
