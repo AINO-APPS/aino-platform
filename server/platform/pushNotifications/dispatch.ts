@@ -97,6 +97,7 @@ export async function dispatchPushNotifications(
         });
 
         const invalidTokens: string[] = [];
+        const errorCodes: Record<string, number> = {};
         response.responses.forEach((item: SendResponse, index: number) => {
             if (item.success) {
                 succeeded++;
@@ -104,6 +105,8 @@ export async function dispatchPushNotifications(
             }
 
             failed++;
+            const code = item.error?.code || "unknown";
+            errorCodes[code] = (errorCodes[code] || 0) + 1;
             if (item.error?.code && INVALID_TOKEN_ERRORS.has(item.error.code)) {
                 invalidTokens.push(tokens[index]);
             }
@@ -132,6 +135,8 @@ export async function dispatchPushNotifications(
                 tokenCount: tokens.length,
                 sent: response.successCount,
                 failed: response.failureCount,
+                // Per-code failure counts (no tokens) so "sent=0 failed=N" is diagnosable.
+                ...(failed > 0 ? { errorCodes, purged: invalidTokens.length } : {}),
             },
             "Push notifications sent",
         );
