@@ -50,9 +50,8 @@ interface AnalyticsDay {
 
 interface NotificationMetrics {
   successRate: number | null;
-  routingAttempts: number;
-  successfulRoutes: number;
-  p95LatencyMs: number;
+  counts?: { routingAttempts: number; successfulRoutes: number };
+  latency?: { p95Ms: number };
 }
 
 const EMPTY_DAYS: AnalyticsDay[] = [];
@@ -258,8 +257,8 @@ export default function Analytics() {
               <div className="stat-label">Notification Routing</div>
               {notificationMetrics ? (
                 <div className={s["notification-widget-meta"]}>
-                  {notificationMetrics.successfulRoutes}/{notificationMetrics.routingAttempts} routes
-                  {notificationMetrics.p95LatencyMs ? ` · p95 ${Math.round(notificationMetrics.p95LatencyMs)}ms` : ""}
+                  {notificationMetrics.counts?.successfulRoutes ?? 0}/{notificationMetrics.counts?.routingAttempts ?? 0} routes
+                  {notificationMetrics.latency?.p95Ms ? ` · p95 ${Math.round(notificationMetrics.latency.p95Ms)}ms` : ""}
                 </div>
               ) : null}
             </div>
