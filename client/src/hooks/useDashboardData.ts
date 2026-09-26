@@ -8,6 +8,7 @@ import { getCalendarEvents } from "../api/notes";
 import { useAutoDismiss } from "./useAutoDismiss";
 import { useLiveTimer } from "./useLiveTimer";
 import { useEventReminder } from "./useEventReminder";
+import useWebSocket, { type WebSocketMessage } from "./useWebSocket";
 import type { CalendarEvent } from "../types";
 
 export const TARGET_HOURS = 9 * 60;
@@ -198,6 +199,17 @@ export function useDashboardData() {
             clearInterval(pollInterval);
         };
     }, [fetchStatus]);
+
+    // Cross-device sync: a clock-in/out or break taken on another device
+    // (e.g. the Android app) pushes `attendance_update`; refetch right away
+    // instead of waiting for the next status poll.
+    const onAttendanceWs = useCallback(
+        (msg: WebSocketMessage) => {
+            if (msg.type === "attendance_update" && !document.hidden) fetchStatus();
+        },
+        [fetchStatus],
+    );
+    useWebSocket(onAttendanceWs);
 
     const handleAction = useCallback(
         async (actionFn: () => Promise<unknown>, actionName: string) => {

@@ -19,6 +19,13 @@ function db(req: Request): AttendanceDb {
     return req.db as unknown as AttendanceDb;
 }
 
+/** Keep the user's other devices (web tab, Android) in sync after a break change. */
+function notifyAttendanceChange(req: Request, action: string): void {
+    try {
+        sendToUser(req.tenantId ? Number(req.tenantId) : null, req.userId!, "attendance_update", { action });
+    } catch { /* best-effort */ }
+}
+
 router.post("/overtime-request", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const input = parseCreateOvertime(req.body);
@@ -158,6 +165,7 @@ router.post("/break-start", auth, async (req: Request, res: Response) => {
     try {
         await service.startBreak(db(req), req.userId!, getLocalToday(req), getOffsetMin(req));
         logAction(req, "break_start", "time_entry", null, {});
+        notifyAttendanceChange(req, "break_start");
         res.json({ message: "Break started" });
     } catch (err) {
         if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
@@ -170,6 +178,7 @@ router.post("/break-end", auth, async (req: Request, res: Response) => {
     try {
         await service.endBreak(db(req), req.userId!, getLocalToday(req), getOffsetMin(req));
         logAction(req, "break_end", "time_entry", null, {});
+        notifyAttendanceChange(req, "break_end");
         res.json({ message: "Break ended, back to work!" });
     } catch (err) {
         if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });

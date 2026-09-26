@@ -89,6 +89,55 @@ async function clearFaceFailCount(tenantId: number | string | undefined, userId:
     try { await redis.del(faceKey(tenantId, "fails", userId)); } catch { /* ignore */ }
 }
 
+// ── Device-credential identity (native fingerprint / screen-lock proof) ─────
+// The Android app unlocks the device credential issued by
+// POST /auth/biometric/enroll behind the OS biometric/PIN prompt and sends it
+// with clock-in/out. Verifying it server-side (bcrypt against
+// device_credentials, owned by the caller, not revoked) turns the native
+// prompt into a proof the server can check, instead of a bare boolean.
+// Web/desktop never send it, so their face flow is unaffected.
+const bcrypt = require("bcryptjs");
+
+type DeviceCredentialResult = "absent" | "valid" | "invalid";
+
+async function verifyDeviceCredential(req: Request): Promise<DeviceCredentialResult> {
+    const raw = req.body?.device_credential;
+    if (raw == null) return "absent";
+    const credentialId = raw?.credentialId;
+    const deviceSecret = raw?.deviceSecret;
+    if (typeof credentialId !== "string" || typeof deviceSecret !== "string" || !credentialId || !deviceSecret) {
+        return "invalid";
+    }
+    try {
+        const cred = (await req.db!.query(
+            "SELECT id, user_id, secret_hash FROM device_credentials WHERE id = $1 AND revoked_at IS NULL",
+            [credentialId],
+        )).rows[0];
+        if (!cred || Number(cred.user_id) !== Number(req.userId)) return "invalid";
+        if (!(await bcrypt.compare(deviceSecret, cred.secret_hash))) return "invalid";
+        try {
+            await req.db!.query("UPDATE device_credentials SET last_used_at = NOW() WHERE id = $1", [credentialId]);
+        } catch { /* non-fatal */ }
+        return "valid";
+    } catch (err) {
+        req.log?.warn?.({ err: (err as Error)?.message }, "device credential verification failed");
+        return "invalid";
+    }
+}
+
+const DEVICE_CREDENTIAL_INVALID = {
+    error: "Your fingerprint sign-in on this device is no longer valid. Enable fingerprint again from Profile and retry.",
+    code: "DEVICE_CREDENTIAL_INVALID",
+};
+
+/** Tell the user's other devices/tabs that attendance state changed (web/Android sync). */
+function emitAttendanceUpdate(req: Request, action: string): void {
+    try {
+        const { sendToUser } = require("../realtime/fanout");
+        sendToUser(req.tenantId ? Number(req.tenantId) : null, Number(req.userId), "attendance_update", { action });
+    } catch { /* best-effort */ }
+}
+
 // Helper: convert timezone offset to a pg date expression.
 function pgDateInTz(col: string, tzMod: unknown): string {
     const minutes = parseInt(String(tzMod), 10) || 0;
@@ -302,10 +351,28 @@ router.post("/clock-in", auth, loadUserContext, async (req: Request, res: Respon
                 // OS-level auth). We accept that ONLY when office presence has
                 // already been proven above (wifi match or an inside-geofence
                 // fix) - a fingerprint alone is NOT enough to clock in remotely.
+                //
+                // A server-verified device credential (Android: unlocked by the
+                // OS fingerprint / screen-lock prompt) is a real identity proof,
+                // so it is accepted for remote clock-in as well — the same role
+                // the face descriptor plays on web/desktop. The legacy bare
+                // `fingerprint_verified` flag stays office-only.
+                const deviceCredential = await verifyDeviceCredential(req);
+                if (deviceCredential === "invalid") {
+                    logAction(req, "clock_in_device_credential_invalid", "time_entry", null, {});
+                    return res.status(403).json(DEVICE_CREDENTIAL_INVALID);
+                }
                 const fingerprintVerified = req.body?.fingerprint_verified === true;
                 const officePresenceProven =
                     verifyMeta.verified_via === "wifi" || verifyMeta.verified_via === "geofence";
-                if (fingerprintVerified) {
+                if (deviceCredential === "valid") {
+                    verifyMeta.face_verified = false;
+                    verifyMeta.verified_via = "fingerprint";
+                    logAction(req, "clock_in_device_credential", "time_entry", null, {
+                        office_presence: officePresenceProven,
+                        work_mode: selectedWorkMode,
+                    });
+                } else if (fingerprintVerified) {
                     if (!officePresenceProven) {
                         return res.status(403).json({
                             error: "Fingerprint verification is only allowed from the office. Connect to the office Wi-Fi or move inside the office, then try again.",
@@ -424,6 +491,7 @@ router.post("/clock-in", auth, loadUserContext, async (req: Request, res: Respon
             verified_via: verifyMeta.verified_via,
             wifi_bssid: verifyMeta.clock_in_wifi_bssid,
         });
+        emitAttendanceUpdate(req, "clock_in");
         res.json({
             message: "Logged in successfully",
             work_mode: selectedWorkMode,
@@ -533,8 +601,15 @@ router.post("/clock-out", auth, loadUserContext, async (req: Request, res: Respo
                     // never runs for remote sessions (the outer work_mode check).
                     const { face_descriptor } = req.body || {};
                     const fingerprintVerified = req.body?.fingerprint_verified === true;
+                    const deviceCredential = await verifyDeviceCredential(req);
+                    if (deviceCredential === "invalid") {
+                        logAction(req, "clock_out_device_credential_invalid", "time_entry", null, {});
+                        return res.status(403).json(DEVICE_CREDENTIAL_INVALID);
+                    }
 
-                    if (fingerprintVerified) {
+                    if (deviceCredential === "valid") {
+                        logAction(req, "clock_out_device_credential", "time_entry", null, {});
+                    } else if (fingerprintVerified) {
                         // Fingerprint fallback is accepted only because office
                         // presence was already proven immediately above.
                         logAction(req, "clock_out_fingerprint_fallback", "time_entry", null, {});
@@ -600,6 +675,18 @@ router.post("/clock-out", auth, loadUserContext, async (req: Request, res: Respo
                         } catch { /* best-effort */ }
                     }
 
+                } else {
+                    // Remote session: web/desktop send no identity proof here
+                    // (unchanged). The Android app always sends its device
+                    // credential; when present it must be genuine.
+                    const deviceCredential = await verifyDeviceCredential(req);
+                    if (deviceCredential === "invalid") {
+                        logAction(req, "clock_out_device_credential_invalid", "time_entry", null, {});
+                        return res.status(403).json(DEVICE_CREDENTIAL_INVALID);
+                    }
+                    if (deviceCredential === "valid") {
+                        logAction(req, "clock_out_device_credential", "time_entry", null, { work_mode: openClockIn?.work_mode ?? null });
+                    }
                 }
             }
         }
@@ -629,6 +716,7 @@ router.post("/clock-out", auth, loadUserContext, async (req: Request, res: Respo
         if (txResult.error) return res.status(400).json({ error: txResult.error });
 
         logAction(req, "clock_out", "time_entry", null, {});
+        emitAttendanceUpdate(req, "clock_out");
         res.json({ message: "Logged out. See you tomorrow!" });
     } catch (err) {
         req.log.error({ err }, "Clock-out error");
