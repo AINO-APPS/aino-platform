@@ -1,6 +1,13 @@
 import { randomUUID } from "crypto";
 
-const SESSION_IDLE_MS = 2 * 24 * 60 * 60 * 1000;
+/**
+ * Sessions no longer expire on their own: one lives until logout, a password
+ * change / token-version bump, or a newer sign-in replacing it (one session per
+ * user). The JWT is long-lived and rolled forward by `/auth/refresh`; every
+ * request still checks the `sid` row, so revocation stays immediate.
+ */
+const AUTH_TOKEN_TTL_SECONDS = 365 * 24 * 60 * 60;
+const AUTH_TOKEN_TTL_MS = AUTH_TOKEN_TTL_SECONDS * 1000;
 
 type QueryResult = { rows: any[]; rowCount?: number | null };
 type Query = (sql: string, params?: unknown[]) => Promise<QueryResult>;
@@ -31,28 +38,21 @@ async function createConcurrentSession(userId: number, device: unknown, db: DbLi
     return sid;
 }
 
-async function validateSession(userId: number, sid: string, db: DbLike, options: { ignoreIdle?: boolean } = {}): Promise<"active" | "missing" | "idle"> {
+async function validateSession(userId: number, sid: string, db: DbLike): Promise<"active" | "missing"> {
     const row = (await db.query(
-        "SELECT last_activity_at FROM user_sessions WHERE id = $1 AND user_id = $2",
+        "SELECT 1 FROM user_sessions WHERE id = $1 AND user_id = $2",
         [sid, userId],
     )).rows[0];
-    if (!row) return "missing";
-    const lastActivity = new Date(row.last_activity_at).getTime();
-    if (!options.ignoreIdle && (!Number.isFinite(lastActivity) || Date.now() - lastActivity >= SESSION_IDLE_MS)) {
-        await db.query("DELETE FROM user_sessions WHERE id = $1 AND user_id = $2", [sid, userId]);
-        return "idle";
-    }
-    return "active";
+    return row ? "active" : "missing";
 }
 
-async function touchSession(userId: number, sid: string, db: DbLike, options: { ignoreIdle?: boolean } = {}): Promise<boolean> {
+/** Records last activity for auditing; returns false when the session no longer exists. */
+async function touchSession(userId: number, sid: string, db: DbLike): Promise<boolean> {
     const result = await db.query(
-        `UPDATE user_sessions SET last_activity_at = NOW()
-         WHERE id = $1 AND user_id = $2
-           ${options.ignoreIdle ? "" : "AND last_activity_at > NOW() - INTERVAL '2 days'"}`,
+        "UPDATE user_sessions SET last_activity_at = NOW() WHERE id = $1 AND user_id = $2",
         [sid, userId],
     );
     return (result.rowCount || 0) > 0;
 }
 
-export { SESSION_IDLE_MS, replaceSession, createConcurrentSession, validateSession, touchSession };
+export { AUTH_TOKEN_TTL_SECONDS, AUTH_TOKEN_TTL_MS, replaceSession, createConcurrentSession, validateSession, touchSession };

@@ -30,10 +30,10 @@ router.use((req: Request, res: Response, next) => {
     }
     return requireTenant(req, res, next);
 });
-
 const { cookieOptions, cookieNameForRealm, cookieNameForRequest } = require("../utils/cookie");
 import { realmClaims, TENANT_REALM, PLATFORM_REALM } from "../platform/realm";
 import { hasLinkedTenantRealm, platformProfile } from "../services/realmPrincipals";
+import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS } from "../services/authSessions";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -310,8 +310,8 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         // password change cannot hand back an app-host session.
         const pwRealm = isTenantlessPlatformUser ? PLATFORM_REALM : TENANT_REALM;
         Object.assign(tokenPayload, realmClaims(pwRealm));
-        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: isTenantlessPlatformUser ? "30d" : "8h" });
-        res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req, isTenantlessPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: AUTH_TOKEN_TTL_SECONDS });
+        res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
         if (isTenantlessPlatformUser) {
             await logPlatformAction(req, "platform_admin_change_password", "platform_user", req.userId, { sessions_revoked: true });
         } else {

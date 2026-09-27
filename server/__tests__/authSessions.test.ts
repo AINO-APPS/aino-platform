@@ -1,6 +1,6 @@
 export {};
 
-const { SESSION_IDLE_MS, replaceSession, createConcurrentSession, validateSession, touchSession } = require("../services/authSessions");
+const { AUTH_TOKEN_TTL_SECONDS, replaceSession, createConcurrentSession, validateSession, touchSession } = require("../services/authSessions");
 
 describe("authentication sessions", () => {
     test("atomically replaces the user's only session", async () => {
@@ -19,31 +19,25 @@ describe("authentication sessions", () => {
         expect(query.mock.calls[0][1]).toEqual([sid, 7, "browser"]);
     });
 
-    test("accepts a session active within the two-day window", async () => {
-        const query = jest.fn().mockResolvedValue({ rows: [{ last_activity_at: new Date(Date.now() - SESSION_IDLE_MS + 60_000) }], rowCount: 1 });
+    test("accepts an existing session however long it has been idle", async () => {
+        const query = jest.fn().mockResolvedValue({ rows: [{ "?column?": 1 }], rowCount: 1 });
         await expect(validateSession(7, "sid", { query })).resolves.toBe("active");
         expect(query).toHaveBeenCalledTimes(1);
+        expect(query.mock.calls[0][0]).not.toContain("DELETE");
     });
 
-    test("deletes and rejects a session idle for two days", async () => {
-        const query = jest.fn()
-            .mockResolvedValueOnce({ rows: [{ last_activity_at: new Date(Date.now() - SESSION_IDLE_MS) }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-        await expect(validateSession(7, "sid", { query })).resolves.toBe("idle");
-        expect(query.mock.calls[1][0]).toContain("DELETE FROM user_sessions");
+    test("rejects a session that was replaced or logged out", async () => {
+        const query = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+        await expect(validateSession(7, "sid", { query })).resolves.toBe("missing");
     });
 
-    test("does not idle-expire a platform session", async () => {
-        const query = jest.fn().mockResolvedValue({
-            rows: [{ last_activity_at: new Date(Date.now() - SESSION_IDLE_MS * 2) }], rowCount: 1,
-        });
-        await expect(validateSession(7, "sid", { query }, { ignoreIdle: true })).resolves.toBe("active");
-        expect(query).toHaveBeenCalledTimes(1);
-    });
-
-    test("renews activity only for a still-active session", async () => {
+    test("touching activity has no idle cutoff", async () => {
         const query = jest.fn().mockResolvedValue({ rows: [], rowCount: 1 });
         await expect(touchSession(7, "sid", { query })).resolves.toBe(true);
-        expect(query.mock.calls[0][0]).toContain("INTERVAL '2 days'");
+        expect(query.mock.calls[0][0]).not.toContain("INTERVAL");
+    });
+
+    test("tokens are long-lived (rolled forward by refresh)", () => {
+        expect(AUTH_TOKEN_TTL_SECONDS).toBeGreaterThanOrEqual(365 * 24 * 60 * 60);
     });
 });

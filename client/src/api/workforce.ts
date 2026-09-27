@@ -17,7 +17,6 @@ export const switchRealm = (target_realm: "tenant" | "platform", password: strin
 export const redeemRealmHandoff = (ticket: string) => API.post("/auth/handoff", { ticket });
 export const logoutUser = () => API.post("/auth/logout");
 export const refreshToken = () => API.post("/auth/refresh");
-export const recordSessionActivity = () => API.post("/auth/activity");
 export const forgotPassword = (data: AnyData) => API.post("/auth/forgot-password", data);
 export const resetPassword = (data: AnyData) => API.post("/auth/reset-password", data);
 

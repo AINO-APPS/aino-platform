@@ -115,17 +115,12 @@ async function authMiddleware(req: any, res: Response, next: NextFunction): Prom
 
             // Validate session is still active. New logins always carry a sid;
             // sid-less JWTs remain accepted only for the bounded lifetime of
-            // tokens issued before this rollout.
+            // tokens issued before this rollout. Sessions never idle out: a
+            // missing row means logout, a password change or a newer sign-in.
             if (decoded.sid) {
-                const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery }, {
-                    ignoreIdle: isPlatformUser && !hasTenantContext,
-                });
+                const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery });
                 if (state === "missing") {
                     return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
-                }
-                if (state === "idle") {
-                    await redis.invalidateUserSessions(tenantId, decoded.id);
-                    return res.status(401).json({ error: "Session expired due to inactivity.", code: "SESSION_IDLE_EXPIRED" });
                 }
             }
         } // end !isVirtualImpersonation

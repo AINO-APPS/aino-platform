@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const crypto = require("crypto");
-import { createConcurrentSession, replaceSession, touchSession } from "../services/authSessions";
+import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS, createConcurrentSession, replaceSession, touchSession } from "../services/authSessions";
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
@@ -326,9 +326,9 @@ router.post("/register", async (req: Request, res: Response) => {
         const token = jwt.sign(
             { id: result.id, username, tv: 0, sid, tenant_id: tenantId, ...realmClaims(TENANT_REALM) },
             process.env.JWT_SECRET,
-            { expiresIn: "8h" },
+            { expiresIn: AUTH_TOKEN_TTL_SECONDS },
         );
-        res.cookie(cookieNameForRealm(TENANT_REALM), token, cookieOptions(req));
+        res.cookie(cookieNameForRealm(TENANT_REALM), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
         res.json({ user: { id: result.id, username, full_name, email, avatar: null, role: result.role, org_id: assignedOrgId, tenant_id: tenantId } });
     } catch (err: any) {
         if (err.message === "INVITE_EXHAUSTED") {
@@ -367,9 +367,9 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
             ...realmClaims(realm),
         },
         process.env.JWT_SECRET,
-        { expiresIn: isPlatformUser ? "30d" : "8h" },
+        { expiresIn: AUTH_TOKEN_TTL_SECONDS },
     );
-    res.cookie(cookieNameForRealm(realm), token, cookieOptions(req, isPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
+    res.cookie(cookieNameForRealm(realm), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
 
     if (isPlatformUser) {
         // Platform identities always remain in master context. Customer-tenant
@@ -826,8 +826,8 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
             if (req.impersonatedTenantName) claims.impersonated_tenant_name = req.impersonatedTenantName;
         }
 
-        const token = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: req.isPlatformUser ? "30d" : "8h" });
-        res.cookie(cookieNameForRealm(refreshRealm), token, cookieOptions(req, req.isPlatformUser ? 30 * 24 * 60 * 60 * 1000 : undefined));
+        const token = jwt.sign(claims, process.env.JWT_SECRET, { expiresIn: AUTH_TOKEN_TTL_SECONDS });
+        res.cookie(cookieNameForRealm(refreshRealm), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
         res.json({ message: "Token refreshed" });
     } catch (err) {
         req.log.error({ err }, "Token refresh error");
@@ -835,11 +835,11 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
     }
 });
 
-// Renew the two-day inactivity window only after real foreground user input.
+// Records foreground activity (sessions no longer idle out; kept for older clients).
 router.post("/activity", auth, async (req: Request, res: Response) => {
     if (!req.userId || !req.sessionId) return res.status(401).json({ error: "Active session required" });
-    const touched = await touchSession(req.userId, req.sessionId, req.db!, { ignoreIdle: Boolean(req.isPlatformUser && !req.tenantId) });
-    if (!touched) return res.status(401).json({ error: "Session expired due to inactivity", code: "SESSION_IDLE_EXPIRED" });
+    const touched = await touchSession(req.userId, req.sessionId, req.db!);
+    if (!touched) return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
     await redis.invalidateUserSessions(req.tenantId, req.userId);
     res.json({ ok: true });
 });

@@ -110,19 +110,17 @@ describe("authMiddleware", () => {
         expect(next).not.toHaveBeenCalled();
     });
 
-    test("rejects and removes a session idle for two days", async () => {
+    test("keeps a long-idle session signed in", async () => {
         const token = jwt.sign({ id: 42, username: "alice", tv: 0, sid: "idle-session" }, SECRET, { expiresIn: "1h" });
         mockQuery
             .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ last_activity_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+            .mockResolvedValueOnce({ rows: [{ "?column?": 1 }], rowCount: 1 });
         const { req, res, next } = mockReqRes(token);
 
         await authMiddleware(req, res, next);
 
-        expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "SESSION_IDLE_EXPIRED" }));
-        expect(next).not.toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalled();
+        expect(next).toHaveBeenCalled();
     });
 });
 

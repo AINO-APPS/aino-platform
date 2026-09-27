@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { getProfile } from "./api/organization";
-import { logoutUser, recordSessionActivity, refreshToken } from "./api/workforce";
+import { logoutUser, refreshToken } from "./api/workforce";
 import { REFRESH_TOKEN_INTERVAL } from "./constants";
 import { queryClient, PERSISTED_QUERY_CACHE_KEY } from "./queryClient";
 import type { User } from "./types";
@@ -233,8 +233,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  // Silently refresh the JWT cookie periodically to keep active sessions alive.
-  // Runs every 30 minutes while the user is logged in.
+  // Silently refresh the JWT cookie periodically so it keeps rolling forward.
+  // Sessions never idle out; they end on logout or a newer sign-in elsewhere.
   useEffect(() => {
     if (!user) return;
     const id = setInterval(() => {
@@ -245,24 +245,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [user]);
 
-  // Authentication inactivity is renewed by real foreground input, not by
-  // background polling, refresh timers, or a desktop app hidden in the tray.
-  useEffect(() => {
-    if (!user) return;
-    let lastSent = 0;
-    const record = () => {
-      if (document.visibilityState !== "visible") return;
-      const now = Date.now();
-      if (now - lastSent < 5 * 60 * 1000) return;
-      lastSent = now;
-      recordSessionActivity().catch(() => {
-        /* authoritative 401 handling is centralized in AxiosInterceptor */
-      });
-    };
-    const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart"];
-    events.forEach((event) => window.addEventListener(event, record, { passive: true }));
-    return () => events.forEach((event) => window.removeEventListener(event, record));
-  }, [user]);
 
   const saveAuth = useCallback((userData: User) => {
     // Account switch on the same device (notably the desktop app, which does
