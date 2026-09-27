@@ -202,7 +202,21 @@ router.post(
       ).rows[0];
       if (!msg) return res.status(403).json({ error: "Not a participant" });
 
-      await service.query(req.db!, "q071", [JSON.stringify([req.userId]), msgId]);
+      const updated = await service.query(req.db!, "q071", [JSON.stringify([req.userId]), msgId]);
+
+      // Only fan out on the first ack from this user so repeat acks stay silent.
+      if ((updated.rowCount ?? 0) > 0) {
+        const participants = (
+          await service.query(req.db!, "q006", [msg.conversation_id])
+        ).rows;
+        for (const p of participants) {
+          sendToUser(req.tenantId, p.user_id, "chat_message_delivered", {
+            messageId: msgId,
+            conversationId: msg.conversation_id,
+            userId: req.userId,
+          });
+        }
+      }
 
       res.json({ ok: true });
     } catch (err) {
@@ -237,9 +251,13 @@ router.post("/messages/:id/view", auth, async (req: Request, res: Response) => {
       return res.json({ fileUrl: msg.file_url });
     }
 
-    // The sender can always re-open their own view-once media.
-    const isSender = msg.sender_id === req.userId;
-    if (isSender) return res.json({ fileUrl: msg.file_url });
+    // Like Signal, the sender cannot re-open their own view-once media.
+    if (msg.sender_id === req.userId) {
+      return res.status(403).json({
+        error: "You can't view your own view-once media",
+        code: "VIEW_ONCE_SENDER",
+      });
+    }
 
     // Atomically claim the recipient's one allowed view. The previous
     // read-then-write sequence allowed two concurrent requests to both observe

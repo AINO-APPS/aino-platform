@@ -425,7 +425,7 @@ function MessageBubble({
               viewOnce={!!msg.metadata?.viewOnce}
               viewOnceConsumed={
                 Array.isArray(msg.metadata?.viewedBy) &&
-                msg.metadata.viewedBy.includes(userId)
+                msg.metadata.viewedBy.some((id: unknown) => (isMine ? id !== userId : id === userId))
               }
               isMine={isMine}
             />

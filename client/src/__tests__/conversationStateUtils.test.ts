@@ -6,6 +6,7 @@ import {
 import { buildDraftKey } from "../pages/chat/useConversationDraft";
 import {
     applyRealtimeDelete,
+    applyRealtimeDelivered,
     applyRealtimeEdit,
     applyRealtimeConversationMessage,
     applyRealtimeProfileUpdate,
@@ -173,5 +174,20 @@ describe("conversation state utilities", () => {
         const group = { id: 5, is_group: true, other_user_id: 2, other_avatar: "/old.png" };
         expect(applyRealtimeProfileUpdate(direct, { userId: 2, avatar: "/new.png" })).toMatchObject({ other_avatar: "/new.png" });
         expect(applyRealtimeProfileUpdate(group, { userId: 2, avatar: "/new.png" })).toBe(group);
+    });
+
+    it("appends a realtime delivery ack once and ignores duplicates", () => {
+        const messages = [
+            { id: 7, delivered_to: [3] },
+            { id: 8, delivered_to: [] },
+        ];
+        const updated = updateRealtimeMessage(messages, 8, (message) =>
+            applyRealtimeDelivered(message, { messageId: 8, conversationId: 4, userId: 2 }),
+        );
+        expect(updated[0]).toBe(messages[0]);
+        expect(updated[1].delivered_to).toEqual([2]);
+        const again = applyRealtimeDelivered(updated[1], { userId: "2" });
+        expect(again).toBe(updated[1]);
+        expect(applyRealtimeDelivered({ id: 9 }, { userId: 5 }).delivered_to).toEqual([5]);
     });
 });

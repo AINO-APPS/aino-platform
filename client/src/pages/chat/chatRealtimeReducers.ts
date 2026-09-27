@@ -174,6 +174,15 @@ export function applyRealtimePin(
     };
 }
 
+export function applyRealtimeDelivered(
+    message: RealtimeChatMessage,
+    data: AnyRecord,
+): RealtimeChatMessage {
+    const deliveredTo = (message.delivered_to as (number | string)[] | undefined) || [];
+    if (deliveredTo.some((id) => String(id) === String(data.userId))) return message;
+    return { ...message, delivered_to: [...deliveredTo, data.userId as number | string] };
+}
+
 export function updateRealtimeMessage(
     messages: RealtimeChatMessage[],
     messageId: number | string,

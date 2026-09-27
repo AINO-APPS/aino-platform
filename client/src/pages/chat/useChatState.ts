@@ -11,6 +11,7 @@ import useConversationLoader from "./useConversationLoader";
 import useConversationList from "./useConversationList";
 import {
   applyRealtimeDelete,
+  applyRealtimeDelivered,
   applyRealtimeEdit,
   applyRealtimeMediaJob,
   applyRealtimePin,
@@ -121,6 +122,11 @@ export default function useChatState() {
   const onWsMessage = useCallback(
     (msg: WebSocketMessage) => {
       const d = msg.data as AnyRecord;
+      const patchMessage = (update: (message: ChatMessage) => ChatMessage) =>
+        setMessages(
+          (current) =>
+            updateRealtimeMessage(current, d.messageId as number | string, update) as ChatMessage[],
+        );
       switch (msg.type) {
         case "chat_message": {
           if (activeConvRef.current?.id === d.conversationId) {
@@ -228,14 +234,7 @@ export default function useChatState() {
         }
         case "chat_media_job": {
           if (activeConvRef.current?.id === d.conversationId) {
-            setMessages(
-              (current) =>
-                updateRealtimeMessage(
-                  current,
-                  d.messageId as number | string,
-                  (message) => applyRealtimeMediaJob(message, d),
-                ) as ChatMessage[],
-            );
+            patchMessage((message) => applyRealtimeMediaJob(message, d));
           }
           break;
         }
@@ -248,27 +247,13 @@ export default function useChatState() {
               );
               if (target && target.sender_id === user?.id) notifyReaction();
             }
-            setMessages(
-              (current) =>
-                updateRealtimeMessage(
-                  current,
-                  d.messageId as number | string,
-                  (message) => applyRealtimeReaction(message, d),
-                ) as ChatMessage[],
-            );
+            patchMessage((message) => applyRealtimeReaction(message, d));
           }
           break;
         }
         case "chat_edit": {
           if (activeConvRef.current?.id === d.conversationId) {
-            setMessages(
-              (current) =>
-                updateRealtimeMessage(
-                  current,
-                  d.messageId as number | string,
-                  (message) => applyRealtimeEdit(message, d),
-                ) as ChatMessage[],
-            );
+            patchMessage((message) => applyRealtimeEdit(message, d));
           }
           break;
         }
@@ -285,14 +270,7 @@ export default function useChatState() {
                 new Date(m.created_at as string).getTime() > targetTs,
             );
           if (activeConvRef.current?.id === d.conversationId) {
-            setMessages(
-              (current) =>
-                updateRealtimeMessage(
-                  current,
-                  d.messageId as number | string,
-                  applyRealtimeDelete,
-                ) as ChatMessage[],
-            );
+            patchMessage(applyRealtimeDelete);
           }
           if (isLatest) {
             setConversations((prev) =>
@@ -332,13 +310,23 @@ export default function useChatState() {
         }
         case "chat_pin": {
           if (activeConvRef.current?.id === d.conversationId) {
-            setMessages(
-              (current) =>
-                updateRealtimeMessage(
-                  current,
-                  d.messageId as number | string,
-                  (message) => applyRealtimePin(message, d),
-                ) as ChatMessage[],
+            patchMessage((message) => applyRealtimePin(message, d));
+          }
+          break;
+        }
+        case "chat_message_delivered": {
+          if (activeConvRef.current?.id === d.conversationId) {
+            patchMessage((message) => applyRealtimeDelivered(message, d));
+          }
+          // Sidebar tick: only when the acked message is the thread's newest.
+          const latest = messagesRef.current[messagesRef.current.length - 1];
+          if (d.userId !== user?.id && latest && String(latest.id) === String(d.messageId)) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === d.conversationId
+                  ? { ...c, last_message_delivered: true }
+                  : c,
+              ),
             );
           }
           break;

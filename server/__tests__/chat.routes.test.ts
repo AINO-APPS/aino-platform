@@ -769,6 +769,134 @@ describe("DELETE /api/chat/messages/:id", () => {
     });
 });
 
+describe("POST /api/chat/messages/:id/delivered", () => {
+    const { sendToUser } = require("../utils/ws");
+
+    // Route by SQL text so middleware lookups (maintenance flag, auth) cannot
+    // shift a positional mock sequence.
+    function mockDeliveredQueries(updatedRows: number) {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT m.conversation_id FROM messages m")) {
+                return { rows: [{ conversation_id: 10 }], rowCount: 1 };
+            }
+            if (sql.includes("SET delivered_to")) return { rows: [], rowCount: updatedRows };
+            if (sql.startsWith("SELECT user_id FROM conversation_participants WHERE conversation_id = $1")) {
+                return { rows: [{ user_id: 1 }, { user_id: 2 }], rowCount: 2 };
+            }
+            return { rows: [], rowCount: 0 };
+        });
+    }
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        sendToUser.mockClear();
+    });
+
+    test("emits chat_message_delivered to every participant on the first ack", async () => {
+        mockDeliveredQueries(1);
+
+        const res = await request(app)
+            .post("/api/chat/messages/12/delivered")
+            .set("Cookie", authCookie(2))
+            .set(CSRF);
+
+        expect(res.status).toBe(200);
+        expect(sendToUser).toHaveBeenCalledTimes(2);
+        for (const userId of [1, 2]) {
+            expect(sendToUser.mock.calls).toContainEqual([
+                null,
+                userId,
+                "chat_message_delivered",
+                { messageId: 12, conversationId: 10, userId: 2 },
+            ]);
+        }
+    });
+
+    test("does not emit when the user already acknowledged delivery", async () => {
+        mockDeliveredQueries(0);
+
+        const res = await request(app)
+            .post("/api/chat/messages/12/delivered")
+            .set("Cookie", authCookie(2))
+            .set(CSRF);
+
+        expect(res.status).toBe(200);
+        expect(sendToUser).not.toHaveBeenCalled();
+    });
+});
+
+describe("GET /api/chat/conversations/:id/files", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    test("excludes view-once media from the shared files list", async () => {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT 1 FROM conversation_participants")) return { rows: [{ "?column?": 1 }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app)
+            .get("/api/chat/conversations/10/files")
+            .set("Cookie", authCookie(1));
+
+        expect(res.status).toBe(200);
+        const filesCall = mockQuery.mock.calls.find(
+            ([sql]: any[]) => typeof sql === "string" && sql.includes("m.file_url IS NOT NULL"),
+        );
+        expect(filesCall).toBeTruthy();
+        expect(filesCall[0]).toContain("COALESCE((m.metadata->>'viewOnce')::boolean, false) = false");
+        expect(filesCall[1]).toEqual([10]);
+    });
+});
+
+describe("POST /api/chat/messages/:id/view", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    test("forbids the sender from re-opening their own view-once media", async () => {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT id, conversation_id, sender_id, file_url, metadata FROM messages")) {
+                return {
+                    rows: [{
+                        id: 12,
+                        conversation_id: 10,
+                        sender_id: 1,
+                        file_url: "/uploads/org_1/chat/secret.png",
+                        metadata: { viewOnce: true, viewedBy: [] },
+                    }],
+                    rowCount: 1,
+                };
+            }
+            if (sql.includes("FROM conversation_participants")) return { rows: [{ user_id: 1 }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app)
+            .post("/api/chat/messages/12/view")
+            .set("Cookie", authCookie(1))
+            .set(CSRF);
+
+        expect(res.status).toBe(403);
+        expect(res.body).toEqual({
+            error: "You can't view your own view-once media",
+            code: "VIEW_ONCE_SENDER",
+        });
+        expect(res.body.fileUrl).toBeUndefined();
+        const claimCall = mockQuery.mock.calls.find(
+            ([sql]: any[]) => typeof sql === "string" && sql.includes("'{viewedBy}'"),
+        );
+        expect(claimCall).toBeUndefined();
+    });
+});
+
 // ─── Call-history selection and deletion ───────────────────────────────────
 
 describe("GET /api/chat/calls", () => {

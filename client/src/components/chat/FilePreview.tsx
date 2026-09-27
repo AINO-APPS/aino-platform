@@ -189,9 +189,12 @@ interface FilePreviewProps {
   messageId?: number | string;
   /** View-once metadata from the message. */
   viewOnce?: boolean;
-  /** Whether the current viewer already consumed a view-once message. */
+  /**
+   * Recipient: whether they already consumed the view-once media.
+   * Sender: whether any recipient has viewed it.
+   */
   viewOnceConsumed?: boolean;
-  /** Whether the current user is the sender (sender can always re-view). */
+  /** Whether the current user is the sender (sender can't open view-once media). */
   isMine?: boolean;
 }
 
@@ -290,14 +293,8 @@ export default function FilePreview({
   );
 
   const openViewOnce = useCallback(async () => {
-    if (loadingView) return;
-    // Sender re-viewing their own media uses the URL directly.
-    if (isMine && fileUrl) {
-      setRevealedUrl(fileUrl);
-      setLightbox(true);
-      return;
-    }
-    if (consumed) return;
+    // The sender can't open their own view-once media (server returns 403).
+    if (loadingView || isMine || consumed) return;
     setLoadingView(true);
     try {
       const { data } = await markMessageViewed(messageId as number | string);
@@ -313,18 +310,21 @@ export default function FilePreview({
     } finally {
       setLoadingView(false);
     }
-  }, [loadingView, isMine, fileUrl, consumed, messageId]);
+  }, [loadingView, isMine, consumed, messageId]);
 
   // ─── View-once image bubble ───
   if (viewOnce && isImage && isMessage) {
-    const alreadyViewed = consumed && !isMine;
+    // The sender's card is never interactive; it flips to "Viewed" once any
+    // recipient has opened the media.
+    const alreadyViewed = isMine ? !!viewOnceConsumed : consumed;
+    const inert = alreadyViewed || !!isMine;
     return (
       <>
         <button
           type="button"
           className={`${s.viewOnceCard} ${alreadyViewed ? s.viewOnceDone : ""}`}
-          onClick={alreadyViewed ? undefined : openViewOnce}
-          disabled={alreadyViewed || loadingView}
+          onClick={inert ? undefined : openViewOnce}
+          disabled={inert || loadingView}
         >
           <span className={s.viewOnceIcon}>
             {alreadyViewed ? <EyeOff size={16} /> : <Timer size={16} />}
@@ -332,7 +332,7 @@ export default function FilePreview({
           <span className={s.viewOnceLabel}>
             {alreadyViewed ? "Viewed" : loadingView ? "Opening…" : "Photo"}
           </span>
-          {!alreadyViewed && <Eye size={15} className={s.viewOnceEye} />}
+          {!inert && <Eye size={15} className={s.viewOnceEye} />}
         </button>
         {lightbox &&
           revealedUrl &&

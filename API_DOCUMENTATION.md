@@ -1490,6 +1490,7 @@ socket.emit('join');       // Join user's notification rooms
 |-------|---------|-------------|
 | `chat_message` | `{ conversationId, message: { id, content, sender, created_at, attachments, reply_to } }` | New message in a conversation |
 | `chat_read_receipt` | `{ conversationId, userId, readAt }` | User read the conversation |
+| `chat_message_delivered` | `{ messageId, conversationId, userId }` | A recipient's device first acknowledged delivery of a message (`POST /api/chat/messages/:id/delivered`) |
 | `chat_group_created` | `{ conversation: { id, name, type, participants } }` | You were added to a new group |
 | `chat_group_added` | `{ conversationId, user: { id, full_name, avatar } }` | User added to a group you're in |
 | `chat_group_removed` | `{ conversationId, userId }` | User removed from a group you're in |

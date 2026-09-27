@@ -51,6 +51,9 @@
 .viewOnceCard:hover:not(:disabled) {
     background: var(--surface-hover);
 }
+.viewOnceCard:disabled {
+    cursor: default;
+}
 .viewOnceDone {
     cursor: default;
     color: var(--text-muted);
