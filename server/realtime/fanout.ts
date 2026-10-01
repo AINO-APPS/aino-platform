@@ -81,10 +81,22 @@ export function sendToUser(
 }
 
 /**
- * Broadcast to all connected clients of a specific tenant (local instance).
+ * Broadcast to all connected clients of a specific tenant, across all instances.
  * tenantId is required to prevent cross-tenant data leaks.
  */
 export function broadcast(
+  tenantId: number | null | undefined,
+  type: WSType,
+  data: unknown,
+): void {
+  broadcastLocal(tenantId, type, data);
+  // Without this, tenant-wide events (features, plan, branding) reached only
+  // the sockets on the instance that handled the request.
+  redis.publish("ws:broadcast", { _from: INSTANCE_ID, tenantId, tenantWide: true, type, data });
+}
+
+/** Tenant-wide delivery to this instance's sockets only. */
+export function broadcastLocal(
   tenantId: number | null | undefined,
   type: WSType,
   data: unknown,

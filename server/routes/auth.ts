@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const crypto = require("crypto");
-import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS, createConcurrentSession, replaceSession, touchSession } from "../services/authSessions";
+import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS, createConcurrentSession, createDeviceSession, normalizeDeviceId, touchSession } from "../services/authSessions";
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
@@ -136,15 +136,21 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
 }
 
 /**
- * Create the user's sole active authentication session.
+ * Create an authentication session. Tenant users get one session per device
+ * (concurrent across devices); platform operators get independent sessions.
  * Returns the new session ID.
  */
-async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null, concurrent = false): Promise<string> {
+async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null, concurrent = false, deviceId: string | null = null): Promise<string> {
     const sid = concurrent
         ? await createConcurrentSession(userId, deviceInfo, db)
-        : await replaceSession(userId, deviceInfo, db);
+        : await createDeviceSession(userId, deviceInfo, deviceId, db);
     await redis.invalidateUserSessions(tenantId, userId);
     return sid;
+}
+
+/** The app's stable install id (`X-AINO-Device-Id`); browsers send none. */
+function deviceIdOf(req: Request): string | null {
+    return normalizeDeviceId(req.headers["x-aino-device-id"]);
 }
 
 // Registration mode (public — no auth needed)
@@ -321,7 +327,7 @@ router.post("/register", async (req: Request, res: Response) => {
             );
         }
 
-        const sid = await createSession(result.id, req.headers["user-agent"], db, tenantId);
+        const sid = await createSession(result.id, req.headers["user-agent"], db, tenantId, false, deviceIdOf(req));
         // Registration always produces a TENANT identity — platform operators
         // are provisioned by an existing operator, never self-registered.
         const token = jwt.sign(
@@ -356,7 +362,7 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
         tenantId = null;
         db = { query: masterQuery };
     }
-    const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId, Boolean(isPlatformUser));
+    const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId, Boolean(isPlatformUser), deviceIdOf(req));
     // The realm travels with the token as `aud`, so a console session can
     // never authenticate an app-host request (and vice-versa). See PR-B /
     // platform/realm.ts.
@@ -805,7 +811,7 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
         const row = (await req.db!.query(`SELECT token_version FROM ${table} WHERE id = $1`, [req.userId])).rows[0];
         if (!row) return res.status(401).json({ error: "User not found" });
         const sessionTenantId = req.tenantId ? Number(req.tenantId) : null;
-        const sessionId = req.sessionId || await createSession(req.userId!, req.headers["user-agent"], req.db!, sessionTenantId);
+        const sessionId = req.sessionId || await createSession(req.userId!, req.headers["user-agent"], req.db!, sessionTenantId, false, deviceIdOf(req));
 
         const claims: any = {
             id: req.userId,
@@ -841,7 +847,7 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
 router.post("/activity", auth, async (req: Request, res: Response) => {
     if (!req.userId || !req.sessionId) return res.status(401).json({ error: "Active session required" });
     const touched = await touchSession(req.userId, req.sessionId, req.db!);
-    if (!touched) return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
+    if (!touched) return res.status(401).json({ error: "Session ended. Please sign in again." });
     await redis.invalidateUserSessions(req.tenantId, req.userId);
     res.json({ ok: true });
 });

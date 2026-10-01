@@ -212,6 +212,17 @@ describe("chat.service blockUser/unblockUser", () => {
             );
         });
 
+        test("builds an oldest-first delta query for ?after= catch-up", async () => {
+            const db = makeDb([{ rows: [] }]);
+
+            await createChatService().listMessages(db, 7, 12, null, 100, 345);
+
+            expect(db.query).toHaveBeenCalledWith(
+                expect.stringContaining("m.id > $3 ORDER BY m.created_at ASC, m.id ASC LIMIT $4"),
+                [7, 12, 345, 100],
+            );
+        });
+
         test("uses the scoped message search statement for a conversation", async () => {
             const db = makeDb([{ rows: [] }]);
 

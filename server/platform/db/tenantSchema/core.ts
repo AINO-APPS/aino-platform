@@ -312,7 +312,7 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
         )
     `);
 
-    // Active sessions – max 2 per user
+    // Active sessions – one per device (migration 0004_device_sessions)
     await q(`
         CREATE TABLE IF NOT EXISTS user_sessions (
             id         TEXT PRIMARY KEY,

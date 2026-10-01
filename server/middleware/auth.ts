@@ -120,7 +120,7 @@ async function authMiddleware(req: any, res: Response, next: NextFunction): Prom
             if (decoded.sid) {
                 const state = await validateSession(decoded.id, decoded.sid, { query: dbQuery });
                 if (state === "missing") {
-                    return res.status(401).json({ error: "Session ended. You may have signed in on another device." });
+                    return res.status(401).json({ error: "Session ended. Please sign in again." });
                 }
             }
         } // end !isVirtualImpersonation

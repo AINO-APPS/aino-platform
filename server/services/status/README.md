@@ -126,7 +126,7 @@ Nothing else changes. The DB column is an open `TEXT` (validated against
 ```sql
 -- 1. Look at the user's open sessions + activity
 -- NB: this is the presence-service table, distinct from the legacy
---     `user_sessions` table used by auth (max-2-devices enforcement).
+--     `user_sessions` table used by auth (one session per device).
 SELECT id, session_key, device_label, connected_at, last_seen_at, activity
 FROM user_presence_sessions
 WHERE user_id = $1 AND disconnected_at IS NULL;

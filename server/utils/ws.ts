@@ -14,7 +14,7 @@ import { randomUUID } from "crypto";
 import type { Server as HTTPServer, IncomingMessage } from "http";
 import { logger } from "./logger";
 import { handleChatMessage as dispatchMessage } from "../realtime/messageRouter";
-import { INSTANCE_ID, broadcast, deliverLocal, notifyUser, sendToUser } from "../realtime/fanout";
+import { INSTANCE_ID, broadcast, broadcastLocal, deliverLocal, notifyUser, sendToUser } from "../realtime/fanout";
 import { registerConnection, unregisterConnection } from "../realtime/registry";
 import { resolveRealtimeToken, revalidateSocketSession, verifyRealtimeToken } from "../realtime/auth";
 import { attachSocketHeartbeat, handleApplicationPing, startHeartbeat } from "../realtime/heartbeat";
@@ -135,6 +135,10 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         const envelope = JSON.parse(raw);
         if (envelope._from === INSTANCE_ID) return; // ignore own publishes
         if (channel === "ws:broadcast") {
+          if (envelope.tenantWide) {
+            broadcastLocal(envelope.tenantId, envelope.type, envelope.data);
+            return;
+          }
           deliverLocal(
             envelope.tenantId,
             envelope.userId,

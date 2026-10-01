@@ -24,9 +24,17 @@ export function createChatService() {
             conversationId: number,
             before: number | null,
             limit: number,
+            after: number | null = null,
         ) {
             const params: unknown[] = [userId, conversationId];
             let statement = repository.sql.q084;
+            if (after) {
+                statement += `${repository.sql.q087a}${params.length + 1}`;
+                params.push(after);
+                statement += `${repository.sql.q088a}${params.length + 1}`;
+                params.push(limit);
+                return repository.query(db, statement, params);
+            }
             if (before) {
                 statement += `${repository.sql.q087}${params.length + 1}`;
                 params.push(before);

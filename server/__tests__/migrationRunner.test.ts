@@ -42,6 +42,13 @@ describe("migration files", () => {
         expect(sql).not.toContain("create unique index");
     });
 
+    it("gives tenant users one session per device instead of one per user", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "0004_device_sessions.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("add column if not exists device_id");
+        expect(sql).toContain("drop index if exists uq_user_sessions_user");
+        expect(sql).toContain("on user_sessions(user_id, device_id) where device_id is not null");
+    });
+
     it("creates master-backed global announcements", () => {
         const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "master", "0006_platform_announcements.sql"), "utf8").toLowerCase();
         expect(sql).toContain("create table if not exists platform_announcements");

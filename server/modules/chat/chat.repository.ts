@@ -160,6 +160,9 @@ export const sql = {
     q086: "SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.file_url, m.file_name, u.full_name AS sender_name, u.avatar AS sender_avatar, c.name AS group_name, c.is_group FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversations c ON c.id = m.conversation_id JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1 WHERE m.deleted_at IS NULL AND COALESCE(m.content, '') ILIKE $2 ORDER BY m.created_at DESC LIMIT 50",
     q087: " AND m.id < $",
     q088: " ORDER BY m.created_at DESC LIMIT $",
+    // Delta catch-up (`?after=`): messages newer than the client's last id, oldest first.
+    q087a: " AND m.id > $",
+    q088a: " ORDER BY m.created_at ASC, m.id ASC LIMIT $",
 } as const;
 
 /** Executes a statement owned by this persistence boundary. */

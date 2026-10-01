@@ -66,9 +66,11 @@ router.get(
 
       const limit = Math.min(parseInt(String(req.query.limit), 10) || 50, 100);
       const before = parseInt(String(req.query.before), 10) || null;
+      // Reconnect / push catch-up: only messages newer than the client's last id.
+      const after = parseInt(String(req.query.after), 10) || null;
 
       const rows = (
-        await service.listMessages(req.db!, req.userId!, convId, before, limit)
+        await service.listMessages(req.db!, req.userId!, convId, before, limit, after)
       ).rows;
 
       // Fetch reactions for these messages
@@ -95,7 +97,7 @@ router.get(
         }
       }
 
-      res.json(rows.reverse());
+      res.json(after ? rows : rows.reverse());
     } catch (err) {
       req.log.error({ err }, "Get messages error");
       res.status(500).json({ error: "Failed to get messages" });

@@ -96,7 +96,7 @@ describe("authMiddleware", () => {
         expect(req.username).toBe("alice");
     });
 
-    test("rejects a session replaced by a login on another device", async () => {
+    test("rejects a session that was revoked or replaced on the same device", async () => {
         const token = jwt.sign({ id: 42, username: "alice", tv: 0, sid: "old-session" }, SECRET, { expiresIn: "1h" });
         mockQuery
             .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
@@ -106,7 +106,7 @@ describe("authMiddleware", () => {
         await authMiddleware(req, res, next);
 
         expect(res.status).toHaveBeenCalledWith(401);
-        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringMatching(/another device/i) }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringMatching(/session ended/i) }));
         expect(next).not.toHaveBeenCalled();
     });
 
