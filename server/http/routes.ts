@@ -39,6 +39,7 @@ import projectsRoutes from "../routes/projects";
 import integrationsRoutes from "../routes/integrations";
 import impersonationAudit from "../middleware/impersonationAudit";
 import { maintenanceModeMiddleware } from "../middleware/maintenanceMode";
+import { webOnly, webOnlyExcept } from "../middleware/webOnly";
 
 // Legacy JavaScript-style module.exports (the only route module without a
 // TypeScript `export =`), so a default import has no declared export shape.
@@ -73,14 +74,22 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/agile", apiLimiter, agileRoutes);
     app.use("/api/profile/password", passwordLimiter);
     app.use("/api/profile", apiLimiter, profileRoutes);
-    app.use("/api/org", apiLimiter, organizationRoutes);
+    // Organization-page structure edits (departments / teams) stay on the app;
+    // the Admin → My Organization operations below are web-only.
+    app.use("/api/org", apiLimiter, webOnlyExcept((req) => !(
+        (req.method === "PUT" && req.path === "/settings")
+        || (req.method === "POST" && (req.path === "/invite" || req.path === "/remove-member"))
+        || (req.method !== "GET" && req.path.startsWith("/roles"))
+    )), organizationRoutes);
     // Mount the more-specific master/platform router first. The general admin
     // router has router-wide requireTenant middleware and would otherwise
     // intercept /api/admin/tenants/* with "Organization context required".
-    app.use("/api/admin/tenants", apiLimiter, tenantRoutes);
-    app.use("/api/admin", apiLimiter, adminRoutes);
-    app.use("/api/platform-access", apiLimiter, platformAccessRoutes);
-    app.use("/api/internal", apiLimiter, internalRoutes);
+    // Administration is web-only: the native app's tokens are refused here
+    // (middleware/webOnly.ts). Self-service reads it still needs are exempt.
+    app.use("/api/admin/tenants", apiLimiter, webOnly, tenantRoutes);
+    app.use("/api/admin", apiLimiter, webOnly, adminRoutes);
+    app.use("/api/platform-access", apiLimiter, webOnly, platformAccessRoutes);
+    app.use("/api/internal", apiLimiter, webOnly, internalRoutes);
     app.use("/api/manager", apiLimiter, managerRoutes);
     app.use("/api/leave-policy", apiLimiter, leavePolicyRoutes);
     app.use("/api/notes", apiLimiter, notesRoutes);
@@ -93,10 +102,10 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/me/status", apiLimiter, statusRoutes);
     app.use("/api/search", apiLimiter, searchRoutes);
     app.use("/api/service-desk", apiLimiter, serviceDeskRoutes);
-    app.use("/api/branding", apiLimiter, brandingRoutes);
+    app.use("/api/branding", apiLimiter, webOnlyExcept((req) => req.method === "GET" && req.path === "/"), brandingRoutes);
     app.use("/api/custom-fields", apiLimiter, customFieldsRoutes);
-    app.use("/api/compensation", apiLimiter, compensationRoutes);
-    app.use("/api/projects", apiLimiter, projectsRoutes);
+    app.use("/api/compensation", apiLimiter, webOnlyExcept((req) => req.path.startsWith("/my-")), compensationRoutes);
+    app.use("/api/projects", apiLimiter, webOnlyExcept((req) => req.method === "GET"), projectsRoutes);
     app.use("/api/integrations", apiLimiter, integrationsRoutes);
     app.use("/api/public", apiLimiter, publicRoutes);
 }

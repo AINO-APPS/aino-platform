@@ -329,7 +329,10 @@ describe("POST /api/auth/login", () => {
         expect(update[0]).not.toContain("locked_until");
     });
 
-    test("returns 200 with user data and cookie on valid login", async () => {
+    test.each([
+        ["web", {}, undefined],
+        ["the Android app", { "X-AINO-Client": "android" }, "mobile"],
+    ])("returns 200 with user data and cookie on valid login from %s", async (_client, clientHeaders, cli) => {
         // Post-migration login path: user_directory hit → tenant DB lookup.
         // The legacy "users in master DB" fallback was removed; tests must
         // exercise the real cross-tenant resolution.
@@ -379,11 +382,14 @@ describe("POST /api/auth/login", () => {
         const res = await request(app)
             .post("/api/auth/login")
             .set(CSRF)
+            .set(clientHeaders)
             .send({ username: "john", password: "CorrectPass1!" });
         expect(res.status).toBe(200);
         expect(res.body.user.username).toBe("john");
         expect(res.body.user.full_name).toBe("John Doe");
         expect(res.headers["set-cookie"]).toBeDefined();
+        // App-minted tokens are marked so admin routes refuse them (middleware/webOnly.ts).
+        expect(jwt.decode(res.body.token).cli).toBe(cli);
     });
 
     test("linked dual principal returns a realm chooser and never deactivates the tenant row", async () => {
@@ -543,6 +549,21 @@ describe("POST /api/auth/refresh", () => {
         expect(res.headers["set-cookie"][0]).toMatch(/token=/);
         const token = res.headers["set-cookie"][0].match(/^token=([^;]+)/)?.[1];
         expect(jwt.decode(token)).toMatchObject({ sid: expect.any(String) });
+        expect(jwt.decode(token).cli).toBeUndefined();
+    });
+
+    test("a refreshed app (bearer) token stays marked as mobile", async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 }) // auth middleware
+            .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 }); // refresh query
+        const bearer = authCookie().replace(/^token=/, "");
+        const res = await request(app)
+            .post("/api/auth/refresh")
+            .set(CSRF)
+            .set("Authorization", `Bearer ${bearer}`);
+        expect(res.status).toBe(200);
+        const token = res.headers["set-cookie"][0].match(/^token=([^;]+)/)?.[1];
+        expect(jwt.decode(token).cli).toBe("mobile");
     });
 
     test("returns 401 when user no longer exists", async () => {

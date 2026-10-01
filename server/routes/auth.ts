@@ -29,6 +29,7 @@ const {
     TENANT_COOKIE: TENANT_COOKIE_NAME, PLATFORM_COOKIE: PLATFORM_COOKIE_NAME,
 } = require("../utils/cookie");
 import { realmClaims, expectedRealm, TENANT_REALM, PLATFORM_REALM, type Realm } from "../platform/realm";
+import { clientClaims } from "../middleware/webOnly";
 import { consoleHost } from "../platform/reservedHosts";
 import { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } from "../services/realmHandoff";
 import { availablePlatformPrincipal, findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
@@ -324,7 +325,7 @@ router.post("/register", async (req: Request, res: Response) => {
         // Registration always produces a TENANT identity — platform operators
         // are provisioned by an existing operator, never self-registered.
         const token = jwt.sign(
-            { id: result.id, username, tv: 0, sid, tenant_id: tenantId, ...realmClaims(TENANT_REALM) },
+            { id: result.id, username, tv: 0, sid, tenant_id: tenantId, ...realmClaims(TENANT_REALM), ...clientClaims(req) },
             process.env.JWT_SECRET,
             { expiresIn: AUTH_TOKEN_TTL_SECONDS },
         );
@@ -365,6 +366,7 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
             id: user.id, username: user.username, tv: user.token_version || 0, sid,
             tenant_id: tenantId, platform: isPlatformUser || undefined,
             ...realmClaims(realm),
+            ...clientClaims(req),
         },
         process.env.JWT_SECRET,
         { expiresIn: AUTH_TOKEN_TTL_SECONDS },
@@ -818,7 +820,7 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
         // upgraded: a refresh mints a token carrying `aud`, which is why the
         // legacy-token counter decays to zero within one token lifetime.
         const refreshRealm: Realm = req.realm === PLATFORM_REALM ? PLATFORM_REALM : TENANT_REALM;
-        Object.assign(claims, realmClaims(refreshRealm));
+        Object.assign(claims, realmClaims(refreshRealm), clientClaims(req));
         // Preserve impersonation state
         if (req.isImpersonated) {
             claims.impersonated = true;

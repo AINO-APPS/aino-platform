@@ -13,6 +13,7 @@
     "bootstrap:platform-admin": "tsx scripts/bootstrap-platform-admin.ts",
     "preflight:default-admin": "tsx scripts/preflight-default-tenant-admin.ts",
     "backfill:platform-links": "tsx scripts/backfill-platform-user-links.ts",
+    "revoke:mobile-admin-sessions": "tsx scripts/revoke-mobile-admin-sessions.ts",
     "start:prod": "npm run build && node dist/index.js",
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit --detectOpenHandles",

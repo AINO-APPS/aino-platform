@@ -32,6 +32,7 @@ router.use((req: Request, res: Response, next) => {
 });
 const { cookieOptions, cookieNameForRealm, cookieNameForRequest } = require("../utils/cookie");
 import { realmClaims, TENANT_REALM, PLATFORM_REALM } from "../platform/realm";
+import { clientClaims } from "../middleware/webOnly";
 import { hasLinkedTenantRealm, platformProfile } from "../services/realmPrincipals";
 import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS } from "../services/authSessions";
 
@@ -309,7 +310,7 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         // Re-issue in the SAME realm the request arrived on, so a console
         // password change cannot hand back an app-host session.
         const pwRealm = isTenantlessPlatformUser ? PLATFORM_REALM : TENANT_REALM;
-        Object.assign(tokenPayload, realmClaims(pwRealm));
+        Object.assign(tokenPayload, realmClaims(pwRealm), clientClaims(req));
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: AUTH_TOKEN_TTL_SECONDS });
         res.cookie(cookieNameForRealm(pwRealm), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
         if (isTenantlessPlatformUser) {

@@ -37,11 +37,13 @@ const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { requireAgileEditor, isAgileEditor, isAgileReviewerRole } = require("../middleware/agileEditor");
+import { webOnly, isMobileClient } from "../middleware/webOnly";
 
 // Custom middleware: allow any reviewer role (super_admin / hr_admin /
 // platform_admin / manager) to manage editor grants & requests, instead of
 // the previous super_admin-only gate.
 function requireAgileReviewer(req: Request, res: Response, next: NextFunction) {
+    if (isMobileClient(req)) return webOnly(req, res, next);
     if (!req.userRole || !isAgileReviewerRole(req.userRole)) {
         return res.status(403).json({ error: "Insufficient permissions to review Agile access requests" });
     }

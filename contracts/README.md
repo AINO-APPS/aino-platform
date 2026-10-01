@@ -35,6 +35,8 @@ The global search operation is fully modeled across its seven result groups. Mis
 
 The server accepts either the `token` HttpOnly cookie or `Authorization: Bearer <jwt>` (cookie wins). Native clients use bearer authentication. Every mutating `/api` request except external webhooks must send `X-Requested-With: AINO` (the legacy `WorkPulse` value is also accepted). Tenant context is resolved from the verified JWT first, then from the request host/custom domain.
 
+Administration is web-only (2026-10-01). Admin routes answer `403 { code: "WEB_ONLY" }` to native-app requests: a bearer-authenticated request, a token minted for the app (`cli: "mobile"` claim, stamped when the client sends `X-AINO-Client: android` or refreshes over bearer), or a request carrying `X-AINO-Client: android`. Gated: `/api/admin/**`, `/api/platform-access`, `/api/internal`, `/api/compensation` except `/my-*`, `/api/branding` except `GET /`, `/api/projects` writes, agile editor/reviewer routes, and `PUT /api/org/settings`, `POST /api/org/invite`, `POST /api/org/remove-member`, `/api/org/roles` writes. See `server/middleware/webOnly.ts`.
+
 ## Realtime and push baseline
 
 - `asyncapi/aino-realtime.yaml` records the `/ws` handshake/authentication path, `{ type, data }` envelope, core chat/call commands and events, and the server's idempotency semantics.

@@ -20,6 +20,7 @@
  * Requires loadUserContext to have run first.
  */
 import type { Response, NextFunction } from "express";
+import { webOnly, isMobileClient } from "./webOnly";
 
 const ROLES_THAT_CAN_EDIT_AGILE = new Set<string>([
     "platform_admin",
@@ -63,6 +64,8 @@ async function isAgileEditor(req: any): Promise<boolean> {
 }
 
 async function requireAgileEditor(req: any, res: Response, next: NextFunction): Promise<void | Response> {
+    // Agile configuration is administration: web-only (middleware/webOnly.ts).
+    if (isMobileClient(req)) return webOnly(req, res, next);
     const ok = await isAgileEditor(req);
     if (!ok) {
         return res.status(403).json({

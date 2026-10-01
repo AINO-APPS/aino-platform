@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import auth from "../middleware/auth";
 import { loadUserContext, ROLE_LEVEL } from "../middleware/rbac";
 import { requireTenant } from "../middleware/tenant";
+import { isMobileClient } from "../middleware/webOnly";
 import * as redis from "../redis";
 import { createSearchService } from "../modules/search/search.service";
 import type { SearchDb } from "../modules/search/search.types";
@@ -29,7 +30,8 @@ router.get("/", async (req: Request, res: Response) => {
             orgId: req.userOrgId || null,
             canReadAuditLogs: (ROLE_LEVEL[req.userRole as string] || 1) >= ROLE_LEVEL.hr_admin,
         });
-        res.json(results);
+        // Audit logs are admin data and administration is web-only.
+        res.json(isMobileClient(req) ? { ...results, logs: [] } : results);
     } catch (err) {
         req.log.error({ err }, "Global search error");
         res.status(500).json({ error: "Search failed" });
