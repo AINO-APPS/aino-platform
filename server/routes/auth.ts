@@ -149,9 +149,7 @@ async function createSession(userId: number, deviceInfo: unknown, db: any, tenan
 }
 
 /** The app's stable install id (`X-AINO-Device-Id`); browsers send none. */
-function deviceIdOf(req: Request): string | null {
-    return normalizeDeviceId(req.headers["x-aino-device-id"]);
-}
+const deviceIdOf = (req: Request): string | null => normalizeDeviceId(req.headers["x-aino-device-id"]);
 
 // Registration mode (public — no auth needed)
 router.get("/registration-mode", async (req: Request, res: Response) => {
