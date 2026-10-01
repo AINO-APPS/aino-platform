@@ -71,7 +71,9 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/leaves", apiLimiter, leaveRoutes);
     app.use("/api/tasks", apiLimiter, taskRoutes);
     app.use("/api/sprints", apiLimiter, sprintsRoutes);
-    app.use("/api/agile", apiLimiter, agileRoutes);
+    // Agile editor routes are gated in middleware/agileEditor.ts; the
+    // reviewer inbox (access requests / grants) is gated here.
+    app.use("/api/agile", apiLimiter, webOnlyExcept((req) => !/^\/permissions\/(requests|grants)(\/|$)/.test(req.path)), agileRoutes);
     app.use("/api/profile/password", passwordLimiter);
     app.use("/api/profile", apiLimiter, profileRoutes);
     // Organization-page structure edits (departments / teams) stay on the app;
