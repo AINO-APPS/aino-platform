@@ -237,11 +237,43 @@ describe("Tenant Isolation - Tasks", () => {
             .send({ content: '<span data-user-id="999">@x</span>' });
 
         expect(res.status).toBe(200);
-        const orgMentionLookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id FROM users WHERE id = ANY($1) AND org_id = $2"));
+        const orgMentionLookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role FROM users WHERE id = ANY($1)"));
         expect(orgMentionLookup).toBeTruthy();
+        expect(orgMentionLookup![1]).toEqual([[999], 1]);
         const notifInsertCount = mockQuery.mock.calls.filter(([sql]: any[]) => typeof sql === "string" && sql.includes("INSERT INTO notifications") && sql.includes("link_task_id")).length;
         expect(notifInsertCount).toBe(0);
         expect(require("../utils/ws").notifyUser).not.toHaveBeenCalled();
+    });
+
+    test("notifies a mentioned user when the commenter has no organization", async () => {
+        const ws = require("../utils/ws");
+        (ws.notifyUser as jest.Mock).mockClear();
+        setupAuth("employee", { org_id: null });
+        // Commenter (1) owns the task; the mentioned user (5) is its assignee.
+        const task = { id: 90, user_id: 1, assigned_to: 5, org_id: null, title: "No-org task" };
+        mockQuery.mockImplementation(async (sql: string) => {
+            if (sql.includes("SELECT * FROM tasks")) return { rows: [task], rowCount: 1 };
+            if (sql.includes("INSERT INTO task_comments")) return { rows: [{ id: 601 }], rowCount: 1 };
+            if (sql.includes("FROM task_comments tc")) return { rows: [{ id: 601, task_id: 90, user_id: 1 }], rowCount: 1 };
+            if (sql.includes("SELECT username, full_name FROM users")) return { rows: [{ username: "u1", full_name: "Commenter" }], rowCount: 1 };
+            if (sql.includes("SELECT id, role FROM users")) return { rows: [{ id: 5, role: "employee" }], rowCount: 1 };
+            if (sql.includes("SELECT email, full_name FROM users")) return { rows: [{ email: "e@x", full_name: "Five" }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app)
+            .post("/api/tasks/90/comments")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ content: '<p><span class="mention-chip" data-user-id="5">@Five</span> hi</p>' });
+
+        expect(res.status).toBe(200);
+        await new Promise((r) => setImmediate(r));
+        const lookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role FROM users"));
+        expect(lookup![1]).toEqual([[5], null]);
+        const call = (ws.notifyUser as jest.Mock).mock.calls[0];
+        expect(call.slice(2, 6)).toEqual([5, "mention", "Commenter mentioned you", "In task: No-org task"]);
+        expect(call[6]).toEqual(expect.objectContaining({ linkTaskId: 90, link: "/tasks?task=90" }));
     });
 });
 

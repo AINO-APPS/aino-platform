@@ -175,22 +175,26 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
             if (mentionedIds.size > 0) {
                 const commenter = (await req.db!.query('SELECT username, full_name FROM users WHERE id = $1', [req.userId])).rows[0];
                 const commenterName = commenter?.full_name || commenter?.username || 'Someone';
-                const orgMentionRows = req.userOrgId
-                    ? (await req.db!.query(
-                        'SELECT id FROM users WHERE id = ANY($1) AND org_id = $2 AND is_active = TRUE',
-                        [[...mentionedIds], req.userOrgId]
-                    )).rows
-                    : [];
+                // Same org as the commenter; a commenter without an org (the
+                // tenant DB is already tenant-scoped) mentions active tenant
+                // users — previously every such mention was silently dropped.
+                // The role rides along for canAccessTask (Bug #5: admins).
+                const mentionRows = (await req.db!.query(
+                    'SELECT id, role FROM users WHERE id = ANY($1) AND is_active = TRUE AND ($2::int IS NULL OR org_id = $2)',
+                    [[...mentionedIds], req.userOrgId || null]
+                )).rows;
+                const found = new Set(mentionRows.map((r: any) => r.id));
+                const outsideOrg = [...mentionedIds].filter((uid) => !found.has(uid));
+                if (outsideOrg.length > 0) {
+                    req.log.info({ taskId: task.id, userIds: outsideOrg, orgId: req.userOrgId || null }, 'Task mention skipped: user inactive or outside the commenter org');
+                }
 
-                for (const row of orgMentionRows) {
+                for (const row of mentionRows) {
                     const uid = row.id;
-                    // Bug #5 (Stage 2): we previously omitted the requesterRole
-                    // here, so org admins who were @-mentioned (but weren't the
-                    // creator/assignee/team-mate) silently failed the access
-                    // check and got no notification. Pass through the mentioned
-                    // user's role lookup so admins can be mentioned anywhere.
-                    const mentionRole = (await req.db!.query('SELECT role FROM users WHERE id = $1', [uid])).rows[0]?.role || null;
-                    if (!await canAccessTask(task, uid, req.userOrgId, req.db, mentionRole)) continue;
+                    if (!await canAccessTask(task, uid, req.userOrgId, req.db, row.role || null)) {
+                        req.log.info({ taskId: task.id, userId: uid }, 'Task mention skipped: mentioned user cannot access the task');
+                        continue;
+                    }
                     await notifyUser(req.db, req.tenantId, uid, 'mention', `${commenterName} mentioned you`,
                         `In task: ${task.title}`,
                         { linkTaskId: task.id, actorId: req.userId, link: taskLink(task.id) });
@@ -199,6 +203,10 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                         notifyByEmail('mention', mentioned, commenterName, task.title);
                     }
                 }
+            } else if (/@\S/.test(content.replace(/<[^>]+>/g, ' '))) {
+                // An "@name" typed without picking a person carries no
+                // data-user-id chip, so nobody can be notified — make it visible.
+                req.log.info({ taskId: task.id }, 'Task comment has an @ but no mention chip; no one notified');
             }
         } catch (mentionErr) {
             req.log.error({ err: mentionErr }, 'Mention notification error:');

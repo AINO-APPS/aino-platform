@@ -437,6 +437,14 @@ async function chatMessage({
     /* fall back to pushing everyone */
   }
 
+  // Mentioned participants (never the sender). Used both for the push below
+  // and for the chat_mention fan-out in step 6.
+  const participantIdSet = new Set(participants.map((p) => p.user_id));
+  const mentionedIds = rawMentions
+    .map(Number)
+    .filter((n) => n > 0 && n !== senderId && participantIdSet.has(n));
+  const mentionedSet = new Set(mentionedIds);
+
   for (const p of participants) {
     if (p.user_id !== senderId) {
       await redis.incrUnread(tenantId, p.user_id, conversationId);
@@ -444,8 +452,10 @@ async function chatMessage({
     sendToUser(tenantId, p.user_id, "chat_message", outMsg);
     if (p.user_id !== senderId) {
 
-      // Muted chats never dispatch pushes (WS delivery above still happens).
-      if (mutedRecipients.has(p.user_id)) continue;
+      // Muted chats never dispatch pushes (WS delivery above still happens)
+      // — except to someone @-mentioned, who must still be told (Signal /
+      // Slack: a mention breaks through a muted group).
+      if (mutedRecipients.has(p.user_id) && !mentionedSet.has(p.user_id)) continue;
 
       // Compute the recipient's TOTAL unread across ALL conversations so the
       // push carries the true badge count (iOS aps.badge + Android
@@ -487,11 +497,7 @@ async function chatMessage({
   }
 
   // ── 6. Mention notifications (additive — only to mentioned users) ──
-  if (rawMentions.length > 0) {
-    const participantIdSet = new Set(participants.map((p) => p.user_id));
-    const mentionedIds = rawMentions
-      .map(Number)
-      .filter((n) => n > 0 && n !== senderId && participantIdSet.has(n));
+  if (mentionedIds.length > 0) {
     for (const uid of mentionedIds) {
       sendToUser(tenantId, uid, "chat_mention", {
         conversationId,

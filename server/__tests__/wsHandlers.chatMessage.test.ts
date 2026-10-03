@@ -227,6 +227,29 @@ describe("chatMessage handler — happy path", () => {
         expect(mentionCalls[0][1]).toBe(8);
     });
 
+    test("a muted participant still gets the push when @-mentioned; other muted ones do not", async () => {
+        const push = require("../services/pushNotifications").pushNotifications;
+        const spy = jest.spyOn(push, "sendMessageNotification").mockResolvedValue({ succeeded: 1, failed: 0 });
+        const db = makeHappyPathDb();
+        // Step 8 (muted lookup): 8 and 9 muted the chat.
+        const original = db.query.getMockImplementation()!;
+        let call = 0;
+        db.query.mockImplementation((...args: any[]) => {
+            call++;
+            if (call === 8) return Promise.resolve({ rows: [{ user_id: 8 }, { user_id: 9 }] });
+            return original(...args);
+        });
+        await chatMessage({
+            db, senderId: 7, tenantId: 1,
+            data: { conversationId: 5, content: "hi @8", clientMsgId: "m2", mentions: [8] },
+            ws: makeWs(), sendToUser: jest.fn(),
+        });
+        await new Promise((r) => setImmediate(r));
+        const pushed = spy.mock.calls.map((c: any[]) => c[1]);
+        expect(pushed).toEqual([8]);
+        spy.mockRestore();
+    });
+
     test('formatType defaults to "text" when missing / unknown', async () => {
         const db = makeHappyPathDb();
         const ws = makeWs();
