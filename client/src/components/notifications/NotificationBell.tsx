@@ -16,6 +16,8 @@ interface NotificationItem {
     created_at?: string;
     is_read?: number | boolean;
     link_task_id?: number | string;
+    /** Relative web path to open on click (e.g. "/tasks?task=1"). */
+    link?: string | null;
     [key: string]: unknown;
 }
 
@@ -91,6 +93,8 @@ export default function NotificationBell() {
             if (msg.type === "meeting_started" && msg.data) {
                 window.dispatchEvent(new CustomEvent("meeting_started", { detail: msg.data }));
             }
+            // Read/delete on another device: resync silently (no desktop alert).
+            if (msg.type === "notifications_changed") fetchNotifs();
         },
         [fetchNotifs, notifyGeneral],
     );
@@ -143,7 +147,11 @@ export default function NotificationBell() {
                 /* ignore */
             }
         }
-        if (notif.link_task_id) {
+        // Server-provided deep link wins; only same-origin relative paths are
+        // followed ("//host" would be protocol-relative, i.e. off-site).
+        if (typeof notif.link === "string" && notif.link.startsWith("/") && !notif.link.startsWith("//")) {
+            navigate(notif.link);
+        } else if (notif.link_task_id) {
             navigate(`/tasks?task=${notif.link_task_id}`);
         } else if (notif.type === "meeting_invite") {
             navigate("/calendar");

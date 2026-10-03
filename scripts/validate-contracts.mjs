@@ -68,6 +68,9 @@ for (const [routePath, item] of Object.entries(api.paths || {}).filter(([routePa
   }
 }
 check(!JSON.stringify(api.paths?.["/api/search"]?.get || {}).includes("FreeFormValue"), "search operation is not exhaustively modeled: GET /api/search");
+for (const field of ["floorSeconds", "breakSeconds"]) {
+  check(api.components?.schemas?.TrackerStatus?.required?.includes(field), `TrackerStatus must require ${field} (live timer seconds contract)`);
+}
 
 const structuralPath = value => value.replace(/:[^/]+/g, ":param");
 const classificationTotals = { active: 0, stale: 0, "method-mismatch": 0 };

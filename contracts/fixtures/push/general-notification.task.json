@@ -1,0 +1,10 @@
+{
+  "schema": "../../schemas/push/general-notification.schema.json",
+  "variant": "task-alert",
+  "data": {
+    "notificationId": "100", "type": "task", "title": "Task Assigned: Ship it",
+    "body": "Alice assigned you a task", "badgeCount": "1", "dedupeKey": "notif:100",
+    "actorAvatar": "/uploads/avatars/alice.png", "actorName": "Alice", "link": "/tasks?task=42", "linkTaskId": "42",
+    "tenantId": "1", "sentAt": "2026-06-17T02:42:45.000Z"
+  }
+}

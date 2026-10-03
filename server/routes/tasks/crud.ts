@@ -12,8 +12,7 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
-const { notifyByEmail } = require('../../utils/mailer');
-const { sendToUser } = require('../../utils/ws');
+const { emitTaskUpdated, notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
@@ -304,16 +303,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         // Notify assigned user
         if (assignedTo && assignedTo !== req.userId) {
-            const assignee = (await req.db!.query('SELECT email, full_name FROM users WHERE id = $1', [assignedTo])).rows[0];
-            const assigner = (await req.db!.query('SELECT full_name FROM users WHERE id = $1', [req.userId])).rows[0];
-            if (assignee) {
-                await req.db!.query(
-                    'INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5)',
-                    [assignedTo, 'task', `Task Assigned: ${task.title}`, `${assigner?.full_name || 'Someone'} assigned you a task`, task.id]
-                );
-                notifyByEmail('taskAssigned', assignee, task, assigner?.full_name || 'Someone');
-                sendToUser(req.tenantId, assignedTo, 'task_assigned', { taskId, title: task.title });
-            }
+            await notifyTaskAssigned(req, task, assignedTo);
         }
 
         res.json(enriched[0]);
@@ -425,6 +415,7 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
+        emitTaskUpdated(req.tenantId, id, 'status', [updated?.assigned_to, updated?.user_id, req.userId]);
         res.json(enriched[0]);
     } catch (err) {
         req.log.error({ err: err }, 'Error updating task status:');
@@ -690,19 +681,13 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
 
-        // Notify if assignment changed to a new user
+        // Notify if assignment changed to a new user. The new assignee gets
+        // task_assigned; everyone else involved gets task_updated.
+        let assignmentNotified = false;
         if (newAssignedTo && String(newAssignedTo) !== String(task.assigned_to) && newAssignedTo !== req.userId) {
-            const assignee = (await req.db!.query('SELECT email, full_name FROM users WHERE id = $1', [newAssignedTo])).rows[0];
-            const assigner = (await req.db!.query('SELECT full_name FROM users WHERE id = $1', [req.userId])).rows[0];
-            if (assignee) {
-                await req.db!.query(
-                    'INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5)',
-                    [newAssignedTo, 'task', `Task Assigned: ${updated.title}`, `${assigner?.full_name || 'Someone'} assigned you a task`, updated.id]
-                );
-                notifyByEmail('taskAssigned', assignee, updated, assigner?.full_name || 'Someone');
-                sendToUser(req.tenantId, newAssignedTo, 'task_assigned', { taskId: updated.id, title: updated.title });
-            }
+            assignmentNotified = await notifyTaskAssigned(req, updated, newAssignedTo);
         }
+        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, assignmentNotified ? null : updated?.assigned_to, task.user_id, req.userId]);
 
         res.json(enriched[0]);
     } catch (err) {
@@ -726,6 +711,7 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         // Bug #16: audit on delete (irreversible, especially important).
         logAction(req, 'delete', 'task', id, { title: task.title });
         res.json({ message: 'Task deleted' });
+        emitTaskUpdated(req.tenantId, id, 'deleted', [task.assigned_to, task.user_id, req.userId]);
     } catch (err) {
         req.log.error({ err: err }, 'Error deleting task:');
         res.status(500).json({ error: 'Failed to delete task' });

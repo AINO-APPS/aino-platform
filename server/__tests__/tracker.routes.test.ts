@@ -595,7 +595,8 @@ describe("PUT /api/tracker/manual-entry/:date (non-destructive edit)", () => {
         expect(res.status).toBe(200);
         expect(res.body.status).toBe("pending");
         expect(res.body.needsApproval).toBe(true);
-        expect(res.body.message).toMatch(/manager approval/i);
+        expect(res.body.message).toMatch(/submitted for approval.*original entries stay in place/i);
+        expect(res.body.editRequest).toBe(true);
 
         // The verified time_entries rows must NOT be deleted on this path.
         const txSql = mockTxClient.query.mock.calls.map((c: any[]) => String(c[0]));

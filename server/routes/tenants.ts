@@ -456,16 +456,12 @@ router.post("/:id/access-requests", async (req: Request, res: Response) => {
             const admins = (await db.query(
                 `SELECT id FROM users WHERE is_active = TRUE AND role IN ('super_admin','platform_admin')`
             )).rows;
-            const { sendToUser } = require("../utils/ws");
+            const { sendToUser, notifyUser } = require("../utils/ws");
             for (const a of admins) {
                 try {
-                    await db.query(
-                        `INSERT INTO notifications (user_id, type, title, body)
-                         VALUES ($1, 'platform_access_request', $2, $3)`,
-                        [a.id,
-                            "Platform support access requested",
-                        `${me?.full_name || "A platform admin"} is requesting ${reqScope} access to your workspace. Open Admin → Platform Access to review.`],
-                    );
+                    await notifyUser(db, tid, a.id, "platform_access_request", "Platform support access requested",
+                        `${me?.full_name || "A platform admin"} is requesting ${reqScope} access to your workspace. Open Admin → Platform Access to review.`,
+                        { actorId: null, link: "/admin?tab=platform-access" });
                 } catch { /* ignore — best effort */ }
                 try {
                     sendToUser(tid, a.id, "platform_access_request_created", publicAccessRequest({

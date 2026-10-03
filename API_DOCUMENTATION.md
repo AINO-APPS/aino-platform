@@ -230,22 +230,31 @@ Revoke one of the caller's passkeys.
 Base path: `/api/tracker`
 
 ### GET `/api/tracker/status`
-Get the current work status for today.
+Get the current work status for today (the caller's local day, from the `X-Timezone-Offset` header).
 
 - **Auth**: `auth`, `loadUserContext`
 - **Response**:
   ```json
   {
-    "status": "clocked_out" | "working" | "on_break",
-    "clock_in": "ISO timestamp",
-    "current_break_start": "ISO timestamp | null",
-    "breaks": [{ "start": "ISO", "end": "ISO" }],
-    "work_mode": "office" | "remote" | "hybrid",
-    "daily_target_minutes": 480,
+    "state": "on_floor" | "on_break" | "logged_out",
     "floorMinutes": 420,
-    "breakMinutes": 30
+    "breakMinutes": 30,
+    "floorSeconds": 25247,
+    "breakSeconds": 1815,
+    "totalMinutes": 451,
+    "workMode": "office" | "remote" | "hybrid",
+    "entries": [{ "entry_type": "clock_in", "timestamp": "ISO", "...": "..." }],
+    "isWeekend": false,
+    "targetMinutes": 480,
+    "dailyTargetMet": false,
+    "autoLoggedOut": false
   }
   ```
+- **Notes**:
+  - `floorSeconds` / `breakSeconds` are the exact worked and break seconds up to the server's "now" at response time, including an open session or break. Clients should anchor live timers on these (falling back to `floorMinutes * 60` for older servers) so a refresh does not reset the displayed seconds to `:00`.
+  - `floorMinutes === floor(floorSeconds / 60)` and `breakMinutes === floor(breakSeconds / 60)`.
+  - `totalMinutes` is omitted when there are no entries today.
+  - When a non-manual open session reaches `targetMinutes`, the server auto clocks out, returns `autoLoggedOut: true`, and the seconds reflect the stored `clock_out`.
 
 ### POST `/api/tracker/clock-in`
 Clock in to start the work day.
@@ -302,7 +311,9 @@ Get pending manual entry requests for the current user's approver.
 - **Response**: Array of manual entry requests with status
 
 ### POST `/api/tracker/manual-entry`
-Submit a manual time entry (requires approval if user has a manager).
+Submit a manual time entry. Manual entries need approval for **every role**
+(super admins included — they can approve their own request in
+`/api/manager/approvals`).
 
 - **Auth**: `auth`, `loadUserContext`
 - **Body**:
@@ -316,7 +327,25 @@ Submit a manual time entry (requires approval if user has a manager).
     "work_mode": "office" | "remote" | "hybrid"
   }
   ```
-- **Response**: `201 { message: "Manual entry submitted", request: { ... } }`
+- **Behaviour**:
+  - Empty date: pending `time_entries` rows plus a pending `manual_entry` approval request are created.
+  - Date already has entries: no error. The entry is filed exactly like `PUT /api/tracker/manual-entry/:date`.
+    If the day holds applied attendance (real clock-ins or approved manual rows) an **edit request** is stored
+    (`metadata.edit = true`); the existing entries stay untouched and are replaced only when it is approved.
+    If the day only has unapproved manual rows they are replaced with new pending rows.
+  - Any earlier pending manual request for the same date is superseded (`reject_reason: "Superseded by edit"`),
+    so at most one request per date is pending.
+- **Response**: `200 { message, status: "pending", needsApproval: true, editRequest: boolean }`
+  - Fresh date: `message: "Manual entry submitted for approval"`, `editRequest: false`
+  - Existing attendance: `message: "Attendance already exists for this date, so your entry was submitted for approval as an edit request. Your existing entries stay in place until it is approved."`, `editRequest: true`
+- **Errors**: `400` leave on the date, locked pay period, future date, invalid times
+
+### PUT `/api/tracker/manual-entry/:date`
+Edit the manual entry for a date. Same body (without `date`), validation and approval rules as the POST.
+
+- **Response**: `200 { message, status: "pending", needsApproval: true, editRequest: boolean }` —
+  `message` is `"Your edit was submitted for approval. Your original entries stay in place until it is approved."`
+  when an edit request was filed (`editRequest: true`), otherwise `"Your edit was submitted for approval"`.
 
 ---
 
@@ -353,7 +382,8 @@ Get leave balance for the current user and year.
 - **Response**: Array of `{ leave_type, quota, used, remaining, carried_forward }`
 
 ### GET `/api/leaves/pending`
-Get pending leave requests awaiting approval.
+Get pending leave requests awaiting approval in the caller's organization. The caller's own leaves are
+excluded unless they are `super_admin` / `platform_admin` (the only roles that may decide their own requests).
 
 - **Auth**: `requireRole('manager')`
 - **Response**: Array of pending leave requests with user details
@@ -377,11 +407,13 @@ Apply for leave (supports multi-day ranges).
 - **Errors**: `400` insufficient balance, overlapping dates, weekend/holiday
 
 ### PATCH `/api/leaves/:id/approve`
-Approve a leave request.
+Approve a leave request. Leaves are always submitted as `pending` for every role.
 
-- **Auth**: `requireRole('manager')`
+- **Auth**: `requireRole('manager')` — assigned approver, the requester's direct manager, or `hr_admin`+
 - **Body**: `{ "remarks": "string (optional)" }`
 - **Response**: `200 { message: "Leave approved" }`
+- **Errors**: `403 { error: "You cannot approve your own request" }` when the caller owns the leave and is not
+  `super_admin` / `platform_admin`
 
 ### PATCH `/api/leaves/:id/reject`
 Reject a leave request.
@@ -389,6 +421,14 @@ Reject a leave request.
 - **Auth**: `requireRole('manager')`
 - **Body**: `{ "reason": "string" }`
 - **Response**: `200 { message: "Leave rejected" }`
+- **Errors**: `403 { error: "You cannot reject your own request" }` (same self-approval rule as approve)
+
+### PATCH `/api/leaves/:id/revoke`
+Revoke an approved leave (restores the balance).
+
+- **Auth**: `requireRole('manager')`
+- **Response**: `200 { message: "Leave revoked" }`
+- **Errors**: `403 { error: "You cannot revoke your own request" }` (same self-approval rule as approve)
 
 ---
 
@@ -858,7 +898,10 @@ Get team analytics with trends, leaves, tasks, and punctuality.
   ```
 
 ### GET `/api/manager/approvals`
-Get pending and completed approval requests.
+Get pending and completed approval requests. `hr_admin`+ with an organization see every request in the org;
+other approvers see requests assigned to them (or unassigned requests from their direct reports).
+`super_admin` / `platform_admin` always also see their **own** requests (even without an org) so they can
+self-approve; for every other role the caller's own requests are excluded.
 
 - **Auth**: `auth`, `loadUserContext`
 - **Query**: `?status=pending|approved|rejected&type=leave|manual_entry|overtime`
@@ -871,18 +914,35 @@ Get requests submitted by users that await the current user's approval.
 - **Response**: Array of pending requests
 
 ### POST `/api/manager/approvals/:id/approve`
-Approve a request (leave, manual entry, or overtime).
+Approve a request (leave, leave withdrawal, manual entry, or overtime). Approving a manual-entry **edit request**
+(`metadata.edit = true`) replaces the requester's day with the proposed entries (approved, in the timezone the
+request was submitted with — `metadata.timezone_offset`, falling back to the requester's stored offset); a plain
+manual entry flips its pending rows to approved. Works the same for any requester role.
 
-- **Auth**: `auth`, `loadUserContext`
+- **Auth**: `auth`, `loadUserContext` — assigned approver, the requester's direct manager, or `hr_admin`+
 - **Body**: `{ "remarks": "string (optional)" }`
 - **Response**: `200 { message: "Request approved" }`
+- **Errors**: `403 { error: "You cannot approve your own request" }` when `requester_id` is the caller and the
+  caller is not `super_admin` / `platform_admin`; `400 { error: "Request already <status>" }`, or
+  `409 { error: "Request already handled" }` if a concurrent decision won the race
 
 ### POST `/api/manager/approvals/:id/reject`
-Reject a request with an optional reason.
+Reject a request with an optional reason. Rejecting a manual-entry edit request leaves the existing day untouched.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Body**: `{ "reason": "string (optional)" }`
+- **Body**: `{ "reject_reason": "string (optional)" }`
 - **Response**: `200 { message: "Request rejected" }`
+- **Errors**: `403 { error: "You cannot reject your own request" }` (same self-approval rule as approve);
+  `400`/`409` for an already-decided request (same as approve)
+
+### POST `/api/manager/approvals/bulk`
+Approve or reject up to 100 pending requests in one transaction, with the same rules as the single routes.
+
+- **Auth**: `auth`, `loadUserContext`
+- **Body**: `{ "ids": [1, 2], "action": "approve" | "reject", "reject_reason": "string (optional)" }`
+- **Response**: `200 { message, processed, skipped, ownSkipped }` — requests the caller may not decide are skipped;
+  `ownSkipped` counts the caller's own requests skipped by the self-approval rule (included in `skipped`), e.g.
+  `"1 request(s) approved, 1 skipped (your own request)"`.
 
 ---
 
@@ -1202,6 +1262,7 @@ Get the user's notifications with unread count and pagination metadata.
         "title": "Task assigned",
         "body": "You were assigned a task",
         "link_task_id": 7,
+        "link": "/tasks?task=7",
         "is_read": false,
         "created_at": "ISO",
         "task_title": "Prepare report"
@@ -1213,21 +1274,31 @@ Get the user's notifications with unread count and pagination metadata.
     "perPage": 50
   }
   ```
+- **`link`**: relative web path (always starts with `/`, never an absolute URL) the client opens on tap, or `null`.
+  `/tasks?task=<taskId>` (task assigned / comment mention), `/notes?pageId=<pageId>` (note mention),
+  `/manager?tab=approvals&request=<approvalRequestId>` (request awaiting your approval; `/manager?tab=approvals`
+  when the id is unknown), `/attendance#leaves` (leave approved/rejected/revoked), `/attendance#manual-entry`
+  (manual entry / overtime decided), `/admin?tab=agile` (agile editor access), `/admin?tab=platform-access`.
+- Every notification is created through `notifyUser()`, which also emits the WS `notification` event
+  (`{ id, type, title, body, link_task_id, link, created_at, is_read }`) and sends an FCM general alert. For
+  device tokens registered with `pushVersion: 2` (`POST /api/auth/device-token`; Android 0.15.0+) the data map
+  always includes `link` and `linkTaskId` (empty strings when absent). Legacy tokens get neither key, because
+  Android 0.14.0 and older reject unknown data keys.
 
 ### POST `/api/notifications/read-all`
-Mark all notifications as read.
+Mark all notifications as read. Emits `notifications_changed` `{ action: "read_all" }` to your other devices.
 
 - **Auth**: `auth`, `loadUserContext`
 - **Response**: `200 { ok: true }`
 
 ### POST `/api/notifications/:id/read`
-Mark a single notification as read.
+Mark a single notification as read. Emits `notifications_changed` `{ action: "read", id }`.
 
 - **Auth**: `auth`, `loadUserContext`
 - **Response**: `200 { ok: true }`
 
 ### DELETE `/api/notifications/:id`
-Delete a notification.
+Delete a notification. Emits `notifications_changed` `{ action: "deleted", id }`.
 
 - **Auth**: `auth`, `loadUserContext`
 - **Response**: `200 { ok: true }`
@@ -1500,11 +1571,19 @@ socket.emit('join');       // Join user's notification rooms
 
 ### General Notification Events — Server → Client
 
+Authoritative schemas: `contracts/asyncapi/aino-realtime.yaml`.
+
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `leave_update` | `{ leave: { id, status, leave_type, user_id } }` | Leave request status changed |
-| `task_assigned` | `{ task: { id, title, assignee_id } }` | Task assigned to you |
-| `approval_update` | `{ request: { id, type, status } }` | Approval request status changed |
+| `notification` | `{ id, type, title, body, link_task_id, link, created_at, is_read }` | New in-app notification (also pushed via FCM) |
+| `notifications_changed` | `{ action: "read" \| "read_all" \| "deleted", id? }` | Your notifications changed on another device |
+| `leave_update` | `{ id?, status }` — `pending`, `cancelled`, `withdraw_pending`, `approved`, `rejected`, `revoked` | One of your leaves changed |
+| `task_assigned` | `{ taskId, title }` | Task assigned to you |
+| `task_updated` | `{ taskId, action: "updated" \| "status" \| "deleted" \| "comment" }` | A task you created/are assigned to/acted on changed |
+| `approval_update` | `{ id?, type, status }` (`id` = approval request id when known) | Approval request created/decided/cancelled |
+| `attendance_update` | `{ action }` — `clock_in`, `clock_out`, `break_start`, `break_end`, `manual_entry`, `entry_deleted` | Your attendance changed (sync your other devices) |
+| `team_attendance_update` | `{ userId, action }` (same actions) | A direct report's attendance changed (sent to their manager/approver) |
+| `leave_policy_changed` | `{ scope: "holidays" \| "policies" \| "balances" }` | Leave policies/holidays changed (tenant-wide) or your balance was edited |
 
 ---
 

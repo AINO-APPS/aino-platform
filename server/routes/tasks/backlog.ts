@@ -8,8 +8,7 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
-const { notifyByEmail } = require('../../utils/mailer');
-const { sendToUser } = require('../../utils/ws');
+const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask } = require('./_helpers/access');
@@ -281,16 +280,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         // Notify assigned user
         if (assignedTo && assignedTo !== req.userId) {
-            const assignee = (await req.db!.query('SELECT email, full_name FROM users WHERE id = $1', [assignedTo])).rows[0];
-            const assigner = (await req.db!.query('SELECT full_name FROM users WHERE id = $1', [req.userId])).rows[0];
-            if (assignee) {
-                await req.db!.query(
-                    'INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5)',
-                    [assignedTo, 'task', `Task Assigned: ${task.title}`, `${assigner?.full_name || 'Someone'} assigned you a task`, task.id]
-                );
-                notifyByEmail('taskAssigned', assignee, task, assigner?.full_name || 'Someone');
-                sendToUser(req.tenantId, assignedTo, 'task_assigned', { taskId, title: task.title });
-            }
+            await notifyTaskAssigned(req, task, assignedTo);
         }
 
         res.json(enriched[0]);

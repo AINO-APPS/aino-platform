@@ -15,6 +15,7 @@ import {
     buildCommonPushData,
 } from "../platform/pushNotifications/payloadContract";
 import {
+    getDeviceTokenGroups,
     getDeviceTokens,
     registerDeviceToken,
 } from "../platform/pushNotifications/deviceTokens";
@@ -38,7 +39,8 @@ class PushNotificationService {
         userId: number,
         tenantId: number | null,
         deviceToken: string,
-        platform: "ios" | "android",
+        platform: "ios" | "android" | "web",
+        pushVersion = 1,
     ): Promise<void> {
         return registerDeviceToken(
             query,
@@ -47,6 +49,7 @@ class PushNotificationService {
             deviceToken,
             platform,
             logger,
+            pushVersion,
         );
     }
 
@@ -492,14 +495,17 @@ class PushNotificationService {
             // is always the status-bar smallIcon.
             actorAvatar?: string;
             actorName?: string;
+            // Relative web path ("/tasks?task=1") the client should open on tap.
+            link?: string | null;
+            linkTaskId?: number | null;
         },
     ): Promise<{ succeeded: number; failed: number }> {
         if (!this.initialized || !this.app) {
             return { succeeded: 0, failed: 0 };
         }
 
-        const tokens = await this.getDeviceTokens(query, userId, tenantId);
-        if (tokens.length === 0) {
+        const groups = await getDeviceTokenGroups(query, userId, tenantId, logger);
+        if (groups.legacy.length + groups.linkAware.length === 0) {
             logger.info({ event: "push_skip_no_tokens", notificationType: "notification", userId, tenantId, notificationId: notificationData.notificationId }, "No device tokens for alert notification recipient");
             return { succeeded: 0, failed: 0 };
         }
@@ -560,7 +566,26 @@ class PushNotificationService {
             },
         };
 
-        return this.sendToDevices(query, tokens, payload, `notif-${notificationData.notificationId}`);
+        const collapseKey = `notif-${notificationData.notificationId}`;
+        // Legacy apps (Android <= 0.14.0) reject unknown data keys, so only
+        // link-aware tokens get `link` / `linkTaskId` (always present there,
+        // empty string when absent).
+        const linkPayload: FCMPayload = {
+            ...payload,
+            data: {
+                ...payload.data,
+                link: notificationData.link || "",
+                linkTaskId: notificationData.linkTaskId ? String(notificationData.linkTaskId) : "",
+            },
+        };
+        const results = await Promise.all([
+            groups.legacy.length ? this.sendToDevices(query, groups.legacy, payload, collapseKey) : null,
+            groups.linkAware.length ? this.sendToDevices(query, groups.linkAware, linkPayload, collapseKey) : null,
+        ]);
+        return results.reduce<{ succeeded: number; failed: number }>(
+            (sum, r) => (r ? { succeeded: sum.succeeded + r.succeeded, failed: sum.failed + r.failed } : sum),
+            { succeeded: 0, failed: 0 },
+        );
     }
 
     private async getDeviceTokens(

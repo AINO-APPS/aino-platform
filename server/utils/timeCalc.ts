@@ -113,23 +113,40 @@ interface StatusResult extends Partial<DaySummary> {
     state: AttendanceState;
     floorMinutes: number;
     breakMinutes: number;
+    /** Exact worked seconds up to `nowMs`; floorMinutes === floor(floorSeconds / 60). */
+    floorSeconds: number;
+    /** Exact break seconds up to `nowMs`; breakMinutes === floor(breakSeconds / 60). */
+    breakSeconds: number;
     entries: TimeEntry[];
 }
 
 /**
  * Compute the current state from entries.
+ * Live minutes are floored (not rounded) from the exact seconds so clients can
+ * tick a seconds-accurate timer that always agrees with the minute fields.
  * @param entries - sorted time entries for a single day
+ * @param nowMs - the "now" an open session/break is counted up to
  */
-function computeStatus(entries: TimeEntry[]): StatusResult {
+function computeStatus(entries: TimeEntry[], nowMs: number = Date.now()): StatusResult {
     if (entries.length === 0) {
-        return { state: "logged_out", floorMinutes: 0, breakMinutes: 0, entries: [] };
+        return { state: "logged_out", floorMinutes: 0, breakMinutes: 0, floorSeconds: 0, breakSeconds: 0, entries: [] };
     }
     const last = entries[entries.length - 1];
     let state: AttendanceState = "logged_out";
     if (last.entry_type === "clock_in" || last.entry_type === "break_end") state = "on_floor";
     else if (last.entry_type === "break_start") state = "on_break";
-    const summary = computeDaySummary(entries, true);
-    return { state, ...summary, entries };
+    const summary = computeDaySummary(entries, true, nowMs);
+    const floorSeconds = Math.floor(computeFloorMs(entries, true, nowMs) / 1000);
+    const breakSeconds = Math.floor(computeBreakMs(entries, true, nowMs) / 1000);
+    return {
+        state,
+        ...summary,
+        floorMinutes: Math.floor(floorSeconds / 60),
+        breakMinutes: Math.floor(breakSeconds / 60),
+        floorSeconds,
+        breakSeconds,
+        entries,
+    };
 }
 
 export { tsToMs, endOfLocalDayMs, computeFloorMs, computeBreakMs, computeDaySummary, computeStatus };

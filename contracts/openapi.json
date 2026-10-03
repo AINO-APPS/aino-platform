@@ -16369,7 +16369,7 @@
         "tags": [
           "tracker"
         ],
-        "summary": "GET /api/tracker/status",
+        "summary": "Get today's attendance status",
         "operationId": "get_api_tracker_status",
         "parameters": [],
         "security": [
@@ -16386,7 +16386,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TrackerStatus"
                 }
               }
             }
@@ -17385,6 +17385,14 @@
               "null"
             ]
           },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^/(?!/)",
+            "description": "Relative web path to open on tap (e.g. /tasks?task=1, /manager?tab=approvals&request=5, /attendance#leaves); null when there is no destination."
+          },
           "is_read": {
             "type": "boolean"
           },
@@ -17409,6 +17417,7 @@
           "title",
           "body",
           "link_task_id",
+          "link",
           "is_read",
           "created_at",
           "task_title"
@@ -18097,6 +18106,79 @@
           "logs"
         ],
         "additionalProperties": false
+      },
+      "TrackerStatus": {
+        "type": "object",
+        "required": [
+          "state",
+          "floorMinutes",
+          "breakMinutes",
+          "floorSeconds",
+          "breakSeconds",
+          "entries",
+          "isWeekend",
+          "workMode",
+          "targetMinutes",
+          "dailyTargetMet",
+          "autoLoggedOut"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "on_floor",
+              "on_break",
+              "logged_out"
+            ]
+          },
+          "floorMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Whole worked minutes; always floor(floorSeconds / 60)."
+          },
+          "breakMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Whole break minutes; always floor(breakSeconds / 60)."
+          },
+          "floorSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exact worked seconds up to the server's now at response time (open session included). Clients anchor live timers on this."
+          },
+          "breakSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exact break seconds up to the server's now at response time (open break included)."
+          },
+          "totalMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FreeFormObject"
+            }
+          },
+          "isWeekend": {
+            "type": "boolean"
+          },
+          "workMode": {
+            "type": "string"
+          },
+          "targetMinutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dailyTargetMet": {
+            "type": "boolean"
+          },
+          "autoLoggedOut": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
       }
     }
   }

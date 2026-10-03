@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { logger } = require("../utils/logger");
+const { sendToUser } = require("../utils/ws");
 import { listPlatformAnnouncements } from "../services/platformAnnouncements";
 
 const router = express.Router();
@@ -249,6 +250,7 @@ router.get("/metrics", async (req: Request, res: Response) => {
 router.post("/read-all", async (req: Request, res: Response) => {
     try {
         await req.db!.query("UPDATE notifications SET is_read = TRUE WHERE user_id = $1", [req.userId]);
+        sendToUser(req.tenantId, req.userId, "notifications_changed", { action: "read_all" });
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ error: "Failed to mark notifications read" });
@@ -261,6 +263,7 @@ router.post("/:id/read", async (req: Request, res: Response) => {
         if (isNaN(id)) return res.status(400).json({ error: "Invalid notification ID" });
         await req.db!.query("UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2",
             [id, req.userId]);
+        sendToUser(req.tenantId, req.userId, "notifications_changed", { action: "read", id });
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ error: "Failed to mark notification read" });
@@ -273,6 +276,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
         if (isNaN(id)) return res.status(400).json({ error: "Invalid notification ID" });
         await req.db!.query("DELETE FROM notifications WHERE id = $1 AND user_id = $2",
             [id, req.userId]);
+        sendToUser(req.tenantId, req.userId, "notifications_changed", { action: "deleted", id });
         res.json({ ok: true });
     } catch (err) {
         res.status(500).json({ error: "Failed to delete notification" });

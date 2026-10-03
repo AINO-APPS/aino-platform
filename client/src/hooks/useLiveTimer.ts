@@ -2,9 +2,15 @@ import { useState, useEffect, useRef } from "react";
 
 const TARGET_HOURS = 9 * 60; // 9 hours in minutes
 
+// Re-anchoring onto a fresh server value within this many seconds of the live
+// count would only show request-latency jitter (e.g. 0:41 -> 0:40), so skip it.
+const REANCHOR_TOLERANCE_SEC = 2;
+
 interface LiveTimerStatus {
     floorMinutes?: number;
     breakMinutes?: number;
+    floorSeconds?: number;
+    breakSeconds?: number;
     state?: string;
     [key: string]: unknown;
 }
@@ -13,6 +19,22 @@ interface Anchor {
     base: number;
     at: number;
 }
+
+/**
+ * Exact worked/break seconds from a /tracker/status payload. Falls back to
+ * whole minutes for servers that predate `floorSeconds` / `breakSeconds`.
+ */
+export function statusSeconds(
+    status: Pick<LiveTimerStatus, "floorMinutes" | "breakMinutes" | "floorSeconds" | "breakSeconds"> | null | undefined,
+    kind: "floor" | "break",
+): number {
+    const seconds = kind === "floor" ? status?.floorSeconds : status?.breakSeconds;
+    if (typeof seconds === "number" && Number.isFinite(seconds)) return Math.max(0, Math.floor(seconds));
+    return ((kind === "floor" ? status?.floorMinutes : status?.breakMinutes) || 0) * 60;
+}
+
+const liveValue = (anchor: Anchor, now: number) =>
+    anchor.base + Math.floor((now - anchor.at) / 1000);
 
 function sendNotification(title: string, body: string): void {
     if ("Notification" in window && Notification.permission === "granted") {
@@ -38,27 +60,49 @@ export function useLiveTimer(status: LiveTimerStatus | null) {
     const confettiTriggered = useRef(false);
     const floorAnchorRef = useRef<Anchor>({ base: 0, at: Date.now() });
     const breakAnchorRef = useRef<Anchor>({ base: 0, at: Date.now() });
+    const anchoredStateRef = useRef<string | undefined>(undefined);
 
-    // Anchor baseline whenever status changes (fetch after action)
+    const floorSec = statusSeconds(status, "floor");
+    const breakSec = statusSeconds(status, "break");
+    const state = status?.state;
+
+    // Anchor baseline whenever the server's seconds or state change (poll,
+    // visibility refresh, realtime event, fetch after an action).
     // Also reset notification flags when state becomes logged_out (clock-out) or
     // when the floor resets to near-zero (new day clock-in after previous completion).
     useEffect(() => {
         if (!status) return;
-        const floorSec = (status.floorMinutes || 0) * 60;
-        const breakSec = (status.breakMinutes || 0) * 60;
-        setLiveFloorSec(floorSec);
-        setLiveBreakSec(breakSec);
-        floorAnchorRef.current = { base: floorSec, at: Date.now() };
-        breakAnchorRef.current = { base: breakSec, at: Date.now() };
+        const now = Date.now();
+        const sameState = anchoredStateRef.current === state;
+        anchoredStateRef.current = state;
+        const anchor = (
+            ref: { current: Anchor },
+            next: number,
+            ticking: boolean,
+            set: (value: number) => void,
+        ) => {
+            if (
+                sameState &&
+                ticking &&
+                Math.abs(next - liveValue(ref.current, now)) <= REANCHOR_TOLERANCE_SEC
+            ) {
+                return;
+            }
+            ref.current = { base: next, at: now };
+            set(next);
+        };
+        anchor(floorAnchorRef, floorSec, state === "on_floor", setLiveFloorSec);
+        anchor(breakAnchorRef, breakSec, state === "on_break", setLiveBreakSec);
         // Reset notification flags when clocking out or starting a new session
-        if (status.state === "logged_out") {
+        if (state === "logged_out") {
             notified8hr.current = false;
             confettiTriggered.current = false;
         } else if (floorSec < 60) {
             notified8hr.current = false;
             confettiTriggered.current = false;
         }
-    }, [status?.floorMinutes, status?.breakMinutes, status?.state]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `status` is only null-checked
+    }, [floorSec, breakSec, state]);
 
     // Live tick every second
     useEffect(() => {

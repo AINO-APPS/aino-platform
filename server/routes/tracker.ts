@@ -130,11 +130,19 @@ const DEVICE_CREDENTIAL_INVALID = {
     code: "DEVICE_CREDENTIAL_INVALID",
 };
 
-/** Tell the user's other devices/tabs that attendance state changed (web/Android sync). */
-function emitAttendanceUpdate(req: Request, action: string): void {
+/**
+ * Tell the user's other devices/tabs that attendance state changed (web/Android
+ * sync) and refresh their manager's Team Attendance view.
+ */
+function emitAttendanceUpdate(req: Request, action: "clock_in" | "clock_out"): void {
+    const tenantId = req.tenantId ? Number(req.tenantId) : null;
     try {
         const { sendToUser } = require("../realtime/fanout");
-        sendToUser(req.tenantId ? Number(req.tenantId) : null, Number(req.userId), "attendance_update", { action });
+        sendToUser(tenantId, Number(req.userId), "attendance_update", { action });
+    } catch { /* best-effort */ }
+    try {
+        const { emitTeamAttendanceUpdate } = require("../utils/teamAttendanceRealtime");
+        void emitTeamAttendanceUpdate(req.db, tenantId, Number(req.userId), action);
     } catch { /* best-effort */ }
 }
 

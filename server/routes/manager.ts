@@ -8,9 +8,11 @@ const { computeFloorMs, computeBreakMs, endOfLocalDayMs } = require("../utils/ti
 const { updateLeaveBalance } = require("./leaves");
 const { logger } = require("../utils/logger");
 const { notifyByEmail } = require("../utils/mailer");
-const { sendToUser } = require("../utils/ws");
+const { notifyRequesterOfDecision, emitApproverDecision } = require("../utils/approvalNotifications");
 const { requireTenant } = require("../middleware/tenant");
 const { parseWorkDays, isJsDowWorkDay } = require("../utils/workDays");
+const { canSelfApprove, selfApprovalError } = require("../utils/selfApproval");
+const { applyManualEntryDecision } = require("../utils/manualEntryDecision");
 
 const router = express.Router();
 router.use(auth, loadUserContext, requireTenant);
@@ -371,6 +373,11 @@ router.get("/approvals", async (req: Request, res: Response) => {
             params.push(req.userId);
             pi++;
         }
+        // Super admins always see (and may decide) their own requests; nobody
+        // else can act on their own, so hide them from their queue.
+        if (canSelfApprove(req.userRole)) conditions[0] = `(${conditions[0]} OR ar.requester_id = $${pi++})`;
+        else conditions.push(`ar.requester_id <> $${pi++}`);
+        params.push(req.userId);
 
         if (filterStatus !== "all") { conditions.push(`ar.status = $${pi++}`); params.push(filterStatus); }
         if (type) { conditions.push(`ar.type = $${pi++}`); params.push(type); }
@@ -426,19 +433,21 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
         const { id } = req.params;
 
         const txResult: TxResult = await (req.db as unknown as DbLike).transaction(async (client) => {
-            const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1", [Number(id)])).rows[0];
+            const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE", [Number(id)])).rows[0];
             if (!approval) return { error: "Request not found", status: 404 };
             // Enforce org boundary: approval must belong to user's org
             if (req.userOrgId && approval.org_id && approval.org_id !== req.userOrgId) {
                 return { error: "Not authorized to approve this request", status: 403 };
             }
+            const selfError = selfApprovalError(approval.requester_id, req.userId, req.userRole, "approve");
+            if (selfError) return { error: selfError, status: 403 };
             const isDirectManager = (await client.query("SELECT 1 FROM users WHERE id = $1 AND manager_id = $2", [approval.requester_id, req.userId])).rows[0];
             if (approval.approver_id !== req.userId && (req.roleLevel || 0) < 4 && !isDirectManager) {
                 return { error: "Not authorized to approve this request", status: 403 };
             }
             if (approval.status !== "pending") return { error: `Request already ${approval.status}`, status: 400 };
 
-            await client.query("UPDATE approval_requests SET status = 'approved', reviewed_at = NOW(), approver_id = $1 WHERE id = $2", [req.userId, Number(id)]);
+            if (!(await client.query("UPDATE approval_requests SET status = 'approved', reviewed_at = NOW(), approver_id = $1 WHERE id = $2 AND status = 'pending' RETURNING id", [req.userId, Number(id)])).rows[0]) return { error: "Request already handled", status: 409 };
 
             if (approval.type === "leave" && approval.reference_id) {
                 await client.query("UPDATE leaves SET status = 'approved', approved_by = $1, reviewed_at = NOW() WHERE id = $2", [req.userId, approval.reference_id]);
@@ -456,56 +465,7 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
                     await client.query("DELETE FROM leaves WHERE id = $1", [approval.reference_id]);
                 }
             } else if (approval.type === "manual_entry") {
-                let metadata: any = {};
-                if (approval.metadata) { try { metadata = JSON.parse(approval.metadata); } catch { } }
-                if (metadata.date) {
-                    // Use the requester's stored timezone, not the manager's header.
-                    const requesterRow = (await client.query("SELECT timezone_offset FROM users WHERE id = $1", [approval.requester_id])).rows[0];
-                    const reqOffset = requesterRow?.timezone_offset || 0;
-                    const tzMod = `${-reqOffset} minutes`;
-                    if (metadata.edit === true && metadata.clock_in) {
-                        // NON-DESTRUCTIVE EDIT REQUEST: the original verified
-                        // entries were kept in place while pending. Now that the
-                        // manager approved, apply the proposed day: remove the old
-                        // rows for that date and insert the edited ones as approved.
-                        const offsetMs = reqOffset * 60000;
-                        const toUTC = (dateStr: string, timeStr: string) => {
-                            const [y, m, d] = dateStr.split("-").map(Number);
-                            const [hh, mm] = timeStr.split(":").map(Number);
-                            return new Date(Date.UTC(y, m - 1, d, hh, mm, 0) + offsetMs).toISOString();
-                        };
-                        const VALID_WM = ["office", "remote", "hybrid"];
-                        const wm = VALID_WM.includes(metadata.work_mode) ? metadata.work_mode : "office";
-                        await client.query(
-                            `DELETE FROM time_entries WHERE user_id = $1 AND (timestamp + $2::interval)::date = $3::date`,
-                            [approval.requester_id, tzMod, metadata.date]
-                        );
-                        const ins = (type: string, ts: string, mode: string | null) => client.query(
-                            "INSERT INTO time_entries (user_id, entry_type, timestamp, work_mode, is_manual, approval_status, approved_by) VALUES ($1,$2,$3,$4,TRUE,'approved',$5)",
-                            [approval.requester_id, type, ts, mode || null, req.userId]
-                        );
-                        await ins("clock_in", toUTC(metadata.date, metadata.clock_in), wm);
-                        if (Array.isArray(metadata.breaks)) {
-                            const sorted = [...metadata.breaks]
-                                .filter((b: any) => b && b.start && b.end)
-                                .sort((a: any, b: any) => a.start.localeCompare(b.start));
-                            for (const brk of sorted) {
-                                await ins("break_start", toUTC(metadata.date, brk.start), null);
-                                await ins("break_end", toUTC(metadata.date, brk.end), null);
-                            }
-                        }
-                        if (metadata.clock_out) {
-                            await ins("clock_out", toUTC(metadata.date, metadata.clock_out), null);
-                        }
-                    } else {
-                        // LEGACY / normal manual entry: rows were already inserted
-                        // as pending, so just flip them to approved.
-                        await client.query(
-                            `UPDATE time_entries SET approval_status = 'approved', approved_by = $1 WHERE user_id = $2 AND (timestamp + $3::interval)::date = $4::date AND is_manual = TRUE`,
-                            [req.userId, approval.requester_id, tzMod, metadata.date]
-                        );
-                    }
-                }
+                await applyManualEntryDecision(client, approval, req.userId, "approved");
             } else if (approval.type === "overtime") {
                 // Credit comp-off leave balance for the overtime worked
                 let meta: any = {};
@@ -534,42 +494,33 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
 
         // Notify the requester about approval (deferred — see comment above)
         void (async () => {
+            const approvalId = Number(id);
             try {
                 const requester = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [txResult.requesterId])).rows[0];
                 if (requester) {
+                    const base = { requesterId: txResult.requesterId!, actorId: req.userId, status: "approved", approvalId };
+                    let meta: any = {};
+                    if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
                     if (txResult.type === "leave" || txResult.type === "leave_withdraw") {
                         const leave = txResult.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [txResult.referenceId])).rows[0] : null;
                         const leaveInfo = leave || { leave_type: "leave", date: "" };
-                        await req.db!.query(
-                            "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                            [txResult.requesterId, "leave", "Leave Approved \u2705", `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been approved.`]
-                        );
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: txResult.referenceId,
+                            title: "Leave Approved \u2705", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been approved.` });
                         notifyByEmail("leaveApproved", requester, leaveInfo);
-                        sendToUser(req.tenantId, txResult.requesterId, "leave_update", { status: "approved" });
                     } else if (txResult.type === "manual_entry") {
-                        let meta: any = {};
-                        if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
                         const entryDate = meta.date || "";
-                        await req.db!.query(
-                            "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                            [txResult.requesterId, "approval", "Manual Entry Approved \u2705", `Your manual time entry for ${entryDate} has been approved.`]
-                        );
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
+                            title: "Manual Entry Approved \u2705", body: `Your manual time entry for ${entryDate} has been approved.` });
                         notifyByEmail("manualEntryApproved", requester, entryDate);
-                        sendToUser(req.tenantId, txResult.requesterId, "approval_update", { status: "approved", type: "manual_entry" });
                     } else if (txResult.type === "overtime") {
-                        let meta: any = {};
-                        if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
-                        const overtimeDate = meta.date || "";
-                        await req.db!.query(
-                            "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                            [txResult.requesterId, "approval", "Overtime Approved \u2705", `Your overtime request for ${overtimeDate} has been approved. Comp-off has been credited.`]
-                        );
-                        sendToUser(req.tenantId, txResult.requesterId, "approval_update", { status: "approved", type: "overtime" });
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
+                            title: "Overtime Approved \u2705", body: `Your overtime request for ${meta.date || ""} has been approved. Comp-off has been credited.` });
                     }
                 }
             } catch (notifErr) {
                 req.log.error({ err: notifErr }, "Approval notification error");
             }
+            emitApproverDecision(req.tenantId, req.userId, txResult.type, "approved", approvalId);
         })();
     } catch (err) {
         req.log.error({ err }, "POST /approvals/:id/approve error");
@@ -580,22 +531,24 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
 router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { reject_reason } = req.body;
+        const { reject_reason } = req.body || {};
 
         const txResult: TxResult = await (req.db as unknown as DbLike).transaction(async (client) => {
-            const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1", [Number(id)])).rows[0];
+            const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1 FOR UPDATE", [Number(id)])).rows[0];
             if (!approval) return { error: "Request not found", status: 404 };
             // Enforce org boundary
             if (req.userOrgId && approval.org_id && approval.org_id !== req.userOrgId) {
                 return { error: "Not authorized to reject this request", status: 403 };
             }
+            const selfError = selfApprovalError(approval.requester_id, req.userId, req.userRole, "reject");
+            if (selfError) return { error: selfError, status: 403 };
             const isDirectManager = (await client.query("SELECT 1 FROM users WHERE id = $1 AND manager_id = $2", [approval.requester_id, req.userId])).rows[0];
             if (approval.approver_id !== req.userId && (req.roleLevel || 0) < 4 && !isDirectManager) {
                 return { error: "Not authorized to reject this request", status: 403 };
             }
             if (approval.status !== "pending") return { error: `Request already ${approval.status}`, status: 400 };
 
-            await client.query("UPDATE approval_requests SET status = 'rejected', reject_reason = $1, reviewed_at = NOW(), approver_id = $2 WHERE id = $3", [reject_reason || null, req.userId, Number(id)]);
+            if (!(await client.query("UPDATE approval_requests SET status = 'rejected', reject_reason = $1, reviewed_at = NOW(), approver_id = $2 WHERE id = $3 AND status = 'pending' RETURNING id", [reject_reason || null, req.userId, Number(id)])).rows[0]) return { error: "Request already handled", status: 409 };
 
             if (approval.type === "leave" && approval.reference_id) {
                 await client.query("UPDATE leaves SET status = 'rejected', reject_reason = $1, approved_by = $2, reviewed_at = NOW() WHERE id = $3", [reject_reason || null, req.userId, approval.reference_id]);
@@ -604,22 +557,7 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
                 if (approval.metadata) { try { meta = JSON.parse(approval.metadata); } catch { } }
                 await client.query("UPDATE leaves SET status = $1 WHERE id = $2", [meta.previous_status || "approved", approval.reference_id]);
             } else if (approval.type === "manual_entry") {
-                let metadata: any = {};
-                if (approval.metadata) { try { metadata = JSON.parse(approval.metadata); } catch { } }
-                // NON-DESTRUCTIVE EDIT REQUEST: the original verified entries were
-                // never modified while the edit was pending, so rejecting simply
-                // discards the request and leaves the source-of-truth intact.
-                // Only legacy in-place pending rows need to be marked rejected.
-                if (metadata.date && metadata.edit !== true) {
-                    // Use the requester's stored timezone, not the manager's header
-                    const requesterRow = (await client.query("SELECT timezone_offset FROM users WHERE id = $1", [approval.requester_id])).rows[0];
-                    const reqOffset = requesterRow?.timezone_offset || 0;
-                    const tzMod = `${-reqOffset} minutes`;
-                    await client.query(
-                        `UPDATE time_entries SET approval_status = 'rejected', approved_by = $1 WHERE user_id = $2 AND (timestamp + $3::interval)::date = $4::date AND is_manual = TRUE`,
-                        [req.userId, approval.requester_id, tzMod, metadata.date]
-                    );
-                }
+                await applyManualEntryDecision(client, approval, req.userId, "rejected");
             }
             return { ok: true, type: approval.type, requesterId: approval.requester_id, referenceId: approval.reference_id, metadata: approval.metadata };
         });
@@ -633,33 +571,34 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
 
         // Notify the requester about rejection (deferred)
         void (async () => {
+            const approvalId = Number(id);
             try {
                 const requester = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [txResult.requesterId])).rows[0];
                 if (requester) {
+                    const base = { requesterId: txResult.requesterId!, actorId: req.userId, status: "rejected", approvalId };
+                    const why = reject_reason ? " Reason: " + reject_reason : "";
+                    let meta: any = {};
+                    if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
                     if (txResult.type === "leave") {
                         const leave = txResult.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [txResult.referenceId])).rows[0] : null;
                         const leaveInfo = leave || { leave_type: "leave", date: "" };
-                        await req.db!.query(
-                            "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                            [txResult.requesterId, "leave", "Leave Rejected", `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been rejected.${reject_reason ? " Reason: " + reject_reason : ""}`]
-                        );
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: txResult.referenceId,
+                            title: "Leave Rejected", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been rejected.${why}` });
                         notifyByEmail("leaveRejected", requester, leaveInfo, reject_reason);
-                        sendToUser(req.tenantId, txResult.requesterId, "leave_update", { status: "rejected" });
                     } else if (txResult.type === "manual_entry") {
-                        let meta: any = {};
-                        if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
                         const entryDate = meta.date || "";
-                        await req.db!.query(
-                            "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                            [txResult.requesterId, "approval", "Manual Entry Rejected", `Your manual time entry for ${entryDate} has been rejected.${reject_reason ? " Reason: " + reject_reason : ""}`]
-                        );
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
+                            title: "Manual Entry Rejected", body: `Your manual time entry for ${entryDate} has been rejected.${why}` });
                         notifyByEmail("manualEntryRejected", requester, entryDate, reject_reason);
-                        sendToUser(req.tenantId, txResult.requesterId, "approval_update", { status: "rejected", type: "manual_entry" });
+                    } else if (txResult.type === "overtime") {
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
+                            title: "Overtime Rejected", body: `Your overtime request for ${meta.date || ""} has been rejected.${why}` });
                     }
                 }
             } catch (notifErr) {
                 req.log.error({ err: notifErr }, "Rejection notification error");
             }
+            emitApproverDecision(req.tenantId, req.userId, txResult.type, "rejected", approvalId);
         })();
     } catch (err) {
         req.log.error({ err }, "POST /approvals/:id/reject error");
@@ -675,23 +614,27 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
         if (!["approve", "reject"].includes(action)) return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
 
         const status = action === "approve" ? "approved" : "rejected";
-        let processed = 0, skipped = 0;
+        let processed = 0, skipped = 0, ownSkipped = 0;
 
         await (req.db as unknown as DbLike).transaction(async (client) => {
             for (const id of ids) {
-                const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1 AND status = 'pending'", [id])).rows[0];
+                const approval = (await client.query("SELECT * FROM approval_requests WHERE id = $1 AND status = 'pending' FOR UPDATE", [id])).rows[0];
                 if (!approval) continue;
+                if (selfApprovalError(approval.requester_id, req.userId, req.userRole, action)) {
+                    ownSkipped++;
+                    continue;
+                }
 
                 const isDirectManager = (await client.query("SELECT 1 FROM users WHERE id = $1 AND manager_id = $2", [approval.requester_id, req.userId])).rows[0];
-                if (approval.approver_id !== req.userId && (req.roleLevel || 0) < 4 && !isDirectManager) {
+                if ((req.userOrgId && approval.org_id && approval.org_id !== req.userOrgId) || (approval.approver_id !== req.userId && (req.roleLevel || 0) < 4 && !isDirectManager)) {
                     skipped++;
                     continue;
                 }
 
-                await client.query(
-                    "UPDATE approval_requests SET status = $1, reject_reason = $2, reviewed_at = NOW(), approver_id = $3 WHERE id = $4",
+                if (!(await client.query(
+                    "UPDATE approval_requests SET status = $1, reject_reason = $2, reviewed_at = NOW(), approver_id = $3 WHERE id = $4 AND status = 'pending' RETURNING id",
                     [status, action === "reject" ? (reject_reason || null) : null, req.userId, id]
-                );
+                )).rows[0]) continue;
 
                 if (approval.type === "leave" && approval.reference_id) {
                     await client.query("UPDATE leaves SET status = $1, approved_by = $2, reviewed_at = NOW(), reject_reason = $3 WHERE id = $4",
@@ -718,15 +661,7 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
                         await client.query("UPDATE leaves SET status = $1 WHERE id = $2", [meta.previous_status || "approved", approval.reference_id]);
                     }
                 } else if (approval.type === "manual_entry") {
-                    let metadata: any = {};
-                    if (approval.metadata) { try { metadata = JSON.parse(approval.metadata); } catch { } }
-                    if (metadata.date) {
-                        const tzMod = getTzModifier(req);
-                        await client.query(
-                            `UPDATE time_entries SET approval_status = $1, approved_by = $2 WHERE user_id = $3 AND (timestamp + $4::interval)::date = $5::date AND is_manual = TRUE`,
-                            [action === "approve" ? "approved" : "rejected", req.userId, approval.requester_id, tzMod, metadata.date]
-                        );
-                    }
+                    await applyManualEntryDecision(client, approval, req.userId, status);
                 } else if (approval.type === "overtime" && action === "approve") {
                     // Credit comp-off leave balance for overtime
                     let meta: any = {};
@@ -743,8 +678,13 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
             }
         });
 
-        logAction(req, `bulk_${action}`, "approval_request", null, { ids, count: processed, skipped });
-        res.json({ message: `${processed} request(s) ${status}${skipped > 0 ? `, ${skipped} skipped (not authorized)` : ""}`, processed, skipped });
+        logAction(req, `bulk_${action}`, "approval_request", null, { ids, count: processed, skipped, ownSkipped });
+        const skipNotes = [
+            skipped > 0 ? `${skipped} skipped (not authorized)` : "",
+            ownSkipped > 0 ? `${ownSkipped} skipped (your own request)` : "",
+        ].filter(Boolean);
+        res.json({ message: [`${processed} request(s) ${status}`, ...skipNotes].join(", "), processed, skipped: skipped + ownSkipped, ownSkipped });
+        if (processed > 0) emitApproverDecision(req.tenantId, req.userId, "bulk", status);
     } catch (err) {
         req.log.error({ err }, "POST /approvals/bulk error");
         res.status(500).json({ error: "Failed to process bulk action" });

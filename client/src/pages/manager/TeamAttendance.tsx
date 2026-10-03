@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTeamAttendance } from "../../api/organization";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import MemberCard from "./MemberCard";
 import s from "../Admin.module.css";
 import m from "../ManagerDashboard.module.css";
@@ -24,6 +25,12 @@ export default function TeamAttendance({
   const { data = EMPTY, isLoading: loading } = useQuery({
     queryKey: ["manager", "teamAttendance", date],
     queryFn: async () => (await getTeamAttendance(date)).data as TeamMember[],
+  });
+
+  // A team member clocked in/out, took a break or changed entries/leave.
+  const queryClient = useQueryClient();
+  useRealtimeEvent(["team_attendance_update", "leave_update", "approval_update"], () => {
+    queryClient.invalidateQueries({ queryKey: ["manager", "teamAttendance"] });
   });
 
   const groups: Record<string, TeamMember[]> = {

@@ -48,6 +48,8 @@ function requireAgileReviewer(req: Request, res: Response, next: NextFunction) {
     next();
 }
 const { logAction } = require("../utils/audit");
+const { notifyUser } = require("../utils/ws");
+const { AGILE_ACCESS_LINK } = require("../utils/notificationLinks");
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
@@ -636,10 +638,8 @@ router.post("/permissions/request", async (req: Request, res: Response) => {
             const requesterName = (await req.db!.query("SELECT full_name, username FROM users WHERE id = $1", [req.userId])).rows[0];
             const name = requesterName?.full_name || requesterName?.username || "A user";
             for (const a of admins) {
-                await req.db!.query(
-                    `INSERT INTO notifications (user_id, type, title, body) VALUES ($1, 'agile_request', $2, $3)`,
-                    [a.id, "Agile editor access requested", `${name} is requesting Agile settings edit access`]
-                );
+                await notifyUser(req.db, req.tenantId, a.id, "agile_request", "Agile editor access requested",
+                    `${name} is requesting Agile settings edit access`, { actorId: req.userId, link: AGILE_ACCESS_LINK });
             }
         } catch (e) { req.log.warn({ err: e }, "Failed to notify admins of agile request"); }
 
@@ -716,11 +716,8 @@ router.put("/permissions/requests/:id", requireAgileReviewer, async (req: Reques
                 );
             });
             // Notify requester
-            await req.db!.query(
-                `INSERT INTO notifications (user_id, type, title, body)
-                 VALUES ($1, 'agile_grant', 'Agile editor access granted', 'You can now edit Agile settings.')`,
-                [reqRow.user_id]
-            );
+            await notifyUser(req.db, req.tenantId, reqRow.user_id, "agile_grant", "Agile editor access granted",
+                "You can now edit Agile settings.", { actorId: req.userId, link: AGILE_ACCESS_LINK });
             logAction(req, "approve", "agile_editor_request", id, { user_id: reqRow.user_id });
         } else {
             await req.db!.query(
@@ -729,11 +726,8 @@ router.put("/permissions/requests/:id", requireAgileReviewer, async (req: Reques
                   WHERE id = $3`,
                 [req.userId, reject_reason ? String(reject_reason).slice(0, 500) : null, id]
             );
-            await req.db!.query(
-                `INSERT INTO notifications (user_id, type, title, body)
-                 VALUES ($1, 'agile_grant', 'Agile editor request rejected', $2)`,
-                [reqRow.user_id, reject_reason ? `Reason: ${reject_reason}` : "Your request was rejected."]
-            );
+            await notifyUser(req.db, req.tenantId, reqRow.user_id, "agile_grant", "Agile editor request rejected",
+                reject_reason ? `Reason: ${reject_reason}` : "Your request was rejected.", { actorId: req.userId, link: AGILE_ACCESS_LINK });
             logAction(req, "reject", "agile_editor_request", id, { user_id: reqRow.user_id, reason: reject_reason });
         }
 
@@ -772,11 +766,8 @@ router.delete("/permissions/grants/:id", requireAgileReviewer, async (req: Reque
         const grant = (await req.db!.query("SELECT * FROM agile_editor_grants WHERE id = $1", [id])).rows[0];
         if (!grant || grant.org_id !== req.userOrgId) return res.status(404).json({ error: "Grant not found" });
         await req.db!.query("UPDATE agile_editor_grants SET revoked_at = NOW() WHERE id = $1", [id]);
-        await req.db!.query(
-            `INSERT INTO notifications (user_id, type, title, body)
-             VALUES ($1, 'agile_grant', 'Agile editor access revoked', 'Your edit access for Agile settings was revoked.')`,
-            [grant.user_id]
-        );
+        await notifyUser(req.db, req.tenantId, grant.user_id, "agile_grant", "Agile editor access revoked",
+            "Your edit access for Agile settings was revoked.", { actorId: req.userId, link: AGILE_ACCESS_LINK });
         logAction(req, "revoke", "agile_editor_grant", id, { user_id: grant.user_id });
         res.json({ message: "Grant revoked" });
     } catch (err) {

@@ -25,32 +25,21 @@ export async function insertOvertimeRequest(
     actor: { userId: number; orgId: number | null },
     approverId: number | null,
     input: CreateOvertimeInput,
-): Promise<void> {
-    await db.query(
+): Promise<number | null> {
+    const result = await db.query(
         `INSERT INTO approval_requests
             (org_id, requester_id, approver_id, type, reference_id, reason, metadata)
-         VALUES ($1,$2,$3,'overtime',NULL,$4,$5)`,
+         VALUES ($1,$2,$3,'overtime',NULL,$4,$5)
+         RETURNING id`,
         [actor.orgId, actor.userId, approverId, input.reason,
             JSON.stringify({ date: input.date, hours: input.hours })],
     );
+    return result?.rows?.[0]?.id ?? null;
 }
 
 export async function getUserDisplayName(db: AttendanceDb, userId: number): Promise<string> {
     const row = (await db.query("SELECT full_name FROM users WHERE id = $1", [userId])).rows[0];
     return row?.full_name || "A team member";
-}
-
-export async function insertOvertimeNotification(
-    db: AttendanceDb,
-    approverId: number,
-    requesterName: string,
-    input: CreateOvertimeInput,
-): Promise<void> {
-    await db.query(
-        "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-        [approverId, "approval", "Overtime Request",
-            `${requesterName} requested ${input.hours}h overtime for ${input.date}.`],
-    );
 }
 
 export async function listOvertimeRequests(db: AttendanceDb, userId: number): Promise<any[]> {
@@ -350,9 +339,9 @@ interface PersistManualDayOptions {
 export async function persistManualDay(
     db: AttendanceDb,
     options: PersistManualDayOptions,
-): Promise<void> {
+): Promise<number | null> {
     if (!db.transaction) throw new Error("Attendance transaction is unavailable");
-    await db.transaction(async (client) => {
+    return db.transaction(async (client) => {
         if (options.replaceExisting) {
             await supersedePendingManualEdits(client, options.userId, options.date);
             await client.query(
@@ -370,46 +359,33 @@ export async function persistManualDay(
             await insertManualEntry(client, options.userId, "clock_out", options.toUtc(options.clockOut), null, options.approvalStatus);
         }
         if (options.createApproval) {
-            await insertManualApproval(client, options);
+            return insertManualApproval(client, options);
         }
+        return null;
     });
 }
 
 export async function persistProtectedManualEdit(
     db: AttendanceDb,
-    options: Omit<PersistManualDayOptions, "replaceExisting" | "timezoneModifier" | "createApproval">,
-): Promise<void> {
+    options: Omit<PersistManualDayOptions, "replaceExisting" | "createApproval">,
+): Promise<number | null> {
     if (!db.transaction) throw new Error("Attendance transaction is unavailable");
-    await db.transaction(async (client) => {
-        await supersedePendingManualEdits(client, options.userId, options.date);
-        await insertManualApproval(client, options);
+    return db.transaction(async (client) => {
+        await supersedePendingManualEdits(client, options.userId, options.date, options.timezoneModifier);
+        return insertManualApproval(client, options);
     });
 }
 
-export async function insertManualEntryNotification(
-    db: AttendanceDb,
-    approverId: number,
-    requesterName: string,
-    date: string,
-    edit: boolean,
-): Promise<void> {
-    await db.query(
-        "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-        [
-            approverId,
-            "approval",
-            edit ? "Manual Entry Updated" : "New Manual Entry Request",
-            edit
-                ? `${requesterName} updated a manual time entry for ${date}.`
-                : `${requesterName} submitted a manual time entry for ${date}.`,
-        ],
-    );
-}
-
+/**
+ * Rejects open manual_entry requests for the date. When a timezone modifier is
+ * given, the superseded plain request's pending manual rows are rejected too
+ * (persistManualDay deletes them instead), so they cannot stay pending forever.
+ */
 async function supersedePendingManualEdits(
     db: AttendanceDb,
     userId: number,
     date: string,
+    timezoneModifier?: string,
 ): Promise<void> {
     await db.query(
         `UPDATE approval_requests
@@ -417,6 +393,13 @@ async function supersedePendingManualEdits(
          WHERE requester_id = $1 AND type = 'manual_entry' AND status = 'pending'
            AND metadata::jsonb->>'date' = $2`,
         [userId, date],
+    );
+    if (timezoneModifier === undefined) return;
+    await db.query(
+        `UPDATE time_entries SET approval_status = 'rejected'
+         WHERE user_id = $1 AND is_manual = TRUE AND approval_status = 'pending'
+           AND (timestamp + $3::interval)::date = $2::date`,
+        [userId, date, timezoneModifier],
     );
 }
 
@@ -439,11 +422,13 @@ async function insertManualEntry(
 async function insertManualApproval(
     db: AttendanceDb,
     options: Pick<PersistManualDayOptions, "orgId" | "userId" | "approverId" | "reason" | "metadata">,
-): Promise<void> {
-    await db.query(
+): Promise<number | null> {
+    const result = await db.query(
         `INSERT INTO approval_requests
             (org_id, requester_id, approver_id, type, reference_id, reason, metadata)
-         VALUES ($1,$2,$3,'manual_entry',NULL,$4,$5)`,
+         VALUES ($1,$2,$3,'manual_entry',NULL,$4,$5)
+         RETURNING id`,
         [options.orgId, options.userId, options.approverId, options.reason, JSON.stringify(options.metadata)],
     );
+    return result?.rows?.[0]?.id ?? null;
 }

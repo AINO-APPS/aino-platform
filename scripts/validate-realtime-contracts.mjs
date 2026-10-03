@@ -49,8 +49,24 @@ for (const [wire, action] of [["call_accept", "answer"], ["call_reject", "reject
 check(call.includes('type: "call_initiate"'), "call_initiate idempotency mapping missing");
 check(call.includes('type: "call_cancel"'), "call_cancel idempotency mapping missing");
 const push = read("server/services/pushNotifications.ts");
-for (const marker of ['type: "incoming_call"', 'type: "call_handled_elsewhere"', 'type: "chat_message"', 'dedupeKey: `call:', 'dedupeKey: `call_cancel:', 'dedupeKey: `msg:', 'dedupeKey: `notif:', "hideSensitiveContent ? {}"])
+for (const marker of ['type: "incoming_call"', 'type: "call_handled_elsewhere"', 'type: "chat_message"', 'dedupeKey: `call:', 'dedupeKey: `call_cancel:', 'dedupeKey: `msg:', 'dedupeKey: `notif:', "hideSensitiveContent ? {}", 'link: notificationData.link || ""', "linkTaskId: notificationData.linkTaskId"])
   check(push.includes(marker), `documented push behavior absent from service: ${marker}`);
+
+// Domain sync events documented in AsyncAPI must still be emitted by the server.
+const domainEmitters = [
+  "server/realtime/fanout.ts",
+  "server/routes/notifications.ts",
+  "server/routes/leaves.ts",
+  "server/utils/approvalNotifications.ts",
+  "server/utils/taskNotifications.ts",
+  "server/utils/teamAttendanceRealtime.ts",
+  "server/utils/leavePolicyRealtime.ts",
+  "server/modules/attendance/attendance.routes.ts",
+].map(read).join("\n");
+for (const type of ["notification", "notifications_changed", "task_assigned", "task_updated", "attendance_update", "team_attendance_update", "leave_update", "leave_policy_changed", "approval_update"]) {
+  check(asyncapi.includes(`const: ${type}`), `server event absent from AsyncAPI: ${type}`);
+  check(domainEmitters.includes(`"${type}"`) || domainEmitters.includes(`'${type}'`), `documented event no longer emitted by server: ${type}`);
+}
 
 if (fail.length) {
   console.error(`Realtime contract validation failed (${fail.length}):\n- ${fail.join("\n- ")}`);

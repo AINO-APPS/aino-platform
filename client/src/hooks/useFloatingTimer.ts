@@ -7,7 +7,7 @@ import { useWorkState } from "../WorkStateContext";
 // last_activity_at. See server/services/status/README.md.
 import { getStatus, clockIn, breakStart, breakEnd, clockOut } from "../api/workforce";
 import { getCurrentOrg } from "../api/organization";
-import { useLiveTimer } from "./useLiveTimer";
+import { useLiveTimer, statusSeconds } from "./useLiveTimer";
 import { useAutoDismiss } from "./useAutoDismiss";
 import { STATUS_POLL_INTERVAL } from "../constants";
 
@@ -21,6 +21,8 @@ interface TrackerStatus {
     isWeekend?: boolean;
     floorMinutes?: number;
     breakMinutes?: number;
+    floorSeconds?: number;
+    breakSeconds?: number;
     entries?: Array<{ entry_type?: string; [key: string]: unknown }>;
     [key: string]: unknown;
 }
@@ -129,12 +131,12 @@ export function useFloatingTimer() {
 
     const floorMinutes = Math.floor(
         (state === "logged_out"
-            ? (status?.floorMinutes || 0) * 60
+            ? statusSeconds(status, "floor")
             : liveFloorSec) / 60,
     );
     const breakMinutes = Math.floor(
         (state === "logged_out"
-            ? (status?.breakMinutes || 0) * 60
+            ? statusSeconds(status, "break")
             : liveBreakSec) / 60,
     );
     const totalMinutes = floorMinutes + breakMinutes;

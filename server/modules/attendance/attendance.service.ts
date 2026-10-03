@@ -11,6 +11,7 @@ import * as repository from "./attendance.repository";
 import { computeDaySummary, endOfLocalDayMs } from "../../utils/timeCalc";
 import { computeStatus } from "../../utils/timeCalc";
 import { parseWorkDays, isJsDowWorkDay } from "../../utils/workDays";
+import { approvalLink } from "../../utils/notificationLinks";
 
 interface AttendanceDependencies {
     findApprover: (
@@ -24,6 +25,92 @@ interface AttendanceDependencies {
         type: string,
         data: unknown,
     ) => void;
+    /** Persists + delivers (WS + FCM) an in-app notification. */
+    notifyUser: (
+        db: AttendanceDb,
+        tenantId: number | null | undefined,
+        userId: number,
+        type: string,
+        title: string,
+        body: string,
+        opts?: { actorId?: number | null; link?: string | null },
+    ) => Promise<void>;
+}
+
+/**
+ * Manual edit for every role. When the date holds applied attendance (real
+ * clock-ins or approved manual rows) the proposed day is stored only on the
+ * approval request and replaces the day on approval; otherwise the earlier
+ * unapproved manual rows are swapped for new pending ones. Either way any
+ * previous pending request for the date is superseded, so at most one stays open.
+ */
+async function submitManualEdit(
+    deps: AttendanceDependencies,
+    db: AttendanceDb,
+    actor: AttendanceActor,
+    input: ManualEntryInput,
+    timezoneModifier: string,
+) {
+    await assertManualDateUnlocked(db, actor.orgId, input.date);
+    const leave = await repository.findLeaveForDate(db, actor.userId, input.date);
+    if (leave) {
+        throw new AttendanceError(
+            `You have a ${leave.leave_type} leave on this date. Remove the leave first to edit a manual entry.`,
+        );
+    }
+
+    const hasProtectedData = await repository.hasProtectedManualEditData(
+        db, actor.userId, input.date, timezoneModifier,
+    );
+    const approver = await deps.findApprover(db, actor.userId, actor.orgId);
+    const common = {
+        userId: actor.userId,
+        orgId: actor.orgId,
+        approverId: approver?.id || null,
+        date: input.date,
+        clockIn: input.clockIn,
+        clockOut: input.clockOut,
+        breaks: input.breaks,
+        workMode: input.workMode,
+        approvalStatus: "pending",
+        toUtc: input.toUtc,
+    };
+    const approvalId = hasProtectedData
+        ? await repository.persistProtectedManualEdit(db, {
+            ...common,
+            reason: "Manual time entry (edit request)",
+            metadata: {
+                date: input.date,
+                clock_in: input.clockIn,
+                clock_out: input.clockOut || null,
+                breaks: input.breaks,
+                work_mode: input.workMode,
+                timezone_offset: input.timezoneOffset,
+                edit: true,
+            },
+            timezoneModifier,
+        })
+        : await repository.persistManualDay(db, {
+            ...common,
+            reason: "Manual time entry (edited)",
+            metadata: {
+                date: input.date,
+                clock_in: input.clockIn,
+                clock_out: input.clockOut || null,
+                work_mode: input.workMode,
+                timezone_offset: input.timezoneOffset,
+            },
+            replaceExisting: true,
+            timezoneModifier,
+            createApproval: true,
+        });
+    return {
+        approvalStatus: "pending",
+        needsApproval: true,
+        approverId: approver?.id || null,
+        hasProtectedData,
+        approvalId,
+    };
 }
 
 export function createAttendanceService(deps: AttendanceDependencies) {
@@ -39,15 +126,18 @@ export function createAttendanceService(deps: AttendanceDependencies) {
 
             const approver = await deps.findApprover(db, actor.userId, actor.orgId);
             const approverId = approver?.id || null;
-            await repository.insertOvertimeRequest(db, actor, approverId, input);
+            const approvalId = await repository.insertOvertimeRequest(db, actor, approverId, input);
 
             // Notification delivery is best-effort: the approval request is the
             // source of truth and must survive an email/WS notification failure.
             if (approverId) {
                 try {
                     const requesterName = await repository.getUserDisplayName(db, actor.userId);
-                    await repository.insertOvertimeNotification(db, approverId, requesterName, input);
+                    await deps.notifyUser(db, actor.tenantId, approverId, "approval", "Overtime Request",
+                        `${requesterName} requested ${input.hours}h overtime for ${input.date}.`,
+                        { actorId: actor.userId, link: approvalLink(approvalId) });
                     deps.sendToUser(actor.tenantId, approverId, "approval_update", {
+                        ...(approvalId ? { id: approvalId } : {}),
                         type: "overtime",
                         status: "pending",
                     });
@@ -204,13 +294,14 @@ export function createAttendanceService(deps: AttendanceDependencies) {
             today: string,
             dayOfWeek: number,
             timezoneOffset: number,
+            nowMs = Date.now(),
         ) {
             const interval = `${-timezoneOffset} minutes`;
             const orgId = await repository.getUserOrgId(db, userId);
             const config = await repository.getOrgWorkConfig(db, orgId);
             const targetMinutes = (config.work_hours_per_day || 8) * 60;
             let entries = await repository.listEntriesForLocalDay(db, userId, today, interval);
-            const status = computeStatus(entries);
+            const status = computeStatus(entries, nowMs);
             let autoLoggedOut = false;
             const last = entries.at(-1);
             if (last && !last.is_manual && status.state !== "logged_out"
@@ -218,7 +309,7 @@ export function createAttendanceService(deps: AttendanceDependencies) {
                 autoLoggedOut = await repository.autoClockOutIfOpen(db, userId, today, interval);
                 if (autoLoggedOut) {
                     entries = await repository.listEntriesForLocalDay(db, userId, today, interval);
-                    Object.assign(status, computeStatus(entries));
+                    Object.assign(status, computeStatus(entries, nowMs));
                 }
             }
             const latestClockIn = [...entries].reverse().find((entry) => entry.entry_type === "clock_in");
@@ -320,11 +411,13 @@ export function createAttendanceService(deps: AttendanceDependencies) {
             db: AttendanceDb,
             actor: AttendanceActor,
             input: ManualEntryInput,
-            isSuperAdmin: boolean,
             timezoneModifier: string,
         ) {
             if (await repository.countEntriesForDate(db, actor.userId, input.date, timezoneModifier) > 0) {
-                throw new AttendanceError("Entries already exist for this date. Delete them first to add manual entries.");
+                // Attendance already exists: submit an edit request instead of
+                // touching it — the day is only replaced once approved.
+                const edit = await submitManualEdit(deps, db, actor, input, timezoneModifier);
+                return { ...edit, existingEntries: true };
             }
             const leave = await repository.findLeaveForDate(db, actor.userId, input.date);
             if (leave) {
@@ -334,12 +427,10 @@ export function createAttendanceService(deps: AttendanceDependencies) {
             }
             await assertManualDateUnlocked(db, actor.orgId, input.date);
 
-            const approvalStatus = isSuperAdmin ? "approved" : "pending";
-            const needsApproval = !isSuperAdmin;
-            const approver = needsApproval
-                ? await deps.findApprover(db, actor.userId, actor.orgId)
-                : null;
-            await repository.persistManualDay(db, {
+            // Every role's manual entries need approval (super admins approve their own).
+            const approvalStatus = "pending";
+            const approver = await deps.findApprover(db, actor.userId, actor.orgId);
+            const approvalId = await repository.persistManualDay(db, {
                 userId: actor.userId,
                 orgId: actor.orgId,
                 approverId: approver?.id || null,
@@ -356,82 +447,27 @@ export function createAttendanceService(deps: AttendanceDependencies) {
                     clock_in: input.clockIn,
                     clock_out: input.clockOut || null,
                     work_mode: input.workMode,
+                    timezone_offset: input.timezoneOffset,
                 },
-                createApproval: needsApproval,
+                createApproval: true,
             });
-            return { approvalStatus, needsApproval, approverId: approver?.id || null };
+            return {
+                approvalStatus,
+                needsApproval: true,
+                approverId: approver?.id || null,
+                hasProtectedData: false,
+                approvalId,
+                existingEntries: false,
+            };
         },
 
         async editManualEntry(
             db: AttendanceDb,
             actor: AttendanceActor,
             input: ManualEntryInput,
-            isSuperAdmin: boolean,
             timezoneModifier: string,
         ) {
-            await assertManualDateUnlocked(db, actor.orgId, input.date);
-            const leave = await repository.findLeaveForDate(db, actor.userId, input.date);
-            if (leave) {
-                throw new AttendanceError(
-                    `You have a ${leave.leave_type} leave on this date. Remove the leave first to edit a manual entry.`,
-                );
-            }
-
-            const approvalStatus = isSuperAdmin ? "approved" : "pending";
-            const needsApproval = !isSuperAdmin;
-            const hasProtectedData = !isSuperAdmin && await repository.hasProtectedManualEditData(
-                db, actor.userId, input.date, timezoneModifier,
-            );
-            const approver = hasProtectedData || needsApproval
-                ? await deps.findApprover(db, actor.userId, actor.orgId)
-                : null;
-            const common = {
-                userId: actor.userId,
-                orgId: actor.orgId,
-                approverId: approver?.id || null,
-                date: input.date,
-                clockIn: input.clockIn,
-                clockOut: input.clockOut,
-                breaks: input.breaks,
-                workMode: input.workMode,
-                approvalStatus,
-                toUtc: input.toUtc,
-            };
-            if (hasProtectedData) {
-                await repository.persistProtectedManualEdit(db, {
-                    ...common,
-                    reason: "Manual time entry (edit request)",
-                    metadata: {
-                        date: input.date,
-                        clock_in: input.clockIn,
-                        clock_out: input.clockOut || null,
-                        breaks: input.breaks,
-                        work_mode: input.workMode,
-                        timezone_offset: input.timezoneOffset,
-                        edit: true,
-                    },
-                });
-            } else {
-                await repository.persistManualDay(db, {
-                    ...common,
-                    reason: "Manual time entry (edited)",
-                    metadata: {
-                        date: input.date,
-                        clock_in: input.clockIn,
-                        clock_out: input.clockOut || null,
-                        work_mode: input.workMode,
-                    },
-                    replaceExisting: true,
-                    timezoneModifier,
-                    createApproval: needsApproval,
-                });
-            }
-            return {
-                approvalStatus: hasProtectedData ? "pending" : approvalStatus,
-                needsApproval: hasProtectedData || needsApproval,
-                approverId: approver?.id || null,
-                hasProtectedData,
-            };
+            return submitManualEdit(deps, db, actor, input, timezoneModifier);
         },
 
         async notifyManualEntryApprover(
@@ -440,10 +476,22 @@ export function createAttendanceService(deps: AttendanceDependencies) {
             approverId: number,
             date: string,
             edit: boolean,
+            approvalId?: number | null,
         ): Promise<void> {
             const requesterName = await repository.getUserDisplayName(db, actor.userId);
-            await repository.insertManualEntryNotification(db, approverId, requesterName, date, edit);
+            await deps.notifyUser(
+                db,
+                actor.tenantId,
+                approverId,
+                "approval",
+                edit ? "Manual Entry Updated" : "New Manual Entry Request",
+                edit
+                    ? `${requesterName} updated a manual time entry for ${date}.`
+                    : `${requesterName} submitted a manual time entry for ${date}.`,
+                { actorId: actor.userId, link: approvalLink(approvalId) },
+            );
             deps.sendToUser(actor.tenantId, approverId, "approval_update", {
+                ...(approvalId ? { id: approvalId } : {}),
                 type: "manual_entry",
                 status: "pending",
             });

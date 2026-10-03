@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, ClipboardList, Users, Send } from "lucide-react";
 import { useAuth } from "../AuthContext";
+import useRealtimeEvent from "../hooks/useRealtimeEvent";
 import { getLeaves, withdrawLeave } from "../api/workforce";
 import { getLeaveBalances } from "../api/organization";
 import { exportMyLeaves } from "../api/notes";
@@ -85,6 +86,12 @@ export default function Leaves() {
 
   const invalidateRequest = () =>
     queryClient.invalidateQueries({ queryKey: ["leaves", "request"] });
+
+  // Leave changes from another device / an approver, or HR policy edits.
+  useRealtimeEvent(["leave_update", "leave_policy_changed"], () => {
+    queryClient.invalidateQueries({ queryKey: ["leaves"] });
+    queryClient.invalidateQueries({ queryKey: ["leave-policy"] });
+  });
 
   const confirmWithdraw = async () => {
     if (!leaveToDelete) return;

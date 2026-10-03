@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import TeamAttendance from "./TeamAttendance";
 import ApprovalsTab from "./ApprovalsTab";
 import TeamAnalytics from "./TeamAnalytics";
@@ -6,9 +7,24 @@ import MyRequests from "./MyRequests";
 import EmployeeDashboard from "./EmployeeDashboard";
 import s from "../Admin.module.css";
 
+const TAB_IDS = ["attendance", "approvals", "analytics", "requests"];
+const tabFromParam = (t: string | null) => (t && TAB_IDS.includes(t) ? t : null);
+
 export default function ManagerDashboard() {
-    const [tab, setTab] = useState("attendance");
+    // Deep links (notifications / push): /manager?tab=approvals&request=<id>
+    const [searchParams] = useSearchParams();
+    const [tab, setTab] = useState(() => tabFromParam(searchParams.get("tab")) || "attendance");
     const [selectedMember, setSelectedMember] = useState<Record<string, any> | null>(null);
+    const highlightRequestId = searchParams.get("request");
+
+    // The page is kept alive between visits, so follow later URL changes too.
+    useEffect(() => {
+        const t = tabFromParam(searchParams.get("tab"));
+        if (t) {
+            setTab(t);
+            setSelectedMember(null);
+        }
+    }, [searchParams]);
 
     if (selectedMember) {
         return (
@@ -46,7 +62,7 @@ export default function ManagerDashboard() {
                 </button>
             </div>
             {tab === "attendance" && <TeamAttendance onSelectMember={setSelectedMember} />}
-            {tab === "approvals" && <ApprovalsTab />}
+            {tab === "approvals" && <ApprovalsTab highlightId={highlightRequestId} />}
             {tab === "analytics" && <TeamAnalytics onSelectMember={setSelectedMember} />}
             {tab === "requests" && <MyRequests />}
         </div>

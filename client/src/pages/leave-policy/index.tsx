@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../AuthContext";
 import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Palmtree, ClipboardList, Users } from "lucide-react";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import PoliciesTab from "./PoliciesTab";
 import MyBalances from "./MyBalances";
 import HolidaysTab from "./HolidaysTab";
@@ -34,6 +36,12 @@ export default function LeavePolicy() {
         const t = searchParams.get("tab");
         if (t && visibleTabs.find((v) => v.id === t)) setTab(t);
     }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // HR policy/holiday/balance edits and leave decisions made elsewhere.
+    const queryClient = useQueryClient();
+    useRealtimeEvent(["leave_policy_changed", "leave_update"], () => {
+        queryClient.invalidateQueries({ queryKey: ["leave-policy"] });
+    });
 
     return (
         <div className={s.page}>

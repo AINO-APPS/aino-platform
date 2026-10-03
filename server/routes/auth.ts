@@ -34,6 +34,7 @@ import { consoleHost } from "../platform/reservedHosts";
 import { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } from "../services/realmHandoff";
 import { availablePlatformPrincipal, findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
 import { webauthnConfig } from "../utils/webauthnConfig";
+import { registerDeviceToken } from "../platform/pushNotifications/deviceTokens";
 
 // Native mobile clients (React Native) can't use HttpOnly cookies, so they need
 // the JWT in the response body. This wraps res.cookie/res.json once for the
@@ -946,15 +947,11 @@ router.post("/device-token", auth, async (req: Request, res: Response) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
 
-        // Register the device token in the database
+        // Register the device token in the database. `pushVersion` 2 = the app
+        // accepts `link` / `linkTaskId` on general alerts; absent = legacy app.
         const db = req.db || { query: masterQuery };
-        await db.query(
-            `INSERT INTO device_tokens (user_id, tenant_id, device_token, platform, last_seen_at, created_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())
-             ON CONFLICT (user_id, device_token) DO UPDATE
-             SET platform = EXCLUDED.platform, last_seen_at = NOW()`,
-            [userId, tenantId || null, deviceToken, platform]
-        );
+        const pushVersion = Number(req.body.pushVersion) === 2 ? 2 : 1;
+        await registerDeviceToken((sql: string, params?: unknown[]) => db.query(sql, params), userId, tenantId, deviceToken, platform, logger, pushVersion);
 
         logger.info({ userId, tenantId, platform }, "Device token registered for push notifications");
         res.json({ message: "Device token registered successfully" });

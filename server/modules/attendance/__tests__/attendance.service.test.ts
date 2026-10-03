@@ -59,7 +59,7 @@ describe("attendance schema", () => {
 describe("attendance service", () => {
     it("rejects duplicate pending overtime", async () => {
         const db = makeDb([{ id: 1 }], 1);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         await expect(service.createOvertimeRequest(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
         }, { date: "2026-08-21", hours: 2, reason: "x" }))
@@ -70,29 +70,52 @@ describe("attendance service", () => {
         const db = makeDb();
         db.query
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // duplicate probe
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // insert request
-            .mockResolvedValueOnce({ rows: [{ full_name: "Alice" }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // notification
+            .mockResolvedValueOnce({ rows: [{ id: 42 }], rowCount: 1 }) // insert request
+            .mockResolvedValueOnce({ rows: [{ full_name: "Alice" }], rowCount: 1 });
         const sendToUser = jest.fn();
+        const notifyUser = jest.fn(async () => undefined);
         const service = createAttendanceService({
             findApprover: jest.fn(async () => ({ id: 9 })),
             sendToUser,
+            notifyUser,
         });
 
         await service.createOvertimeRequest(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
         }, { date: "2026-08-21", hours: 2, reason: "Release" });
 
+        expect(notifyUser).toHaveBeenCalledWith(
+            db, 3, 9, "approval", "Overtime Request", "Alice requested 2h overtime for 2026-08-21.",
+            { actorId: 1, link: "/manager?tab=approvals&request=42" },
+        );
         expect(sendToUser).toHaveBeenCalledWith(3, 9, "approval_update", {
-            type: "overtime", status: "pending",
+            id: 42, type: "overtime", status: "pending",
         });
         expect(db.query.mock.calls.some((call) => /INSERT INTO approval_requests/.test(call[0]))).toBe(true);
+        expect(db.query.mock.calls.some((call) => /INSERT INTO notifications/.test(call[0]))).toBe(false);
+    });
+
+    it("notifies the manual-entry approver with a deep link to the request", async () => {
+        const db = makeDb([{ full_name: "Bob" }]);
+        const sendToUser = jest.fn();
+        const notifyUser = jest.fn(async () => undefined);
+        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser, notifyUser });
+
+        await service.notifyManualEntryApprover(db as any, { userId: 5, orgId: 2, tenantId: 3 }, 9, "2026-08-21", true, 77);
+
+        expect(notifyUser).toHaveBeenCalledWith(
+            db, 3, 9, "approval", "Manual Entry Updated", "Bob updated a manual time entry for 2026-08-21.",
+            { actorId: 5, link: "/manager?tab=approvals&request=77" },
+        );
+        expect(sendToUser).toHaveBeenCalledWith(3, 9, "approval_update", {
+            id: 77, type: "manual_entry", status: "pending",
+        });
     });
 
     it("updates theme then broadcasts", async () => {
         const db = makeDb();
         const sendToUser = jest.fn();
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser });
         await service.updateTheme(db as any, { userId: 1, tenantId: 3 }, "dark");
         expect(db.query).toHaveBeenCalledWith("UPDATE users SET theme = $1 WHERE id = $2", ["dark", 1]);
         expect(sendToUser).toHaveBeenCalledWith(3, 1, "theme_changed", { theme: "dark" });
@@ -104,7 +127,7 @@ describe("attendance service", () => {
             { title: "B", status: "pending", priority: "low" },
             { title: "C", status: "in_progress", priority: "medium" },
         ]);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const result = await service.getTaskSummary(db as any, 1, "2026-08-21");
         expect(result).toMatchObject({ total: 3, done: 1, pending: 1, inProgress: 1, inReview: 0 });
         expect(result.activeTasks).toHaveLength(2);
@@ -115,7 +138,7 @@ describe("attendance service", () => {
         const db = makeDb([
             { entry_type: "clock_in", timestamp: "2026-08-19T08:00:00Z", work_mode: "office" },
         ]);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const result = await service.getWeeklySummary(db as any, 1, 0, now);
         expect(result.days).toHaveLength(7);
         expect(result.days.find((day) => day.isToday)?.hours).toBe(4);
@@ -127,7 +150,7 @@ describe("attendance service", () => {
             { entry_type: "clock_in", timestamp: "2026-08-20T09:00:00Z" },
             { entry_type: "clock_out", timestamp: "2026-08-20T17:00:00Z" },
         ]);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const result = await service.getHistory(db as any, 1, "2026-08-01", "2026-08-21", 0, now);
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({ date: "2026-08-20", floorMinutes: 480 });
@@ -136,7 +159,7 @@ describe("attendance service", () => {
 
     it("analytics fills empty days in the requested range", async () => {
         const db = makeDb([]);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const result = await service.getAnalytics(
             db as any, 1, "2026-08-18", "2026-08-20", 3, 0,
             Date.UTC(2026, 7, 21, 12),
@@ -168,7 +191,7 @@ describe("attendance service", () => {
                 .mockResolvedValueOnce({ rows: [{ entry_type: "clock_in" }], rowCount: 1 })
                 .mockResolvedValueOnce({ rows: [], rowCount: 1 }),
         }));
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const status = await service.getStatus(db as any, 1, "2026-08-21", 5, 0);
         expect(status.autoLoggedOut).toBe(true);
         expect(db.transaction).toHaveBeenCalled();
@@ -184,7 +207,7 @@ describe("attendance service", () => {
             .mockResolvedValueOnce({ rows: [{ date: "2026-08-04" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ org_id: 2 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ work_hours_per_day: 8, work_days: "1,2,3,4,5" }], rowCount: 1 });
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const widgets = await service.getWidgets(db as any, 1, "2026-08-05", 0, Date.UTC(2026, 7, 5, 12));
         expect(widgets).toMatchObject({
             avgFloorMinutes: 480,
@@ -204,7 +227,7 @@ describe("attendance service", () => {
         };
         const db = makeDb();
         db.transaction = jest.fn(async (fn: any) => fn(client));
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         await expect(service.startBreak(db as any, 1, "2026-08-21", 0)).resolves.toBeUndefined();
         expect(client.query.mock.calls[1][1]).toEqual([1, "break_start"]);
     });
@@ -217,21 +240,21 @@ describe("attendance service", () => {
         };
         const db = makeDb();
         db.transaction = jest.fn(async (fn: any) => fn(client));
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         await expect(service.endBreak(db as any, 1, "2026-08-21", 0))
             .rejects.toThrow("You are not on break");
     });
 
     it("parses manual-entry request metadata", async () => {
         const db = makeDb([{ request_id: 1, metadata: '{"date":"2026-08-21"}' }]);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const rows = await service.listManualEntries(db as any, 1);
         expect(rows[0].metadata).toEqual({ date: "2026-08-21" });
     });
 
     it("blocks deleting a locked pay-period date", async () => {
         const db = makeDb([{ label: "August payroll" }], 1);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         await expect(service.deleteEntriesForDate(
             db as any, { userId: 1, orgId: 2 }, "2026-08-21", 0,
         )).rejects.toThrow("locked pay period");
@@ -242,7 +265,7 @@ describe("attendance service", () => {
         db.query
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // no locked period
             .mockResolvedValueOnce({ rows: [{ "?column?": 1 }], rowCount: 1 });
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         await expect(service.deleteEntriesForDate(
             db as any, { userId: 1, orgId: 2 }, "2026-08-21", 0,
         )).rejects.toMatchObject({ statusCode: 403 });
@@ -254,7 +277,7 @@ describe("attendance service", () => {
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [], rowCount: 3 });
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         expect(await service.deleteEntriesForDate(
             db as any, { userId: 1, orgId: 2 }, "2026-08-21", 0,
         )).toBe(3);
@@ -269,7 +292,7 @@ describe("attendance service", () => {
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 });
         db.transaction = jest.fn(async (fn: any) => fn(client));
-        const service = createAttendanceService({
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined),
             findApprover: jest.fn(async () => ({ id: 9 })),
             sendToUser: jest.fn(),
         });
@@ -283,10 +306,13 @@ describe("attendance service", () => {
 
         await expect(service.createManualEntry(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
-        }, manual, false, "+0 minutes")).resolves.toEqual({
+        }, manual, "+0 minutes")).resolves.toEqual({
             approvalStatus: "pending",
             needsApproval: true,
             approverId: 9,
+            hasProtectedData: false,
+            approvalId: null,
+            existingEntries: false,
         });
         expect(client.query).toHaveBeenCalledTimes(5);
         const calls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
@@ -296,21 +322,29 @@ describe("attendance service", () => {
             clock_in: "09:00",
             clock_out: "17:00",
             work_mode: "remote",
+            timezone_offset: 0,
         }));
     });
 
-    it("rejects creating a manual day when entries already exist", async () => {
-        const db = makeDb([{ count: "2" }], 1);
-        const service = createAttendanceService({ findApprover: jest.fn(), sendToUser: jest.fn() });
+    it("does not reject creating a manual day when entries already exist", async () => {
+        const client = { query: jest.fn(async () => ({ rows: [], rowCount: 1 })) };
+        const db = makeDb();
+        db.query
+            .mockResolvedValueOnce({ rows: [{ count: "2" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [{ value: 1 }], rowCount: 1 });
+        db.transaction = jest.fn(async (fn: any) => fn(client));
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(async () => ({ id: 9 })), sendToUser: jest.fn() });
         const manual = parseManualEntry({
             date: "2026-08-21", clock_in: "09:00", clock_out: "17:00",
         }, { today: "2026-08-21" });
 
         await expect(service.createManualEntry(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
-        }, manual, false, "+0 minutes")).rejects.toThrow(
-            "Entries already exist for this date. Delete them first to add manual entries.",
-        );
+        }, manual, "+0 minutes")).resolves.toMatchObject({
+            approvalStatus: "pending", needsApproval: true, hasProtectedData: true, existingEntries: true,
+        });
     });
 
     it("keeps protected entries intact when a manual edit needs approval", async () => {
@@ -321,7 +355,7 @@ describe("attendance service", () => {
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [{ value: 1 }], rowCount: 1 });
         db.transaction = jest.fn(async (fn: any) => fn(client));
-        const service = createAttendanceService({
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined),
             findApprover: jest.fn(async () => ({ id: 9 })),
             sendToUser: jest.fn(),
         });
@@ -331,45 +365,52 @@ describe("attendance service", () => {
 
         const result = await service.editManualEntry(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
-        }, manual, false, "+0 minutes");
+        }, manual, "+0 minutes");
 
         expect(result).toEqual({
             approvalStatus: "pending",
             needsApproval: true,
             approverId: 9,
             hasProtectedData: true,
+            approvalId: null,
         });
-        expect(client.query).toHaveBeenCalledTimes(2);
+        expect(client.query).toHaveBeenCalledTimes(3);
         const sqlCalls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
-        const approvalParams = sqlCalls[1][1];
+        expect(sqlCalls[1][0]).toMatch(/UPDATE time_entries SET approval_status = 'rejected'/);
+        expect(sqlCalls[1][1]).toEqual([1, "2026-08-21", "+0 minutes"]);
+        const approvalParams = sqlCalls[2][1];
         expect(approvalParams[4]).toContain('"edit":true');
-        expect(sqlCalls.some(([sql]) => /DELETE FROM time_entries/.test(sql))).toBe(false);
+        expect(sqlCalls.some(([sql]) => /DELETE FROM time_entries|INSERT INTO time_entries/.test(sql))).toBe(false);
     });
 
-    it("replaces unprotected manual rows immediately for a super admin", async () => {
+    it("replaces unapproved manual rows with pending ones that still need approval", async () => {
         const client = { query: jest.fn(async () => ({ rows: [], rowCount: 1 })) };
         const db = makeDb();
         db.query
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 });
         db.transaction = jest.fn(async (fn: any) => fn(client));
-        const findApprover = jest.fn();
-        const service = createAttendanceService({ findApprover, sendToUser: jest.fn() });
+        const findApprover = jest.fn(async () => ({ id: 1 }));
+        const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover, sendToUser: jest.fn() });
         const manual = parseManualEntry({
             clock_in: "10:00", clock_out: "18:00",
         }, { date: "2026-08-21", today: "2026-08-21", edit: true });
 
         await expect(service.editManualEntry(db as any, {
             userId: 1, orgId: 2, tenantId: 3,
-        }, manual, true, "+0 minutes")).resolves.toEqual({
-            approvalStatus: "approved",
-            needsApproval: false,
-            approverId: null,
+        }, manual, "+0 minutes")).resolves.toEqual({
+            approvalStatus: "pending",
+            needsApproval: true,
+            approverId: 1,
             hasProtectedData: false,
+            approvalId: null,
         });
         const sqlCalls = client.query.mock.calls as unknown as Array<[string, unknown[]]>;
         expect(sqlCalls.some(([sql]) => /DELETE FROM time_entries/.test(sql))).toBe(true);
-        expect(findApprover).not.toHaveBeenCalled();
+        expect(sqlCalls.some(([sql]) => /INSERT INTO approval_requests/.test(sql))).toBe(true);
+        expect(sqlCalls.filter(([sql]) => /INSERT INTO time_entries/.test(sql))
+            .every(([, params]) => params[4] === "pending")).toBe(true);
+        expect(findApprover).toHaveBeenCalled();
     });
 
 });

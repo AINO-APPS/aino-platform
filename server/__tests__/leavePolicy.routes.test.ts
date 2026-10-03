@@ -315,3 +315,94 @@ describe("POST /api/leave-policy/holidays", () => {
         expect(res.body.id).toBe(7);
     });
 });
+// ─── leave_policy_changed realtime events ────────────────────────────────
+
+describe("leave_policy_changed realtime events", () => {
+    const ws = require("../utils/ws");
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+        (ws.broadcast as jest.Mock).mockClear();
+        (ws.sendToUser as jest.Mock).mockClear();
+    });
+
+    /** The emit runs on the response "finish" event — let it settle. */
+    const settle = () => new Promise((r) => setImmediate(r));
+
+    test("broadcasts scope=policies tenant-wide after a policy is saved", async () => {
+        setupAuth("hr_admin");
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 10 }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/leave-policy/policies")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ leave_type: "Annual", annual_quota: 20 });
+        await settle();
+
+        expect(res.status).toBe(200);
+        expect(ws.broadcast).toHaveBeenCalledWith(null, "leave_policy_changed", { scope: "policies" });
+    });
+
+    test("broadcasts scope=holidays after a holiday is added", async () => {
+        setupAuth("hr_admin");
+        mockTxClient.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [{ id: 7 }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/leave-policy/holidays")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ date: "2024-12-25", name: "Christmas", is_optional: true });
+        await settle();
+
+        expect(res.status).toBe(200);
+        expect(ws.broadcast).toHaveBeenCalledWith(null, "leave_policy_changed", { scope: "holidays" });
+    });
+
+    test("sends scope=balances only to the affected user", async () => {
+        setupAuth("hr_admin");
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ org_id: 1 }], rowCount: 1 }) // target user in org
+            .mockResolvedValueOnce({ rows: [{ id: 3 }], rowCount: 1 })     // existing balance
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });             // UPDATE
+
+        const res = await request(app)
+            .put("/api/leave-policy/balances/42")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ leave_type: "Annual", year: 2026, quota: 22 });
+        await settle();
+
+        expect(res.status).toBe(200);
+        expect(ws.sendToUser).toHaveBeenCalledWith(null, 42, "leave_policy_changed", { scope: "balances" });
+        expect(ws.broadcast).not.toHaveBeenCalledWith(expect.anything(), "leave_policy_changed", expect.anything());
+    });
+
+    test("emits nothing when the mutation is rejected", async () => {
+        setupAuth("hr_admin");
+
+        const res = await request(app)
+            .post("/api/leave-policy/policies")
+            .set("Cookie", authCookie())
+            .set(CSRF)
+            .send({ annual_quota: 20 });
+        await settle();
+
+        expect(res.status).toBe(400);
+        expect(ws.broadcast).not.toHaveBeenCalled();
+    });
+
+    test("reads emit nothing", async () => {
+        setupAuth("employee");
+        const res = await request(app).get("/api/leave-policy/policies").set("Cookie", authCookie());
+        await settle();
+        expect(res.status).toBe(200);
+        expect(ws.broadcast).not.toHaveBeenCalled();
+    });
+});

@@ -11,7 +11,9 @@ const fsPromises = require('fs').promises;
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyByEmail } = require('../../utils/mailer');
-const { sendToUser } = require('../../utils/ws');
+const { notifyUser } = require('../../utils/ws');
+const { taskLink } = require('../../utils/notificationLinks');
+const { emitTaskUpdated } = require('../../utils/taskNotifications');
 const { getUploadKey, getUploadUrl } = require('../../utils/uploadPath');
 const { getStorage, randomFilename } = require('../../platform/storage');
 
@@ -189,21 +191,19 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                     // user's role lookup so admins can be mentioned anywhere.
                     const mentionRole = (await req.db!.query('SELECT role FROM users WHERE id = $1', [uid])).rows[0]?.role || null;
                     if (!await canAccessTask(task, uid, req.userOrgId, req.db, mentionRole)) continue;
-                    await req.db!.query(
-                        'INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5)',
-                        [uid, 'mention', `${commenterName} mentioned you`, `In task: ${task.title}`, task.id]
-                    );
-                    // Email + WS notification for mention
+                    await notifyUser(req.db, req.tenantId, uid, 'mention', `${commenterName} mentioned you`,
+                        `In task: ${task.title}`,
+                        { linkTaskId: task.id, actorId: req.userId, link: taskLink(task.id) });
                     const mentioned = (await req.db!.query('SELECT email, full_name FROM users WHERE id = $1', [uid])).rows[0];
                     if (mentioned) {
                         notifyByEmail('mention', mentioned, commenterName, task.title);
-                        sendToUser(req.tenantId, uid, 'notification', { type: 'mention', title: `${commenterName} mentioned you`, body: `In task: ${task.title}` });
                     }
                 }
             }
         } catch (mentionErr) {
             req.log.error({ err: mentionErr }, 'Mention notification error:');
         }
+        emitTaskUpdated(req.tenantId, task.id, 'comment', [task.assigned_to, task.user_id, req.userId]);
     } catch (err) {
         req.log.error({ err: err }, 'Error adding comment:');
         // The response may have already been sent (errors thrown in the

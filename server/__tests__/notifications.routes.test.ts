@@ -303,6 +303,8 @@ describe("POST /api/notifications/read-all", () => {
 
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ ok: true });
+        expect(require("../utils/ws").sendToUser).toHaveBeenCalledWith(
+            null, 1, "notifications_changed", { action: "read_all" });
     });
 });
 
@@ -337,6 +339,8 @@ describe("POST /api/notifications/:id/read", () => {
         // ID from URL params is parsed to integer
         expect(updateCall[1][0]).toBe(5);
         expect(updateCall[1][1]).toBe(1); // userId
+        expect(require("../utils/ws").sendToUser).toHaveBeenCalledWith(
+            null, 1, "notifications_changed", { action: "read", id: 5 });
     });
 
     test("rejects a non-numeric notification ID", async () => {
@@ -380,6 +384,8 @@ describe("DELETE /api/notifications/:id", () => {
         expect(deleteCall).toBeDefined();
         expect(deleteCall[1][0]).toBe(5);
         expect(deleteCall[1][1]).toBe(1); // userId
+        expect(require("../utils/ws").sendToUser).toHaveBeenCalledWith(
+            null, 1, "notifications_changed", { action: "deleted", id: 5 });
     });
 
     test("rejects a non-numeric notification ID", async () => {

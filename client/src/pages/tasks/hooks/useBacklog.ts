@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask } from "../../../api/tasks";
 import { getLocalToday } from "../../../api/client";
+import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -275,6 +276,13 @@ export function useBacklog({
             setError("Failed to import task to sprint");
         }
     };
+
+    // Live refresh of the Tasks page: edits/status moves/comments/assignments
+    // made by other users or on other devices (server `task_updated`).
+    useRealtimeEvent(["task_updated", "task_assigned"], () => {
+        if (activeTab === "backlog") fetchBacklog();
+        else fetchTasks();
+    });
 
     return {
         backlogTasks,

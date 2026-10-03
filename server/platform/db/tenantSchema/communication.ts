@@ -72,6 +72,9 @@ async function initializeCommunicationTenantSchema(q: SchemaQuery): Promise<void
     await q(`
         CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at DESC)
     `);
+    // Relative web path ("/tasks?task=1", "/manager?tab=approvals&request=5")
+    // clients open when the notification is tapped.
+    await q(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link TEXT`);
     await q(`
         CREATE TABLE IF NOT EXISTS notification_metric_events (
             id                SERIAL PRIMARY KEY,

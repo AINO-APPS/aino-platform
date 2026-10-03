@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,7 +8,8 @@ import {
 import { getHistory, getLeaves, getStatus } from "../../api/workforce";
 import { getHolidays, getCurrentOrg } from "../../api/organization";
 import { getLocalToday } from "../../api/client";
-import { useLiveTimer } from "../../hooks/useLiveTimer";
+import { useLiveTimer, statusSeconds } from "../../hooks/useLiveTimer";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { STATUS_POLL_INTERVAL } from "../../constants";
 import s from "./AttendanceCalendar.module.css";
 
@@ -100,6 +101,13 @@ export default function AttendanceCalendar({
   const org: any = data?.org ?? null;
   const error = isError ? "Failed to load attendance data" : "";
 
+  // Leaves, holidays and attendance entries can change on other devices.
+  const queryClient = useQueryClient();
+  useRealtimeEvent(
+    ["leave_update", "leave_policy_changed", "attendance_update", "approval_update"],
+    () => queryClient.invalidateQueries({ queryKey: ["attendance", "calendar"] }),
+  );
+
   /* Live session tracking — poll /tracker/status so today's cell flips to
        present as soon as the threshold is reached, without waiting for a page reload. */
   const [liveStatus, setLiveStatus] = useState<any>(null);
@@ -137,7 +145,7 @@ export default function AttendanceCalendar({
     const state = liveStatus?.state || "logged_out";
     const sec =
       state === "logged_out"
-        ? (liveStatus?.floorMinutes || 0) * 60
+        ? statusSeconds(liveStatus, "floor")
         : liveFloorSec;
     return Math.floor(sec / 60);
   }, [liveStatus, liveFloorSec]);

@@ -16,6 +16,7 @@ import * as signalStore from "../../realtime/signalStore";
 import * as membershipCache from "../../realtime/membershipCache";
 import * as meetingLeaveStore from "../../realtime/meetingLeaveStore";
 import { clientKey, clients, hasOpenSocket } from "../../realtime/registry";
+import { notifyUser as fanoutNotifyUser, type NotifyUserOptions } from "../../realtime/fanout";
 import type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
 export type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
 const statusService = require("../../services/status");
@@ -385,8 +386,9 @@ export async function cancelMeetingDisconnectCleanup({
 }
 
 /**
- * Create a notification in the DB and push it to the user via WebSocket.
- * Drop-in wrapper: call this instead of raw INSERT INTO notifications.
+ * Create a notification in the DB and push it via WebSocket + FCM.
+ * Delegates to the single implementation in realtime/fanout.ts; kept for
+ * handlers that inject their own `sendToUser`.
  */
 export async function notifyUser(
   db: DbLike,
@@ -395,68 +397,9 @@ export async function notifyUser(
   type: string,
   title: string,
   body: string,
-  linkTaskId: number | null | undefined,
+  optsOrLinkTaskId: NotifyUserOptions | number | null | undefined,
   actorId: number | null | undefined,
   sendToUser: SendToUser,
 ): Promise<void> {
-  const { pushNotifications } = require("../../services/pushNotifications");
-  try {
-    const sql = linkTaskId
-      ? "INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at"
-      : "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4) RETURNING id, created_at";
-    const params = linkTaskId
-      ? [userId, type, title, body, linkTaskId]
-      : [userId, type, title, body];
-    const row = (await db.query(sql, params)).rows[0];
-    if (row) {
-      sendToUser(tenantId, userId, "notification", {
-        id: row.id,
-        type,
-        title,
-        body,
-        link_task_id: linkTaskId || null,
-        created_at: row.created_at,
-        is_read: false,
-      });
-
-      // Best-effort: resolve the actor's avatar/name so the push can show their
-      // circular avatar as the notification largeIcon. A missing actor (or a
-      // failed lookup) simply leaves the fields empty and the client falls back
-      // to the org branding logo.
-      let actorAvatar = "";
-      let actorName = "";
-      if (actorId) {
-        try {
-          const actor = (
-            await db.query("SELECT full_name, avatar FROM users WHERE id = $1", [
-              actorId,
-            ])
-          ).rows[0];
-          actorAvatar = actor?.avatar || "";
-          actorName = actor?.full_name || "";
-        } catch {
-          /* best-effort — leave actor fields empty */
-        }
-      }
-
-      // Send push notification for important alerts
-      pushNotifications
-        .sendNotificationAlert(db.query as any, userId, tenantId || null, {
-          notificationId: row.id,
-          title,
-          body,
-          type,
-          actorAvatar,
-          actorName,
-        })
-        .catch((err: any) => {
-          logger.warn(
-            { err: err.message, userId },
-            "Failed to send push notification alert",
-          );
-        });
-    }
-  } catch {
-    /* ignore — notification delivery is best-effort */
-  }
+  return fanoutNotifyUser(db, tenantId, userId, type, title, body, optsOrLinkTaskId, actorId, sendToUser);
 }

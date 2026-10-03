@@ -210,10 +210,8 @@ describe("POST /api/manager/approvals/:id/(approve|reject) - manual_entry edit",
             .mockResolvedValueOnce({ rows: [{ id: 5, org_id: 1, requester_id: 2, approver_id: 1, status: "pending", type: "manual_entry", reference_id: null, metadata: editMeta }], rowCount: 1 })
             // isDirectManager probe
             .mockResolvedValueOnce({ rows: [{ "?column?": 1 }], rowCount: 1 })
-            // UPDATE approval_requests -> approved
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-            // SELECT requester timezone_offset
-            .mockResolvedValueOnce({ rows: [{ timezone_offset: 0 }], rowCount: 1 });
+            // UPDATE approval_requests -> approved (guarded, RETURNING id)
+            .mockResolvedValueOnce({ rows: [{ id: 5 }], rowCount: 1 });
 
         const res = await request(app)
             .post("/api/manager/approvals/5/approve")
@@ -239,8 +237,8 @@ describe("POST /api/manager/approvals/:id/(approve|reject) - manual_entry edit",
             .mockResolvedValueOnce({ rows: [{ id: 5, org_id: 1, requester_id: 2, approver_id: 1, status: "pending", type: "manual_entry", reference_id: null, metadata: editMeta }], rowCount: 1 })
             // isDirectManager probe
             .mockResolvedValueOnce({ rows: [{ "?column?": 1 }], rowCount: 1 })
-            // UPDATE approval_requests -> rejected
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+            // UPDATE approval_requests -> rejected (guarded, RETURNING id)
+            .mockResolvedValueOnce({ rows: [{ id: 5 }], rowCount: 1 });
 
         const res = await request(app)
             .post("/api/manager/approvals/5/reject")

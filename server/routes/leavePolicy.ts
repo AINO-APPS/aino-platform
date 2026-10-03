@@ -3,10 +3,10 @@ import type { Request, Response } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole, requireSameOrg } = require("../middleware/rbac");
 import { logAction } from "../utils/audit";
-
+import { leavePolicyRealtime } from "../utils/leavePolicyRealtime";
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
-router.use(auth, loadUserContext, requireTenant);
+router.use(auth, loadUserContext, requireTenant, leavePolicyRealtime);
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;

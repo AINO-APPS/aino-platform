@@ -15,6 +15,7 @@ import { masterQuery } from "../db";
 import { getTenantPool, getTenantById } from "../utils/tenantManager";
 import { logger } from "../utils/logger";
 import { notifyUser } from "./fanout";
+import { noteLink } from "../utils/notificationLinks";
 import { validateSession } from "../services/authSessions";
 import {
     resolveCollaborationToken,
@@ -257,7 +258,10 @@ async function handleMention(
         const title = "Mentioned in a note";
         const body = `${mentioner?.full_name || "Someone"} mentioned you in "${pageTitle || "Untitled"}"`;
 
-        await notifyUser(db, tenantId, mentionedUserId, "note_mention", title, body, null);
+        await notifyUser(db, tenantId, mentionedUserId, "note_mention", title, body, {
+            actorId: mentionerId,
+            link: pageId ? noteLink(pageId) : null,
+        });
     } catch (err) {
         logger.warn({ err: (err as Error).message, mentionerId, mentionedUserId, pageId }, "Collab: mention notification failed");
     }

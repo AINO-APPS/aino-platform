@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getApprovals, approveRequest, rejectRequest, bulkApproval } from "../../api/organization";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import ApprovalBadge from "./ApprovalBadge";
 import RequestDetails from "./RequestDetails";
 import s from "../Admin.module.css";
@@ -20,13 +21,22 @@ interface ApprovalRow {
 
 const EMPTY: ApprovalRow[] = [];
 
-export default function ApprovalsTab() {
+interface ApprovalsTabProps {
+  /** Approval request id from a notification deep link (?request=<id>). */
+  highlightId?: string | null;
+}
+
+export default function ApprovalsTab({ highlightId = null }: ApprovalsTabProps) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState("pending");
   const [selected, setSelected] = useState<Set<number | string>>(new Set());
   const [rejectId, setRejectId] = useState<number | string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [processing, setProcessing] = useState<number | string | null>(null);
+  // Server feedback, e.g. "You cannot approve your own request" or bulk skips.
+  const [notice, setNotice] = useState<{ kind: "error" | "info"; text: string } | null>(null);
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
+  const widenedForRef = useRef<string | null>(null);
 
   const { data: approvals = EMPTY, isLoading: loading } = useQuery({
     queryKey: ["manager", "approvals", filter],
@@ -34,6 +44,26 @@ export default function ApprovalsTab() {
       (await getApprovals({ status: filter || undefined }))
         .data as ApprovalRow[],
   });
+
+  // Live refresh when any device/approver changes an approval.
+  useRealtimeEvent(["approval_update"], () => {
+    queryClient.invalidateQueries({ queryKey: ["manager", "approvals"] });
+  });
+
+  const isHighlighted = (a: ApprovalRow) =>
+    highlightId != null && String(a.id) === String(highlightId);
+
+  // Deep link: bring the requested row into view. If it is no longer pending
+  // (already decided elsewhere) widen the filter once to "All" so it is shown.
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    if (approvals.some(isHighlighted)) {
+      highlightRowRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    } else if (filter === "pending" && widenedForRef.current !== highlightId) {
+      widenedForRef.current = highlightId;
+      setFilter("all");
+    }
+  }, [highlightId, loading, approvals, filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshApprovals = () => {
     queryClient.invalidateQueries({ queryKey: ["manager", "approvals"] });
@@ -43,11 +73,13 @@ export default function ApprovalsTab() {
   const handleApprove = async (id: number | string) => {
     if (processing) return;
     setProcessing(id);
+    setNotice(null);
     try {
       await approveRequest(id as any);
       refreshApprovals();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Approve failed:", err);
+      setNotice({ kind: "error", text: err?.response?.data?.error || "Failed to approve request" });
     } finally {
       setProcessing(null);
     }
@@ -56,13 +88,16 @@ export default function ApprovalsTab() {
   const handleReject = async () => {
     if (!rejectId || processing) return;
     setProcessing(rejectId);
+    setNotice(null);
     try {
       await rejectRequest(rejectId as any, rejectReason);
       setRejectId(null);
       setRejectReason("");
       refreshApprovals();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Reject failed:", err);
+      setRejectId(null);
+      setNotice({ kind: "error", text: err?.response?.data?.error || "Failed to reject request" });
     } finally {
       setProcessing(null);
     }
@@ -71,11 +106,15 @@ export default function ApprovalsTab() {
   const handleBulk = async (action: string) => {
     if (selected.size === 0 || processing) return;
     setProcessing("bulk");
+    setNotice(null);
     try {
-      await bulkApproval(Array.from(selected) as any, action);
+      const res = await bulkApproval(Array.from(selected) as any, action);
+      const data = (res?.data || {}) as { message?: string; skipped?: number };
+      if (data.skipped && data.message) setNotice({ kind: "info", text: data.message });
       refreshApprovals();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Bulk action failed:", err);
+      setNotice({ kind: "error", text: err?.response?.data?.error || "Bulk action failed" });
     } finally {
       setProcessing(null);
     }
@@ -103,7 +142,7 @@ export default function ApprovalsTab() {
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
-          <option value="">All</option>
+          <option value="all">All</option>
         </select>
         {filter === "pending" && selected.size > 0 && (
           <div className={m["btn-row"]}>
@@ -124,6 +163,12 @@ export default function ApprovalsTab() {
           </div>
         )}
       </div>
+
+      {notice && (
+        <div className={notice.kind === "error" ? "error-msg" : "info-msg"} role="status">
+          {notice.text}
+        </div>
+      )}
 
       {loading ? (
         <p>Loading...</p>
@@ -152,7 +197,12 @@ export default function ApprovalsTab() {
           </thead>
           <tbody>
             {approvals.map((a) => (
-              <tr key={a.id}>
+              <tr
+                key={a.id}
+                ref={isHighlighted(a) ? highlightRowRef : undefined}
+                className={isHighlighted(a) ? m["row-highlight"] : undefined}
+                data-highlighted={isHighlighted(a) || undefined}
+              >
                 {filter === "pending" && (
                   <td>
                     <input
@@ -219,7 +269,7 @@ export default function ApprovalsTab() {
             {approvals.length === 0 && (
               <tr>
                 <td colSpan={7} className={m["empty-cell"]}>
-                  No {filter || ""} requests
+                  No {filter === "all" ? "" : filter} requests
                 </td>
               </tr>
             )}

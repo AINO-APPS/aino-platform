@@ -10,28 +10,79 @@ export async function registerDeviceToken(
     userId: number,
     tenantId: number | null,
     deviceToken: string,
-    platform: "ios" | "android",
+    platform: "ios" | "android" | "web",
     logger: DeviceTokenLogger,
+    pushVersion = 1,
 ): Promise<void> {
     if (!deviceToken || !deviceToken.trim()) {
         throw new Error("Device token is required");
     }
 
     try {
-        await query(
-            `
-            INSERT INTO device_tokens (user_id, tenant_id, device_token, platform, last_seen_at, created_at)
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
-            ON CONFLICT (user_id, device_token) DO UPDATE
-            SET platform = EXCLUDED.platform, last_seen_at = NOW()
-            `,
-            [userId, tenantId || null, deviceToken, platform],
-        );
+        try {
+            await query(
+                `
+                INSERT INTO device_tokens (user_id, tenant_id, device_token, platform, push_version, last_seen_at, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+                ON CONFLICT (user_id, device_token) DO UPDATE
+                SET platform = EXCLUDED.platform, push_version = EXCLUDED.push_version, last_seen_at = NOW()
+                `,
+                [userId, tenantId || null, deviceToken, platform, pushVersion],
+            );
+        } catch (err) {
+            if (!isMissingPushVersion(err)) throw err;
+            // Database not yet migrated (0005): register as a legacy token.
+            await query(
+                `
+                INSERT INTO device_tokens (user_id, tenant_id, device_token, platform, last_seen_at, created_at)
+                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                ON CONFLICT (user_id, device_token) DO UPDATE
+                SET platform = EXCLUDED.platform, last_seen_at = NOW()
+                `,
+                [userId, tenantId || null, deviceToken, platform],
+            );
+        }
 
-        logger.info({ userId, tenantId, platform }, "Device token registered");
+        logger.info({ userId, tenantId, platform, pushVersion }, "Device token registered");
     } catch (err) {
         logger.error({ err: (err as Error).message, userId }, "Failed to register device token");
         throw err;
+    }
+}
+
+function isMissingPushVersion(err: unknown): boolean {
+    return /push_version/i.test((err as Error)?.message || "");
+}
+
+/**
+ * Tokens split by push payload version. `linkAware` tokens (push_version >= 2)
+ * accept the `link` / `linkTaskId` keys on general alerts; `legacy` tokens
+ * (Android 0.14.0 and older validate an exact key set) must not receive them.
+ */
+export async function getDeviceTokenGroups(
+    query: QueryFn,
+    userId: number,
+    tenantId: number | null,
+    logger: DeviceTokenLogger,
+): Promise<{ legacy: string[]; linkAware: string[] }> {
+    try {
+        const result = await query(
+            `SELECT device_token, push_version FROM device_tokens
+             WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+             AND created_at > NOW() - INTERVAL '1 year'`,
+            [userId, tenantId || null],
+        );
+        const legacy: string[] = [];
+        const linkAware: string[] = [];
+        for (const row of result.rows as any[]) {
+            (Number(row.push_version) >= 2 ? linkAware : legacy).push(row.device_token);
+        }
+        return { legacy, linkAware };
+    } catch (err) {
+        if (!isMissingPushVersion(err)) {
+            logger.error({ err: (err as Error).message, userId, tenantId }, "Failed to get device token groups");
+        }
+        return { legacy: await getDeviceTokens(query, userId, tenantId, logger), linkAware: [] };
     }
 }
 

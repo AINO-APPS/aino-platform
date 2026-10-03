@@ -198,17 +198,21 @@ describe("ManualEntry page - edit approval workflow", () => {
         return container;
     }
 
-    test("shows the manager-approval banner when editing a recorded day", async () => {
-        await enterEditMode();
+    test("explains that existing entries can be edited for approval and shows the approval banner", async () => {
+        renderManualEntry();
+        const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+        fireEvent.change(dateInput, { target: { value: "2024-03-10" } });
+        expect(await screen.findByText(/submit the change for\s+approval/i)).toBeInTheDocument();
+        fireEvent.click(screen.getByText(/Edit These Entries/i));
         expect(
-            await screen.findByText(/require manager approval/i),
+            await screen.findByText(/Edits to recorded days require approval/i),
         ).toBeInTheDocument();
     });
 
     test("submitting an edit surfaces the server's approval message", async () => {
         mockUpdateManualEntry.mockResolvedValue({
             data: {
-                message: "Your edit was submitted for manager approval. Your original entries stay in place until it is approved.",
+                message: "Your edit was submitted for approval. Your original entries stay in place until it is approved.",
                 status: "pending",
                 needsApproval: true,
             },
@@ -220,7 +224,7 @@ describe("ManualEntry page - edit approval workflow", () => {
             expect(mockUpdateManualEntry).toHaveBeenCalledWith("2024-03-10", expect.any(Object));
         });
         expect(
-            await screen.findByText(/submitted for manager approval/i),
+            await screen.findByText(/submitted for approval\. Your original entries stay in place/i),
         ).toBeInTheDocument();
     });
 });

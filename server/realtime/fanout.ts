@@ -112,9 +112,50 @@ export function broadcastLocal(
   }
 }
 
+export interface NotifyUserOptions {
+  /** Task this notification refers to (persisted as link_task_id). */
+  linkTaskId?: number | null;
+  /**
+   * Id of the user who TRIGGERED this notification (task assigner, leave
+   * approver…). Their avatar/name is forwarded to the push so the mobile client
+   * can render it as the notification largeIcon; otherwise it falls back to the
+   * org branding logo.
+   */
+  actorId?: number | null;
+  /** Relative web path (must start with "/") the client opens on tap. */
+  link?: string | null;
+}
+
+function normalizeNotifyOptions(
+  optsOrLinkTaskId?: NotifyUserOptions | number | null,
+  legacyActorId?: number | null,
+): { linkTaskId: number | null; actorId: number | null; link: string | null } {
+  if (optsOrLinkTaskId && typeof optsOrLinkTaskId === "object") {
+    const link =
+      typeof optsOrLinkTaskId.link === "string" && optsOrLinkTaskId.link.startsWith("/")
+        ? optsOrLinkTaskId.link
+        : null;
+    return {
+      linkTaskId: optsOrLinkTaskId.linkTaskId || null,
+      actorId: optsOrLinkTaskId.actorId || null,
+      link,
+    };
+  }
+  return {
+    linkTaskId: (optsOrLinkTaskId as number | null | undefined) || null,
+    actorId: legacyActorId || null,
+    link: null,
+  };
+}
+
 /**
- * Create a notification in the DB and push it to the user via WebSocket.
+ * Create a notification in the DB, push it to the user via WebSocket and FCM.
  * Drop-in wrapper: call this instead of raw INSERT INTO notifications.
+ *
+ * Accepts either an options object `{ linkTaskId, actorId, link }` or the
+ * legacy positional `(linkTaskId, actorId)` form. When called inside a
+ * transaction, call it AFTER COMMIT with a non-transactional db handle so the
+ * WS/FCM fan-out never announces rolled-back rows.
  */
 export async function notifyUser(
   db: DbLike,
@@ -123,73 +164,66 @@ export async function notifyUser(
   type: string,
   title: string,
   body: string,
-  linkTaskId?: number | null,
-  // Optional id of the user who TRIGGERED this notification (the "actor" — e.g.
-  // the task assigner, the leave approver). When supplied we look up their
-  // avatar/name and forward it to the push so the mobile client can render the
-  // actor's circular avatar as the notification largeIcon (chat-avatar parity);
-  // otherwise the client falls back to the org branding logo. The app-logo
-  // silhouette is always the status-bar smallIcon.
-  actorId?: number | null,
+  optsOrLinkTaskId?: NotifyUserOptions | number | null,
+  legacyActorId?: number | null,
+  deliver: (
+    tenantId: number | null | undefined,
+    userId: number,
+    type: WSType,
+    data: unknown,
+  ) => void = sendToUser,
 ): Promise<void> {
+  const { linkTaskId, actorId, link } = normalizeNotifyOptions(optsOrLinkTaskId, legacyActorId);
   try {
-    const sql = linkTaskId
-      ? "INSERT INTO notifications (user_id, type, title, body, link_task_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at"
-      : "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4) RETURNING id, created_at";
-    const params = linkTaskId
-      ? [userId, type, title, body, linkTaskId]
-      : [userId, type, title, body];
-    const row = (await db.query(sql, params)).rows[0];
-    if (row) {
-      sendToUser(tenantId, userId, "notification", {
-        id: row.id,
-        type,
+    const row = (
+      await db.query(
+        "INSERT INTO notifications (user_id, type, title, body, link_task_id, link) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at",
+        [userId, type, title, body, linkTaskId, link],
+      )
+    ).rows[0];
+    if (!row) return;
+    deliver(tenantId, userId, "notification", {
+      id: row.id,
+      type,
+      title,
+      body,
+      link_task_id: linkTaskId,
+      link,
+      created_at: row.created_at,
+      is_read: false,
+    });
+
+    // Best-effort: resolve the actor's avatar/name. A missing actor (or a failed
+    // lookup) leaves the fields empty and the client falls back to the org logo.
+    let actorAvatar = "";
+    let actorName = "";
+    if (actorId) {
+      try {
+        const actor = (
+          await db.query("SELECT full_name, avatar FROM users WHERE id = $1", [actorId])
+        ).rows[0];
+        actorAvatar = actor?.avatar || "";
+        actorName = actor?.full_name || "";
+      } catch {
+        /* best-effort — leave actor fields empty */
+      }
+    }
+
+    pushNotifications
+      .sendNotificationAlert(db.query.bind(db) as any, userId, tenantId || null, {
+        notificationId: row.id,
         title,
         body,
-        link_task_id: linkTaskId || null,
-        created_at: row.created_at,
-        is_read: false,
+        type,
+        actorAvatar,
+        actorName,
+        link,
+        linkTaskId,
+      })
+      .catch((err: any) => {
+        logger.warn({ err: err.message, userId }, "Failed to send push notification alert");
       });
-
-      // Best-effort: resolve the actor's avatar/name so the push can show their
-      // circular avatar as the notification largeIcon. A missing actor (or a
-      // failed lookup) simply leaves the fields empty and the client falls back
-      // to the org branding logo.
-      let actorAvatar = "";
-      let actorName = "";
-      if (actorId) {
-        try {
-          const actor = (
-            await db.query("SELECT full_name, avatar FROM users WHERE id = $1", [
-              actorId,
-            ])
-          ).rows[0];
-          actorAvatar = actor?.avatar || "";
-          actorName = actor?.full_name || "";
-        } catch {
-          /* best-effort — leave actor fields empty */
-        }
-      }
-
-      // Send push notification for important alerts
-      pushNotifications
-        .sendNotificationAlert(db.query as any, userId, tenantId || null, {
-          notificationId: row.id,
-          title,
-          body,
-          type,
-          actorAvatar,
-          actorName,
-        })
-        .catch((err: any) => {
-          logger.warn(
-            { err: err.message, userId },
-            "Failed to send push notification alert",
-          );
-        });
-    }
-  } catch {
-    /* ignore — notification delivery is best-effort */
+  } catch (err: any) {
+    logger.warn({ err: err?.message, userId, type }, "notifyUser failed");
   }
 }
-

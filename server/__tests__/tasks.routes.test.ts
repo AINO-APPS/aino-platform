@@ -20,6 +20,7 @@ jest.mock("../utils/ws", () => ({
     setupWebSocket: jest.fn(),
     sendToUser: jest.fn(),
     broadcast: jest.fn(),
+    notifyUser: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../utils/audit", () => ({
@@ -240,5 +241,66 @@ describe("Tenant Isolation - Tasks", () => {
         expect(orgMentionLookup).toBeTruthy();
         const notifInsertCount = mockQuery.mock.calls.filter(([sql]: any[]) => typeof sql === "string" && sql.includes("INSERT INTO notifications") && sql.includes("link_task_id")).length;
         expect(notifInsertCount).toBe(0);
+        expect(require("../utils/ws").notifyUser).not.toHaveBeenCalled();
+    });
+});
+
+describe("task realtime fan-out (task_updated)", () => {
+    const ws = require("../utils/ws");
+    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, status: "pending", title: "Ship it" };
+
+    function routeQueries(routes: Array<[RegExp, any[]]>) {
+        mockQuery.mockImplementation(async (sql: string) => {
+            for (const [re, rows] of routes) if (re.test(sql)) return { rows, rowCount: rows.length };
+            return { rows: [], rowCount: 0 };
+        });
+    }
+
+    function taskUpdatedRecipients() {
+        return (ws.sendToUser as jest.Mock).mock.calls
+            .filter((c: any[]) => c[2] === "task_updated")
+            .map((c: any[]) => [c[1], c[3]]);
+    }
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        (ws.sendToUser as jest.Mock).mockClear();
+        (ws.notifyUser as jest.Mock).mockClear();
+    });
+
+    test("status change notifies assignee, creator and actor once each", async () => {
+        setupAuth();
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+        ]);
+
+        const res = await request(app)
+            .patch("/api/tasks/77/status")
+            .set(CSRF)
+            .set("Cookie", authCookie(3))
+            .send({ status: "done" });
+
+        expect(res.status).toBe(200);
+        expect(taskUpdatedRecipients()).toEqual([
+            [3, { taskId: 77, action: "status" }],
+            [2, { taskId: 77, action: "status" }],
+        ]);
+    });
+
+    test("delete notifies the assignee and the creator", async () => {
+        setupAuth();
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [{ ...task, user_id: 1 }]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+        ]);
+
+        const res = await request(app).delete("/api/tasks/77").set(CSRF).set("Cookie", authCookie(1));
+
+        expect(res.status).toBe(200);
+        expect(taskUpdatedRecipients()).toEqual([
+            [3, { taskId: 77, action: "deleted" }],
+            [1, { taskId: 77, action: "deleted" }],
+        ]);
     });
 });

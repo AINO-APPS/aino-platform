@@ -7,40 +7,13 @@ const { initializeBalances, getAccruedQuota } = require("./leavePolicy");
 const { logger } = require("../utils/logger");
 const { notifyByEmail } = require("../utils/mailer");
 const { sendToUser } = require("../utils/ws");
+const { notifyApproverOfRequest, notifyRequesterOfDecision, emitApproverDecision } = require("../utils/approvalNotifications");
 const { requireTenant } = require("../middleware/tenant");
+const { canSelfApprove, selfApprovalError } = require("../utils/selfApproval");
+const { updateLeaveBalance } = require("../utils/leaveBalance");
 
 const router = express.Router();
 router.use(auth, loadUserContext, requireTenant);
-
-// Helper: update leave balance (add or subtract used days)
-// IMPORTANT: client (transaction connection) is required to ensure atomicity
-async function updateLeaveBalance(userId: number, leaveType: string, date: string, duration: string, operation: "add" | "subtract", client: any) {
-    if (!client) throw new Error("updateLeaveBalance must be called within a transaction (client is required)");
-    const q = client.query.bind(client);
-    const year = parseInt(date.slice(0, 4));
-    const durationValue = duration === "half" ? 0.5 : duration === "quarter" ? 0.25 : 1;
-    const balRes = await q(
-        "SELECT id, used FROM leave_balances WHERE user_id = $1 AND leave_type = $2 AND year = $3 FOR UPDATE",
-        [userId, leaveType, year]
-    );
-    let balance = balRes.rows[0];
-    if (!balance) {
-        // Auto-create a balance row with quota 0 so approvals don't fail
-        // when no policy has been provisioned yet
-        const ins = await q(
-            "INSERT INTO leave_balances (user_id, leave_type, year, quota, used, carried_forward) VALUES ($1, $2, $3, 0, 0, 0) RETURNING id, used",
-            [userId, leaveType, year]
-        );
-        balance = ins.rows[0];
-    }
-    // pg returns NUMERIC as a string — coerce so we don't accidentally do
-    // string concatenation when adding the duration (e.g. '0' + 1 = '01').
-    const currentUsed = Number(balance.used) || 0;
-    const newUsed = operation === "add"
-        ? currentUsed + durationValue
-        : Math.max(0, currentUsed - durationValue);
-    await q("UPDATE leave_balances SET used = $1 WHERE id = $2", [newUsed, balance.id]);
-}
 
 // GET /leaves — list leaves (own or visible)
 router.get("/", async (req: Request, res: Response) => {
@@ -274,6 +247,8 @@ router.get("/pending", requireRole("manager"), async (req: Request, res: Respons
         } else {
             return res.json([]);
         }
+        // Only super admins may decide their own leave, so only they see it here.
+        if (!canSelfApprove(req.userRole)) { conditions.push(`l.user_id <> $${pi++}`); params.push(req.userId); }
 
         const leaves = (await req.db!.query(`
             SELECT l.*, u.full_name, u.username, u.avatar, u.department_id
@@ -354,6 +329,7 @@ router.post("/", async (req: Request, res: Response) => {
 
         // Wrap quota check + insertion in a transaction to prevent race conditions
         const approver = req.userOrgId ? (await findApprover(req.db, req.userId, req.userOrgId)) : null;
+        let createdApprovalIds: number[] = [];
         const created = await (req.db as any).transaction(async (client: any) => {
             const q = client.query.bind(client);
 
@@ -428,33 +404,28 @@ router.post("/", async (req: Request, res: Response) => {
                 if (!newLeave) continue;
                 ids.push(newLeave.id);
 
-                await q(
+                const arRow = (await q(
                     `INSERT INTO approval_requests (org_id, requester_id, approver_id, type, reference_id, reason, metadata)
-                     VALUES ($1, $2, $3, 'leave', $4, $5, $6)`,
-                    [
-                        req.userOrgId || null,
-                        req.userId,
-                        approver?.id || null,
-                        newLeave.id,
-                        reason || null,
-                        JSON.stringify({ leave_type, date: d, duration: leaveDuration }),
-                    ]
-                );
+                     VALUES ($1, $2, $3, 'leave', $4, $5, $6) RETURNING id`,
+                    [req.userOrgId || null, req.userId, approver?.id || null, newLeave.id, reason || null,
+                        JSON.stringify({ leave_type, date: d, duration: leaveDuration })]
+                ))?.rows?.[0];
+                if (arRow?.id) createdApprovalIds.push(arRow.id);
             }
             return ids;
         });
 
         res.json({ message: `${created.length} leave(s) submitted`, ids: created });
+        sendToUser(req.tenantId, req.userId, "leave_update", { id: created.length === 1 ? created[0] : undefined, status: "pending" });
 
         // Notify the manager/approver about the new leave request
         try {
             if (approver?.id) {
-                const requesterName = (await req.db!.query("SELECT full_name FROM users WHERE id = $1", [req.userId])).rows[0]?.full_name || "A team member";
-                await req.db!.query(
-                    "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                    [approver.id, "approval", "New Leave Request", `${requesterName} submitted ${created.length} ${leave_type} leave request(s).`]
-                );
-                sendToUser(req.tenantId, approver.id, "approval_update", { type: "leave", status: "pending" });
+                await notifyApproverOfRequest(req.db, req.tenantId, {
+                    approverId: approver.id, requesterId: req.userId, type: "leave", title: "New Leave Request",
+                    approvalId: createdApprovalIds.length === 1 ? createdApprovalIds[0] : null,
+                    body: (name: string) => `${name} submitted ${created.length} ${leave_type} leave request(s).`,
+                });
             }
         } catch (notifErr) {
             req.log.error({ err: notifErr }, "Manager notification error (leave request)");
@@ -491,6 +462,8 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
         if (req.userOrgId && leave.leave_org_id !== req.userOrgId) {
             return res.status(403).json({ error: "Cannot approve leaves for users outside your organization" });
         }
+        const selfError = selfApprovalError(leave.user_id, req.userId, req.userRole, "approve");
+        if (selfError) return res.status(403).json({ error: selfError });
         // Only the assigned approver, the user's direct manager, or hr_admin+ can approve
         const isAssignedApprover = leave.approved_by === req.userId;
         const isDirectManager = leave.leave_manager_id === req.userId;
@@ -499,6 +472,7 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
             return res.status(403).json({ error: "You are not authorized to approve this leave" });
         }
 
+        let approvalRequestId: number | null = null;
         const approved = await (req.db as any).transaction(async (client: any) => {
             // Re-check status inside transaction with row lock to prevent double-approve race
             const freshLeave = (await client.query(
@@ -511,10 +485,11 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
                 "UPDATE leaves SET status = 'approved', approved_by = $1, reviewed_at = NOW() WHERE id = $2",
                 [req.userId, leave.id]
             );
-            await client.query(
-                "UPDATE approval_requests SET status = 'approved', approver_id = $1, reviewed_at = NOW() WHERE type = 'leave' AND reference_id = $2 AND status = 'pending'",
+            const arUpdate = await client.query(
+                "UPDATE approval_requests SET status = 'approved', approver_id = $1, reviewed_at = NOW() WHERE type = 'leave' AND reference_id = $2 AND status = 'pending' RETURNING id",
                 [req.userId, leave.id]
             );
+            approvalRequestId = arUpdate?.rows?.[0]?.id ?? null;
             await updateLeaveBalance(freshLeave.user_id, freshLeave.leave_type, freshLeave.date, freshLeave.duration || "full", "add", client);
             return true;
         });
@@ -523,13 +498,11 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
         // Notify the leave requester
         const leaveUser = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [leave.user_id])).rows[0];
         if (leaveUser) {
-            await req.db!.query(
-                "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                [leave.user_id, "leave", "Leave Approved ✅", `Your ${leave.leave_type} leave on ${leave.date} has been approved.`]
-            );
+            await notifyRequesterOfDecision(req.db, req.tenantId, { requesterId: leave.user_id, actorId: req.userId, kind: "leave", status: "approved",
+                leaveId: leave.id, title: "Leave Approved ✅", body: `Your ${leave.leave_type} leave on ${leave.date} has been approved.` });
             notifyByEmail("leaveApproved", leaveUser, leave);
-            sendToUser(req.tenantId, leave.user_id, "leave_update", { id: leave.id, status: "approved" });
         }
+        emitApproverDecision(req.tenantId, req.userId, "leave", "approved", approvalRequestId);
 
         res.json({ message: "Leave approved" });
     } catch (err) {
@@ -554,6 +527,8 @@ router.patch("/:id/reject", requireRole("manager"), async (req: Request, res: Re
         if (req.userOrgId && leave.leave_org_id !== req.userOrgId) {
             return res.status(403).json({ error: "Cannot reject leaves for users outside your organization" });
         }
+        const selfError = selfApprovalError(leave.user_id, req.userId, req.userRole, "reject");
+        if (selfError) return res.status(403).json({ error: selfError });
         // Only the assigned approver, the user's direct manager, or hr_admin+ can reject
         const isAssignedApprover = leave.approved_by === req.userId;
         const isDirectManager = leave.leave_manager_id === req.userId;
@@ -562,27 +537,27 @@ router.patch("/:id/reject", requireRole("manager"), async (req: Request, res: Re
             return res.status(403).json({ error: "You are not authorized to reject this leave" });
         }
 
+        let approvalRequestId: number | null = null;
         await (req.db as any).transaction(async (client: any) => {
             await client.query(
                 "UPDATE leaves SET status = 'rejected', reject_reason = $1, approved_by = $2, reviewed_at = NOW() WHERE id = $3",
                 [reason || null, req.userId, leave.id]
             );
-            await client.query(
-                "UPDATE approval_requests SET status = 'rejected', approver_id = $1, reviewed_at = NOW(), reject_reason = $2 WHERE type = 'leave' AND reference_id = $3 AND status = 'pending'",
+            const arUpdate = await client.query(
+                "UPDATE approval_requests SET status = 'rejected', approver_id = $1, reviewed_at = NOW(), reject_reason = $2 WHERE type = 'leave' AND reference_id = $3 AND status = 'pending' RETURNING id",
                 [req.userId, reason || null, leave.id]
             );
+            approvalRequestId = arUpdate?.rows?.[0]?.id ?? null;
         });
 
         // Notify the leave requester
         const leaveUser = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [leave.user_id])).rows[0];
         if (leaveUser) {
-            await req.db!.query(
-                "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                [leave.user_id, "leave", "Leave Rejected", `Your ${leave.leave_type} leave on ${leave.date} has been rejected.${reason ? " Reason: " + reason : ""}`]
-            );
+            await notifyRequesterOfDecision(req.db, req.tenantId, { requesterId: leave.user_id, actorId: req.userId, kind: "leave", status: "rejected",
+                leaveId: leave.id, title: "Leave Rejected", body: `Your ${leave.leave_type} leave on ${leave.date} has been rejected.${reason ? " Reason: " + reason : ""}` });
             notifyByEmail("leaveRejected", leaveUser, leave, reason);
-            sendToUser(req.tenantId, leave.user_id, "leave_update", { id: leave.id, status: "rejected" });
         }
+        emitApproverDecision(req.tenantId, req.userId, "leave", "rejected", approvalRequestId);
 
         res.json({ message: "Leave rejected" });
     } catch (err) {
@@ -602,6 +577,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
         await req.db!.query("DELETE FROM leaves WHERE id = $1", [leave.id]);
         res.json({ message: "Leave cancelled" });
+        sendToUser(req.tenantId, req.userId, "leave_update", { id: leave.id, status: "cancelled" });
+        emitApproverDecision(req.tenantId, leave.approved_by, "leave", "cancelled");
     } catch (err) {
         req.log.error({ err }, "DELETE /leaves/:id error");
         res.status(500).json({ error: "Failed to cancel leave" });
@@ -636,13 +613,15 @@ router.post("/:id/withdraw", async (req: Request, res: Response) => {
             await req.db!.query("UPDATE approval_requests SET status = 'rejected' WHERE type = 'leave' AND reference_id = $1 AND status = 'pending'", [leave.id]);
             await req.db!.query("DELETE FROM leaves WHERE id = $1", [leave.id]);
             res.json({ message: "Leave cancelled" });
+            sendToUser(req.tenantId, req.userId, "leave_update", { id: leave.id, status: "cancelled" });
+            emitApproverDecision(req.tenantId, leave.approved_by, "leave", "cancelled");
         } else {
             // approved → request withdrawal, manager must approve to deduct balance
             const approver = req.userOrgId ? (await findApprover(req.db, req.userId, req.userOrgId)) : null;
             await req.db!.query("UPDATE leaves SET status = 'withdraw_pending' WHERE id = $1", [leave.id]);
-            await req.db!.query(
+            const withdrawRequest = (await req.db!.query(
                 `INSERT INTO approval_requests (org_id, requester_id, approver_id, type, reference_id, reason, metadata)
-                 VALUES ($1, $2, $3, 'leave_withdraw', $4, $5, $6)`,
+                 VALUES ($1, $2, $3, 'leave_withdraw', $4, $5, $6) RETURNING id`,
                 [
                     req.userOrgId || null,
                     req.userId,
@@ -651,17 +630,17 @@ router.post("/:id/withdraw", async (req: Request, res: Response) => {
                     null,
                     JSON.stringify({ leave_type: leave.leave_type, date: leave.date, duration: leave.duration, previous_status: leave.status }),
                 ]
-            );
+            ))?.rows?.[0];
+            sendToUser(req.tenantId, req.userId, "leave_update", { id: leave.id, status: "withdraw_pending" });
 
             // Notify the manager/approver about the withdrawal request
             try {
                 if (approver?.id) {
-                    const requesterName = (await req.db!.query("SELECT full_name FROM users WHERE id = $1", [req.userId])).rows[0]?.full_name || "A team member";
-                    await req.db!.query(
-                        "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                        [approver.id, "approval", "Leave Withdrawal Request", `${requesterName} requested withdrawal of ${leave.leave_type} leave on ${leave.date}.`]
-                    );
-                    sendToUser(req.tenantId, approver.id, "approval_update", { type: "leave_withdraw", status: "pending" });
+                    await notifyApproverOfRequest(req.db, req.tenantId, {
+                        approverId: approver.id, requesterId: req.userId, type: "leave_withdraw", title: "Leave Withdrawal Request",
+                        approvalId: withdrawRequest?.id ?? null,
+                        body: (name: string) => `${name} requested withdrawal of ${leave.leave_type} leave on ${leave.date}.`,
+                    });
                 }
             } catch (notifErr) {
                 req.log.error({ err: notifErr }, "Manager notification error (withdrawal)");
@@ -683,6 +662,8 @@ router.patch("/:id/revoke", requireRole("manager"), async (req: Request, res: Re
         const leave = (await req.db!.query("SELECT l.*, u.org_id AS leave_org_id FROM leaves l JOIN users u ON u.id = l.user_id WHERE l.id = $1", [leaveId])).rows[0];
         if (!leave) return res.status(404).json({ error: "Leave not found" });
         if (req.userOrgId && leave.leave_org_id !== req.userOrgId) return res.status(403).json({ error: "Cannot revoke leaves from another organization" });
+        const selfError = selfApprovalError(leave.user_id, req.userId, req.userRole, "revoke");
+        if (selfError) return res.status(403).json({ error: selfError });
         if (leave.status !== "approved") return res.status(400).json({ error: "Leave is not approved" });
 
         const revoked = await (req.db as any).transaction(async (client: any) => {
@@ -705,13 +686,11 @@ router.patch("/:id/revoke", requireRole("manager"), async (req: Request, res: Re
         // Notify the leave requester
         const leaveUser = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [leave.user_id])).rows[0];
         if (leaveUser) {
-            await req.db!.query(
-                "INSERT INTO notifications (user_id, type, title, body) VALUES ($1, $2, $3, $4)",
-                [leave.user_id, "leave", "Leave Revoked", `Your ${leave.leave_type} leave on ${leave.date} has been revoked by management.`]
-            );
+            await notifyRequesterOfDecision(req.db, req.tenantId, { requesterId: leave.user_id, actorId: req.userId, kind: "leave", status: "revoked",
+                leaveId: leave.id, title: "Leave Revoked", body: `Your ${leave.leave_type} leave on ${leave.date} has been revoked by management.` });
             notifyByEmail("leaveRevoked", leaveUser, leave);
-            sendToUser(req.tenantId, leave.user_id, "leave_update", { id: leave.id, status: "revoked" });
         }
+        emitApproverDecision(req.tenantId, req.userId, "leave", "revoked");
 
         res.json({ message: "Leave revoked" });
     } catch (err) {

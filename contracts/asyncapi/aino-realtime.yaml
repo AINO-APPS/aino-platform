@@ -44,6 +44,15 @@ channels:
           - $ref: '#/components/messages/CallRejectedEvent'
           - $ref: '#/components/messages/CallEndedEvent'
           - $ref: '#/components/messages/CallHandledElsewhereEvent'
+          - $ref: '#/components/messages/NotificationEvent'
+          - $ref: '#/components/messages/NotificationsChangedEvent'
+          - $ref: '#/components/messages/TaskAssignedEvent'
+          - $ref: '#/components/messages/TaskUpdatedEvent'
+          - $ref: '#/components/messages/AttendanceUpdateEvent'
+          - $ref: '#/components/messages/TeamAttendanceUpdateEvent'
+          - $ref: '#/components/messages/LeaveUpdateEvent'
+          - $ref: '#/components/messages/LeavePolicyChangedEvent'
+          - $ref: '#/components/messages/ApprovalUpdateEvent'
 components:
   securitySchemes:
     cookieToken:
@@ -85,6 +94,22 @@ components:
         conversationId: { $ref: '#/components/schemas/PositiveId' }
         clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
       additionalProperties: true
+    NotificationLink:
+      type: [string, 'null']
+      pattern: '^/(?!/)'
+      description: >-
+        Relative web path the client opens when the notification is tapped; never an absolute URL.
+        Formats - task assigned / task comment mention: /tasks?task=<taskId>; note mention:
+        /notes?pageId=<pageId>; request awaiting the recipient's approval (leave, leave withdrawal,
+        manual entry, overtime): /manager?tab=approvals&request=<approvalRequestId> (id as used by
+        GET /api/manager/approvals and POST /api/manager/approvals/:id/approve) or
+        /manager?tab=approvals when the id is unknown (e.g. multi-day leave batches); leave
+        approved/rejected/revoked: /attendance#leaves; manual entry / overtime approved/rejected:
+        /attendance#manual-entry; agile_request / agile_grant: /admin?tab=agile;
+        platform_access_request: /admin?tab=platform-access. null when there is no destination.
+    ApprovalRequestType:
+      type: string
+      description: approval_requests.type (leave, leave_withdraw, manual_entry, overtime) or "bulk" after a bulk decision.
   messages:
     Ping:
       payload:
@@ -190,3 +215,141 @@ components:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_ended }, data: { type: object, required: [callId, conversationId] } } }] }
     CallHandledElsewhereEvent:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_handled_elsewhere }, data: { type: object, required: [callId, conversationId, action], properties: { action: { enum: [accepted, rejected] } } } } }] }
+    NotificationEvent:
+      summary: In-app notification created (also delivered as an FCM general alert with link/linkTaskId).
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: notification }
+              data:
+                type: object
+                required: [id, type, title, body, link_task_id, link, created_at, is_read]
+                properties:
+                  id: { $ref: '#/components/schemas/PositiveId' }
+                  type: { type: string }
+                  title: { type: string }
+                  body: { type: [string, 'null'] }
+                  link_task_id: { type: [integer, 'null'] }
+                  link: { $ref: '#/components/schemas/NotificationLink' }
+                  created_at: { type: string, format: date-time }
+                  is_read: { const: false }
+    NotificationsChangedEvent:
+      summary: Sent to the acting user's own connections after mark-read, read-all or delete so other devices resync.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: notifications_changed }
+              data:
+                type: object
+                required: [action]
+                properties:
+                  action: { enum: [read, read_all, deleted] }
+                  id: { $ref: '#/components/schemas/PositiveId' }
+    TaskAssignedEvent:
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: task_assigned }
+              data:
+                type: object
+                required: [taskId, title]
+                properties: { taskId: { $ref: '#/components/schemas/PositiveId' }, title: { type: string } }
+    TaskUpdatedEvent:
+      summary: >-
+        Sent (deduped) to the assignee, creator and acting user on task update, status change, delete and new
+        comment. On reassignment the new assignee gets task_assigned instead; the previous assignee gets task_updated.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: task_updated }
+              data:
+                type: object
+                required: [taskId, action]
+                properties:
+                  taskId: { $ref: '#/components/schemas/PositiveId' }
+                  action: { enum: [updated, status, deleted, comment] }
+    AttendanceUpdateEvent:
+      summary: Sent to the acting user's own connections when their attendance changes.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: attendance_update }
+              data:
+                type: object
+                required: [action]
+                properties:
+                  action: { enum: [clock_in, clock_out, break_start, break_end, manual_entry, entry_deleted] }
+    TeamAttendanceUpdateEvent:
+      summary: >-
+        Sent to the acting user's direct manager and resolved approver (deduped, same tenant, never the actor)
+        alongside attendance_update.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: team_attendance_update }
+              data:
+                type: object
+                required: [userId, action]
+                properties:
+                  userId: { $ref: '#/components/schemas/PositiveId' }
+                  action: { enum: [clock_in, clock_out, break_start, break_end, manual_entry, entry_deleted] }
+    LeaveUpdateEvent:
+      summary: >-
+        Sent to the leave owner: pending (apply), cancelled (delete / withdraw of a pending leave),
+        withdraw_pending (withdrawal of an approved leave requested), approved / rejected / revoked (decisions).
+        id is the leave id when a single leave is affected.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: leave_update }
+              data:
+                type: object
+                required: [status]
+                properties:
+                  id: { $ref: '#/components/schemas/PositiveId' }
+                  status: { enum: [pending, cancelled, withdraw_pending, approved, rejected, revoked] }
+    LeavePolicyChangedEvent:
+      summary: Tenant-wide broadcast for policies/holidays mutations; balances edits go only to the affected user.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: leave_policy_changed }
+              data:
+                type: object
+                required: [scope]
+                properties:
+                  scope: { enum: [holidays, policies, balances] }
+    ApprovalUpdateEvent:
+      summary: >-
+        Sent to the approver when a request awaits them (status pending), to the requester when a manual entry /
+        overtime request is decided, and to the acting approver's own devices after any decision (also
+        cancelled when a requester cancels a pending leave). id is the approval request id when known.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: approval_update }
+              data:
+                type: object
+                required: [status]
+                properties:
+                  id: { $ref: '#/components/schemas/PositiveId' }
+                  type: { $ref: '#/components/schemas/ApprovalRequestType' }
+                  status: { enum: [pending, approved, rejected, revoked, cancelled] }

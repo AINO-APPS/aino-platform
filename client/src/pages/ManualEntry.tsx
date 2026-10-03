@@ -4,6 +4,7 @@ import { addManualEntry, updateManualEntry, getEntries, getLeaves, getStatus, ge
 import { getLocalToday } from "../api/client";
 import { getCurrentOrg } from "../api/organization";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
+import useRealtimeEvent from "../hooks/useRealtimeEvent";
 // NOTE (status v2): tracker no longer writes status — see useFloatingTimer.js
 import { tsToLocalTime, parseEntries, entryTypeLabels, entryTypeIcons } from "./manualEntry/manualEntryUtils";
 import PendingRequestsList from "./manualEntry/PendingRequestsList";
@@ -67,12 +68,19 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
   }, []);
 
   // Fetch pending manual entry requests + overtime requests
-  useEffect(() => {
+  const loadRequests = () =>
     Promise.all([
       getManualEntryRequests().then(r => setPendingRequests(Array.isArray(r.data) ? r.data : [])),
       getOvertimeRequests().then(r => setOvertimeRequests(Array.isArray(r.data) ? r.data : [])),
-    ]).catch(() => setError("Failed to load pending requests"));
-  }, []);
+    ]);
+  useEffect(() => {
+    loadRequests().catch(() => setError("Failed to load pending requests"));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Approvals/rejections and entries changed on another device refresh the lists.
+  useRealtimeEvent(["approval_update", "attendance_update"], () => {
+    loadRequests().catch(() => { /* keep the current lists on a failed refresh */ });
+  });
 
   // Pull the org's regular office start time once and use it as the default
   // clock-in. We only seed the form value when it's still on the previous
@@ -304,17 +312,17 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
             )}
 
             {/* Approval-required notice: editing a day that already holds
-                recorded (approved or live-tracked) entries does not overwrite
-                them. The change is submitted for manager approval and the
-                original entries stay in place until it is approved. */}
+                entries does not overwrite them. The change is submitted for
+                approval (for every role) and the original entries stay in
+                place until it is approved. */}
             {isEditMode && existingEntries && existingEntries.length > 0 && (
               <div className={`${s["existing-entries-warning"]} ${s["approval-required-banner"] || ""}`}>
                 <div className={s["warning-header"]} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <AlertCircle size={14} /> Edits to recorded days require manager approval
+                  <AlertCircle size={14} /> Edits to recorded days require approval
                 </div>
                 <p className={s["warning-helper-text"]}>
-                  Your existing entries stay in place. This edit will be sent to your
-                  manager for approval and only applied once approved.
+                  Your existing entries stay in place. This edit will be sent for
+                  approval and only applied once approved.
                 </p>
               </div>
             )}
@@ -361,6 +369,10 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                     </div>
                   ))}
                 </div>
+                <p className={s["warning-helper-text"]}>
+                  Need different times? Use the button below to submit the change for
+                  approval — your current entries stay in place until it is approved.
+                </p>
                 <button
                   type="button"
                   className={s["edit-existing-btn"]}

@@ -5,7 +5,9 @@ import auth from "../../middleware/auth";
 import { loadUserContext } from "../../middleware/rbac";
 import { findApprover } from "../../utils/approver";
 import { logAction } from "../../utils/audit";
-import { sendToUser } from "../../realtime/fanout";
+import { sendToUser, notifyUser } from "../../realtime/fanout";
+import { emitTeamAttendanceUpdate } from "../../utils/teamAttendanceRealtime";
+import type { TeamAttendanceAction } from "../../utils/teamAttendanceRealtime";
 import { createAttendanceService } from "./attendance.service";
 import { AttendanceError } from "./attendance.types";
 import type { AttendanceDb } from "./attendance.types";
@@ -13,17 +15,22 @@ import { parseCreateOvertime, parseTheme, parseDateParam, parseManualEntry } fro
 import { getLocalToday, getLocalDow, getOffsetMin, getTzModifier } from "../../utils/timezone";
 
 const router = express.Router();
-const service = createAttendanceService({ findApprover: findApprover as any, sendToUser });
+const service = createAttendanceService({ findApprover: findApprover as any, sendToUser, notifyUser });
 
 function db(req: Request): AttendanceDb {
     return req.db as unknown as AttendanceDb;
 }
 
-/** Keep the user's other devices (web tab, Android) in sync after a break change. */
-function notifyAttendanceChange(req: Request, action: string): void {
+/**
+ * Keep the user's other devices (web tab, Android) in sync after an attendance
+ * change, and refresh their manager's Team Attendance view.
+ */
+function notifyAttendanceChange(req: Request, action: TeamAttendanceAction): void {
+    const tenantId = req.tenantId ? Number(req.tenantId) : null;
     try {
-        sendToUser(req.tenantId ? Number(req.tenantId) : null, req.userId!, "attendance_update", { action });
+        sendToUser(tenantId, req.userId!, "attendance_update", { action });
     } catch { /* best-effort */ }
+    void emitTeamAttendanceUpdate(req.db as any, tenantId, req.userId, action);
 }
 
 router.post("/overtime-request", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -195,25 +202,26 @@ router.post("/manual-entry", auth, loadUserContext, async (req: Request, res: Re
             orgId: req.userOrgId || null,
             tenantId: req.tenantId ? Number(req.tenantId) : null,
         };
-        const result = await service.createManualEntry(
-            db(req), actor, manual, req.userRole === "super_admin", getTzModifier(req),
-        );
+        const result = await service.createManualEntry(db(req), actor, manual, getTzModifier(req));
         logAction(req, "create", "manual_entry", null, {
             date: manual.date,
             clock_in: manual.clockIn,
             clock_out: manual.clockOut || null,
             status: result.approvalStatus,
+            existing_entries: result.existingEntries,
         });
         res.json({
-            message: result.needsApproval
-                ? "Manual entry submitted for approval"
-                : "Manual entry added successfully",
+            message: result.hasProtectedData
+                ? "Attendance already exists for this date, so your entry was submitted for approval as an edit request. Your existing entries stay in place until it is approved."
+                : "Manual entry submitted for approval",
             status: result.approvalStatus,
             needsApproval: result.needsApproval,
+            editRequest: result.hasProtectedData,
         });
+        notifyAttendanceChange(req, "manual_entry");
         if (result.needsApproval && result.approverId) {
             void service.notifyManualEntryApprover(
-                db(req), actor, result.approverId, manual.date, false,
+                db(req), actor, result.approverId, manual.date, result.existingEntries, result.approvalId,
             ).catch((err) => req.log.error({ err }, "Manager notification error (manual entry)"));
         }
     } catch (err) {
@@ -235,9 +243,7 @@ router.put("/manual-entry/:date", auth, loadUserContext, async (req: Request, re
             orgId: req.userOrgId || null,
             tenantId: req.tenantId ? Number(req.tenantId) : null,
         };
-        const result = await service.editManualEntry(
-            db(req), actor, manual, req.userRole === "super_admin", getTzModifier(req),
-        );
+        const result = await service.editManualEntry(db(req), actor, manual, getTzModifier(req));
         logAction(req, "update", "manual_entry", null, {
             date: manual.date,
             clock_in: manual.clockIn,
@@ -246,15 +252,17 @@ router.put("/manual-entry/:date", auth, loadUserContext, async (req: Request, re
             non_destructive: result.hasProtectedData,
         });
         res.json({
-            message: result.needsApproval
-                ? "Your edit was submitted for manager approval. Your original entries stay in place until it is approved."
-                : "Entry updated successfully",
+            message: result.hasProtectedData
+                ? "Your edit was submitted for approval. Your original entries stay in place until it is approved."
+                : "Your edit was submitted for approval",
             status: result.approvalStatus,
             needsApproval: result.needsApproval,
+            editRequest: result.hasProtectedData,
         });
+        notifyAttendanceChange(req, "manual_entry");
         if (result.needsApproval && result.approverId) {
             void service.notifyManualEntryApprover(
-                db(req), actor, result.approverId, manual.date, true,
+                db(req), actor, result.approverId, manual.date, true, result.approvalId,
             ).catch((err) => req.log.error({ err }, "Manager notification error (manual entry edit)"));
         }
     } catch (err) {
@@ -293,6 +301,7 @@ router.delete("/entries/:date", auth, loadUserContext, async (req: Request, res:
             orgId: req.userOrgId || null,
         }, date, getOffsetMin(req));
         res.json({ message: `Deleted ${deleted} entries for ${date}` });
+        notifyAttendanceChange(req, "entry_deleted");
     } catch (err) {
         if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
         req.log.error({ err }, "Delete entries error");
