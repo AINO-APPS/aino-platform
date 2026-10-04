@@ -112,7 +112,7 @@ describe("queue depth collection", () => {
         // A queue added to jobs.ts but not here is invisible to the backlog
         // alert, which is exactly when you need it.
         const source = fs.readFileSync(path.join(__dirname, "..", "jobs.ts"), "utf8");
-        const declared = [...source.matchAll(/new Queue\(\s*"([^"]+)"/g)].map((m: any) => m[1]);
+        const declared = [...source.matchAll(/(?:new Queue|schedule)\(\s*"([^"]+)"/g)].map((m: any) => m[1]);
         expect(new Set(declared)).toEqual(new Set(QUEUE_NAMES));
     });
 });

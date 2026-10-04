@@ -591,188 +591,30 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
     enableReadyCheck: false,
   };
 
-  // Auto clock-out: every 5 minutes
-  autoClockOutQueue = new Queue("auto-clock-out", { connection, defaultJobOptions: JOB_RETENTION });
-  autoClockOutQueue
-    .upsertJobScheduler(
-      "auto-clock-out-schedule",
-      {
-        every: 5 * 60 * 1000, // 5 minutes
-      },
-      {
-        name: "auto-clock-out",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn(
-        { err: err.message },
-        "Failed to set auto-clock-out schedule",
-      ),
-    );
+  // One repeatable queue + single-concurrency worker per scheduled job.
+  const schedule = (name: string, every: number, fn: () => unknown, label: string) => {
+    const queue = new Queue(name, { connection, defaultJobOptions: JOB_RETENTION });
+    queue
+      .upsertJobScheduler(`${name}-schedule`, { every }, { name, opts: JOB_RETENTION })
+      .catch((err: any) => logger.warn({ err: err.message }, `Failed to set ${name} schedule`));
+    const worker = new Worker(name, observed(name, async () => { await fn(); }), { connection, concurrency: 1 });
+    worker.on("failed", (job: any, err: any) => {
+      logger.error({ err, jobId: job?.id }, `${label} job failed`);
+    });
+    workers.push(worker);
+    return queue;
+  };
 
-  const clockOutWorker = new Worker(
-    "auto-clock-out",
-    observed("auto-clock-out", async () => { await autoClockOut(); }),
-    { connection, concurrency: 1 },
-  );
-  clockOutWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Auto clock-out job failed");
-  });
-  workers.push(clockOutWorker);
-
-  // Token cleanup: every hour
-  tokenCleanupQueue = new Queue("token-cleanup", { connection, defaultJobOptions: JOB_RETENTION });
-  tokenCleanupQueue
-    .upsertJobScheduler(
-      "token-cleanup-schedule",
-      {
-        every: 60 * 60 * 1000, // 1 hour
-      },
-      {
-        name: "token-cleanup",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn({ err: err.message }, "Failed to set token-cleanup schedule"),
-    );
-
-  const cleanupWorker = new Worker(
-    "token-cleanup",
-    observed("token-cleanup", async () => { await cleanupTokens(); }),
-    { connection, concurrency: 1 },
-  );
-  cleanupWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Token cleanup job failed");
-  });
-  workers.push(cleanupWorker);
-
-  // Stale inspector prune: once a day. Synthetic Platform Inspector rows
-  // accumulate over time — one per (tenant, platform_admin) pair — and
-  // this nightly sweep removes any whose audit-log activity has gone cold
-  // (no writes in the last 30 days). Cheap and safe; see
+  autoClockOutQueue = schedule("auto-clock-out", 5 * 60 * 1000, autoClockOut, "Auto clock-out");
+  tokenCleanupQueue = schedule("token-cleanup", 60 * 60 * 1000, cleanupTokens, "Token cleanup");
+  // Nightly removal of cold synthetic Platform Inspector rows; see
   // `pruneStaleInspectorUsers` for the rationale.
-  inspectorPruneQueue = new Queue("inspector-prune", { connection, defaultJobOptions: JOB_RETENTION });
-  inspectorPruneQueue
-    .upsertJobScheduler(
-      "inspector-prune-schedule",
-      {
-        every: 24 * 60 * 60 * 1000, // 24 hours
-      },
-      {
-        name: "inspector-prune",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn(
-        { err: err.message },
-        "Failed to set inspector-prune schedule",
-      ),
-    );
-
-  const inspectorPruneWorker = new Worker(
-    "inspector-prune",
-    observed("inspector-prune", async () => { await pruneStaleInspectorUsers(); }),
-    { connection, concurrency: 1 },
-  );
-  inspectorPruneWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Inspector prune job failed");
-  });
-  workers.push(inspectorPruneWorker);
-
-  // Data retention cleanup: once a day
-  retentionCleanupQueue = new Queue("retention-cleanup", { connection, defaultJobOptions: JOB_RETENTION });
-  retentionCleanupQueue
-    .upsertJobScheduler(
-      "retention-cleanup-schedule",
-      {
-        every: 24 * 60 * 60 * 1000,
-      },
-      {
-        name: "retention-cleanup",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn(
-        { err: err.message },
-        "Failed to set retention-cleanup schedule",
-      ),
-    );
-
-  const retentionWorker = new Worker(
-    "retention-cleanup",
-    observed("retention-cleanup", async () => { await runRetentionCleanup(); }),
-    { connection, concurrency: 1 },
-  );
-  retentionWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Retention cleanup job failed");
-  });
-  workers.push(retentionWorker);
-
-  // Stale ringing-call sweep: force-end calls left ringing past the TTL so an
-  // abandoned call (every client died mid-ring) can never ring forever.
-  staleCallQueue = new Queue("stale-call-sweep", { connection, defaultJobOptions: JOB_RETENTION });
-  staleCallQueue
-    .upsertJobScheduler(
-      "stale-call-sweep-schedule",
-      {
-        every: STALE_CALL_SWEEP_MS,
-      },
-      {
-        name: "stale-call-sweep",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn(
-        { err: err.message },
-        "Failed to set stale-call-sweep schedule",
-      ),
-    );
-
-  const staleCallWorker = new Worker(
-    "stale-call-sweep",
-    observed("stale-call-sweep", async () => { await expireStaleRingingCalls(); }),
-    { connection, concurrency: 1 },
-  );
-  staleCallWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Stale-call sweep job failed");
-  });
-  workers.push(staleCallWorker);
-
-  // Sprint lifecycle: hourly auto-create / auto-start / auto-complete +
-  // rollover of sprints for teams in auto mode (see services/sprintScheduler).
-  sprintLifecycleQueue = new Queue("sprint-lifecycle", { connection, defaultJobOptions: JOB_RETENTION });
-  sprintLifecycleQueue
-    .upsertJobScheduler(
-      "sprint-lifecycle-schedule",
-      {
-        every: SPRINT_LIFECYCLE_SWEEP_MS,
-      },
-      {
-        name: "sprint-lifecycle",
-        opts: JOB_RETENTION,
-      },
-    )
-    .catch((err: any) =>
-      logger.warn(
-        { err: err.message },
-        "Failed to set sprint-lifecycle schedule",
-      ),
-    );
-
-  const sprintLifecycleWorker = new Worker(
-    "sprint-lifecycle",
-    observed("sprint-lifecycle", async () => { await runSprintLifecycleSweep(); }),
-    { connection, concurrency: 1 },
-  );
-  sprintLifecycleWorker.on("failed", (job: any, err: any) => {
-    logger.error({ err, jobId: job?.id }, "Sprint lifecycle job failed");
-  });
-  workers.push(sprintLifecycleWorker);
+  inspectorPruneQueue = schedule("inspector-prune", 24 * 60 * 60 * 1000, pruneStaleInspectorUsers, "Inspector prune");
+  retentionCleanupQueue = schedule("retention-cleanup", 24 * 60 * 60 * 1000, runRetentionCleanup, "Retention cleanup");
+  // Force-end calls left ringing past the TTL so an abandoned call can never ring forever.
+  staleCallQueue = schedule("stale-call-sweep", STALE_CALL_SWEEP_MS, expireStaleRingingCalls, "Stale-call sweep");
+  // Hourly sprint auto-create / start / complete + rollover (services/sprintScheduler).
+  sprintLifecycleQueue = schedule("sprint-lifecycle", SPRINT_LIFECYCLE_SWEEP_MS, runSprintLifecycleSweep, "Sprint lifecycle");
 
   // Chat media pipeline: staged media processing (prepare/transform/upload/finalize)
   // so long-running work is durable + retryable outside request handlers.
