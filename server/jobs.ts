@@ -48,6 +48,12 @@ let jobsReady = false;
 // dismissed.
 const STALE_RINGING_TTL_SECS = 30;
 const STALE_CALL_SWEEP_MS = 20 * 1000;
+// BullMQ keeps every finished job forever unless told otherwise; with a 20s
+// repeatable sweep that leaked ~6 MB/day of Redis memory. Bound both sets.
+const JOB_RETENTION = {
+  removeOnComplete: { count: 50, age: 60 * 60 },
+  removeOnFail: { count: 200, age: 7 * 24 * 60 * 60 },
+};
 // Hard backstop for ABANDONED answered calls. A normal call ends via the WS
 // `call_end` transition; but if every client dies mid-call (app killed, network
 // dropped, process crash) the row stays `answered` forever. That stuck row then
@@ -586,7 +592,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   };
 
   // Auto clock-out: every 5 minutes
-  autoClockOutQueue = new Queue("auto-clock-out", { connection });
+  autoClockOutQueue = new Queue("auto-clock-out", { connection, defaultJobOptions: JOB_RETENTION });
   autoClockOutQueue
     .upsertJobScheduler(
       "auto-clock-out-schedule",
@@ -595,6 +601,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "auto-clock-out",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -615,7 +622,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   workers.push(clockOutWorker);
 
   // Token cleanup: every hour
-  tokenCleanupQueue = new Queue("token-cleanup", { connection });
+  tokenCleanupQueue = new Queue("token-cleanup", { connection, defaultJobOptions: JOB_RETENTION });
   tokenCleanupQueue
     .upsertJobScheduler(
       "token-cleanup-schedule",
@@ -624,6 +631,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "token-cleanup",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -645,7 +653,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   // this nightly sweep removes any whose audit-log activity has gone cold
   // (no writes in the last 30 days). Cheap and safe; see
   // `pruneStaleInspectorUsers` for the rationale.
-  inspectorPruneQueue = new Queue("inspector-prune", { connection });
+  inspectorPruneQueue = new Queue("inspector-prune", { connection, defaultJobOptions: JOB_RETENTION });
   inspectorPruneQueue
     .upsertJobScheduler(
       "inspector-prune-schedule",
@@ -654,6 +662,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "inspector-prune",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -674,7 +683,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   workers.push(inspectorPruneWorker);
 
   // Data retention cleanup: once a day
-  retentionCleanupQueue = new Queue("retention-cleanup", { connection });
+  retentionCleanupQueue = new Queue("retention-cleanup", { connection, defaultJobOptions: JOB_RETENTION });
   retentionCleanupQueue
     .upsertJobScheduler(
       "retention-cleanup-schedule",
@@ -683,6 +692,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "retention-cleanup",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -704,7 +714,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
 
   // Stale ringing-call sweep: force-end calls left ringing past the TTL so an
   // abandoned call (every client died mid-ring) can never ring forever.
-  staleCallQueue = new Queue("stale-call-sweep", { connection });
+  staleCallQueue = new Queue("stale-call-sweep", { connection, defaultJobOptions: JOB_RETENTION });
   staleCallQueue
     .upsertJobScheduler(
       "stale-call-sweep-schedule",
@@ -713,6 +723,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "stale-call-sweep",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -734,7 +745,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
 
   // Sprint lifecycle: hourly auto-create / auto-start / auto-complete +
   // rollover of sprints for teams in auto mode (see services/sprintScheduler).
-  sprintLifecycleQueue = new Queue("sprint-lifecycle", { connection });
+  sprintLifecycleQueue = new Queue("sprint-lifecycle", { connection, defaultJobOptions: JOB_RETENTION });
   sprintLifecycleQueue
     .upsertJobScheduler(
       "sprint-lifecycle-schedule",
@@ -743,6 +754,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
       },
       {
         name: "sprint-lifecycle",
+        opts: JOB_RETENTION,
       },
     )
     .catch((err: any) =>
@@ -764,7 +776,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
 
   // Chat media pipeline: staged media processing (prepare/transform/upload/finalize)
   // so long-running work is durable + retryable outside request handlers.
-  chatMediaQueue = new Queue("chat-media-pipeline", { connection });
+  chatMediaQueue = new Queue("chat-media-pipeline", { connection, defaultJobOptions: JOB_RETENTION });
   const chatMediaWorker = new Worker(
     "chat-media-pipeline",
     (job: { data: ChatMediaPipelineJob }) =>
