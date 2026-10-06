@@ -44,10 +44,9 @@ const REACTION_EMOJIS = [
   "\u{1F914}",
 ];
 
-// P1.1/P1.2 — client-side call lifecycle timeouts. The server keeps a backstop
-// (`STALE_RINGING_TTL_SECS = 45` in server/jobs.ts) that MUST stay larger than
-// RING_TIMEOUT_MS so the client always shows feedback first.
-const RING_TIMEOUT_MS = 35000; // outgoing ring → "No answer"
+// P1.1/P1.2 — client-side call lifecycle timeouts. The outgoing ring is the shared 60s
+// ring timeout (server STALE_RINGING_TTL_SECS swept every 5s, push TTL, Android app).
+const RING_TIMEOUT_MS = 60000; // outgoing ring → "No answer"
 const CONNECT_TIMEOUT_MS = 30000; // connecting/reconnecting → "Couldn't connect"
 // How long the "No answer" / "Couldn't connect" message stays on screen before
 // the overlay tears down.
@@ -126,6 +125,7 @@ export default function CallOverlay({
           ? "incoming"
           : "ringing",
   );
+  const displayStatus = status === "ringing" && !callState.remoteRinging ? "calling" : status; // until call_ringing
   // Call duration is owned by the isolated <CallDuration /> leaf so its
   // per-second tick never re-renders this 1500-line overlay (and with it the
   // <video> elements). The ref mirrors the latest value for the IMPERATIVE
@@ -199,7 +199,7 @@ export default function CallOverlay({
   });
 
   // ─── Connection / ring timeout ───
-  // P1.1: an unanswered OUTGOING call rings for RING_TIMEOUT_MS (35s), then we
+  // P1.1: an unanswered OUTGOING call rings for RING_TIMEOUT_MS (60s), then we
   // surface "No answer" and end. P1.2: a call stuck in connecting/reconnecting
   // for CONNECT_TIMEOUT_MS (30s) surfaces "Couldn't connect" and ends. Both
   // show a brief terminal message before tearing the overlay down.
@@ -679,7 +679,7 @@ export default function CallOverlay({
       (window.electronAPI as any).callPip.updateState({
         remoteName: remoteName || "Call",
         remoteAvatar: remoteAvatar || null,
-        status: controls.onHold ? "on-hold" : status,
+        status: controls.onHold ? "on-hold" : displayStatus,
         durationSec: durationRef.current,
         muted: controls.muted,
         videoOff: controls.videoOff,
@@ -690,7 +690,7 @@ export default function CallOverlay({
     }
   }, [
     electronPipActive,
-    status,
+    displayStatus,
     controls.muted,
     controls.videoOff,
     controls.onHold,
@@ -712,7 +712,7 @@ export default function CallOverlay({
       (window.electronAPI as any).callPip.open({
         remoteName: remoteName || "Call",
         remoteAvatar: remoteAvatar || null,
-        status: controls.onHold ? "on-hold" : status,
+        status: controls.onHold ? "on-hold" : displayStatus,
         durationSec: durationRef.current,
         muted: controls.muted,
         videoOff: controls.videoOff,
@@ -726,7 +726,7 @@ export default function CallOverlay({
   }, [
     remoteName,
     remoteAvatar,
-    status,
+    displayStatus,
     controls.muted,
     controls.videoOff,
     controls.onHold,
@@ -811,9 +811,8 @@ export default function CallOverlay({
           const el = pipWin.document.getElementById("wp-pip-status");
           if (el) {
             if (status === "incoming") el.textContent = "Incoming call\u2026";
-            else if (status === "ringing") el.textContent = "Ringing\u2026";
-            else if (status === "connecting")
-              el.textContent = "Connecting\u2026";
+            else if (status === "ringing") el.textContent = displayStatus === "calling" ? "Calling\u2026" : "Ringing\u2026";
+            else if (status === "connecting") el.textContent = "Connecting\u2026";
             else if (status === "reconnecting")
               el.textContent = "Reconnecting\u2026";
             else if (controls.onHold) el.textContent = "On Hold";
@@ -828,7 +827,7 @@ export default function CallOverlay({
           (window.electronAPI as any).callPip.updateState({
             remoteName: remoteName || "Call",
             remoteAvatar: remoteAvatar || null,
-            status: controls.onHold ? "on-hold" : status,
+            status: controls.onHold ? "on-hold" : displayStatus,
             durationSec: seconds,
             muted: controls.muted,
             videoOff: controls.videoOff,
@@ -841,6 +840,7 @@ export default function CallOverlay({
     },
     [
       status,
+      displayStatus,
       controls.onHold,
       controls.muted,
       controls.videoOff,
@@ -1366,7 +1366,7 @@ export default function CallOverlay({
               ) : (
                 <>
                   {status === "incoming" && `Incoming ${callType} call...`}
-                  {status === "ringing" && "Ringing..."}
+                  {status === "ringing" && (displayStatus === "calling" ? "Calling..." : "Ringing...")}
                   {status === "connecting" && "Connecting..."}
                   {status === "reconnecting" && "Reconnecting..."}
                   {isConnected && (
@@ -1699,7 +1699,7 @@ export default function CallOverlay({
               ) : status === "incoming" ? (
                 "Incoming\u2026"
               ) : status === "ringing" ? (
-                "Ringing\u2026"
+                displayStatus === "calling" ? "Calling\u2026" : "Ringing\u2026"
               ) : (status as string) === "reconnecting" ? (
                 "Reconnecting\u2026"
               ) : (

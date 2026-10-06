@@ -93,7 +93,7 @@ interface CallActionParams {
     tenantId?: number | string | null;
     senderId: number | string;
     callId: number | string;
-    action: "answer" | "reject" | "end";
+    action: "answer" | "reject" | "end" | "ringing";
     clientMsgId?: string;
     cache?: IdempotencyCache;
 }

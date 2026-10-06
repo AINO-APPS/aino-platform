@@ -35,6 +35,16 @@ export function applyRealtimeProfileUpdate(
         : conversation;
 }
 
+/** Per-user "Clear chat" synced from another of the user's devices (`chat_cleared`). */
+export function applyRealtimeChatCleared(
+    conversation: RealtimeConversation,
+    conversationId: unknown,
+): RealtimeConversation {
+    return conversation.id === conversationId
+        ? { ...conversation, last_message: null, last_sender_id: null, unread_count: 0 }
+        : conversation;
+}
+
 export function mapRealtimeMessage(data: AnyRecord): RealtimeChatMessage {
     return {
         id: data.id as number | string,

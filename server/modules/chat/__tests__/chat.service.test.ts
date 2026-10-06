@@ -230,7 +230,7 @@ describe("chat.service blockUser/unblockUser", () => {
 
             expect(db.query).toHaveBeenCalledWith(
                 expect.stringContaining("WHERE m.conversation_id = $1"),
-                [12, "%hello%"],
+                [12, "%hello%", 7],
             );
         });
     });

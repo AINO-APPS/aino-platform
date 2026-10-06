@@ -86,7 +86,8 @@ describe("pushNotifications.sendCallNotification", () => {
 
         const sent = sendEachForMulticast.mock.calls[0][0];
         expect(sent.notification).toBeUndefined();
-        expect(sent.android).toEqual({ priority: "high" });
+        // FCM drops an undelivered ring after the shared 60s ring timeout.
+        expect(sent.android).toEqual({ priority: "high", ttl: 60_000 });
         expect(sent.android.notification).toBeUndefined();
         expect(sent.data).toMatchObject({
             type: "incoming_call",
@@ -106,6 +107,23 @@ describe("pushNotifications.sendCallNotification", () => {
         expect(Number.isNaN(Date.parse(sent.data.sentAt))).toBe(false);
         expect(Number.isNaN(Date.parse(sent.data.expiresAt))).toBe(false);
         expect(sent.data.dedupeKey).toBe(`call:${sent.data.callId}`);
+        const ringWindowMs = Date.parse(sent.data.expiresAt) - Date.parse(sent.data.sentAt);
+        expect(ringWindowMs).toBeGreaterThanOrEqual(59_000);
+        expect(ringWindowMs).toBeLessThanOrEqual(61_000);
+    });
+
+    test("keeps the exact incoming-call data key set (Android validates it)", async () => {
+        const mockQuery = jest.fn().mockResolvedValue({ rows: [{ device_token: "token1" }] });
+        await pushNotifications.sendCallNotification(mockQuery, 1, 1, {
+            callId: 199, conversationId: 19, callerId: 13, callerName: "Priya", callType: "video",
+        });
+
+        const sent = sendEachForMulticast.mock.calls[0][0];
+        expect(Object.keys(sent.data).sort()).toEqual([
+            "body", "callCategory", "callId", "callType", "callerAvatar", "callerId", "callerName",
+            "conversationId", "dedupeKey", "expiresAt", "groupName", "isGroup", "meetingCode",
+            "sentAt", "tenantId", "title", "type",
+        ]);
     });
 
     test("includes caller avatar and stable routing contract fields", async () => {
@@ -337,8 +355,11 @@ describe("pushNotifications.sendCallCancellation", () => {
         // Data-only: an `android.notification` block would let the OS render it
         // without waking the headless handler that dismisses the ring.
         expect(sent.notification).toBeUndefined();
-        expect(sent.android).toEqual({ priority: "high" });
+        expect(sent.android).toEqual({ priority: "high", ttl: 60_000 });
         expect(sent.android.notification).toBeUndefined();
+        expect(Object.keys(sent.data).sort()).toEqual([
+            "callId", "conversationId", "dedupeKey", "reason", "sentAt", "tenantId", "type",
+        ]);
         expect(sent.data).toMatchObject({
             type: "call_handled_elsewhere",
             callId: "401",

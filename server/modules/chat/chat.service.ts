@@ -53,7 +53,7 @@ export function createChatService() {
             return repository.query(
                 db,
                 conversationId === null ? repository.sql.q086 : repository.sql.q085,
-                conversationId === null ? [userId, searchPattern] : [conversationId, searchPattern],
+                conversationId === null ? [userId, searchPattern] : [conversationId, searchPattern, userId],
             );
         },
 
@@ -106,7 +106,7 @@ export function createChatService() {
             if (!(await repository.verifyParticipant(db, conversationId, userId))) {
                 throw new ChatError("Not a participant", 403);
             }
-            return repository.listPinnedMessages(db, conversationId);
+            return repository.listPinnedMessages(db, conversationId, userId);
         },
 
         async toggleStar(db: ChatDb, userId: number, messageId: number): Promise<ToggleStarResult> {

@@ -1,6 +1,6 @@
 /** HTTP adapters and delivery side effects for chat endpoints. */
 import express from "express";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { sendToUser, emitCallHistoryMessage } = require("../../utils/ws");
@@ -103,6 +103,33 @@ router.get(
     } catch (err) {
       req.log.error({ err }, "Get call history error");
       res.status(500).json({ error: "Failed to get call history" });
+    }
+  },
+);
+
+// Single call (same snake_case row shape as the history endpoints). Numeric
+// ids only: anything else (e.g. a future static `/calls/<word>`) falls through
+// so this never shadows sibling routes; `/calls/active` is registered above.
+router.get(
+  "/calls/:callId",
+  auth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    const raw = String(req.params.callId);
+    if (!/^\d+$/.test(raw)) return next();
+    try {
+      const call = (
+        await service.query(req.db!, "q089", [parseInt(raw, 10)])
+      ).rows[0];
+      if (!call) return res.status(404).json({ error: "Call not found" });
+      const isParticipant = (
+        await service.query(req.db!, "q001", [call.conversation_id, req.userId])
+      ).rows[0];
+      if (!isParticipant)
+        return res.status(403).json({ error: "Not a participant" });
+      res.json(call);
+    } catch (err) {
+      req.log.error({ err }, "Get call error");
+      res.status(500).json({ error: "Failed to get call" });
     }
   },
 );

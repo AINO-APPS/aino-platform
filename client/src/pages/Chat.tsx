@@ -565,8 +565,8 @@ export default function Chat() {
 
       <ConfirmDialog
         isOpen={!!deleteConfirm}
-        title="Delete Conversation"
-        message={`Delete your conversation with ${deleteConfirm ? getConvName(deleteConfirm) : ""}? This will permanently remove all messages for everyone.`}
+        title="Delete chat for you?"
+        message={`Delete your chat with ${deleteConfirm ? getConvName(deleteConfirm) : ""} for you? It is removed from your devices only; others keep their copy.`}
         confirmText="Delete"
         onConfirm={() => handleDeleteConv(deleteConfirm.id)}
         onCancel={() => setDeleteConfirm(null)}
@@ -574,8 +574,8 @@ export default function Chat() {
 
       <ConfirmDialog
         isOpen={!!clearConfirm}
-        title="Clear Chat"
-        message="Clear all messages in this conversation? This cannot be undone."
+        title="Clear chat for you?"
+        message="Messages will be removed from your devices only. Others in the chat keep their copy."
         confirmText="Clear"
         onConfirm={() => {
           handleClearChat(clearConfirm);

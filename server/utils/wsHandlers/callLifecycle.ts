@@ -54,7 +54,7 @@ export async function handleCallInitiate({
     clientMsgId: rawCallInitiateId,
   } = msg.data || {};
   // Reject a malformed initiate EXPLICITLY. A silent `return` here left the
-  // caller's screen "Ringing…" for the full 35s no-answer timeout while the
+  // caller's screen "Ringing…" for the full no-answer timeout while the
   // receiver never rang (e.g. a Calls-tab / call-info entry that carried a
   // null conversation_id serialises to the string "null" → NaN client-side
   // and an unusable id here). The NACK lets the client fail fast with a
@@ -167,7 +167,7 @@ export async function handleCallInitiate({
           //     sweep is the authoritative cleanup, but we must also not
           //     trust rows older than the TTL here, or a user gets pinned
           //     "busy" until the next sweep / indefinitely for 'answered').
-          //   • 'ringing' counts only within the ring TTL (~45s).
+          //   • 'ringing' counts only within the ring TTL (60s + 5s sweep slack).
           //   • 'answered' counts only within a max PLAUSIBLE live-call
           //     window. This used to be 12h from created_at, which meant a
           //     single abandoned 'answered' row (client crashed / app killed
@@ -179,7 +179,7 @@ export async function handleCallInitiate({
           //     couple of hours (group calls use the meeting mesh), so we
           //     tighten the window to 2h and anchor it on started_at (the
           //     moment the call actually connected) falling back to
-          //     created_at. The 20s stale-call sweep remains the
+          //     created_at. The 5s stale-call sweep remains the
           //     authoritative cleanup; this is the defensive bound.
           const busy = (
             await db.query(
@@ -189,7 +189,7 @@ export async function handleCallInitiate({
                              AND cl.conversation_id != $2
                              AND (
                                    (cl.status = 'ringing'
-                                     AND cl.created_at > NOW() - INTERVAL '45 seconds')
+                                     AND cl.created_at > NOW() - INTERVAL '65 seconds')
                                 OR (cl.status = 'answered'
                                      AND COALESCE(cl.started_at, cl.created_at) > NOW() - INTERVAL '2 hours')
                                  )

@@ -26,6 +26,8 @@ export interface CallState {
     // Negotiation). A nonce (rather than a boolean) so repeated peer-ready
     // events each trigger exactly one re-offer.
     peerReadyNonce?: number;
+    // Outgoing call: a callee device acked `call_ringing` ("Calling..." → "Ringing...").
+    remoteRinging?: boolean;
     onSignal?: React.MutableRefObject<unknown>;
     onEndExternal?: React.MutableRefObject<unknown>;
     [key: string]: unknown;
@@ -195,6 +197,17 @@ export default function useCallState(wsSendRef: WsSendRef) {
                 setCallState((prev) =>
                     prev ? { ...prev, callId: data.callId } : prev,
                 );
+                break;
+            }
+            case "call_ringing": {
+                // The callee's device is ringing: the caller overlay switches
+                // from "Calling..." to "Ringing...". Ignore stale/other calls.
+                setCallState((prev) => {
+                    if (!prev || prev.isIncoming) return prev;
+                    if (String(prev.conversationId) !== String(data.conversationId)) return prev;
+                    if (prev.callId != null && String(prev.callId) !== String(data.callId)) return prev;
+                    return prev.remoteRinging ? prev : { ...prev, remoteRinging: true };
+                });
                 break;
             }
             case "call_accepted": {

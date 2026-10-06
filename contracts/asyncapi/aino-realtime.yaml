@@ -31,6 +31,7 @@ channels:
           - $ref: '#/components/messages/CallRejectCommand'
           - $ref: '#/components/messages/CallEndCommand'
           - $ref: '#/components/messages/CallCancelCommand'
+          - $ref: '#/components/messages/CallRingingCommand'
     subscribe:
       operationId: sendServerFrame
       message:
@@ -44,6 +45,9 @@ channels:
           - $ref: '#/components/messages/CallRejectedEvent'
           - $ref: '#/components/messages/CallEndedEvent'
           - $ref: '#/components/messages/CallHandledElsewhereEvent'
+          - $ref: '#/components/messages/CallRingingEvent'
+          - $ref: '#/components/messages/ChatClearedEvent'
+          - $ref: '#/components/messages/ChatConvDeletedEvent'
           - $ref: '#/components/messages/NotificationEvent'
           - $ref: '#/components/messages/NotificationsChangedEvent'
           - $ref: '#/components/messages/TaskAssignedEvent'
@@ -205,6 +209,24 @@ components:
                 properties:
                   conversationId: { $ref: '#/components/schemas/PositiveId' }
                   clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
+    CallRingingCommand:
+      summary: >-
+        Sent by the CALLEE device once it starts ringing (HTTP twin for a device woken by FCM without a socket:
+        POST /api/chat/calls/:callId/ringing). The sender must be a participant and not the caller, and the
+        call must still be ringing. Idempotent per (callId, sender); repeated acks are harmless.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: call_ringing }
+              data:
+                type: object
+                required: [callId, conversationId]
+                properties:
+                  callId: { $ref: '#/components/schemas/PositiveId' }
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
     CallIncomingEvent:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_incoming }, data: { type: object, required: [callId, conversationId, callerId, callType], properties: { callId: { $ref: '#/components/schemas/PositiveId' }, conversationId: { $ref: '#/components/schemas/PositiveId' }, callerId: { $ref: '#/components/schemas/PositiveId' }, callerName: { type: string }, callerAvatar: { type: [string, 'null'] }, callType: { enum: [voice, video] }, isGroup: { type: boolean }, groupName: { type: [string, 'null'] } } } } }] }
     CallAcceptedEvent:
@@ -215,6 +237,43 @@ components:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_ended }, data: { type: object, required: [callId, conversationId] } } }] }
     CallHandledElsewhereEvent:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_handled_elsewhere }, data: { type: object, required: [callId, conversationId, action], properties: { action: { enum: [accepted, rejected] } } } } }] }
+    CallRingingEvent:
+      summary: Delivered to every session of the CALLER when a callee device reports it is ringing ("Calling…" → "Ringing…").
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: call_ringing }
+              data:
+                type: object
+                required: [callId, conversationId, userId]
+                properties:
+                  callId: { $ref: '#/components/schemas/PositiveId' }
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  userId: { $ref: '#/components/schemas/PositiveId' }
+    ChatClearedEvent:
+      summary: >-
+        Per-user "Clear chat" (DELETE /api/chat/conversations/:id/messages), sent ONLY to the requester's own
+        sessions so their other devices drop the thread. Other participants are not notified and keep their copy.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: chat_cleared }
+              data: { type: object, required: [conversationId], properties: { conversationId: { $ref: '#/components/schemas/PositiveId' } } }
+    ChatConvDeletedEvent:
+      summary: >-
+        Per-user "Delete chat" (DELETE /api/chat/conversations/:id), sent ONLY to the requester's own sessions so
+        their other devices remove it from the list. It reappears there when a newer message arrives.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: chat_conv_deleted }
+              data: { type: object, required: [conversationId], properties: { conversationId: { $ref: '#/components/schemas/PositiveId' } } }
     NotificationEvent:
       summary: In-app notification created (also delivered as an FCM general alert with link/linkTaskId).
       payload:

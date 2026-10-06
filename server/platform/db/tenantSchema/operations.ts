@@ -41,6 +41,8 @@ async function initializeOperationsTenantSchema(q: SchemaQuery): Promise<void> {
         )
     `);
     await q(`CREATE INDEX IF NOT EXISTS idx_call_logs_conv ON call_logs(conversation_id, created_at DESC)`);
+    // First callee-device "I'm ringing" ack (migration 0007).
+    await q(`ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS ringing_at TIMESTAMPTZ`);
 
     // ---- Meetings ----
     await q(`

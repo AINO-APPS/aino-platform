@@ -36,7 +36,7 @@ router.get(
       }
 
       const rows = (
-        await service.query(req.db!, "q064", [convId])
+        await service.query(req.db!, "q064", [convId, req.userId])
       ).rows;
 
       res.json(rows);
@@ -102,31 +102,14 @@ router.delete(
         return res.status(403).json({ error: "Not a participant" });
       }
 
-      // Only group creator or 1-on-1 participants can clear all messages
-      const conv = (
-        await service.query(req.db!, "q067", [convId])
-      ).rows[0];
-      if (conv?.is_group && conv.created_by && conv.created_by !== req.userId) {
-        return res
-          .status(403)
-          .json({ error: "Only the group creator can clear all messages" });
-      }
-
-      await service.query(req.db!, "q068", [
-        convId,
-      ]);
-      await service.query(req.db!, "q005", [convId]);
-
-      // Notify all participants
-      const participants = (
-        await service.query(req.db!, "q006", [convId])
-      ).rows;
-
-      for (const p of participants) {
-        sendToUser(req.tenantId, p.user_id, "chat_cleared", {
-          conversationId: convId,
-        });
-      }
+      // Per-user clear (Signal parity): hide everything up to now for the
+      // requester only; other participants keep their copy. Only the
+      // requester's own devices are told so they can sync.
+      await service.query(req.db!, "q068", [convId, req.userId]);
+      redis.resetUnread(req.tenantId, req.userId, convId);
+      sendToUser(req.tenantId, req.userId, "chat_cleared", {
+        conversationId: convId,
+      });
 
       res.json({ ok: true });
     } catch (err) {
@@ -155,29 +138,14 @@ router.delete(
         return res.status(403).json({ error: "Not a participant" });
       }
 
-      // Only group creator can delete group conversations; 1-on-1 chats can be deleted by either party
-      const conv = (
-        await service.query(req.db!, "q067", [convId])
-      ).rows[0];
-      if (conv?.is_group && conv.created_by && conv.created_by !== req.userId) {
-        return res.status(403).json({
-          error: "Only the group creator can delete this conversation",
-        });
-      }
-
-      // Notify other participants before deletion
-      const participants = (
-        await service.query(req.db!, "q033", [convId, req.userId])
-      ).rows;
-
-      // Delete the conversation (all children CASCADE automatically)
-      await service.query(req.db!, "q069", [convId]);
-
-      for (const p of participants) {
-        sendToUser(req.tenantId, p.user_id, "chat_conv_deleted", {
-          conversationId: convId,
-        });
-      }
+      // Per-user delete: clear + hide for the requester only (no cascade, no
+      // group-creator restriction). A newer message brings the conversation
+      // back; leaving a group stays on POST /conversations/:id/leave.
+      await service.query(req.db!, "q069", [convId, req.userId]);
+      redis.resetUnread(req.tenantId, req.userId, convId);
+      sendToUser(req.tenantId, req.userId, "chat_conv_deleted", {
+        conversationId: convId,
+      });
 
       res.json({ ok: true });
     } catch (err) {

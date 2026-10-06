@@ -21,6 +21,9 @@ import {
 } from "../platform/pushNotifications/deviceTokens";
 import { initializePushFirebaseApp } from "../platform/pushNotifications/firebaseApp";
 
+/** FCM TTL for call-teardown pushes (android.ttl, ms) — the ring window. */
+const CALL_CANCEL_TTL_MS = 60 * 1000;
+
 class PushNotificationService {
     private initialized = false;
     private app: App | null = null;
@@ -102,7 +105,9 @@ class PushNotificationService {
         const displayName = hideSensitiveContent ? "Incoming call" : callData.callerName;
         const title = callData.callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
         const body = hideSensitiveContent ? "Tap to answer" : `${callData.callerName} is calling...`;
-        const callTTLSeconds = Number(process.env.PUSH_CALL_TTL_SECONDS || 30);
+        // One ring timeout everywhere (server sweep STALE_RINGING_TTL_SECS,
+        // web/Android caller UI): an undelivered ring older than this is useless.
+        const callTTLSeconds = Number(process.env.PUSH_CALL_TTL_SECONDS || 60);
 
         // IMPORTANT: Incoming-call pushes are DATA-ONLY (no top-level
         // `notification` block). On Android, a message that contains a
@@ -137,8 +142,10 @@ class PushNotificationService {
             // Android: high-priority DATA-ONLY message wakes the RN Firebase
             // headless JS handler. Do not include `android.notification` here:
             // the mobile app/Notifee must render the full-screen call UI itself.
+            // `ttl` makes FCM drop a ring it could not deliver within the window.
             android: {
                 priority: "high",
+                ttl: callTTLSeconds * 1000,
             },
             // iOS: use a high-priority alert/VoIP push so the handler runs and
             // CallKit can present the incoming-call UI.
@@ -279,8 +286,10 @@ class PushNotificationService {
                 reason: cancelData.reason || "handled_elsewhere",
                 dedupeKey: `call_cancel:${cancelData.callId}`,
             }, tenantId),
+            // Short TTL: a teardown only matters while a ring could still be up.
             android: {
                 priority: "high",
+                ttl: CALL_CANCEL_TTL_MS,
             },
             apns: {
                 headers: {

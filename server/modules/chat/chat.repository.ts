@@ -4,10 +4,10 @@
  * This file owns all chat SQL and has no knowledge of Express, Request, Response, cookies, or status codes.
  */
 import type { ChatDb, DirectConversationResult } from "./chat.types";
+import { CONVERSATION_LIST_SQL } from "./chat.conversation-list.repository";
 
 
 
-/** SQL statements used by chat service workflows. */
 /** SQL statements used by chat service workflows. */
 export const sql = {
     q001: "SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2",
@@ -39,65 +39,8 @@ export const sql = {
     q027: "UPDATE conversation_participants SET role = $1 WHERE conversation_id = $2 AND user_id = $3",
     q028: "SELECT u.full_name FROM conversation_participants cp JOIN users u ON u.id = cp.user_id WHERE cp.conversation_id = $1 AND cp.user_id = $2",
     q029: "UPDATE conversation_participants SET role = 'admin' WHERE conversation_id = $1 AND user_id = $2",
-    q030: `SELECT
-        c.id,
-        c.updated_at,
-        c.name AS group_name,
-        c.is_group,
-        c.description AS group_description,
-        c.avatar AS group_avatar,
-        c.post_policy,
-        c.add_policy,
-        cp.role AS my_role,
-        CASE WHEN c.is_group = FALSE THEN COALESCE(u.id, self_u.id) END AS other_user_id,
-        CASE WHEN c.is_group = FALSE THEN COALESCE(u.username, self_u.username) END AS other_username,
-        CASE WHEN c.is_group = FALSE THEN COALESCE(u.full_name, self_u.full_name) END AS other_full_name,
-        CASE WHEN c.is_group = FALSE THEN COALESCE(u.avatar, self_u.avatar) END AS other_avatar,
-        CASE WHEN c.is_group = FALSE THEN COALESCE(u.last_seen_at, self_u.last_seen_at) END AS other_last_seen,
-        CASE WHEN c.is_group = FALSE AND u.id IS NULL THEN TRUE ELSE FALSE END AS is_self_chat,
-        m.content AS last_message, m.sender_id AS last_sender_id, m.sender_name AS last_sender_name,
-        m.created_at AS last_message_at, m.file_url AS last_file_url, m.file_type AS last_file_type,
-        m.file_name AS last_file_name, m.deleted_at AS last_deleted, m.format_type AS last_format_type,
-        m.metadata AS last_metadata,
-        (SELECT EXISTS (
-            SELECT 1 FROM message_reads mr2 JOIN users ur ON ur.id = mr2.user_id
-            WHERE mr2.conversation_id = c.id AND mr2.user_id != $1 AND mr2.last_read_at >= m.created_at
-              AND COALESCE((ur.notification_prefs->>'readReceipts')::boolean, TRUE)
-        ) AND COALESCE((SELECT (notification_prefs->>'readReceipts')::boolean FROM users WHERE id = $1), TRUE)) AS last_message_read,
-        COALESCE(jsonb_array_length(m.delivered_to), 0) > 0 AS last_message_delivered,
-        COALESCE(mr.last_read_at, '1970-01-01'::timestamptz) AS last_read_at,
-        (SELECT COUNT(*)::int FROM messages msg WHERE msg.conversation_id = c.id
-          AND msg.created_at > COALESCE(mr.last_read_at, '1970-01-01'::timestamptz)
-          AND msg.sender_id != $1 AND msg.deleted_at IS NULL) AS unread_count,
-        CASE WHEN c.is_group THEN (SELECT COUNT(*)::int FROM conversation_participants WHERE conversation_id = c.id) END AS member_count,
-        CASE WHEN c.is_group THEN (
-            SELECT COALESCE(json_agg(x.avatar) FILTER (WHERE x.avatar IS NOT NULL), '[]'::json)
-            FROM (SELECT u3.avatar FROM conversation_participants cp3 JOIN users u3 ON u3.id = cp3.user_id
-                  WHERE cp3.conversation_id = c.id ORDER BY cp3.user_id ASC LIMIT 4) x
-        ) END AS group_member_avatars,
-        cp.is_pinned, cp.is_favourite,
-        (cp.is_muted AND (cp.muted_until IS NULL OR cp.muted_until > NOW())) AS is_muted,
-        cp.muted_until, cp.is_archived,
-        CASE WHEN c.is_group = FALSE AND u.id IS NOT NULL THEN
-            EXISTS (SELECT 1 FROM blocked_users b WHERE b.blocker_id = $1 AND b.blocked_id = u.id)
-        ELSE FALSE END AS is_blocked,
-        CASE WHEN mtg.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_meeting_chat,
-        mtg.meeting_code
-    FROM conversations c
-    JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
-    LEFT JOIN conversation_participants cp2 ON cp2.conversation_id = c.id AND cp2.user_id != $1 AND c.is_group = FALSE
-    LEFT JOIN users u ON u.id = cp2.user_id AND c.is_group = FALSE
-    LEFT JOIN users self_u ON self_u.id = $1 AND c.is_group = FALSE AND cp2.user_id IS NULL
-    LEFT JOIN meetings mtg ON mtg.conversation_id = c.id AND mtg.is_huddle = FALSE
-    LEFT JOIN LATERAL (
-        SELECT lm.content, lm.sender_id, lm.created_at, lm.file_url, lm.file_type, lm.file_name,
-               lm.deleted_at, lm.format_type, lm.metadata, lm.delivered_to, usr.full_name AS sender_name
-        FROM messages lm JOIN users usr ON usr.id = lm.sender_id
-        WHERE lm.conversation_id = c.id ORDER BY lm.created_at DESC LIMIT 1
-    ) m ON TRUE
-    LEFT JOIN message_reads mr ON mr.conversation_id = c.id AND mr.user_id = $1
-    ORDER BY cp.is_pinned DESC, COALESCE(m.created_at, c.created_at) DESC
-    LIMIT 200`,    q031: "SELECT mr.message_id, mr.emoji, mr.user_id, u.full_name FROM message_reactions mr JOIN users u ON u.id = mr.user_id JOIN messages m ON m.id = mr.message_id WHERE mr.message_id = ANY($1) AND m.deleted_at IS NULL ORDER BY mr.created_at",
+    q030: CONVERSATION_LIST_SQL,
+    q031: "SELECT mr.message_id, mr.emoji, mr.user_id, u.full_name FROM message_reactions mr JOIN users u ON u.id = mr.user_id JOIN messages m ON m.id = mr.message_id WHERE mr.message_id = ANY($1) AND m.deleted_at IS NULL ORDER BY mr.created_at",
     q032: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, NOW()) ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = NOW()",
     q033: "SELECT user_id FROM conversation_participants WHERE conversation_id = $1 AND user_id != $2",
     q034: "WITH me AS ( SELECT COALESCE((notification_prefs->>'readReceipts')::boolean, TRUE) AS receipts_on FROM users WHERE id = $2 ) SELECT mr.user_id, mr.last_read_at, u.full_name FROM message_reads mr JOIN users u ON u.id = mr.user_id CROSS JOIN me WHERE mr.conversation_id = $1 AND mr.user_id != $2 AND me.receipts_on AND COALESCE((u.notification_prefs->>'readReceipts')::boolean, TRUE)",
@@ -112,7 +55,7 @@ export const sql = {
     q038: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, $3) ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = $3",
     q039: "SELECT full_name, avatar, username FROM users WHERE id = $1",
     q040: "SELECT m.content, m.file_url, m.file_type, m.file_name, u.full_name AS sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = $1 AND m.conversation_id = $2",
-    q041: "SELECT COUNT(*)::int AS unread FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1 LEFT JOIN message_reads mr ON mr.conversation_id = m.conversation_id AND mr.user_id = $1 WHERE m.sender_id <> $1 AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at)",
+    q041: "SELECT COUNT(*)::int AS unread FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1 LEFT JOIN message_reads mr ON mr.conversation_id = m.conversation_id AND mr.user_id = $1 WHERE m.sender_id <> $1 AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at) AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)",
     q042: "INSERT INTO messages (conversation_id, sender_id, content, file_url, file_name, file_type, file_size, reply_to_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at",
     q043: "INSERT INTO chat_media_jobs (message_id, conversation_id, sender_id, status, stage, progress, attempts, pipeline_meta) VALUES ($1, $2, $3, 'queued', 'queued', 0, 1, '{}'::jsonb) RETURNING id, status, stage, progress, pipeline_meta",
     q044: "SELECT id, message_id, conversation_id, sender_id, status FROM chat_media_jobs WHERE id = $1",
@@ -135,12 +78,12 @@ export const sql = {
     q061: "INSERT INTO poll_votes (poll_id, user_id, option_idx) VALUES ($1, $2, $3)",
     q062: "SELECT option_idx, array_agg(user_id) AS user_ids FROM poll_votes WHERE poll_id = $1 GROUP BY option_idx",
     q063: "SELECT pv.option_idx, pv.user_id, u.full_name FROM poll_votes pv JOIN users u ON u.id = pv.user_id WHERE pv.poll_id = $1",
-    q064: "SELECT m.id, m.file_url, m.file_name, m.file_type, m.file_size, m.created_at, m.sender_id, u.full_name AS sender_name, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.conversation_id = $1 AND m.file_url IS NOT NULL AND m.deleted_at IS NULL AND COALESCE((m.metadata->>'viewOnce')::boolean, false) = false ORDER BY m.created_at DESC LIMIT 100",
-    q065: "SELECT created_at FROM messages WHERE conversation_id = $1 AND sender_id != $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1",
+    q064: "SELECT m.id, m.file_url, m.file_name, m.file_type, m.file_size, m.created_at, m.sender_id, u.full_name AS sender_name, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $2 WHERE m.conversation_id = $1 AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) AND m.file_url IS NOT NULL AND m.deleted_at IS NULL AND COALESCE((m.metadata->>'viewOnce')::boolean, false) = false ORDER BY m.created_at DESC LIMIT 100",
+    q065: "SELECT m.created_at FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $2 WHERE m.conversation_id = $1 AND m.sender_id != $2 AND m.deleted_at IS NULL AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) ORDER BY m.created_at DESC LIMIT 1",
     q066: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, $3::timestamptz - INTERVAL '1 second') ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = $3::timestamptz - INTERVAL '1 second'",
-    q067: "SELECT is_group, created_by FROM conversations WHERE id = $1",
-    q068: "DELETE FROM messages WHERE conversation_id = $1",
-    q069: "DELETE FROM conversations WHERE id = $1",
+    // Per-user "Clear chat" / "Delete chat": no message rows are deleted.
+    q068: "UPDATE conversation_participants SET cleared_at = NOW() WHERE conversation_id = $1 AND user_id = $2",
+    q069: "UPDATE conversation_participants SET cleared_at = NOW(), hidden_at = NOW() WHERE conversation_id = $1 AND user_id = $2",
     q070: "SELECT m.conversation_id FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1 WHERE m.id = $2",
     q071: "UPDATE messages SET delivered_to = delivered_to || $1::jsonb WHERE id = $2 AND NOT delivered_to @> $1::jsonb",
     q072: "SELECT id, conversation_id, sender_id, file_url, metadata FROM messages WHERE id = $1 AND deleted_at IS NULL",
@@ -155,14 +98,15 @@ export const sql = {
     q081: "UPDATE call_logs SET status = 'answered', started_at = NOW() WHERE id = $1 AND status = 'ringing' RETURNING id",
     q082: "SELECT full_name, avatar FROM users WHERE id = $1",
     q083: "UPDATE call_logs SET status = CASE WHEN status = 'ringing' THEN 'missed' ELSE 'ended' END, ended_at = NOW(), duration = $2 WHERE id = $1 RETURNING id",
-    q084: "SELECT m.id, m.sender_id, m.content, m.created_at, m.reply_to_id, m.file_url, m.file_name, m.file_type, m.file_size, m.edited_at, m.deleted_at, m.forwarded_from_id, m.pinned_at, m.pinned_by, m.link_preview, m.format_type, m.metadata, m.delivered_to, cmj.id AS media_job_id, cmj.status AS media_state, cmj.stage AS media_stage, cmj.progress AS media_progress, cmj.failure_reason AS media_failure_reason, cmj.pipeline_meta AS media_pipeline_meta, u.full_name AS sender_name, u.avatar AS sender_avatar, u.username AS sender_username, rm.content AS reply_content, rm.sender_id AS reply_sender_id, ru.full_name AS reply_sender_name, rm.file_url AS reply_file_url, rm.file_type AS reply_file_type, rm.file_name AS reply_file_name, CASE WHEN sm.message_id IS NOT NULL THEN true ELSE false END AS starred FROM messages m JOIN users u ON u.id = m.sender_id LEFT JOIN chat_media_jobs cmj ON cmj.message_id = m.id LEFT JOIN messages rm ON rm.id = m.reply_to_id AND rm.conversation_id = m.conversation_id LEFT JOIN users ru ON ru.id = rm.sender_id LEFT JOIN starred_messages sm ON sm.message_id = m.id AND sm.user_id = $1 WHERE m.conversation_id = $2",
-    q085: "SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.file_url, m.file_name, u.full_name AS sender_name, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND COALESCE(m.content, '') ILIKE $2 ORDER BY m.created_at DESC LIMIT 50",
-    q086: "SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.file_url, m.file_name, u.full_name AS sender_name, u.avatar AS sender_avatar, c.name AS group_name, c.is_group FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversations c ON c.id = m.conversation_id JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1 WHERE m.deleted_at IS NULL AND COALESCE(m.content, '') ILIKE $2 ORDER BY m.created_at DESC LIMIT 50",
+    q084: "SELECT m.id, m.sender_id, m.content, m.created_at, m.reply_to_id, m.file_url, m.file_name, m.file_type, m.file_size, m.edited_at, m.deleted_at, m.forwarded_from_id, m.pinned_at, m.pinned_by, m.link_preview, m.format_type, m.metadata, m.delivered_to, cmj.id AS media_job_id, cmj.status AS media_state, cmj.stage AS media_stage, cmj.progress AS media_progress, cmj.failure_reason AS media_failure_reason, cmj.pipeline_meta AS media_pipeline_meta, u.full_name AS sender_name, u.avatar AS sender_avatar, u.username AS sender_username, rm.content AS reply_content, rm.sender_id AS reply_sender_id, ru.full_name AS reply_sender_name, rm.file_url AS reply_file_url, rm.file_type AS reply_file_type, rm.file_name AS reply_file_name, CASE WHEN sm.message_id IS NOT NULL THEN true ELSE false END AS starred FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversation_participants cpv ON cpv.conversation_id = m.conversation_id AND cpv.user_id = $1 LEFT JOIN chat_media_jobs cmj ON cmj.message_id = m.id LEFT JOIN messages rm ON rm.id = m.reply_to_id AND rm.conversation_id = m.conversation_id LEFT JOIN users ru ON ru.id = rm.sender_id LEFT JOIN starred_messages sm ON sm.message_id = m.id AND sm.user_id = $1 WHERE m.conversation_id = $2 AND m.created_at > COALESCE(cpv.cleared_at, '-infinity'::timestamptz)",
+    q085: "SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.file_url, m.file_name, u.full_name AS sender_name, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $3 WHERE m.conversation_id = $1 AND m.deleted_at IS NULL AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) AND COALESCE(m.content, '') ILIKE $2 ORDER BY m.created_at DESC LIMIT 50",
+    q086: "SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at, m.file_url, m.file_name, u.full_name AS sender_name, u.avatar AS sender_avatar, c.name AS group_name, c.is_group FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversations c ON c.id = m.conversation_id JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1 WHERE m.deleted_at IS NULL AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) AND COALESCE(m.content, '') ILIKE $2 ORDER BY m.created_at DESC LIMIT 50",
     q087: " AND m.id < $",
     q088: " ORDER BY m.created_at DESC LIMIT $",
     // Delta catch-up (`?after=`): messages newer than the client's last id, oldest first.
     q087a: " AND m.id > $",
     q088a: " ORDER BY m.created_at ASC, m.id ASC LIMIT $",
+    q089: "SELECT id, conversation_id, caller_id, call_type, status, started_at, ended_at, duration, created_at FROM call_logs WHERE id = $1",
 } as const;
 
 /** Executes a statement owned by this persistence boundary. */
@@ -267,7 +211,7 @@ export async function setPinned(
     }
 }
 
-export async function listPinnedMessages(db: ChatDb, conversationId: number) {
+export async function listPinnedMessages(db: ChatDb, conversationId: number, userId: number) {
     return (
         await db.query(
             `SELECT m.id, m.sender_id, m.content, m.created_at, m.pinned_at, m.pinned_by,
@@ -276,10 +220,12 @@ export async function listPinnedMessages(db: ChatDb, conversationId: number) {
                     pb.full_name AS pinned_by_name
              FROM messages m
              JOIN users u ON u.id = m.sender_id
+             JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $2
              LEFT JOIN users pb ON pb.id = m.pinned_by
              WHERE m.conversation_id = $1 AND m.pinned_at IS NOT NULL AND m.deleted_at IS NULL
+               AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
              ORDER BY m.pinned_at DESC`,
-            [conversationId],
+            [conversationId, userId],
         )
     ).rows;
 }
@@ -327,7 +273,9 @@ export async function listStarredMessages(db: ChatDb, userId: number) {
              JOIN messages m ON m.id = sm.message_id
              JOIN users u ON u.id = m.sender_id
              JOIN conversations c ON c.id = m.conversation_id
+             LEFT JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1
              WHERE sm.user_id = $1 AND m.deleted_at IS NULL
+               AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
              ORDER BY sm.created_at DESC
              LIMIT 100`,
             [userId],
@@ -428,7 +376,10 @@ export async function findOrCreateSelfConversation(
              FOR UPDATE`,
             [userId],
         )).rows[0];
-        if (existing) return { id: existing.conversation_id, existed: true };
+        if (existing) {
+            await unhideConversation(client, existing.conversation_id, userId);
+            return { id: existing.conversation_id, existed: true };
+        }
 
         const conversation = (await client.query(
             "INSERT INTO conversations (org_id) VALUES ($1) RETURNING id",
@@ -440,6 +391,14 @@ export async function findOrCreateSelfConversation(
         );
         return conversation;
     });
+}
+
+/** Re-opening a chat the user deleted "for me" brings it back (still cleared). */
+async function unhideConversation(db: ChatDb, conversationId: number, userId: number): Promise<void> {
+    await db.query(
+        "UPDATE conversation_participants SET hidden_at = NULL WHERE conversation_id = $1 AND user_id = $2 AND hidden_at IS NOT NULL",
+        [conversationId, userId],
+    );
 }
 
 export async function findOrCreateDirectConversation(
@@ -467,6 +426,7 @@ export async function findOrCreateDirectConversation(
                  WHERE conversation_id = $1 AND user_id NOT IN ($2, $3)`,
                 [existing.conversation_id, userId, otherUserId],
             );
+            await unhideConversation(client, existing.conversation_id, userId);
             return { id: existing.conversation_id, existed: true };
         }
 

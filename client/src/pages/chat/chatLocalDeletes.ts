@@ -1,8 +1,10 @@
 /**
  * Per-conversation "clear chat for me" cutoff (localStorage-backed).
  *
- * Signal/WhatsApp "Clear chat" is a LOCAL, device-only operation — it never
- * touches the other participant's copy. We model it as a cutoff timestamp:
+ * "Clear chat" is per-user and server-authoritative
+ * (`conversation_participants.cleared_at`, synced to the user's other devices
+ * via `chat_cleared`). This local cutoff is the offline fallback when that
+ * request fails, and keeps hiding chats cleared before the server supported it:
  * every message created at or before this instant is hidden on this device,
  * while NEW messages that arrive afterwards still appear. Storing a cutoff
  * (rather than a list of ids) means messages not yet loaded via pagination

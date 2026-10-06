@@ -17,6 +17,7 @@ import {
   applyRealtimePin,
   applyRealtimeReaction,
   applyRealtimeConversationMessage,
+  applyRealtimeChatCleared,
   applyRealtimeProfileUpdate,
   mapRealtimeMessage,
   updateRealtimeMessage,
@@ -292,20 +293,9 @@ export default function useChatState() {
           break;
         }
         case "chat_cleared": {
-          if (activeConvRef.current?.id === d.conversationId) {
-            setMessages([]);
-          }
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === d.conversationId
-                ? {
-                    ...c,
-                    last_message: null,
-                    last_sender_id: null,
-                  }
-                : c,
-            ),
-          );
+          // Own-device sync of a per-user clear (only the requester's sessions get it).
+          if (activeConvRef.current?.id === d.conversationId) setMessages([]);
+          setConversations((prev) => prev.map((c) => applyRealtimeChatCleared(c, d.conversationId)));
           break;
         }
         case "chat_pin": {
@@ -452,6 +442,7 @@ export default function useChatState() {
         // ─── Call events (delegated to useCallState) ───
         case "call_incoming":
         case "call_started":
+        case "call_ringing":
         case "call_accepted":
         case "call_rejected":
         case "call_ended":

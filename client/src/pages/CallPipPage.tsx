@@ -70,6 +70,7 @@ export default function CallPipPage() {
 
     const statusLabel = (() => {
         if (state.status === "incoming") return "Incoming call…";
+        if (state.status === "calling") return "Calling…";
         if (state.status === "ringing") return "Ringing…";
         if (state.status === "connecting") return "Connecting…";
         if (state.status === "reconnecting") return "Reconnecting…";

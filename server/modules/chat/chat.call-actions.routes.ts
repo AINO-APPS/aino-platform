@@ -14,6 +14,7 @@ const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
 import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
+import { acknowledgeCallRinging, cancelRingingCall } from "../../utils/wsHandlers/callRinging";
 
 const router = express.Router();
 
@@ -343,5 +344,76 @@ router.post("/calls/:callId/end", auth, async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to end call" });
   }
 });
+
+// Caller cancels before an answer (HTTP twin of WS `call_cancel`, same shared
+// logic). No-op `{ ok: true }` when nothing is ringing.
+router.post("/calls/cancel", auth, async (req: Request, res: Response) => {
+  try {
+    const conversationId = parseInt(
+      String((req.body || {}).conversationId),
+      10,
+    );
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ error: "conversationId is required" });
+    }
+    await cancelRingingCall(
+      req.db!,
+      req.tenantId == null ? null : Number(req.tenantId),
+      req.userId!,
+      conversationId,
+      sendToUser,
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "HTTP call cancel error");
+    res.status(500).json({ error: "Failed to cancel call" });
+  }
+});
+
+// Callee device is ringing (HTTP twin of WS `call_ringing`, for a device woken
+// by FCM without a socket). Forwards `call_ringing` to the caller's sessions.
+router.post(
+  "/calls/:callId/ringing",
+  auth,
+  async (req: Request, res: Response) => {
+    try {
+      const callId = parseInt(String(req.params.callId), 10);
+      const conversationId = parseInt(
+        String((req.body || {}).conversationId),
+        10,
+      );
+      if (isNaN(callId) || isNaN(conversationId)) {
+        return res
+          .status(400)
+          .json({ error: "callId and conversationId are required" });
+      }
+      const result = await acknowledgeCallRinging(
+        req.db!,
+        req.tenantId == null ? null : Number(req.tenantId),
+        req.userId!,
+        callId,
+        conversationId,
+        sendToUser,
+      );
+      switch (result.outcome) {
+        case "not_participant":
+          return res.status(403).json({ error: "Not a participant" });
+        case "is_caller":
+          return res
+            .status(403)
+            .json({ error: "Only the callee can acknowledge ringing" });
+        case "not_found":
+          return res.status(404).json({ error: "Call not found" });
+        case "not_ringing":
+          return res.json({ ok: true, status: result.status });
+        default:
+          return res.json({ ok: true });
+      }
+    } catch (err) {
+      req.log.error({ err }, "HTTP call ringing ack error");
+      res.status(500).json({ error: "Failed to acknowledge ringing" });
+    }
+  },
+);
 
 export default router;

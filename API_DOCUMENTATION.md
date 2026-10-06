@@ -1205,6 +1205,18 @@ Delete a message (soft delete, sender only).
 - **Auth**: `auth`
 - **Response**: `200 { message: "Message deleted" }`
 
+### DELETE `/api/chat/conversations/:id/messages`
+Clear chat **for the requester only**: sets their `conversation_participants.cleared_at = NOW()`. No message rows are deleted and other participants keep their copy. Every message read for that user (thread pages, list preview/unread, search, pinned, starred, shared files, meeting-chat history) hides messages with `created_at <= cleared_at`. Call history is not affected.
+
+- **Auth**: `auth` (any participant)
+- **Response**: `200 { ok: true }`; emits `chat_cleared { conversationId }` to the requester's own sessions only
+
+### DELETE `/api/chat/conversations/:id`
+Delete chat **for the requester only**: sets their `cleared_at` and `hidden_at` to `NOW()` (no cascade). The conversation leaves their list until a newer message arrives; `POST /api/chat/conversations` with the same person reuses and un-hides it. Leaving a group stays `POST /api/chat/conversations/:id/leave`.
+
+- **Auth**: `auth` (any participant)
+- **Response**: `200 { ok: true }`; emits `chat_conv_deleted { conversationId }` to the requester's own sessions only
+
 ### GET `/api/chat/calls`
 Get call history for the current user across all conversations.
 
@@ -1227,6 +1239,26 @@ Get call history for the current user across all conversations.
     }
   ]
   ```
+
+### GET `/api/chat/calls/:callId`
+Get one call (numeric id) in the same snake_case shape as call-history rows.
+
+- **Auth**: `auth`
+- **Response**: `200 { id, conversation_id, caller_id, call_type, status, started_at, ended_at, duration, created_at }`; `403` if the requester is not a participant; `404` if missing
+
+### POST `/api/chat/calls/:callId/ringing`
+Callee device reports it is ringing (for a device woken by FCM without a socket; same logic as WS `call_ringing`).
+
+- **Auth**: `auth`
+- **Body**: `{ conversationId }`
+- **Response**: `200 { ok: true }` (forwards `call_ringing` to the caller); `200 { ok: true, status }` without forwarding when the call is no longer ringing; `403` if not a participant or the requester is the caller; `404` if not found
+
+### POST `/api/chat/calls/cancel`
+Caller cancels before an answer (same logic as WS `call_cancel`).
+
+- **Auth**: `auth`
+- **Body**: `{ conversationId }`
+- **Response**: `200 { ok: true }` (no-op when nothing is ringing)
 
 ### GET `/api/chat/calls/active`
 Get the current active call for the user (if any).
@@ -1598,6 +1630,8 @@ Voice and video calls use **WebRTC peer-to-peer** connections with WebSocket sig
 | `call_initiate` | `{ conversationId, callType: "voice" \| "video" }` | Start a call. Server creates a `call_logs` entry (status=`ringing`) and broadcasts `call_incoming` to all conversation participants |
 | `call_accept` | `{ callId, conversationId }` | Accept an incoming call. Server updates status to `answered` with `started_at` timestamp |
 | `call_reject` | `{ callId, conversationId }` | Reject an incoming call. Server updates status to `declined` |
+| `call_ringing` | `{ callId, conversationId, clientMsgId? }` | Sent by the callee device when it starts ringing. Sender must be a participant and not the caller; the call must still be `ringing`. Idempotent per (callId, sender). Server forwards `call_ringing` to the caller. HTTP twin: `POST /api/chat/calls/:callId/ringing` |
+| `call_cancel` | `{ conversationId, clientMsgId? }` | Caller backs out before an answer: latest `ringing` call → `missed`, `call_ended` to the callee and the caller's other sessions. HTTP twin: `POST /api/chat/calls/cancel` |
 | `call_end` | `{ callId, conversationId }` | End an active call. Server calculates duration, sets `ended_at`, updates status to `ended` |
 | `call_signal` | `{ conversationId, targetUserId, signal: { type: "offer" \| "answer" \| "ice-candidate", sdp?, candidate? } }` | Relay WebRTC signaling data to a specific peer |
 | `call_reconnect` | `{ callId, conversationId }` | Notify peers after a page refresh during an active call. Peers will re-offer WebRTC connections |
@@ -1608,6 +1642,7 @@ Voice and video calls use **WebRTC peer-to-peer** connections with WebSocket sig
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `call_incoming` | `{ callId, callerId, callerName, callerAvatar, conversationId, callType: "voice" \| "video", isGroup, isJoining }` | Incoming call notification. `isJoining=true` when added to an existing group call |
+| `call_ringing` | `{ callId, conversationId, userId }` | Sent to every caller session when the callee's (`userId`) device is ringing; caller UI switches "Calling..." → "Ringing..." |
 | `call_accepted` | `{ callId, acceptedBy: userId }` | Call was accepted by the callee. Caller should create WebRTC offer |
 | `call_rejected` | `{ callId, rejectedBy: userId }` | Call was rejected |
 | `call_ended` | `{ callId, endedBy: userId }` | Call was ended by one of the participants |
@@ -1637,7 +1672,7 @@ call_logs:
   └─────────┘              └──────────┘           └───────┘
        │                                               
        ├── reject ──► declined                         
-       └── timeout ─► missed (60s no response)         
+       └── timeout ─► missed (60s no response; 5s server sweep, push TTL 60s)
 ```
 
 ---

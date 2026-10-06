@@ -155,7 +155,8 @@ function sendErrorAck(
  * icon shows the true number (e.g. "3"), not a per-message "1".
  *
  * Counts messages newer than the user's per-conversation read cursor
- * (`message_reads.last_read_at`); conversations the user has never opened count
+ * (`message_reads.last_read_at`) and after their per-user "Clear chat" cutoff
+ * (`conversation_participants.cleared_at`); conversations the user has never opened count
  * ALL messages from others. Sender's own messages are excluded. Best-effort: on
  * any error the caller falls back to the default badge of 1.
  */
@@ -171,7 +172,8 @@ async function getTotalUnread(db: DbLike, userId: number): Promise<number> {
              ON mr.conversation_id = m.conversation_id
             AND mr.user_id = $1
           WHERE m.sender_id <> $1
-            AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at)`,
+            AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at)
+            AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)`,
       [userId],
     )
   ).rows[0];

@@ -26,6 +26,7 @@ import {
   emitCallHistoryMessage,
   hasOpenSocket,
 } from "./shared";
+import { cancelRingingCall } from "./callRinging";
 
 export interface CallHandlerArgs {
   db: DbLike;
@@ -61,83 +62,15 @@ export async function handleCallCancel({
       clientMsgId: rawCallCancelId,
     },
     async () => {
-      const callLog = (
-        await db.query(
-          `SELECT id, call_type FROM call_logs WHERE conversation_id = $1 AND caller_id = $2 AND status = 'ringing' ORDER BY created_at DESC LIMIT 1`,
-          [conversationId, senderId],
-        )
-      ).rows[0];
-      if (!callLog) return;
-
-      const updated = await db.query(
-        `UPDATE call_logs SET status = 'missed', ended_at = NOW() WHERE id = $1 AND status = 'ringing' RETURNING id`,
-        [callLog.id],
-      );
-      if (!updated.rows[0]) return;
-
-      const participants = (
-        await db.query(
-          "SELECT user_id FROM conversation_participants WHERE conversation_id = $1 AND user_id != $2",
-          [conversationId, senderId],
-        )
-      ).rows;
-
-      for (const p of participants) {
-        sendToUser(tenantId, p.user_id, "call_ended", {
-          callId: callLog.id,
-          conversationId,
-        });
-
-        // Push-cancel the callee's devices (locked/backgrounded twin)
-        // so a native incoming-call ring is dismissed when the caller
-        // cancels.
-        pushNotifications
-          .sendCallCancellation(db.query as any, p.user_id, tenantId, {
-            callId: callLog.id,
-            conversationId,
-            reason: "cancelled",
-          })
-          .catch((err: any) =>
-            logger.warn(
-              { err: err.message, callId: callLog.id, userId: p.user_id },
-              "Failed to push-cancel callee devices on cancel",
-            ),
-          );
-      }
-
-      // Echo to the caller's OTHER devices so their outgoing-ring UI is
-      // dismissed too (e.g. desktop + mobile both showing the call).
-      sendToUser(tenantId, senderId, "call_ended", {
-        callId: callLog.id,
-        conversationId,
-      });
-
-      // Status service v2: caller cancelled; their device was briefly
-      // marked in_call by call_initiate. Sweep every session
-      // referencing this call.
-      statusService
-        .clearActivityForRef({ db, tenantId }, "in_call", callLog.id)
-        .catch((err: any) =>
-          logger.warn(
-            { err: err.message, callId: callLog.id },
-            "clearActivityForRef(in_call) on cancel failed",
-          ),
-        );
-      ws._callActivityRefId = null;
-      // Inline "missed" call-history row in the chat thread (the callee never
-      // answered before the caller cancelled / the ring timed out).
-      await emitCallHistoryMessage(
+      // Shared with the HTTP fallback POST /api/chat/calls/cancel.
+      const cancelled = await cancelRingingCall(
         db,
         tenantId,
-        Number(conversationId),
         senderId,
-        callLog.call_type || "voice",
-        "missed",
-        null,
+        conversationId,
         sendToUser,
       );
-      // P0 — drop any buffered signals for this now-dead call.
-      await signalStore.clearCallSignals(tenantId, callLog.id);
+      if (cancelled) ws._callActivityRefId = null;
     },
   );
 }

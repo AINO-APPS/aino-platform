@@ -223,13 +223,13 @@ router.get("/:code/messages", async (req: Request, res: Response) => {
             `SELECT m.id, m.sender_id, m.content, m.metadata, m.created_at, m.format_type, m.client_msg_id,
                     u.full_name AS sender_name
              FROM messages m
-             JOIN users u ON u.id = m.sender_id
+             JOIN users u ON u.id = m.sender_id LEFT JOIN conversation_participants cpv ON cpv.conversation_id = m.conversation_id AND cpv.user_id = $4
              WHERE m.conversation_id = $1
-               AND m.id > $3
+               AND m.id > $3 AND m.created_at > COALESCE(cpv.cleared_at, '-infinity'::timestamptz)
                AND (m.format_type != 'system' OR (m.metadata->>'type' IN ('meeting_joined','meeting_ended')))
              ORDER BY m.created_at ASC
              LIMIT $2`,
-            [meeting.conversation_id, limit, since]
+            [meeting.conversation_id, limit, since, req.userId]
         )).rows;
 
         const messages = rows.map((r: any) => {

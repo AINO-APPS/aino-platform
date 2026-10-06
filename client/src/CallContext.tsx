@@ -142,6 +142,20 @@ export function CallProvider({ children }: { children: ReactNode }) {
         tenantReady ? onWsMessage : null,
     );
 
+    // Tell the caller this device is now ringing (once per call) so their UI
+    // moves from "Calling..." to "Ringing...". Huddles have no call log row.
+    const ringAckedCallIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!globalIncomingCall || globalIncomingCall.meetingCode) return;
+        const key = String(globalIncomingCall.callId);
+        if (ringAckedCallIdRef.current === key) return;
+        ringAckedCallIdRef.current = key;
+        wsSend("call_ringing", {
+            callId: globalIncomingCall.callId,
+            conversationId: globalIncomingCall.conversationId,
+        });
+    }, [globalIncomingCall, wsSend]);
+
     const rejectGlobalCall = useCallback(() => {
         if (globalIncomingCall) {
             // Group CALL (huddle): a `meetingCode` means this ring came from the

@@ -181,6 +181,11 @@ async function initializeCommunicationTenantSchema(q: SchemaQuery): Promise<void
     `);
     // Timed mute — when set and in the future, suppress notifications until it.
     await q(`ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS muted_until TIMESTAMPTZ`);
+    // Per-user "Clear chat" / "Delete chat" (migration 0007): messages at or
+    // before cleared_at are hidden for this participant only; hidden_at drops
+    // the conversation from their list until a newer message arrives.
+    await q(`ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMPTZ`);
+    await q(`ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ`);
 
     // Group metadata.
     await q(`ALTER TABLE conversations ADD COLUMN IF NOT EXISTS avatar TEXT`);

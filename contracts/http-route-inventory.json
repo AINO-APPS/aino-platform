@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 31,
-    "concreteEndpoints": 464,
-    "openApiOperations": 196
+    "concreteEndpoints": 467,
+    "openApiOperations": 199
   },
   "standaloneRoutes": [
     {
@@ -183,7 +183,7 @@
       "mountPath": "/api/chat",
       "source": "server/routes/chat.ts",
       "coverage": "baseline",
-      "endpointCount": 51
+      "endpointCount": 54
     },
     {
       "id": "giphy",
@@ -943,6 +943,11 @@
       "coverage": "operation"
     },
     {
+      "method": "GET",
+      "path": "/api/chat/calls/:callId",
+      "coverage": "operation"
+    },
+    {
       "method": "POST",
       "path": "/api/chat/calls/:callId/accept",
       "coverage": "operation"
@@ -958,8 +963,18 @@
       "coverage": "operation"
     },
     {
+      "method": "POST",
+      "path": "/api/chat/calls/:callId/ringing",
+      "coverage": "operation"
+    },
+    {
       "method": "GET",
       "path": "/api/chat/calls/active",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/calls/cancel",
       "coverage": "operation"
     },
     {

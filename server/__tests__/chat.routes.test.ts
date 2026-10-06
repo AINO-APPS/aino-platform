@@ -31,6 +31,13 @@ jest.mock("../utils/ws", () => ({
     broadcast: jest.fn(),
 }));
 
+// The caller-cancel logic itself is covered in ws.callRinging.test.ts; here we
+// only pin the HTTP adapter's delegation.
+jest.mock("../utils/wsHandlers/callRinging", () => ({
+    ...jest.requireActual("../utils/wsHandlers/callRinging"),
+    cancelRingingCall: jest.fn().mockResolvedValue({ callId: 600 }),
+}));
+
 jest.mock("../utils/audit", () => ({
     logAction: jest.fn(),
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
@@ -850,7 +857,8 @@ describe("GET /api/chat/conversations/:id/files", () => {
         );
         expect(filesCall).toBeTruthy();
         expect(filesCall[0]).toContain("COALESCE((m.metadata->>'viewOnce')::boolean, false) = false");
-        expect(filesCall[1]).toEqual([10]);
+        expect(filesCall[0]).toContain("m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)");
+        expect(filesCall[1]).toEqual([10, 1]);
     });
 });
 
@@ -1010,5 +1018,322 @@ describe("POST /api/chat/calls/delete", () => {
         expect(deleteQuery[0]).toContain("conversation_participants");
         expect(deleteQuery[0]).toContain("cp.user_id = $1");
         expect(deleteQuery[1]).toEqual([1]);
+    });
+});
+
+// ─── Per-user clear / delete (Signal parity) ───────────────────────────────
+
+/** Route by SQL text: auth, participant check, then the statement under test. */
+function mockParticipantQueries(isParticipant = true) {
+    mockQuery.mockImplementation(async (sql: any) => {
+        if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+        if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+        if (sql.startsWith("SELECT 1 FROM conversation_participants")) {
+            return isParticipant ? { rows: [{ "?column?": 1 }], rowCount: 1 } : { rows: [], rowCount: 0 };
+        }
+        return { rows: [], rowCount: 1 };
+    });
+}
+
+function sqlCalls(): Array<[string, unknown[]]> {
+    return mockQuery.mock.calls.filter(([sql]: any[]) => typeof sql === "string") as Array<[string, unknown[]]>;
+}
+
+describe("DELETE /api/chat/conversations/:id/messages (clear for me)", () => {
+    const { sendToUser } = require("../utils/ws");
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        sendToUser.mockClear();
+    });
+
+    test("sets cleared_at for the requester only, deletes nothing, and syncs only their devices", async () => {
+        mockParticipantQueries();
+
+        const res = await request(app)
+            .delete("/api/chat/conversations/10/messages")
+            .set("Cookie", authCookie(2))
+            .set(CSRF);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true });
+        const clear = sqlCalls().find(([sql]) => sql.includes("SET cleared_at = NOW()"));
+        expect(clear).toBeTruthy();
+        expect(clear![0]).toContain("WHERE conversation_id = $1 AND user_id = $2");
+        expect(clear![0]).not.toContain("hidden_at");
+        expect(clear![1]).toEqual([10, 2]);
+        expect(sqlCalls().some(([sql]) => /DELETE FROM messages/i.test(sql))).toBe(false);
+        // No group-creator lookup any more: anyone can clear their own view.
+        expect(sqlCalls().some(([sql]) => sql.includes("created_by FROM conversations"))).toBe(false);
+        expect(sendToUser.mock.calls).toEqual([[null, 2, "chat_cleared", { conversationId: 10 }]]);
+    });
+
+    test("rejects a non-participant", async () => {
+        mockParticipantQueries(false);
+
+        const res = await request(app)
+            .delete("/api/chat/conversations/10/messages")
+            .set("Cookie", authCookie(9))
+            .set(CSRF);
+
+        expect(res.status).toBe(403);
+        expect(sqlCalls().some(([sql]) => sql.includes("cleared_at = NOW()"))).toBe(false);
+        expect(sendToUser).not.toHaveBeenCalled();
+    });
+});
+
+describe("DELETE /api/chat/conversations/:id (delete for me)", () => {
+    const { sendToUser } = require("../utils/ws");
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        sendToUser.mockClear();
+    });
+
+    test("clears and hides for the requester only without cascading", async () => {
+        mockParticipantQueries();
+
+        const res = await request(app)
+            .delete("/api/chat/conversations/10")
+            .set("Cookie", authCookie(2))
+            .set(CSRF);
+
+        expect(res.status).toBe(200);
+        const hide = sqlCalls().find(([sql]) => sql.includes("hidden_at = NOW()"));
+        expect(hide).toBeTruthy();
+        expect(hide![0]).toContain("cleared_at = NOW()");
+        expect(hide![1]).toEqual([10, 2]);
+        expect(sqlCalls().some(([sql]) => /DELETE FROM conversations/i.test(sql))).toBe(false);
+        expect(sendToUser.mock.calls).toEqual([[null, 2, "chat_conv_deleted", { conversationId: 10 }]]);
+    });
+});
+
+describe("per-user cleared/hidden filtering on reads", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    test("conversation list hides cleared previews/unreads and deleted-for-me chats", async () => {
+        setupAuth();
+        const res = await request(app).get("/api/chat/conversations").set("Cookie", authCookie(2));
+
+        expect(res.status).toBe(200);
+        const list = sqlCalls().find(([sql]) => sql.includes("AS unread_count"));
+        expect(list).toBeTruthy();
+        expect(list![0]).toContain("lm.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)");
+        expect(list![0]).toContain("msg.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)");
+        expect(list![0]).toContain("WHERE cp.hidden_at IS NULL OR m.created_at > cp.hidden_at");
+        expect(list![1]).toEqual([2]);
+    });
+
+    test("message pages only return messages after the requester's cleared_at", async () => {
+        mockParticipantQueries();
+
+        const res = await request(app)
+            .get("/api/chat/conversations/10/messages?before=99&limit=20")
+            .set("Cookie", authCookie(2));
+
+        expect(res.status).toBe(200);
+        const page = sqlCalls().find(([sql]) => sql.includes("AS starred FROM messages m"));
+        expect(page).toBeTruthy();
+        expect(page![0]).toContain("cpv.user_id = $1");
+        expect(page![0]).toContain("m.created_at > COALESCE(cpv.cleared_at, '-infinity'::timestamptz)");
+        expect(page![1]).toEqual([2, 10, 99, 20]);
+    });
+
+    test.each([
+        ["/api/chat/search-messages?q=hello", "ILIKE $2"],
+        ["/api/chat/search-messages?q=hello&convId=10", "ILIKE $2"],
+        ["/api/chat/conversations/10/pinned", "m.pinned_at IS NOT NULL"],
+        ["/api/chat/starred", "FROM starred_messages sm"],
+    ])("%s applies the requester's cleared_at", async (url, marker) => {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT 1 FROM conversation_participants")) return { rows: [{ "?column?": 1 }], rowCount: 1 };
+            if (sql.startsWith("SELECT org_id FROM users")) return { rows: [{ org_id: 1 }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app).get(url).set("Cookie", authCookie(2));
+
+        expect(res.status).toBe(200);
+        const read = sqlCalls().find(([sql]) => sql.includes(marker));
+        expect(read).toBeTruthy();
+        expect(read![0]).toContain("m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)");
+        expect(read![1]).toContain(2);
+    });
+
+    test("re-opening a direct chat reuses it and un-hides it for the requester", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 1, org_id: 1 }, { id: 2, org_id: 1 }], rowCount: 2 });
+        mockTxClient.query.mockResolvedValueOnce({ rows: [{ conversation_id: 42 }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/chat/conversations")
+            .set("Cookie", authCookie(1))
+            .set(CSRF)
+            .send({ userId: 2 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.conversationId).toBe(42);
+        const unhide = mockTxClient.query.mock.calls.find(([sql]: any[]) => sql.includes("SET hidden_at = NULL"));
+        expect(unhide).toBeTruthy();
+        expect(unhide[1]).toEqual([42, 1]);
+    });
+});
+
+// ─── Call ringing / cancel / single call ───────────────────────────────────
+
+describe("GET /api/chat/calls/:callId", () => {
+    const callRow = {
+        id: 500, conversation_id: 10, caller_id: 1, call_type: "voice", status: "ringing",
+        started_at: null, ended_at: null, duration: null, created_at: "2026-10-06T00:00:00Z",
+    };
+
+    function mockCallQueries({ call = callRow as any, isParticipant = true } = {}) {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.includes("FROM call_logs WHERE id = $1")) return { rows: call ? [call] : [], rowCount: call ? 1 : 0 };
+            if (sql.startsWith("SELECT 1 FROM conversation_participants")) {
+                return { rows: isParticipant ? [{ "?column?": 1 }] : [], rowCount: isParticipant ? 1 : 0 };
+            }
+            if (sql.includes("user_presence_sessions")) return { rows: [{ id: 321 }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+    }
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    test("returns the snake_case call row to a participant", async () => {
+        mockCallQueries();
+        const res = await request(app).get("/api/chat/calls/500").set("Cookie", authCookie(2));
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(callRow);
+        const lookup = sqlCalls().find(([sql]) => sql.includes("FROM call_logs WHERE id = $1"));
+        expect(lookup![1]).toEqual([500]);
+    });
+
+    test("403 for a non-participant, 404 when missing", async () => {
+        mockCallQueries({ isParticipant: false });
+        expect((await request(app).get("/api/chat/calls/500").set("Cookie", authCookie(9))).status).toBe(403);
+        mockCallQueries({ call: null });
+        expect((await request(app).get("/api/chat/calls/501").set("Cookie", authCookie(2))).status).toBe(404);
+    });
+
+    test("does not shadow GET /calls/active", async () => {
+        mockCallQueries();
+        const res = await request(app).get("/api/chat/calls/active").set("Cookie", authCookie(2));
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ id: 321 });
+        expect(sqlCalls().some(([sql]) => sql.includes("FROM call_logs WHERE id = $1"))).toBe(false);
+    });
+});
+
+describe("POST /api/chat/calls/:callId/ringing", () => {
+    const { sendToUser } = require("../utils/ws");
+
+    function mockRingingQueries({ isParticipant = true, call = { caller_id: 1, status: "ringing" } as any } = {}) {
+        mockQuery.mockImplementation(async (sql: any) => {
+            if (typeof sql !== "string") return { rows: [], rowCount: 0 };
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT 1 FROM conversation_participants")) {
+                return { rows: isParticipant ? [{ "?column?": 1 }] : [], rowCount: isParticipant ? 1 : 0 };
+            }
+            if (sql.startsWith("SELECT caller_id, status FROM call_logs")) return { rows: call ? [call] : [], rowCount: call ? 1 : 0 };
+            if (sql.includes("SET ringing_at")) return { rows: [{ id: 500 }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+    }
+
+    async function postRinging(userId = 2, body: unknown = { conversationId: 10 }) {
+        return request(app)
+            .post("/api/chat/calls/500/ringing")
+            .set("Cookie", authCookie(userId))
+            .set(CSRF)
+            .send(body as object);
+    }
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        sendToUser.mockClear();
+    });
+
+    test("forwards call_ringing to the caller", async () => {
+        mockRingingQueries();
+        const res = await postRinging();
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true });
+        expect(sendToUser.mock.calls).toEqual([
+            [null, 1, "call_ringing", { callId: 500, conversationId: 10, userId: 2 }],
+        ]);
+    });
+
+    test("reports the status without forwarding once the call is no longer ringing", async () => {
+        mockRingingQueries({ call: { caller_id: 1, status: "answered" } });
+        const res = await postRinging();
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true, status: "answered" });
+        expect(sendToUser).not.toHaveBeenCalled();
+    });
+
+    test("validates participant, callee and existence", async () => {
+        mockRingingQueries({ isParticipant: false });
+        expect((await postRinging(9)).status).toBe(403);
+        mockRingingQueries();
+        expect((await postRinging(1)).status).toBe(403); // the caller cannot ack
+        mockRingingQueries({ call: null });
+        expect((await postRinging()).status).toBe(404);
+        mockRingingQueries();
+        expect((await postRinging(2, {})).status).toBe(400);
+        expect(sendToUser).not.toHaveBeenCalled();
+    });
+});
+
+describe("POST /api/chat/calls/cancel", () => {
+    const { cancelRingingCall } = require("../utils/wsHandlers/callRinging");
+    const { sendToUser } = require("../utils/ws");
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        cancelRingingCall.mockClear();
+    });
+
+    test("runs the shared WS call_cancel logic for the caller", async () => {
+        setupAuth();
+        const res = await request(app)
+            .post("/api/chat/calls/cancel")
+            .set("Cookie", authCookie(1))
+            .set(CSRF)
+            .send({ conversationId: 10 });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true });
+        expect(cancelRingingCall).toHaveBeenCalledWith(expect.anything(), null, 1, 10, sendToUser);
+    });
+
+    test("is a no-op success when nothing is ringing, 400 without a conversation", async () => {
+        setupAuth();
+        cancelRingingCall.mockResolvedValueOnce(null);
+        const ok = await request(app)
+            .post("/api/chat/calls/cancel")
+            .set("Cookie", authCookie(1))
+            .set(CSRF)
+            .send({ conversationId: 10 });
+        expect(ok.status).toBe(200);
+        expect(ok.body).toEqual({ ok: true });
+
+        setupAuth();
+        const bad = await request(app)
+            .post("/api/chat/calls/cancel")
+            .set("Cookie", authCookie(1))
+            .set(CSRF)
+            .send({});
+        expect(bad.status).toBe(400);
     });
 });

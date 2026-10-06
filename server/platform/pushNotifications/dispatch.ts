@@ -11,6 +11,8 @@ export interface PushPayload {
     androidDataOnly?: boolean;
     android?: {
         priority: "high" | "normal";
+        /** FCM time-to-live in milliseconds (firebase-admin AndroidConfig.ttl). */
+        ttl?: number;
         notification?: {
             sound: string;
             channelId: string;

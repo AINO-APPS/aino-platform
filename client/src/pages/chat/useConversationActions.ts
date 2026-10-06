@@ -1,4 +1,4 @@
-import { deleteConversation, togglePinConversation, toggleFavouriteConversation, muteConversation, toggleArchiveConversation, blockUser, unblockUser, getMembers, markConversationRead, markConversationUnread } from "../../api/chat";
+import { clearChat, deleteConversation, togglePinConversation, toggleFavouriteConversation, muteConversation, toggleArchiveConversation, blockUser, unblockUser, getMembers, markConversationRead, markConversationUnread } from "../../api/chat";
 import { setClearedAt } from "./chatLocalDeletes";
 import type useChatState from "./useChatState";
 
@@ -34,15 +34,17 @@ export default function useConversationActions(state: ChatState) {
     setDeleteConfirm(null);
   };
 
-  // Clear chat — Signal-style, LOCAL/device-only. This never touches the
-  // other participant's copy (the old behaviour called the server, which
-  // wiped the conversation for everyone). We record a per-conversation
-  // "cleared at" cutoff so every message up to now is hidden on THIS device —
-  // including messages not yet loaded via pagination — while NEW messages
-  // that arrive afterwards still appear. The cutoff persists in localStorage
-  // so the clear survives reloads.
+  // Clear chat — per-user (Signal parity). The server records a "cleared at"
+  // cutoff for THIS user only: every message up to now is hidden on all of
+  // their devices (the others get `chat_cleared`), while other participants
+  // keep their copy and NEW messages still appear. If the request fails we
+  // fall back to the local, device-only cutoff so the clear still applies here.
   const handleClearChat = async (convId: number | string) => {
-    setClearedAt(convId);
+    try {
+      await clearChat(convId);
+    } catch {
+      setClearedAt(convId);
+    }
     if (activeConv?.id === convId) {
       setMessages([]);
       setHasMore(false);
@@ -50,10 +52,11 @@ export default function useConversationActions(state: ChatState) {
     setConversations((prev) =>
       prev.map((c) =>
         c.id === convId
-          ? { ...c, last_message: null, last_sender_id: null }
+          ? { ...c, last_message: null, last_sender_id: null, unread_count: 0 }
           : c,
       ),
     );
+    refreshUnread();
   };
 
   const handlePinConv = async (convId: number | string) => {

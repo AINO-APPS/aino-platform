@@ -4,7 +4,7 @@ import { handleHuddleDecline } from "../utils/wsHandlers/huddles";
 import {
   handleCallInitiate, handleCallAccept, handleCallCancel, handleCallReject,
   handleCallEnd, handleCallSignal, handleCallSubscribe, handleCallReady,
-  handleCallReconnect, handleCallReaction, handleCallAddParticipant,
+  handleCallReconnect, handleCallReaction, handleCallAddParticipant, handleCallRinging,
 } from "../utils/wsHandlers/call";
 import {
   handleMeetingJoin, handleMeetingLeave, handleMeetingEnd, handleMeetingSignal,
@@ -59,6 +59,10 @@ export async function handleChatMessage(
       return;
     case "call_cancel":
       await handleCallCancel(args);
+      return;
+    case "call_ringing":
+      // Callee device is ringing → caller UI "Calling…" becomes "Ringing…".
+      await handleCallRinging(args);
       return;
     case "call_reject":
       await handleCallReject(args);

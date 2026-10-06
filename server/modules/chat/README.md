@@ -1,6 +1,6 @@
 # Chat module
 
-Owns all **51** public `/api/chat` endpoints. As of 2026-09-02, no HTTP
+Owns all **54** public `/api/chat` endpoints. As of 2026-09-02, no HTTP
 endpoint registration remains in `server/routes/chat.ts`; that 11-line file
 only composes the tenant/feature middleware and mounts the module's route
 adapters.
@@ -54,9 +54,12 @@ adapters.
 - `POST /calls/delete`
 - `GET /calls/active`
 - `GET /conversations/:id/calls`
+- `GET /calls/:callId` (numeric ids only; other values fall through)
 - `POST /calls/:callId/reject`
 - `POST /calls/:callId/accept`
 - `POST /calls/:callId/end`
+- `POST /calls/cancel`
+- `POST /calls/:callId/ringing`
 - `GET /link-preview`
 
 ## Layers and boundaries
@@ -71,14 +74,25 @@ chat.routes.ts -> chat.*.routes.ts -> chat.service.ts -> chat.repository.ts
   side effects: WebSocket fan-out, Redis unread updates, media jobs, storage,
   push cancellation, and status updates.
 - The service applies chat workflows and is the only route-to-database path.
-- `chat.repository.ts` owns every SQL statement and does not import Express.
+- `chat.repository.ts` owns every SQL statement and does not import Express;
+  the conversation-list query lives in `chat.conversation-list.repository.ts`.
+- Clear chat / delete chat are **per user**: they set the requester's
+  `conversation_participants.cleared_at` (and `hidden_at` for delete) and only
+  the requester's sessions receive `chat_cleared` / `chat_conv_deleted`. Every
+  user-facing message read joins the requester's participant row and filters
+  `m.created_at > COALESCE(cp.cleared_at, '-infinity')`; the list also skips
+  rows whose `hidden_at` is newer than the last visible message. Call history
+  (`call_logs`) is intentionally not filtered.
+- The ringing-phase call routes (`POST /calls/cancel`, `POST /calls/:callId/ringing`)
+  share their logic with the WS `call_cancel` / `call_ringing` handlers via
+  `utils/wsHandlers/callRinging.ts`.
 - `chat.schema.ts` contains the shared parameter/body validation used by the
   extracted conversation and message actions; endpoint-specific validation
   remains unchanged at the HTTP boundary.
 
 ## Validation
 
-- `modules/chat/__tests__/chat.module-composition.test.ts` pins all 51 method
+- `modules/chat/__tests__/chat.module-composition.test.ts` pins all 54 method
   and path pairs and asserts that the legacy composition router registers none.
 - `modules/chat/__tests__/chat.service.test.ts` covers existing service rules
   plus repository delegation for paginated and scoped searches.

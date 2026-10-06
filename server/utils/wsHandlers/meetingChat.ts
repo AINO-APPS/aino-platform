@@ -318,12 +318,15 @@ export async function handleMeetingChatReplay({
                   u.full_name AS sender_name
              FROM messages m
              JOIN users u ON u.id = m.sender_id
+             LEFT JOIN conversation_participants cpv
+               ON cpv.conversation_id = m.conversation_id AND cpv.user_id = $3
             WHERE m.conversation_id = $1
               AND m.id > $2
+              AND m.created_at > COALESCE(cpv.cleared_at, '-infinity'::timestamptz)
               AND (m.format_type != 'system' OR (m.metadata->>'type' IN ('meeting_joined','meeting_ended')))
             ORDER BY m.id ASC
             LIMIT 200`,
-      [meetingRow.conversation_id, since],
+      [meetingRow.conversation_id, since, senderId],
     )
   ).rows;
 

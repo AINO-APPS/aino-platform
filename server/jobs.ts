@@ -40,16 +40,16 @@ let fallbackLease: LeaderLease | null = null;
 let jobsReady = false;
 
 // How long an unanswered call may keep `ringing` before the server force-ends
-// it as "missed". Set to 30 seconds to match the ring push TTL and ensure calls
-// are auto-expired consistent with the incoming-call push window (clarification
-// session 2026-07-01). This is the authoritative backstop: it fires even when
+// it as "missed". 60 seconds — the single ring timeout shared with the
+// incoming-call push TTL (PUSH_CALL_TTL_SECONDS / android.ttl) and the web and
+// Android caller UIs. This is the authoritative backstop: it fires even when
 // every client died mid-ring (app killed, network dropped), so an abandoned call
 // can never sit ringing forever and the callee's ring UI / native push is always
-// dismissed.
-const STALE_RINGING_TTL_SECS = 30;
-const STALE_CALL_SWEEP_MS = 20 * 1000;
-// BullMQ keeps every finished job forever unless told otherwise; with a 20s
-// repeatable sweep that leaked ~6 MB/day of Redis memory. Bound both sets.
+// dismissed. The 5s sweep keeps the effective timeout within 60–65s.
+const STALE_RINGING_TTL_SECS = 60;
+const STALE_CALL_SWEEP_MS = 5 * 1000;
+// BullMQ keeps every finished job forever unless told otherwise; with a 5s
+// repeatable sweep that leaks Redis memory quickly. Bound both sets.
 const JOB_RETENTION = {
   removeOnComplete: { count: 50, age: 60 * 60 },
   removeOnFail: { count: 200, age: 7 * 24 * 60 * 60 },
@@ -639,7 +639,7 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   );
 
   logger.info(
-    "BullMQ job queues initialized (auto-clock-out: 5m, token-cleanup: 1h, inspector-prune: 24h, retention-cleanup: 24h, stale-call-sweep: 20s, sprint-lifecycle: 1h)",
+    "BullMQ job queues initialized (auto-clock-out: 5m, token-cleanup: 1h, inspector-prune: 24h, retention-cleanup: 24h, stale-call-sweep: 5s, sprint-lifecycle: 1h)",
   );
   jobsReady = true;
 }
@@ -718,6 +718,8 @@ export {
   pruneStaleInspectorUsers,
   runRetentionCleanup,
   expireStaleRingingCalls,
+  STALE_RINGING_TTL_SECS,
+  STALE_CALL_SWEEP_MS,
   enqueueChatMediaPipelineJob,
   areJobsReady,
 };
