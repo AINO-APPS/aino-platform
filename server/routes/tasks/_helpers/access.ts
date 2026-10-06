@@ -1,6 +1,7 @@
 // Permission helpers for tasks.
 //
 // canAccessTask    — used by status / detail / comment routes
+// canChangeTaskStatus — assignee / reporter / org admin gate for status moves
 // loadAccessibleTask — used by pass-2 routes (dependencies, criteria,
 //                       blockers, hierarchy). Returns the task or sends a
 //                       404/403 and returns null.
@@ -57,4 +58,14 @@ async function loadAccessibleTask(req: Request, res: Response, taskId: number): 
     return task;
 }
 
-export = { canAccessTask, loadAccessibleTask };
+// Lifecycle moves are limited to the assignee and the reporter (creator);
+// org admins keep an override for cross-team triage.
+function canChangeTaskStatus(task: any, userId: number, requesterRole?: string): boolean {
+    if (!task) return false;
+    if (task.user_id === userId || task.assigned_to === userId) return true;
+    return ['super_admin', 'hr_admin', 'platform_admin'].includes(requesterRole as string);
+}
+
+const STATUS_FORBIDDEN = 'Only the assignee or reporter can change the status';
+
+export = { canAccessTask, loadAccessibleTask, canChangeTaskStatus, STATUS_FORBIDDEN };

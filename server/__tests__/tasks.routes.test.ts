@@ -320,6 +320,74 @@ describe("task realtime fan-out (task_updated)", () => {
         ]);
     });
 
+    test("status change is refused for a teammate who is neither assignee nor reporter", async () => {
+        setupAuth();
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+        ]);
+
+        const res = await request(app)
+            .patch("/api/tasks/77/status")
+            .set(CSRF)
+            .set("Cookie", authCookie(9))
+            .send({ status: "done" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.error).toMatch(/assignee or reporter/);
+        const updated = mockQuery.mock.calls.some(([sql]: any[]) => typeof sql === "string" && sql.includes("UPDATE tasks SET status"));
+        expect(updated).toBe(false);
+    });
+
+    test("status change is allowed for the reporter", async () => {
+        setupAuth();
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+        ]);
+
+        const res = await request(app)
+            .patch("/api/tasks/77/status")
+            .set(CSRF)
+            .set("Cookie", authCookie(2))
+            .send({ status: "in_progress" });
+
+        expect(res.status).toBe(200);
+    });
+
+    test("status change is allowed for an org admin", async () => {
+        setupAuth("hr_admin");
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+        ]);
+
+        const res = await request(app)
+            .patch("/api/tasks/77/status")
+            .set(CSRF)
+            .set("Cookie", authCookie(9))
+            .send({ status: "in_progress" });
+
+        expect(res.status).toBe(200);
+    });
+
+    test("full update refuses a workflow state change from a non-assignee/non-reporter", async () => {
+        setupAuth();
+        routeQueries([
+            [/SELECT \* FROM tasks WHERE id = \$1/, [{ ...task, workflow_state_id: 10 }]],
+            [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
+            [/FROM workflow_states WHERE id = \$1/, [{ id: 11, key: "in_progress", is_terminal: false }]],
+        ]);
+
+        const res = await request(app)
+            .put("/api/tasks/77")
+            .set(CSRF)
+            .set("Cookie", authCookie(9))
+            .send({ workflow_state_id: 11 });
+
+        expect(res.status).toBe(403);
+    });
+
     test("delete notifies the assignee and the creator", async () => {
         setupAuth();
         routeQueries([

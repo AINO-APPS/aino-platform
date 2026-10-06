@@ -161,7 +161,7 @@ const FALLBACK_CONFIG: AgileConfig = {
         {
             id: 0,
             key: "pending",
-            name: "To Do",
+            name: "New",
             category: "open",
             color: "#6b7280",
             is_initial: true,

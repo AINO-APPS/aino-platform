@@ -21,7 +21,7 @@ export interface ColumnDef {
 }
 
 export const COLUMNS: ColumnDef[] = [
-    { id: "pending", label: "To Do", icon: "○", color: "var(--text-muted)" },
+    { id: "pending", label: "New", icon: "○", color: "var(--text-muted)" },
     { id: "in_progress", label: "In Progress", icon: "◐", color: "var(--warning)" },
     { id: "in_review", label: "In Review", icon: "◑", color: "var(--primary-light)" },
     { id: "done", label: "Done", icon: "●", color: "var(--success)" },

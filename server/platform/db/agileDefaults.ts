@@ -41,7 +41,7 @@ async function seedAgileDefaults(q: SchemaQuery): Promise<void> {
 
         // 3. Default workflow states (one per category — matches legacy COLUMNS)
         const defaultStates = [
-            { key: 'pending', name: 'To Do', category: 'open', color: '#6b7280', sort_order: 1, is_initial: true, is_terminal: false },
+            { key: 'pending', name: 'New', category: 'open', color: '#6b7280', sort_order: 1, is_initial: true, is_terminal: false },
             { key: 'in_progress', name: 'In Progress', category: 'in_progress', color: '#f59e0b', sort_order: 2, is_initial: false, is_terminal: false },
             { key: 'in_review', name: 'In Review', category: 'in_review', color: '#3b82f6', sort_order: 3, is_initial: false, is_terminal: false },
             { key: 'done', name: 'Done', category: 'done', color: '#10b981', sort_order: 4, is_initial: false, is_terminal: true },

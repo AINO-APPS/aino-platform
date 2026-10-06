@@ -16,7 +16,7 @@ const { emitTaskUpdated, notifyTaskAssigned } = require('../../utils/taskNotific
 const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { canAccessTask } = require('./_helpers/access');
+const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require('./_helpers/access');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const {
@@ -330,6 +330,7 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!canChangeTaskStatus(task, req.userId, req.userRole)) return res.status(403).json({ error: STATUS_FORBIDDEN });
 
         // Resolve target workflow state. Accept either a numeric workflow_state_id
         // or a status key (back-compat with default 'pending'/'in_progress'/...).
@@ -567,6 +568,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // completion timestamp. Compare against the existing row first.
             const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '')
                 || String(newStatusKey || '') !== String(task.status || '');
+            if (stateChanged && !canChangeTaskStatus(task, req.userId, req.userRole)) {
+                return res.status(403).json({ error: STATUS_FORBIDDEN });
+            }
             if (stateChanged) {
                 newCompletedAt = newWsRow?.is_terminal ? new Date().toISOString() : null;
             }
