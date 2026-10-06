@@ -140,16 +140,20 @@ export default function TasksHeader({
                                 <span className="page-icon">
                                     {activeTab === "service-desk" ? (
                                         <Headset size={18} style={{ verticalAlign: "middle" }} />
+                                    ) : activeTab === "scheduled" ? (
+                                        <CalendarDays size={18} style={{ verticalAlign: "middle" }} />
                                     ) : (
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : "Backlog"}
+                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
-                                    : "Unscheduled items waiting to be planned"}
+                                    : activeTab === "scheduled"
+                                      ? "Tasks planned onto a day — overdue first, then upcoming"
+                                      : "Unscheduled items waiting to be planned"}
                             </p>
                         </>
                     )}
@@ -191,6 +195,17 @@ export default function TasksHeader({
                             {backlogTasks.length > 0 && (
                                 <span className={s["tab-badge"]}>{backlogTasks.length}</span>
                             )}
+                        </button>
+                        <button
+                            className={`${s["tab-btn"]} ${activeTab === "scheduled" ? s["tab-active"] : ""}`}
+                            onClick={() => setActiveTab("scheduled")}
+                            title="Tasks scheduled onto a day — overdue and upcoming"
+                        >
+                            <CalendarDays
+                                size={14}
+                                style={{ verticalAlign: "middle", marginRight: 4 }}
+                            />
+                            Scheduled
                         </button>
                         <button
                             className={`${s["tab-btn"]} ${activeTab === "service-desk" ? s["tab-active"] : ""}`}
@@ -459,7 +474,7 @@ export default function TasksHeader({
                                 ))}
                             </select>
                         </div>
-                        {activeTab === "sprint" && (
+                        {(activeTab === "sprint" || activeTab === "scheduled") && (
                             <div className={s["filter-group"]}>
                                 <label>Status</label>
                                 <select

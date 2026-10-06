@@ -21,6 +21,8 @@ import TasksHeader from "./tasks/TasksHeader";
 import TaskDetailModal from "./tasks/TaskDetailModal";
 import InlineCommentPanel from "./tasks/InlineCommentPanel";
 import ServiceDeskTab from "./tasks/ServiceDeskTab";
+import ScheduledTab from "./tasks/ScheduledTab";
+import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
 import { useConfirmDialog } from "./tasks/hooks/useConfirmDialog";
@@ -55,6 +57,8 @@ export default function Tasks() {
   const [activeTab, setActiveTab] = useState("backlog");
   const [selectedSprintId, setSelectedSprintId] = useState<any>(null);
   const [sprintImportOpen, setSprintImportOpen] = useState(false);
+  const [scheduledFocus, setScheduledFocus] = useState<string | null>(null);
+  const toast = useToast() as any;
   const { data: assignableUsers = EMPTY } = useQuery({
     queryKey: ["tasks", "assignableUsers"],
     queryFn: async () => (await getAssignableUsers()).data as any[],
@@ -105,8 +109,6 @@ export default function Tasks() {
   const { unitLabel, features } = useAgileConfig() as any;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
-  // backlogOpen was always false — removed dead state
-
   const { confirmDialog, showConfirm, closeConfirm } =
     useConfirmDialog() as any;
   const filters = useFilters({ activeTab }) as any;
@@ -145,6 +147,7 @@ export default function Tasks() {
     closeConfirm,
     fetchTasks,
     setError,
+    onScheduled: (_id: any, day: string) => toast.success(<span>Scheduled for {day} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={() => { setScheduledFocus(day); setActiveTab("scheduled"); }}>View</button></span>, 6000),
   }) as any;
   const detail = useTaskDetail({
     activeTab,
@@ -190,7 +193,7 @@ export default function Tasks() {
     const sprintIdParam = searchParams.get("sprint_id");
 
     let consumed = false;
-    if (tabParam && ["backlog", "sprint", "service-desk"].includes(tabParam)) {
+    if (tabParam && ["backlog", "sprint", "scheduled", "service-desk"].includes(tabParam)) {
       setActiveTab(tabParam);
       consumed = true;
     }
@@ -226,7 +229,7 @@ export default function Tasks() {
   }, [detail.openTaskDetail]);
 
   useEffect(() => {
-    if (activeTab === "backlog") return;
+    if (activeTab !== "sprint") return;
     const controller = new AbortController();
     setLoading(true);
     fetchTasks(controller.signal).finally(() => {
@@ -466,10 +469,6 @@ export default function Tasks() {
               })()}
             </div>
 
-            {/* The Sprint Insights link previously rendered here was removed —
-              the toolbar's "Insights" button already opens the same view, so
-              the inline link was redundant noise on the Sprint board. */}
-
             {carriedCount > 0 && (
               <div className={s["carry-banner"]}>
                 <ArrowDownCircle
@@ -587,6 +586,7 @@ export default function Tasks() {
           />
         )}
 
+        {activeTab === "scheduled" && (<ScheduledTab filters={filters.plannerFilters} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}
 
         <InlineCommentPanel

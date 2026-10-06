@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask } from "../../../api/tasks";
 import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
+import { useVisiblePoll } from "./useVisiblePoll";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -27,6 +28,8 @@ interface UseBacklogParams {
     closeConfirm: () => void;
     fetchTasks: () => void;
     setError: (msg: string) => void;
+    /** Called after a successful schedule (e.g. a toast with a "View" action). */
+    onScheduled?: (taskId: number | string, date: string) => void;
 }
 
 export function useBacklog({
@@ -39,6 +42,7 @@ export function useBacklog({
     closeConfirm,
     fetchTasks,
     setError,
+    onScheduled,
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
     const [backlogLoading, setBacklogLoading] = useState(false);
@@ -224,6 +228,7 @@ export function useBacklog({
                     fetchBacklog();
                     if (dateToUse === date) fetchTasks();
                     if (closeAfter) closeAfter();
+                    onScheduled?.(taskId, dateToUse);
                 } catch {
                     setError("Failed to schedule task");
                 }
@@ -279,10 +284,13 @@ export function useBacklog({
 
     // Live refresh of the Tasks page: edits/status moves/comments/assignments
     // made by other users or on other devices (server `task_updated`).
-    useRealtimeEvent(["task_updated", "task_assigned"], () => {
+    const refreshVisible = () => {
         if (activeTab === "backlog") fetchBacklog();
-        else fetchTasks();
-    });
+        else if (activeTab === "sprint") fetchTasks();
+    };
+    useRealtimeEvent(["task_updated", "task_assigned"], refreshVisible);
+    // Teammates' edits never reach this user's socket; poll while visible.
+    useVisiblePoll(refreshVisible, 30_000, activeTab === "backlog" || activeTab === "sprint");
 
     return {
         backlogTasks,

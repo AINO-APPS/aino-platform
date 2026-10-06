@@ -87,7 +87,7 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
                     : null)
                 : null,
             creator: userMap[t.user_id]
-                ? { username: userMap[t.user_id].username, full_name: userMap[t.user_id].full_name }
+                ? { username: userMap[t.user_id].username, full_name: userMap[t.user_id].full_name, avatar: userMap[t.user_id].avatar }
                 : null,
             sprint: t.sprint_id ? (sprintMap[t.sprint_id] || null) : null,
             project,
