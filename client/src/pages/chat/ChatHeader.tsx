@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ChatAvatar } from "../../components/chat";
 import { useClickOutside } from "../../hooks/useClickOutside";
+import { useFeatures } from "../../FeaturesContext";
 import { getConvName, getConvAvatar, isUserOnline, WORK_MODE_LABEL } from "./chatUtils";
 import s from "./ChatHeader.module.css";
 
@@ -100,6 +101,8 @@ export default function ChatHeader({
     onToggleBlock,
     onOpenInfo,
 }: ChatHeaderProps) {
+    const { hasFeature } = useFeatures() as { hasFeature: (key: string) => boolean };
+    const callsEnabled = hasFeature("calls");
     const [moreOpen, setMoreOpen] = useState(false);
     const moreRef = useRef<HTMLDivElement | null>(null);
     useClickOutside(moreRef, () => setMoreOpen(false), moreOpen);
@@ -228,7 +231,7 @@ export default function ChatHeader({
                 </div>
             </div>
             <div className={s.headerActions}>
-                {!activeConv.is_self_chat && (
+                {!activeConv.is_self_chat && callsEnabled && (
                     <>
                         <button onClick={onVoiceCall} title="Voice call" className={s.callBtn}>
                             <Phone size={16} />

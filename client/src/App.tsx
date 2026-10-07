@@ -52,6 +52,9 @@ const MeetingJoin = lazy(() => import("./pages/MeetingJoin"));
 const HuddleAutoJoin = lazy(() => import("./pages/HuddleAutoJoin"));
 const SprintInsights = lazy(() => import("./pages/SprintInsights"));
 const PublicNote = lazy(() => import("./pages/PublicNote"));
+const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
+const AccountDeletion = lazy(() => import("./pages/legal/AccountDeletion"));
 const CallPipPage = lazy(() => import("./pages/CallPipPage"));
 // Stage 3 — Projects + GitHub integrations admin pages.
 const Projects = lazy(() => import("./pages/Projects"));
@@ -299,6 +302,10 @@ function AppRoutes() {
             />
             {/* Public read-only note viewer (no auth, no navbar). */}
             <Route path="/n/:token" element={<PublicNote />} />
+            {/* Public legal pages: linked from the Play listing and the apps. */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/account-deletion" element={<AccountDeletion />} />
             {/* Legacy redirects — old standalone pages now live under /attendance */}
             <Route
               path="/leaves"

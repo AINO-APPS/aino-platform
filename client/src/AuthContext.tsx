@@ -44,7 +44,10 @@ export function platformConsoleRouteRedirect(
   const normalized = pathname !== "/" ? pathname.replace(/\/$/, "") : pathname;
   const allowed = normalized === "/tenants"
     || normalized === "/change-password"
-    || normalized === "/auth/handoff";
+    || normalized === "/auth/handoff"
+    || normalized === "/privacy"
+    || normalized === "/terms"
+    || normalized === "/account-deletion";
 
   return allowed ? null : "/tenants";
 }

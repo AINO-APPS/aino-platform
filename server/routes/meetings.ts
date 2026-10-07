@@ -1,5 +1,5 @@
 import express from "express";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 const crypto = require("crypto");
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
@@ -14,7 +14,41 @@ const { pushNotifications } = require("../services/pushNotifications");
 const meetingPerms = require("../utils/meetingPermissions");
 
 const router = express.Router();
-router.use(auth, requireTenant, requireFeature("meetings"));
+
+const requireMeetings = requireFeature("meetings");
+const requireCalls = requireFeature("calls");
+
+/**
+ * Plan semantics: `calls` (Pro) covers 1:1 calls and instant group calls
+ * (huddles); `meetings` (Enterprise) covers scheduled meetings, the lobby
+ * and HLS. Huddles reuse this router as their transport, so a tenant without
+ * `meetings` may still create a huddle and read the huddle it joins.
+ */
+async function isHuddleRequest(req: Request): Promise<boolean> {
+    const body = (req.body || {}) as { huddle?: unknown; conversation_id?: unknown };
+    if (req.method === "POST" && req.path === "/") {
+        return body.huddle === true && body.conversation_id != null && body.conversation_id !== "";
+    }
+    if (req.method !== "GET") return false;
+    const match = /^\/([^/]+)(?:\/messages)?\/?$/.exec(req.path);
+    if (!match || match[1] === "check-conflicts") return false;
+    const row = (await req.db!.query(
+        "SELECT is_huddle FROM meetings WHERE meeting_code = $1",
+        [decodeURIComponent(match[1])],
+    )).rows[0];
+    return row?.is_huddle === true;
+}
+
+router.use(auth, requireTenant, async (req: Request, res: Response, next: NextFunction) => {
+    let huddle = false;
+    try {
+        huddle = await isHuddleRequest(req);
+    } catch (err) {
+        req.log.error({ err }, "Meeting feature gate error");
+        return res.status(500).json({ error: "Failed to check plan features" });
+    }
+    return huddle ? requireCalls(req, res, next) : requireMeetings(req, res, next);
+});
 router.use(loadUserContext);
 
 interface DbLike {

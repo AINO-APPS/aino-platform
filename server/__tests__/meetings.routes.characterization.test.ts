@@ -4,6 +4,7 @@ import express from "express";
 const request = require("supertest");
 
 let mockFeatureAllowed = true;
+let mockDisabledFeatures = new Set<string>();
 let mockOrgId: number | null = 3;
 const mockQuery = jest.fn();
 
@@ -19,8 +20,10 @@ jest.mock("../middleware/tenant", () => ({
         req.db = { query: mockQuery, transaction: jest.fn() };
         next();
     },
-    requireFeature: () => (_req: any, res: any, next: any) => {
-        if (!mockFeatureAllowed) return res.status(403).json({ code: "FEATURE_NOT_AVAILABLE" });
+    requireFeature: (feature: string) => (_req: any, res: any, next: any) => {
+        if (!mockFeatureAllowed || mockDisabledFeatures.has(feature)) {
+            return res.status(403).json({ code: "FEATURE_NOT_AVAILABLE", feature });
+        }
         next();
     },
 }));
@@ -60,6 +63,7 @@ function makeApp() {
 describe("meeting route characterization", () => {
     beforeEach(() => {
         mockFeatureAllowed = true;
+        mockDisabledFeatures = new Set();
         mockOrgId = 3;
         mockQuery.mockReset();
     });
@@ -70,8 +74,60 @@ describe("meeting route characterization", () => {
         const res = await request(makeApp()).get("/api/meetings");
 
         expect(res.status).toBe(403);
-        expect(res.body).toEqual({ code: "FEATURE_NOT_AVAILABLE" });
+        expect(res.body).toEqual({ code: "FEATURE_NOT_AVAILABLE", feature: "meetings" });
         expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    test("scheduled meetings need the meetings feature even when calls is on", async () => {
+        mockDisabledFeatures = new Set(["meetings"]);
+
+        const res = await request(makeApp()).post("/api/meetings").send({ title: "Weekly sync" });
+
+        expect(res.status).toBe(403);
+        expect(res.body.feature).toBe("meetings");
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    test("a group-call huddle needs calls, not meetings", async () => {
+        mockDisabledFeatures = new Set(["meetings"]);
+        mockOrgId = null;
+
+        const res = await request(makeApp()).post("/api/meetings").send({ title: "Team", huddle: true, conversation_id: 5 });
+
+        // Passed the plan gate and reached the handler's own org check.
+        expect(res.status).toBe(403);
+        expect(res.body.error).toMatch(/organization/);
+    });
+
+    test("a huddle is refused when calls is off", async () => {
+        mockDisabledFeatures = new Set(["calls"]);
+
+        const res = await request(makeApp()).post("/api/meetings").send({ title: "Team", huddle: true, conversation_id: 5 });
+
+        expect(res.status).toBe(403);
+        expect(res.body.feature).toBe("calls");
+    });
+
+    test("joining a huddle by code needs calls, not meetings", async () => {
+        mockDisabledFeatures = new Set(["meetings"]);
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ is_huddle: true }] })
+            .mockResolvedValueOnce({ rows: [] });
+
+        const res = await request(makeApp()).get("/api/meetings/ABC-DEFG-HJK");
+
+        expect(res.status).toBe(404);
+        expect(mockQuery.mock.calls[0][1]).toEqual(["ABC-DEFG-HJK"]);
+    });
+
+    test("reading a scheduled meeting by code still needs meetings", async () => {
+        mockDisabledFeatures = new Set(["meetings"]);
+        mockQuery.mockResolvedValueOnce({ rows: [{ is_huddle: false }] });
+
+        const res = await request(makeApp()).get("/api/meetings/ABC-DEFG-HJK");
+
+        expect(res.status).toBe(403);
+        expect(res.body.feature).toBe("meetings");
     });
 
     test("returns no conflicts for invalid input without database access", async () => {

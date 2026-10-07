@@ -19,6 +19,7 @@ import {
     isUserOnline,
     WORK_MODE_LABEL,
 } from "./chatUtils";
+import { useFeatures } from "../../FeaturesContext";
 import s from "./ConversationInfoPanel.module.css";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -78,6 +79,8 @@ export default function ConversationInfoPanel({
     onClearChat,
     onToggleBlock,
 }: ConversationInfoPanelProps) {
+    const { hasFeature } = useFeatures() as { hasFeature: (key: string) => boolean };
+    const callsEnabled = hasFeature("calls");
     const isGroup = !!activeConv.is_group;
     const isSelf = !!activeConv.is_self_chat;
     const name = getConvName(activeConv);
@@ -157,14 +160,18 @@ export default function ConversationInfoPanel({
                     {/* Quick actions. */}
                     {!isSelf && (
                         <div className={s.quickRow}>
-                            <button className={s.quickAction} onClick={run(onVoiceCall)}>
-                                <span className={s.quickIcon}><Phone size={20} /></span>
-                                <span className={s.quickLabel}>Call</span>
-                            </button>
-                            <button className={s.quickAction} onClick={run(onVideoCall)}>
-                                <span className={s.quickIcon}><Video size={20} /></span>
-                                <span className={s.quickLabel}>Video</span>
-                            </button>
+                            {callsEnabled && (
+                                <>
+                                    <button className={s.quickAction} onClick={run(onVoiceCall)}>
+                                        <span className={s.quickIcon}><Phone size={20} /></span>
+                                        <span className={s.quickLabel}>Call</span>
+                                    </button>
+                                    <button className={s.quickAction} onClick={run(onVideoCall)}>
+                                        <span className={s.quickIcon}><Video size={20} /></span>
+                                        <span className={s.quickLabel}>Video</span>
+                                    </button>
+                                </>
+                            )}
                             <button className={s.quickAction} onClick={run(onSearch)}>
                                 <span className={s.quickIcon}><Search size={20} /></span>
                                 <span className={s.quickLabel}>Search</span>
