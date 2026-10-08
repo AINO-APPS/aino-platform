@@ -1,5 +1,5 @@
 import React from "react";
-import { RotateCcw, FileEdit, Clock } from "lucide-react";
+import { RotateCcw, FileEdit, Clock, ArrowLeftRight } from "lucide-react";
 import { LEAVE_ICONS } from "./constants";
 
 interface LeaveIconForProps {
@@ -53,6 +53,13 @@ export default function RequestDetails({ request }: RequestDetailsProps) {
         return (
             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
                 <Clock size={13} /> {meta.date} • {meta.hours}h
+            </span>
+        );
+    }
+    if (request.type === "work_mode_change") {
+        return (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                <ArrowLeftRight size={13} /> {meta.date} • {meta.from_mode || "?"} → {meta.work_mode}
             </span>
         );
     }

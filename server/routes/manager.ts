@@ -515,6 +515,9 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
                     } else if (txResult.type === "overtime") {
                         await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
                             title: "Overtime Approved \u2705", body: `Your overtime request for ${meta.date || ""} has been approved. Comp-off has been credited.` });
+                    } else if (txResult.type === "work_mode_change") {
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
+                            title: "Work Mode Change Approved \u2705", body: `You can clock in as ${meta.work_mode || "requested"} for the rest of ${meta.date || "today"}.` });
                     }
                 }
             } catch (notifErr) {
@@ -593,6 +596,9 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
                     } else if (txResult.type === "overtime") {
                         await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
                             title: "Overtime Rejected", body: `Your overtime request for ${meta.date || ""} has been rejected.${why}` });
+                    } else if (txResult.type === "work_mode_change") {
+                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
+                            title: "Work Mode Change Rejected", body: `Your request to work ${meta.work_mode || ""} on ${meta.date || "today"} was rejected.${why}` });
                     }
                 }
             } catch (notifErr) {

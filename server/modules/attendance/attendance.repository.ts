@@ -432,3 +432,86 @@ async function insertManualApproval(
     );
     return result?.rows?.[0]?.id ?? null;
 }
+
+
+// ── Work-mode lock (2026-10-08) ─────────────────────────────────────────────
+// The first clock-in of a local day fixes that day's work mode; switching needs
+// an approved `work_mode_change` request for the same date.
+
+/** Work mode of the first real (non-manual) clock-in on the local day, if any. */
+export async function firstClockInModeForDay(
+    db: AttendanceDb,
+    userId: number,
+    date: string,
+    timezoneModifier: string,
+): Promise<string | null> {
+    const row = (await db.query(
+        `SELECT work_mode FROM time_entries
+         WHERE user_id = $1 AND entry_type = 'clock_in' AND (is_manual IS NOT TRUE)
+           AND (timestamp + $3::interval)::date = $2::date
+         ORDER BY timestamp ASC, id ASC LIMIT 1`,
+        [userId, date, timezoneModifier],
+    )).rows[0];
+    return row?.work_mode || null;
+}
+
+/** The latest work-mode change request for the date (any status). */
+export async function latestWorkModeRequest(
+    db: AttendanceDb,
+    userId: number,
+    date: string,
+): Promise<{ id: number; status: string; work_mode: string; reject_reason: string | null } | null> {
+    const row = (await db.query(
+        `SELECT id, status, reject_reason, metadata::jsonb->>'work_mode' AS work_mode
+         FROM approval_requests
+         WHERE requester_id = $1 AND type = 'work_mode_change'
+           AND metadata::jsonb->>'date' = $2
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [userId, date],
+    )).rows[0];
+    return row || null;
+}
+
+export async function hasApprovedWorkModeChange(
+    db: AttendanceDb,
+    userId: number,
+    date: string,
+    workMode: string,
+): Promise<boolean> {
+    const result = await db.query(
+        `SELECT 1 FROM approval_requests
+         WHERE requester_id = $1 AND type = 'work_mode_change' AND status = 'approved'
+           AND metadata::jsonb->>'date' = $2 AND metadata::jsonb->>'work_mode' = $3
+         LIMIT 1`,
+        [userId, date, workMode],
+    );
+    return result.rowCount > 0;
+}
+
+export async function hasPendingWorkModeChange(db: AttendanceDb, userId: number, date: string): Promise<boolean> {
+    const result = await db.query(
+        `SELECT 1 FROM approval_requests
+         WHERE requester_id = $1 AND type = 'work_mode_change' AND status = 'pending'
+           AND metadata::jsonb->>'date' = $2
+         LIMIT 1`,
+        [userId, date],
+    );
+    return result.rowCount > 0;
+}
+
+export async function insertWorkModeChangeRequest(
+    db: AttendanceDb,
+    actor: { userId: number; orgId: number | null },
+    approverId: number | null,
+    input: { date: string; workMode: string; fromMode: string | null; reason: string },
+): Promise<number | null> {
+    const result = await db.query(
+        `INSERT INTO approval_requests
+            (org_id, requester_id, approver_id, type, reference_id, reason, metadata)
+         VALUES ($1,$2,$3,'work_mode_change',NULL,$4,$5)
+         RETURNING id`,
+        [actor.orgId, actor.userId, approverId, input.reason,
+            JSON.stringify({ date: input.date, work_mode: input.workMode, from_mode: input.fromMode })],
+    );
+    return result?.rows?.[0]?.id ?? null;
+}

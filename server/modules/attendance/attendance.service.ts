@@ -313,10 +313,18 @@ export function createAttendanceService(deps: AttendanceDependencies) {
                 }
             }
             const latestClockIn = [...entries].reverse().find((entry) => entry.entry_type === "clock_in");
+            const firstClockIn = entries.find((entry) => entry.entry_type === "clock_in" && !entry.is_manual);
+            // Best-effort: the status must load even if this lookup fails.
+            const modeRequest = await repository.latestWorkModeRequest(db, userId, today).catch(() => null);
             return {
                 ...status,
                 isWeekend: !isJsDowWorkDay(dayOfWeek, config.work_days),
                 workMode: latestClockIn?.work_mode || "office",
+                // First clock-in fixes the day's mode; another mode needs an approved request.
+                lockedWorkMode: firstClockIn?.work_mode || null,
+                workModeRequest: modeRequest
+                    ? { id: modeRequest.id, status: modeRequest.status, workMode: modeRequest.work_mode, rejectReason: modeRequest.reject_reason }
+                    : null,
                 targetMinutes,
                 dailyTargetMet: status.floorMinutes >= targetMinutes,
                 autoLoggedOut,

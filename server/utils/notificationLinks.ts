@@ -5,6 +5,7 @@
  */
 export const LEAVES_LINK = "/attendance#leaves";
 export const MANUAL_ENTRY_LINK = "/attendance#manual-entry";
+export const ATTENDANCE_LINK = "/attendance";
 /** Agile editor access requests/grants are reviewed in Admin → Agile Config. */
 export const AGILE_ACCESS_LINK = "/admin?tab=agile";
 

@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 31,
-    "concreteEndpoints": 467,
-    "openApiOperations": 199
+    "concreteEndpoints": 468,
+    "openApiOperations": 200
   },
   "standaloneRoutes": [
     {
@@ -57,7 +57,7 @@
       "mountPath": "/api/tracker",
       "source": "server/routes/tracker.ts",
       "coverage": "baseline",
-      "endpointCount": 19
+      "endpointCount": 20
     },
     {
       "id": "leaves",
@@ -2570,6 +2570,11 @@
     {
       "method": "GET",
       "path": "/api/tracker/widgets",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tracker/work-mode-request",
       "coverage": "operation"
     },
     {

@@ -39,6 +39,7 @@ import ElectronTitleBar from "./components/common/ElectronTitleBar";
 import UpdateNotification from "./components/common/UpdateNotification";
 import InspectorSessionBanner from "./components/common/InspectorSessionBanner";
 import ScreenPicker from "./components/common/ScreenPicker";
+import WorkModeChangeDialog from "./components/attendance/WorkModeChangeDialog";
 import KeepAlive from "./components/common/KeepAlive";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import {
@@ -179,6 +180,7 @@ function AppRoutes() {
         {isAuthenticated && <InspectorSessionBanner />}
         <UpdateNotification />
         <ScreenPicker />
+        {isAuthenticated && <WorkModeChangeDialog />}
 
         {/* Keep-alive pages: stay mounted across navigations */}
         {isAuthenticated && <KeepAliveRoutes />}

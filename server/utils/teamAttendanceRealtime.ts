@@ -17,6 +17,7 @@ export type TeamAttendanceAction =
     | "break_start"
     | "break_end"
     | "manual_entry"
+    | "work_mode_request"
     | "entry_deleted";
 
 export async function emitTeamAttendanceUpdate(

@@ -46,3 +46,17 @@ export class AttendanceError extends Error {
         this.name = "AttendanceError";
     }
 }
+
+/** A clock-in asked for a mode other than the one today's first clock-in fixed. */
+export class WorkModeLockedError extends AttendanceError {
+    readonly code = "WORK_MODE_LOCKED";
+    constructor(readonly lockedMode: string, readonly requestedMode: string) {
+        super(
+            `Today's work mode is ${lockedMode}. Request a mode change to clock in as ${requestedMode}.`,
+            409,
+        );
+        this.name = "WorkModeLockedError";
+    }
+}
+
+export const WORK_MODES = ["office", "remote", "hybrid"] as const;

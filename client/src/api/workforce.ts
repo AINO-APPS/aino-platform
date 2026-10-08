@@ -111,6 +111,10 @@ export const submitOvertimeRequest = (data: AnyData) =>
     API.post("/tracker/overtime-request", data);
 export const getOvertimeRequests = () => API.get("/tracker/overtime-requests");
 
+// Work-mode lock: switch today's mode after the first clock-in (needs approval).
+export const submitWorkModeRequest = (data: { work_mode: string; reason: string }) =>
+    API.post("/tracker/work-mode-request", data);
+
 // Dashboard Widgets
 export const getWidgets = () => API.get("/tracker/widgets");
 export const getWeeklyChart = () => API.get("/tracker/weekly");

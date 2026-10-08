@@ -9,13 +9,17 @@ import { sendToUser, notifyUser } from "../../realtime/fanout";
 import { emitTeamAttendanceUpdate } from "../../utils/teamAttendanceRealtime";
 import type { TeamAttendanceAction } from "../../utils/teamAttendanceRealtime";
 import { createAttendanceService } from "./attendance.service";
+import { createWorkModeService } from "./attendance.workMode";
 import { AttendanceError } from "./attendance.types";
 import type { AttendanceDb } from "./attendance.types";
-import { parseCreateOvertime, parseTheme, parseDateParam, parseManualEntry } from "./attendance.schema";
+import { parseCreateOvertime, parseTheme, parseDateParam, parseManualEntry, parseWorkModeRequest } from "./attendance.schema";
 import { getLocalToday, getLocalDow, getOffsetMin, getTzModifier } from "../../utils/timezone";
 
 const router = express.Router();
 const service = createAttendanceService({ findApprover: findApprover as any, sendToUser, notifyUser });
+const workModes = createWorkModeService({ findApprover: findApprover as any, sendToUser, notifyUser });
+
+
 
 function db(req: Request): AttendanceDb {
     return req.db as unknown as AttendanceDb;
@@ -47,6 +51,26 @@ router.post("/overtime-request", auth, loadUserContext, async (req: Request, res
         if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
         req.log.error({ err }, "Overtime request error");
         res.status(500).json({ error: "Failed to submit overtime request" });
+    }
+});
+
+// Ask to switch today's work mode after the first clock-in fixed it.
+router.post("/work-mode-request", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const input = parseWorkModeRequest(req.body);
+        const date = getLocalToday(req);
+        const result = await workModes.createWorkModeChangeRequest(db(req), {
+            userId: req.userId!,
+            orgId: req.userOrgId || null,
+            tenantId: req.tenantId ? Number(req.tenantId) : null,
+        }, { date, workMode: input.workMode, reason: input.reason, timezoneModifier: getTzModifier(req) });
+        logAction(req, "create", "work_mode_request", result.approvalId, { date, work_mode: input.workMode });
+        notifyAttendanceChange(req, "work_mode_request");
+        res.status(201).json({ message: "Work mode change sent for approval", id: result.approvalId, status: "pending" });
+    } catch (err) {
+        if (err instanceof AttendanceError) return res.status(err.statusCode).json({ error: err.message });
+        req.log.error({ err }, "Work mode request error");
+        res.status(500).json({ error: "Failed to submit work mode change" });
     }
 });
 

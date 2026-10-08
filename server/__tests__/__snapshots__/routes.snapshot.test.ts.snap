@@ -466,6 +466,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "PUT    /api/tracker/theme",
   "GET    /api/tracker/weekly",
   "GET    /api/tracker/widgets",
+  "POST   /api/tracker/work-mode-request",
   "POST   /api/webhooks/github/:integrationId",
   "GET    /healthz",
   "GET    /metrics",

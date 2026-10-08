@@ -4,6 +4,7 @@ import { QUOTE_ROTATION_INTERVAL, STATUS_POLL_INTERVAL } from "../constants";
 import { useWorkState } from "../WorkStateContext";
 // NOTE (status v2): tracker no longer writes status — see useFloatingTimer.ts
 import { getStatus, clockIn, breakStart, breakEnd, clockOut, getWidgets, getWeeklyChart, getTaskSummary } from "../api/workforce";
+import { handleWorkModeLocked } from "../components/attendance/WorkModeChangeDialog";
 import { getCalendarEvents } from "../api/notes";
 import { useAutoDismiss } from "./useAutoDismiss";
 import { useLiveTimer } from "./useLiveTimer";
@@ -73,6 +74,8 @@ export const CONFETTI_PIECES = [...Array(50)].map(
 interface DashboardStatus {
     state?: string;
     workMode?: string;
+    lockedWorkMode?: string | null;
+    workModeRequest?: { id: number; status: string; workMode: string; rejectReason?: string | null } | null;
     targetMinutes?: number;
     dailyTargetMet?: boolean;
     isWeekend?: boolean;
@@ -158,8 +161,13 @@ export function useDashboardData() {
                 ]);
             if (statusRes.status === "fulfilled") {
                 setStatus(statusRes.value.data);
-                if (statusRes.value.data.workMode)
-                    setWorkMode(statusRes.value.data.workMode);
+                // Today's first clock-in fixes the mode (switching needs approval).
+                const approvedSwitch = statusRes.value.data.workModeRequest?.status === "approved"
+                    ? statusRes.value.data.workModeRequest.workMode : null;
+                const preferred = statusRes.value.data.state === "logged_out"
+                    ? approvedSwitch || statusRes.value.data.lockedWorkMode || statusRes.value.data.workMode
+                    : statusRes.value.data.workMode;
+                if (preferred) setWorkMode(preferred);
             } else {
                 console.error("Status fetch failed:", statusRes.reason);
                 setError("Failed to fetch status");
@@ -220,6 +228,10 @@ export function useDashboardData() {
                 await fetchStatus();
                 if (actionName === "clockOut") resetTimer();
             } catch (err) {
+                if (handleWorkModeLocked(err)) {
+                    await fetchStatus();
+                    return;
+                }
                 const error = err as {
                     response?: { data?: { error?: string } };
                 };

@@ -119,6 +119,7 @@ function mockClockInPrelude() {
         .mockResolvedValueOnce({ rows: [ALL_DAYS], rowCount: 1 })   // work_days
         .mockResolvedValueOnce({ rows: [ALL_DAYS], rowCount: 1 })   // work_hours_per_day
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })           // today entries
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })           // work-mode lock: no clock-in yet today
         .mockResolvedValueOnce({ rows: [ORG_VERIFY], rowCount: 1 }); // org verification
 }
 
@@ -248,3 +249,37 @@ describe("clock-out with device credential", () => {
     });
 });
 
+
+
+describe("clock-in work-mode lock (route)", () => {
+    beforeEach(resetMocks);
+
+    function lockPrelude(firstMode: string, approved: boolean) {
+        setupAuthMocks({ org_id: 1 });
+        mockQuery
+            .mockResolvedValueOnce({ rows: [ALL_DAYS], rowCount: 1 })                 // work_days
+            .mockResolvedValueOnce({ rows: [ALL_DAYS], rowCount: 1 })                 // work_hours_per_day
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })                         // today entries
+            .mockResolvedValueOnce({ rows: [{ work_mode: firstMode }], rowCount: 1 }) // first clock-in today
+            .mockResolvedValueOnce(approved ? { rows: [{}], rowCount: 1 } : { rows: [], rowCount: 0 }); // approved change
+    }
+
+    test("a second clock-in with another mode is refused with WORK_MODE_LOCKED", async () => {
+        lockPrelude("office", false);
+        const res = await clockIn({ work_mode: "remote" });
+        expect(res.status).toBe(409);
+        expect(res.body).toMatchObject({ code: "WORK_MODE_LOCKED", locked_mode: "office", requested_mode: "remote" });
+        expect(mockTransaction).not.toHaveBeenCalled();
+    });
+
+    test("an approved change lets the clock-in continue", async () => {
+        lockPrelude("office", true);
+        mockQuery.mockResolvedValueOnce({ rows: [{ attendance_verification_enabled: false }], rowCount: 1 }); // org verification
+        mockTxClient.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+        const res = await clockIn({ work_mode: "remote" });
+        expect(res.status).toBe(200);
+        expect(res.body.work_mode).toBe("remote");
+    });
+});

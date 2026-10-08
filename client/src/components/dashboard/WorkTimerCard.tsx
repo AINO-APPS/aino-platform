@@ -1,3 +1,4 @@
+import WorkModeLockHint from "../attendance/WorkModeLockHint";
 import React, { useEffect, useState } from "react";
 import { useFloatingTimer } from "../../hooks/useFloatingTimer";
 import { formatTimeSec, formatTime } from "../../utils/time";
@@ -10,7 +11,7 @@ import s from "./WorkTimerCard.module.css";
 export default function WorkTimerCard() {
     const {
         state, isWeekend, dailyTargetMet,
-        workMode, setWorkMode,
+        workMode, setWorkMode, lockedWorkMode, workModeRequest,
         actionLoading, error,
         liveFloorSec, liveBreakSec,
         floorMinutes, breakMinutes, totalMinutes, progressPercent, progressColor,
@@ -186,6 +187,7 @@ export default function WorkTimerCard() {
                                             <House size={13} /> Remote
                                         </button>
                                     </div>
+                                    <WorkModeLockHint lockedWorkMode={lockedWorkMode} workModeRequest={workModeRequest} />
                                     <button className={`${s.btn} ${s.success}`} onClick={onLoginClick} disabled={!!actionLoading}>
                                         {actionLoading === "clockIn" ? "Logging in..." : "▶ Login"}
                                     </button>

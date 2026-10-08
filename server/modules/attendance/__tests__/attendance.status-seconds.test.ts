@@ -7,6 +7,8 @@ function makeStatusDb(entries: any[], afterAutoLogout?: any[]) {
         .mockResolvedValueOnce({ rows: [{ work_hours_per_day: 8, work_days: "1,2,3,4,5" }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: entries, rowCount: entries.length });
     if (afterAutoLogout) query.mockResolvedValueOnce({ rows: afterAutoLogout, rowCount: afterAutoLogout.length });
+    // Latest work-mode change request for the day: none.
+    query.mockResolvedValue({ rows: [], rowCount: 0 });
     const transaction = jest.fn(async (fn: any) => fn({
         query: jest.fn()
             .mockResolvedValueOnce({ rows: [{ entry_type: "clock_in" }], rowCount: 1 })

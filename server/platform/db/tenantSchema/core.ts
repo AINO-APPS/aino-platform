@@ -464,7 +464,7 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             org_id        INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
             requester_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             approver_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-            type          TEXT NOT NULL CHECK(type IN ('leave','manual_entry','overtime','leave_withdraw')),
+            type          TEXT NOT NULL CHECK(type IN ('leave','manual_entry','overtime','leave_withdraw','work_mode_change')),
             reference_id  INTEGER,
             status        TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
             reason        TEXT,

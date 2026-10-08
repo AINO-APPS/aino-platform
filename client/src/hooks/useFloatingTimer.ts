@@ -9,13 +9,19 @@ import { getStatus, clockIn, breakStart, breakEnd, clockOut } from "../api/workf
 import { getCurrentOrg } from "../api/organization";
 import { useLiveTimer, statusSeconds } from "./useLiveTimer";
 import { useAutoDismiss } from "./useAutoDismiss";
+import useWebSocket, { type WebSocketMessage } from "./useWebSocket";
+import { handleWorkModeLocked } from "../components/attendance/WorkModeChangeDialog";
+import { preferredWorkMode } from "../components/attendance/WorkModeLockHint";
 import { STATUS_POLL_INTERVAL } from "../constants";
 
 const TARGET_MINUTES = 9 * 60;
 
+
 interface TrackerStatus {
     state?: string;
     workMode?: string;
+    lockedWorkMode?: string | null;
+    workModeRequest?: { id: number; status: string; workMode: string; rejectReason?: string | null } | null;
     targetMinutes?: number;
     dailyTargetMet?: boolean;
     isWeekend?: boolean;
@@ -60,7 +66,8 @@ export function useFloatingTimer() {
         try {
             const res = await getStatus();
             setStatus(res.data);
-            if (res.data?.workMode) setWorkMode(res.data.workMode);
+            const preferred = preferredWorkMode(res.data);
+            if (preferred) setWorkMode(preferred);
         } catch {
             /* keep defaults */
         }
@@ -117,6 +124,15 @@ export function useFloatingTimer() {
         };
     }, [fetchStatus]);
 
+    // Another device clocked in/out, or a work-mode change was approved/rejected.
+    const onTrackerWs = useCallback(
+        (msg: WebSocketMessage) => {
+            if (msg.type === "attendance_update" || msg.type === "approval_update") fetchStatus();
+        },
+        [fetchStatus],
+    );
+    useWebSocket(onTrackerWs);
+
     const state = status?.state || "logged_out";
     const targetMinutes = status?.targetMinutes ?? TARGET_MINUTES;
     const dailyTargetMet = status?.dailyTargetMet ?? false;
@@ -171,6 +187,10 @@ export function useFloatingTimer() {
                 await fetchStatus();
                 if (actionName === "clockOut") resetTimer();
             } catch (err) {
+                if (handleWorkModeLocked(err)) {
+                    await fetchStatus();
+                    return;
+                }
                 const error = err as {
                     response?: { data?: { error?: string } };
                 };
@@ -266,6 +286,8 @@ export function useFloatingTimer() {
         dailyTargetMet,
         workMode,
         setWorkMode,
+        lockedWorkMode: status?.lockedWorkMode ?? null,
+        workModeRequest: status?.workModeRequest ?? null,
         actionLoading,
         error,
         liveFloorSec,

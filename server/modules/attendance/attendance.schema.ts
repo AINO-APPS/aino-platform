@@ -1,4 +1,4 @@
-import { AttendanceError } from "./attendance.types";
+import { AttendanceError, WORK_MODES } from "./attendance.types";
 import type { CreateOvertimeInput, ManualEntryInput, Theme } from "./attendance.types";
 
 /** Validate the HTTP body before it reaches domain/service code. */
@@ -120,4 +120,17 @@ export function parseManualEntry(
     };
 
     return { date, clockIn, clockOut, breaks, timezoneOffset, workMode, toUtc };
+}
+
+/** POST /tracker/work-mode-request body: `{ work_mode, reason }`. */
+export function parseWorkModeRequest(body: unknown): { workMode: "office" | "remote" | "hybrid"; reason: string } {
+    const value = (body || {}) as Record<string, unknown>;
+    const workMode = value.work_mode;
+    const reason = typeof value.reason === "string" ? value.reason.trim() : "";
+    if (typeof workMode !== "string" || !(WORK_MODES as readonly string[]).includes(workMode)) {
+        throw new AttendanceError("work_mode must be office, remote or hybrid");
+    }
+    if (!reason) throw new AttendanceError("Please give a reason for the change");
+    if (reason.length > 500) throw new AttendanceError("Reason must be 500 characters or less");
+    return { workMode: workMode as "office" | "remote" | "hybrid", reason };
 }

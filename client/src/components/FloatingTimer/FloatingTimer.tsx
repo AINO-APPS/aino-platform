@@ -1,3 +1,4 @@
+import WorkModeLockHint from "../attendance/WorkModeLockHint";
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../AuthContext";
 import { useFloatingTimer } from "../../hooks/useFloatingTimer";
@@ -11,7 +12,7 @@ export default function FloatingTimer() {
     const { isAuthenticated } = useAuth();
     const {
         state, isWeekend, dailyTargetMet,
-        workMode, setWorkMode,
+        workMode, setWorkMode, lockedWorkMode, workModeRequest,
         actionLoading, error,
         liveFloorSec, liveBreakSec,
         floorMinutes, progressPercent, progressColor,
@@ -200,6 +201,7 @@ export default function FloatingTimer() {
                                         <House size={13} /> Remote
                                     </button>
                                 </div>
+                                <WorkModeLockHint lockedWorkMode={lockedWorkMode} workModeRequest={workModeRequest} />
                                 <button className={`${s["action-btn"]} ${s.success}`} onClick={onLoginClick} disabled={!!actionLoading}>
                                     {actionLoading === "clockIn" ? "Logging in..." : "▶ Login"}
                                 </button>

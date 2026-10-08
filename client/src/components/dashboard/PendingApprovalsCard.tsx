@@ -18,6 +18,7 @@ function formatType(type: string): string {
         case "manual_entry": return "Manual Entry";
         case "overtime": return "Overtime";
         case "leave_withdraw": return "Leave Withdraw";
+        case "work_mode_change": return "Work Mode Change";
         default: return type;
     }
 }

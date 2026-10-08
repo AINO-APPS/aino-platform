@@ -21,6 +21,7 @@ Owns employee time-tracking behavior and its persistence boundary.
 - `GET /api/tracker/manual-entries`
 - `GET /api/tracker/entries/:date`
 - `DELETE /api/tracker/entries/:date`
+- `POST /api/tracker/work-mode-request`
 
 The remaining tracker endpoints still live in `routes/tracker.ts` and will move
 incrementally. The public URL contract does not change: this router is mounted
@@ -37,6 +38,15 @@ attendance.routes.ts -> attendance.service.ts -> attendance.repository.ts
   notification fan-out.
 - Repository owns all SQL in this module and never imports Express.
 - Schema validates untrusted request bodies before service invocation.
+
+## Work-mode lock
+
+The first clock-in of a local day fixes that day's work mode. `attendance.workMode.ts`
+refuses a clock-in with another mode (`409 WORK_MODE_LOCKED`) unless an approved
+`work_mode_change` request exists for that date, and creates those requests.
+`attendance.workModeGuard.ts` is the adapter the legacy `POST /tracker/clock-in`
+route calls. `GET /tracker/status` reports `lockedWorkMode` and `workModeRequest`.
+Managers approve through the existing `/api/manager/approvals` endpoints.
 
 ## Tables read/written
 

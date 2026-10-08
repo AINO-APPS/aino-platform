@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import attendanceModuleRoutes from "../modules/attendance/attendance.routes";
+import { guardClockInWorkMode } from "../modules/attendance/attendance.workModeGuard";
 const auth = require("../middleware/auth");
 const { loadUserContext, ROLE_LEVEL } = require("../middleware/rbac");
 const { logAction } = require("../utils/audit");
@@ -200,6 +201,7 @@ router.post("/clock-in", auth, loadUserContext, async (req: Request, res: Respon
 
         const validWorkModes = ["office", "remote", "hybrid"];
         let selectedWorkMode = validWorkModes.includes(req.body.work_mode) ? req.body.work_mode : "office";
+        if (!(await guardClockInWorkMode(req, res, selectedWorkMode))) return;
 
         const tzOffset = getOffsetMin(req);
         if (tzOffset < -840 || tzOffset > 720) {

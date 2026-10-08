@@ -1,3 +1,4 @@
+import { handleWorkModeLocked } from "./WorkModeChangeDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck, Loader2, X, AlertTriangle, CheckCircle2, Wifi, WifiOff, MapPin, ScanFace } from "lucide-react";
 import FaceCapture from "./FaceCapture";
@@ -253,6 +254,12 @@ export default function ClockInVerifyModal({
             onSuccess?.();
             return true;
         } catch (e) {
+            // Locked work mode: close this modal and offer the approval request instead.
+            if (handleWorkModeLocked(e)) {
+                submittingRef.current = false;
+                onClose?.();
+                return false;
+            }
             const err = e as { response?: { data?: { error?: string; code?: string } } };
             const data = err?.response?.data;
             const msg = data?.error || `${action === "clock-out" ? "Clock-out" : "Login"} failed. Please try again.`;

@@ -5,7 +5,7 @@
  * clients refetch on. Call them AFTER the owning transaction has committed.
  */
 const { notifyUser, sendToUser } = require("./ws");
-import { LEAVES_LINK, MANUAL_ENTRY_LINK, approvalLink } from "./notificationLinks";
+import { ATTENDANCE_LINK, LEAVES_LINK, MANUAL_ENTRY_LINK, approvalLink } from "./notificationLinks";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
@@ -51,7 +51,7 @@ export async function notifyRequesterOfDecision(
     opts: {
         requesterId: number;
         actorId: number | null | undefined;
-        kind: "leave" | "manual_entry" | "overtime";
+        kind: "leave" | "manual_entry" | "overtime" | "work_mode_change";
         status: string;
         title: string;
         body: string;
@@ -62,7 +62,7 @@ export async function notifyRequesterOfDecision(
     const isLeave = opts.kind === "leave";
     await notifyUser(db, tenantId, opts.requesterId, isLeave ? "leave" : "approval", opts.title, opts.body, {
         actorId: opts.actorId,
-        link: isLeave ? LEAVES_LINK : MANUAL_ENTRY_LINK,
+        link: isLeave ? LEAVES_LINK : opts.kind === "work_mode_change" ? ATTENDANCE_LINK : MANUAL_ENTRY_LINK,
     });
     if (isLeave) {
         sendToUser(tenantId, opts.requesterId, "leave_update", {

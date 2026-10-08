@@ -7,7 +7,7 @@ import { useStatus } from "../../status/useStatus";
 import { clockOut as apiClockOut, switchRealm } from "../../api/workforce";
 import { uploadAvatar, removeAvatar } from "../../api/organization";
 import { baseURL } from "../../api/client";
-import { Camera, Building2, House, Bell, ScanFace, Repeat2 } from "lucide-react";
+import { Camera, Building2, House, Bell, ScanFace, Repeat2, ShieldCheck, FileText } from "lucide-react";
 import { currentRealm } from "../../AuthContext";
 import EditProfileModal from "../profile/EditProfileModal";
 import NotificationSoundsModal from "../profile/NotificationSoundsModal";
@@ -437,6 +437,31 @@ export default function ProfileMenu() {
                             </button>
                         )}
                     </div>
+
+                    <div className={s["profile-dropdown-divider"]} />
+
+                    <Link
+                        to="/privacy"
+                        className={s["profile-dropdown-item"]}
+                        onClick={() => setProfileOpen(false)}
+                        style={{ textDecoration: "none", color: "inherit", display: "flex" }}
+                    >
+                        <span className={s["dd-item-icon"]}>
+                            <ShieldCheck size={14} />
+                        </span>
+                        Privacy Policy
+                    </Link>
+                    <Link
+                        to="/terms"
+                        className={s["profile-dropdown-item"]}
+                        onClick={() => setProfileOpen(false)}
+                        style={{ textDecoration: "none", color: "inherit", display: "flex" }}
+                    >
+                        <span className={s["dd-item-icon"]}>
+                            <FileText size={14} />
+                        </span>
+                        Terms of Service
+                    </Link>
 
                     <div className={s["profile-dropdown-divider"]} />
 
