@@ -270,14 +270,19 @@ export function useTaskDetail({
                 closeConfirm();
                 try {
                     await updateTaskStatus(task.id, String(col.id));
+                    // Re-read the ticket: the server also resolves workflow_state_id.
+                    const fresh = await getTaskDetail(task.id).then((r) => r.data as Task).catch(() => null);
                     setDetailTask((prev) =>
-                        prev ? { ...prev, status: String(col.id) } : prev,
+                        prev ? { ...prev, ...(fresh || {}), status: String(col.id) } : prev,
                     );
+                    const patch = (t: Task) => (t.id === task.id ? { ...t, ...(fresh || {}), status: String(col.id) } : t);
+                    setBacklogTasks((prev) => prev.map(patch));
                     refreshDetailHistory(task.id);
                     fetchTasks();
                     if (activeTab === "backlog") fetchBacklog();
-                } catch {
-                    setError("Failed to update status");
+                } catch (err) {
+                    // 403 (not assignee/reporter), 400 (invalid state) and 409 (WIP limit) carry a readable reason.
+                    setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update status");
                 }
             },
             { confirmText: "Move" },

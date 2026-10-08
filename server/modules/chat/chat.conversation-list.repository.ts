@@ -43,6 +43,11 @@ export const CONVERSATION_LIST_SQL = `SELECT
             FROM (SELECT u3.avatar FROM conversation_participants cp3 JOIN users u3 ON u3.id = cp3.user_id
                   WHERE cp3.conversation_id = c.id ORDER BY cp3.user_id ASC LIMIT 4) x
         ) END AS group_member_avatars,
+        CASE WHEN c.is_group THEN (
+            SELECT COALESCE(json_agg(json_build_object('name', x.full_name, 'avatar', x.avatar)), '[]'::json)
+            FROM (SELECT u4.full_name, u4.avatar FROM conversation_participants cp4 JOIN users u4 ON u4.id = cp4.user_id
+                  WHERE cp4.conversation_id = c.id ORDER BY (u4.avatar IS NULL), cp4.user_id ASC LIMIT 4) x
+        ) END AS group_member_previews,
         cp.is_pinned, cp.is_favourite,
         (cp.is_muted AND (cp.muted_until IS NULL OR cp.muted_until > NOW())) AS is_muted,
         cp.muted_until, cp.is_archived,

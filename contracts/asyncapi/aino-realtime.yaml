@@ -32,6 +32,7 @@ channels:
           - $ref: '#/components/messages/CallEndCommand'
           - $ref: '#/components/messages/CallCancelCommand'
           - $ref: '#/components/messages/CallRingingCommand'
+          - $ref: '#/components/messages/MeetingReactionCommand'
     subscribe:
       operationId: sendServerFrame
       message:
@@ -48,6 +49,9 @@ channels:
           - $ref: '#/components/messages/CallRingingEvent'
           - $ref: '#/components/messages/ChatClearedEvent'
           - $ref: '#/components/messages/ChatConvDeletedEvent'
+          - $ref: '#/components/messages/ChatGroupJoinRequestEvent'
+          - $ref: '#/components/messages/GroupCallUpdatedEvent'
+          - $ref: '#/components/messages/MeetingReactionEvent'
           - $ref: '#/components/messages/NotificationEvent'
           - $ref: '#/components/messages/NotificationsChangedEvent'
           - $ref: '#/components/messages/TaskAssignedEvent'
@@ -228,7 +232,7 @@ components:
                   conversationId: { $ref: '#/components/schemas/PositiveId' }
                   clientMsgId: { $ref: '#/components/schemas/ClientMsgId' }
     CallIncomingEvent:
-      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_incoming }, data: { type: object, required: [callId, conversationId, callerId, callType], properties: { callId: { $ref: '#/components/schemas/PositiveId' }, conversationId: { $ref: '#/components/schemas/PositiveId' }, callerId: { $ref: '#/components/schemas/PositiveId' }, callerName: { type: string }, callerAvatar: { type: [string, 'null'] }, callType: { enum: [voice, video] }, isGroup: { type: boolean }, groupName: { type: [string, 'null'] } } } } }] }
+      payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_incoming }, data: { type: object, required: [callId, conversationId, callerId, callType], properties: { callId: { $ref: '#/components/schemas/PositiveId' }, conversationId: { $ref: '#/components/schemas/PositiveId' }, callerId: { $ref: '#/components/schemas/PositiveId' }, callerName: { type: string }, callerAvatar: { type: [string, 'null'] }, callType: { enum: [voice, video] }, isGroup: { type: boolean }, groupName: { type: [string, 'null'] }, groupAvatar: { type: [string, 'null'] } } } } }] }
     CallAcceptedEvent:
       payload: { allOf: [{ $ref: '#/components/schemas/Envelope' }, { type: object, properties: { type: { const: call_accepted }, data: { type: object } } }] }
     CallRejectedEvent:
@@ -274,6 +278,72 @@ components:
             properties:
               type: { const: chat_conv_deleted }
               data: { type: object, required: [conversationId], properties: { conversationId: { $ref: '#/components/schemas/PositiveId' } } }
+    ChatGroupJoinRequestEvent:
+      summary: >-
+        Sent to the group's owner and admins when someone asks to join through a group link that requires
+        approval (POST /api/chat/invite/:token/join). Review via /api/chat/conversations/:id/join-requests.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: chat_group_join_request }
+              data:
+                type: object
+                required: [conversationId, userId]
+                properties:
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  userId: { $ref: '#/components/schemas/PositiveId' }
+                  userName: { type: [string, 'null'] }
+    GroupCallUpdatedEvent:
+      summary: >-
+        Sent to every member of a group after someone joins or leaves its group call (huddle), and when it ends,
+        so chat screens can show or hide a "Join call" banner. Not sent for scheduled meetings.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: group_call_updated }
+              data:
+                type: object
+                required: [conversationId, meetingId, meetingCode, active, participantCount]
+                properties:
+                  conversationId: { $ref: '#/components/schemas/PositiveId' }
+                  meetingId: { $ref: '#/components/schemas/PositiveId' }
+                  meetingCode: { type: string }
+                  active: { type: boolean }
+                  participantCount: { type: integer, minimum: 0 }
+    MeetingReactionCommand:
+      summary: A joined participant sends a short-lived emoji reaction (max 16 UTF-16 units) to everyone in the call.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: meeting_reaction }
+              data:
+                type: object
+                required: [meetingId, emoji]
+                properties:
+                  meetingId: { $ref: '#/components/schemas/PositiveId' }
+                  emoji: { type: string, minLength: 1, maxLength: 16 }
+    MeetingReactionEvent:
+      summary: Relayed to every joined participant (including the sender) for a meeting_reaction command.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              type: { const: meeting_reaction }
+              data:
+                type: object
+                required: [meetingId, userId, emoji]
+                properties:
+                  meetingId: { $ref: '#/components/schemas/PositiveId' }
+                  userId: { $ref: '#/components/schemas/PositiveId' }
+                  name: { type: [string, 'null'] }
+                  emoji: { type: string }
     NotificationEvent:
       summary: In-app notification created (also delivered as an FCM general alert with link/linkTaskId).
       payload:

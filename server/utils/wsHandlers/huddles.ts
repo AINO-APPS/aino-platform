@@ -28,6 +28,52 @@ export type HuddleDeclineDeps = {
 };
 
 /**
+ * Tell every member of a huddle's group that its roster changed so chat
+ * screens can show / hide the "Join call" banner. Runs after meeting_join /
+ * meeting_leave / meeting_end; a no-op for regular meetings. Best-effort.
+ */
+export async function notifyGroupCallUpdated(
+  deps: { db: DbLike; tenantId: number | null; sendToUser: SendToUser },
+  meetingId: unknown,
+): Promise<void> {
+  const { db, tenantId, sendToUser } = deps;
+  if (!meetingId) return;
+  try {
+    const meeting = (
+      await db.query(
+        "SELECT id, is_huddle, conversation_id, meeting_code, status FROM meetings WHERE id = $1",
+        [meetingId],
+      )
+    ).rows[0];
+    if (!meeting?.is_huddle || !meeting.conversation_id) return;
+    const joined = (
+      await db.query(
+        "SELECT COUNT(*)::int AS c FROM meeting_participants WHERE meeting_id = $1 AND status = 'joined'",
+        [meeting.id],
+      )
+    ).rows[0];
+    const participantCount = Number(joined?.c ?? 0);
+    const members = (
+      await db.query(
+        "SELECT user_id FROM conversation_participants WHERE conversation_id = $1",
+        [meeting.conversation_id],
+      )
+    ).rows;
+    for (const m of members) {
+      sendToUser(tenantId, m.user_id, "group_call_updated", {
+        conversationId: meeting.conversation_id,
+        meetingId: meeting.id,
+        meetingCode: meeting.meeting_code,
+        active: meeting.status !== "ended" && participantCount > 0,
+        participantCount,
+      });
+    }
+  } catch (err: any) {
+    logger.warn({ err: err?.message, meetingId }, "group_call_updated fan-out failed");
+  }
+}
+
+/**
  * GROUP-CALL DECLINE (Signal/WhatsApp parity): a rung member declines the
  * huddle ring. Unlike a 1:1 `call_reject` this does NOT end the call — the
  * mesh keeps running for everyone who joined. We:

@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 31,
-    "concreteEndpoints": 468,
-    "openApiOperations": 200
+    "concreteEndpoints": 479,
+    "openApiOperations": 211
   },
   "standaloneRoutes": [
     {
@@ -183,7 +183,7 @@
       "mountPath": "/api/chat",
       "source": "server/routes/chat.ts",
       "coverage": "baseline",
-      "endpointCount": 54
+      "endpointCount": 65
     },
     {
       "id": "giphy",
@@ -998,8 +998,18 @@
       "coverage": "operation"
     },
     {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/active-call",
+      "coverage": "operation"
+    },
+    {
       "method": "POST",
       "path": "/api/chat/conversations/:id/archive",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/avatar",
       "coverage": "operation"
     },
     {
@@ -1025,6 +1035,36 @@
     {
       "method": "PUT",
       "path": "/api/chat/conversations/:id/group",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/invite-link",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chat/conversations/:id/invite-link",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/invite-link/reset",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/conversations/:id/join-requests",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/join-requests/:userId/approve",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/conversations/:id/join-requests/:userId/deny",
       "coverage": "operation"
     },
     {
@@ -1105,6 +1145,21 @@
     {
       "method": "GET",
       "path": "/api/chat/ice-config",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/invite/:token",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/invite/:token/join",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chat/invite/:token/request",
       "coverage": "operation"
     },
     {

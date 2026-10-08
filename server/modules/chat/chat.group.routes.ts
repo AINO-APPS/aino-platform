@@ -12,6 +12,7 @@ import { broadcastMediaJobUpdate, processChatMediaJob } from "../../services/cha
 import { buildUploadedMediaMetadata, copyForwardedMediaMetadata } from "../../utils/chatMediaMetadata";
 const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
+import { isOwnGroupAvatarUrl } from "./chat.group-invite.service";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
 import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
 
@@ -98,7 +99,13 @@ router.put(
             ]);
         }
         if (avatar !== undefined) {
-          await service.query(req.db!, "q014", [avatar === null ? null : String(avatar).slice(0, 1024), convId]);
+          // Photos are set through POST /conversations/:id/avatar; here only removal (null) or
+          // re-pointing at this group's own uploaded photo is accepted, so the stored value can
+          // never name another tenant's (or user's) object.
+          if (avatar !== null && !isOwnGroupAvatarUrl(avatar, req.tenantId, conv.org_id)) {
+            return res.status(400).json({ error: "Upload the group photo instead of linking one" });
+          }
+          await service.query(req.db!, "q014", [avatar, convId]);
         }
         await emitSystemMessage(
           req.db as unknown as DbLike,

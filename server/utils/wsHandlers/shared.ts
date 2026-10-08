@@ -17,6 +17,7 @@ import * as membershipCache from "../../realtime/membershipCache";
 import * as meetingLeaveStore from "../../realtime/meetingLeaveStore";
 import { clientKey, clients, hasOpenSocket } from "../../realtime/registry";
 import { notifyUser as fanoutNotifyUser, type NotifyUserOptions } from "../../realtime/fanout";
+import { notifyGroupCallUpdated } from "./huddles";
 import type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
 export type { DbLike, ExtWS, Query, SendToUser, WSType } from "../../realtime/types";
 const statusService = require("../../services/status");
@@ -352,6 +353,7 @@ export async function scheduleMeetingDisconnectCleanup({
             ),
           );
       }
+      await notifyGroupCallUpdated({ db, tenantId: tenantId ?? null, sendToUser }, meetingId);
     } catch (err: any) {
       logger.warn(
         { err: err.message, userId, meetingId },

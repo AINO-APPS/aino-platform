@@ -443,20 +443,20 @@ router.post("/", async (req: Request, res: Response) => {
         const { meeting, conversationId } = result;
 
         // Get organizer info
-        const organizer = (await req.db!.query("SELECT full_name, avatar FROM users WHERE id = $1", [req.userId])).rows[0];
+        const organizer = (await req.db!.query("SELECT full_name, avatar, (SELECT avatar FROM conversations WHERE id = $2) AS group_avatar FROM users WHERE id = $1", [req.userId, conversationId])).rows[0];
 
         if (isHuddle) {
             // ── Instant group CALL (huddle) ────────────────────────────────
-            // Decoupled from the user-visible "Meeting" concept: no
-            // "meeting_created" card and no calendar artifact. Instead we RING
-            // every group member with `call_incoming` (Signal-style group call)
-            // so they get the native incoming-call UI and join the mesh by
-            // navigating to the meeting room. The huddle reuses the proven
-            // meeting `meeting_*` mesh transport under the hood, but the group
-            // stays a pure chat group.
+            // Decoupled from the user-visible "Meeting" concept: no "meeting_created" card and no
+            // calendar artifact. Instead we RING every group member with `call_incoming` (Signal-style
+            // group call) so they get the native incoming-call UI and join the mesh by navigating to
+            // the meeting room. The huddle reuses the proven meeting `meeting_*` mesh transport, but the group
+            // stays a pure chat group. `settings.ring === false` starts the call silently: members see a
+            // "started a group call" row (and the clients' Join banner) instead of a ring.
             const callType = (settings && settings.callType === "video") ? "video" : "voice";
             const groupName = meeting.title;
-            for (const uid of effectiveInviteeIds) {
+            if (settings?.ring === false) await insertSystemMessage(conversationId, req.userId, { type: "group_call_started", meetingCode: code, callType, text: `${organizer?.full_name || "Someone"} started a group call` }, req.db, req.tenantId);
+            for (const uid of (settings?.ring === false ? [] : effectiveInviteeIds)) {
                 sendToUser(req.tenantId, uid, "call_incoming", {
                     callId: meeting.id,
                     conversationId,
@@ -465,7 +465,7 @@ router.post("/", async (req: Request, res: Response) => {
                     callerAvatar: organizer?.avatar,
                     callType,
                     isGroup: true,
-                    groupName,
+                    groupName, groupAvatar: organizer?.group_avatar || null,
                     // Huddle-specific: the meeting code the callee joins to enter
                     // the n-way mesh. Presence of `meetingCode` distinguishes a
                     // group huddle ring from a legacy 1:1 `call_incoming`.

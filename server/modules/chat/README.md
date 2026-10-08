@@ -1,6 +1,6 @@
 # Chat module
 
-Owns all **54** public `/api/chat` endpoints. As of 2026-09-02, no HTTP
+Owns all **65** public `/api/chat` endpoints. As of 2026-09-02, no HTTP
 endpoint registration remains in `server/routes/chat.ts`; that 11-line file
 only composes the tenant/feature middleware and mounts the module's route
 adapters.
@@ -29,6 +29,17 @@ adapters.
 - `POST /conversations/:id/leave`
 - `PUT /conversations/:id/participants/:userId/role`
 - `POST /conversations/:id/transfer-owner`
+- `GET /conversations/:id/invite-link`
+- `PUT /conversations/:id/invite-link`
+- `POST /conversations/:id/invite-link/reset`
+- `GET /invite/:token`
+- `POST /invite/:token/join`
+- `DELETE /invite/:token/request`
+- `GET /conversations/:id/join-requests`
+- `POST /conversations/:id/join-requests/:userId/approve`
+- `POST /conversations/:id/join-requests/:userId/deny`
+- `POST /conversations/:id/avatar`
+- `GET /conversations/:id/active-call`
 - `GET /conversations`
 - `GET /conversations/:id/messages`
 - `POST /conversations/:id/read`
@@ -76,6 +87,11 @@ chat.routes.ts -> chat.*.routes.ts -> chat.service.ts -> chat.repository.ts
 - The service applies chat workflows and is the only route-to-database path.
 - `chat.repository.ts` owns every SQL statement and does not import Express;
   the conversation-list query lives in `chat.conversation-list.repository.ts`.
+- Group invite links, join requests, the group photo upload and the active
+  group-call lookup live in `chat.group-invite.{routes,service,repository}.ts`.
+  Links are tenant-scoped (each tenant has its own database) and joiners must
+  be active users of the group's organization; `manage_invite` in
+  `utils/groupPerms` gates link and request management (owner/admin).
 - Clear chat / delete chat are **per user**: they set the requester's
   `conversation_participants.cleared_at` (and `hidden_at` for delete) and only
   the requester's sessions receive `chat_cleared` / `chat_conv_deleted`. Every
@@ -92,7 +108,7 @@ chat.routes.ts -> chat.*.routes.ts -> chat.service.ts -> chat.repository.ts
 
 ## Validation
 
-- `modules/chat/__tests__/chat.module-composition.test.ts` pins all 54 method
+- `modules/chat/__tests__/chat.module-composition.test.ts` pins all 65 method
   and path pairs and asserts that the legacy composition router registers none.
 - `modules/chat/__tests__/chat.service.test.ts` covers existing service rules
   plus repository delegation for paginated and scoped searches.

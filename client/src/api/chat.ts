@@ -26,6 +26,11 @@ export const setGroupRole = (
 ) => API.put(`/chat/conversations/${convId}/participants/${userId}/role`, { role });
 export const transferGroupOwner = (convId: number | string, userId: number | string) =>
     API.post(`/chat/conversations/${convId}/transfer-owner`, { userId });
+// Group invite links: preview and join (any user of the same tenant).
+export const getGroupInvite = (token: string) => API.get(`/chat/invite/${encodeURIComponent(token)}`);
+export const joinGroupInvite = (token: string) => API.post(`/chat/invite/${encodeURIComponent(token)}/join`);
+export const cancelGroupJoinRequest = (token: string) =>
+    API.delete(`/chat/invite/${encodeURIComponent(token)}/request`);
 export const getMessages = (convId: number | string, before?: string) =>
     API.get(`/chat/conversations/${convId}/messages`, { params: { before } });
 export const markConversationRead = (convId: number | string) =>

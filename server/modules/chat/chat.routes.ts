@@ -2,6 +2,7 @@
 import express from "express";
 import coreRoutes from "./chat.core.routes";
 import groupRoutes from "./chat.group.routes";
+import groupInviteRoutes from "./chat.group-invite.routes";
 import conversationReadsRoutes from "./chat.conversation-reads.routes";
 import messageSendRoutes from "./chat.message-send.routes";
 import mediaJobRoutes from "./chat.media-jobs.routes";
@@ -15,6 +16,7 @@ import linkPreviewRoutes from "./chat.link-preview.routes";
 const router = express.Router();
 router.use("/", coreRoutes);
 router.use("/", groupRoutes);
+router.use("/", groupInviteRoutes);
 router.use("/", conversationReadsRoutes);
 router.use("/", messageSendRoutes);
 router.use("/", mediaJobRoutes);

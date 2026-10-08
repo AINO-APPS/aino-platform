@@ -11,6 +11,7 @@ export {
   handleMeetingAddParticipant,
   handleMeetingMuteParticipant,
   handleMeetingRaiseHand,
+  handleMeetingReaction,
   handleMeetingTrackState,
   handleMeetingRequestQuality,
   handleMeetingAudioLevel,

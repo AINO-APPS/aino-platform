@@ -38,7 +38,8 @@ export type GroupAction =
   | "start_huddle"
   | "pin"
   | "delete_group" // delete the whole conversation
-  | "clear_messages"; // wipe all messages
+  | "clear_messages" // wipe all messages
+  | "manage_invite"; // invite link + join-request approvals
 
 export interface GroupContext {
   /** The caller's local role in this conversation, or null if not a member. */
@@ -74,6 +75,7 @@ const GOVERNANCE_ACTIONS: ReadonlySet<GroupAction> = new Set<GroupAction>([
   "delete_group",
   "clear_messages",
   "send",
+  "manage_invite",
 ]);
 
 /**
@@ -103,6 +105,7 @@ function canDo(action: GroupAction, ctx: GroupContext): boolean {
       return role !== null;
 
     case "pin":
+    case "manage_invite":
       return isAdminish(role);
 
     case "rename":

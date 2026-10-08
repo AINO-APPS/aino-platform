@@ -13,7 +13,9 @@ import {
 import SprintSelector from "../../components/common/SprintSelector";
 import Pagination from "../../components/common/Pagination";
 import LabelSelector from "./LabelSelector";
-import { PRIORITIES, COLUMNS, type PriorityOption } from "./constants";
+import { PRIORITIES, type PriorityOption } from "./constants";
+import { currentStatusOption, statusOptions } from "./taskStatus";
+import { useAgileConfig } from "../../AgileConfigContext";
 import {
     formatDueDate,
     formatRelativeTime,
@@ -145,6 +147,8 @@ export default function BacklogTab({
 }: BacklogTabProps) {
     const { assignableUsers, orgLabels, availableSprints, availableProjects } =
         useTaskCtx() as any;
+    const { workflowStates } = (useAgileConfig() as any) || {};
+    const statusOpts = statusOptions(workflowStates);
     return (
         <>
             {error && <div className="error-msg error-msg-mb">{error}</div>}
@@ -404,8 +408,7 @@ export default function BacklogTab({
                         const dueFmt = formatDueDate(task.due_date);
                         const overdue =
                             isDueOverdue(task.due_date) && task.status !== "done";
-                        const colInfo =
-                            COLUMNS.find((c) => c.id === task.status) || COLUMNS[0];
+                        const colInfo = currentStatusOption(task, workflowStates, statusOpts) || statusOpts[0];
                         const descPreview = stripHtml(task.description);
 
                         return (
@@ -436,7 +439,7 @@ export default function BacklogTab({
                                                 } as React.CSSProperties
                                             }
                                         >
-                                            {colInfo.icon} {colInfo.label}
+                                            {colInfo.icon ? `${colInfo.icon} ` : ""}{colInfo.label}
                                         </span>
                                         <span
                                             className={s["task-priority-badge"]}

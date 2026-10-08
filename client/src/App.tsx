@@ -51,6 +51,7 @@ import {
 // Lazy-load pages that are NOT part of keep-alive (meetings use dynamic params)
 const MeetingJoin = lazy(() => import("./pages/MeetingJoin"));
 const HuddleAutoJoin = lazy(() => import("./pages/HuddleAutoJoin"));
+const JoinGroup = lazy(() => import("./pages/JoinGroup"));
 const SprintInsights = lazy(() => import("./pages/SprintInsights"));
 const PublicNote = lazy(() => import("./pages/PublicNote"));
 const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
@@ -238,6 +239,15 @@ function AppRoutes() {
               element={
                 <ProtectedRoute>
                   <HuddleAutoJoin />
+                </ProtectedRoute>
+              }
+            />
+            {/* Group invite link (same tenant): preview, then join / request to join. */}
+            <Route
+              path="/chat/join/:token"
+              element={
+                <ProtectedRoute>
+                  <JoinGroup />
                 </ProtectedRoute>
               }
             />

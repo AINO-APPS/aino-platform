@@ -3,13 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Copy, Forward, Pin, Star, Trash2, X } from "lucide-react";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import { uploadChatFile } from "../api/chat";
-import {
-  MessageSearch,
-  ForwardModal,
-  GroupModal,
-  PollCreator,
-  CallOverlay,
-} from "../components/chat";
+import { MessageSearch, ForwardModal, GroupModal, PollCreator, CallOverlay } from "../components/chat";
 import ChatSidebar from "./chat/ChatSidebar";
 import ChatHeader from "./chat/ChatHeader";
 import ChatMessages from "./chat/ChatMessages";
@@ -19,6 +13,7 @@ import useChatState from "./chat/useChatState";
 import useChatActions from "./chat/useChatActions";
 import { useStatus } from "../status/useStatus";
 import { getConvName } from "./chat/chatUtils";
+import { useOpenConversationFromQuery } from "./chat/useOpenConversationFromQuery";
 import s from "./Chat.module.css";
 import msgStyles from "./chat/ChatMessages.module.css";
 
@@ -220,8 +215,8 @@ export default function Chat() {
     openConversation(callConvId, meta);
   }, [callState?.conversationId, conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hide navbar & bottom tab bar on mobile when a chat conversation is active
-  useEffect(() => {
+  useOpenConversationFromQuery(conversations, openConversation); // /chat?conv=<id> (invite-link joins)
+  useEffect(() => { // Hide navbar & bottom tab bar on mobile when a chat conversation is active
     const isMobileChat = isChatPage && mobileView === "chat" && activeConv;
     if (isMobileChat) {
       document.body.setAttribute("data-chat-active", "");

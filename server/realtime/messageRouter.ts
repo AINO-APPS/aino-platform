@@ -1,6 +1,6 @@
 import { chatMessage } from "../utils/wsHandlers/chatMessage";
 import { handleChatTyping, handleChatRead } from "../utils/wsHandlers/chat";
-import { handleHuddleDecline } from "../utils/wsHandlers/huddles";
+import { handleHuddleDecline, notifyGroupCallUpdated } from "../utils/wsHandlers/huddles";
 import {
   handleCallInitiate, handleCallAccept, handleCallCancel, handleCallReject,
   handleCallEnd, handleCallSignal, handleCallSubscribe, handleCallReady,
@@ -9,7 +9,7 @@ import {
 import {
   handleMeetingJoin, handleMeetingLeave, handleMeetingEnd, handleMeetingSignal,
   handleMeetingSubscribe, handleMeetingReady, handleMeetingAddParticipant,
-  handleMeetingMuteParticipant, handleMeetingRaiseHand, handleMeetingTrackState,
+  handleMeetingMuteParticipant, handleMeetingRaiseHand, handleMeetingReaction, handleMeetingTrackState,
   handleMeetingRequestQuality, handleMeetingAudioLevel, handleMeetingScreenTrackId,
   handleMeetingChat, handleMeetingChatReplay,
 } from "../utils/wsHandlers/meeting";
@@ -87,12 +87,15 @@ export async function handleChatMessage(
       return;
     case "meeting_join":
       await handleMeetingJoin(args);
+      await notifyGroupCallUpdated({ db, tenantId, sendToUser }, msg.data?.meetingId);
       return;
     case "meeting_leave":
       await handleMeetingLeave(args);
+      await notifyGroupCallUpdated({ db, tenantId, sendToUser }, msg.data?.meetingId);
       return;
     case "meeting_end":
       await handleMeetingEnd(args);
+      await notifyGroupCallUpdated({ db, tenantId, sendToUser }, msg.data?.meetingId);
       return;
     case "meeting_signal":
       await handleMeetingSignal(args);
@@ -117,6 +120,9 @@ export async function handleChatMessage(
       return;
     case "meeting_raise_hand":
       await handleMeetingRaiseHand(args);
+      return;
+    case "meeting_reaction":
+      await handleMeetingReaction(args);
       return;
     case "meeting_track_state":
       await handleMeetingTrackState(args);

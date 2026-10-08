@@ -4,7 +4,9 @@ import "react-quill-new/dist/quill.snow.css";
 import CommentSection from "../../components/profile/CommentSection";
 import SprintSelector from "../../components/common/SprintSelector";
 import LabelSelector from "./LabelSelector";
-import { PRIORITIES, COLUMNS } from "./constants";
+import TaskStatusControl from "./TaskStatusControl";
+import { PRIORITIES } from "./constants";
+import { currentStatusOption, statusOptions } from "./taskStatus";
 import {
     HighlightedHtml,
     formatDueDate,
@@ -114,7 +116,7 @@ export default function TaskDetailModal({
         currentUser,
         activeTab,
     } = useTaskCtx() as any;
-    const { typeById } = useAgileConfig() as any;
+    const { typeById, workflowStates } = useAgileConfig() as any;
     const { fields: customFields } = useCustomFields() as unknown as {
         fields: any[];
     };
@@ -216,8 +218,8 @@ export default function TaskDetailModal({
 
     const pri =
         PRIORITIES.find((pr) => pr.value === detailTask.priority) || PRIORITIES[1];
-    const colInfo =
-        COLUMNS.find((c) => c.id === detailTask.status) || COLUMNS[0];
+    const statusOpts = statusOptions(workflowStates);
+    const colInfo = currentStatusOption(detailTask, workflowStates, statusOpts) || statusOpts[0];
     const dueFmt = formatDueDate(detailTask.due_date);
     const overdue =
         isDueOverdue(detailTask.due_date) && detailTask.status !== "done";
@@ -251,7 +253,7 @@ export default function TaskDetailModal({
                                 } as React.CSSProperties
                             }
                         >
-                            {colInfo.icon} {colInfo.label}
+                            {colInfo.icon ? `${colInfo.icon} ` : ""}{colInfo.label}
                         </span>
                         {isBacklogItem && (
                             <span className={s["backlog-badge"]}>
@@ -756,25 +758,9 @@ export default function TaskDetailModal({
                                 )}
                             </div>
 
-                            {/* Status buttons — sprint tickets only */}
-                            {detailTask.sprint_id && (
-                                <div className={s["detail-status-bar"]}>
-                                    <span className={s["detail-status-label"]}>Move to:</span>
-                                    {COLUMNS.map((col) => (
-                                        <button
-                                            key={col.id}
-                                            className={`${s["detail-status-btn"]} ${detailTask.status === col.id ? s["detail-status-active"] : ""}`}
-                                            style={
-                                                { "--col-color": col.color } as React.CSSProperties
-                                            }
-                                            disabled={detailTask.status === col.id}
-                                            onClick={() => onStatusChange(detailTask, col)}
-                                        >
-                                            {col.icon} {col.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                            {/* Status — every ticket, including backlog and scheduled ones */}
+                            <TaskStatusControl task={detailTask} currentUser={currentUser} onChange={onStatusChange} />
+
                         </>
                     )}
 

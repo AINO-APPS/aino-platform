@@ -422,6 +422,23 @@ export async function handleMeetingRaiseHand({
   );
 }
 
+/** Short-lived emoji reaction from a joined participant, relayed to everyone in the call. */
+export async function handleMeetingReaction({ db, senderId, tenantId, msg, sendToUser }: MeetingHandlerArgs): Promise<void> {
+  const { meetingId, emoji } = msg.data || {};
+  if (!meetingId || typeof emoji !== "string" || !emoji || emoji.length > 16) return;
+  const joined = (
+    await db.query(
+      `SELECT user_id FROM meeting_participants WHERE meeting_id = $1 AND status = 'joined'`,
+      [meetingId],
+    )
+  ).rows;
+  if (!joined.some((p: { user_id: number }) => p.user_id === senderId)) return;
+  const sender = (await db.query("SELECT full_name FROM users WHERE id = $1", [senderId])).rows[0];
+  for (const p of joined) {
+    sendToUser(tenantId, p.user_id, "meeting_reaction", { meetingId, userId: senderId, name: sender?.full_name, emoji });
+  }
+}
+
 export async function handleMeetingTrackState({
   db,
   senderId,
