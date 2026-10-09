@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import useWebSocket, { REALTIME_EVENT } from "../hooks/useWebSocket";
+import useWebSocket, { REALTIME_EVENT, SESSION_REVOKED_EVENT, SIGNED_IN_ELSEWHERE_REASON } from "../hooks/useWebSocket";
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -13,7 +13,7 @@ class MockWebSocket {
   sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: ((event: { code: number }) => void) | null = null;
+  onclose: ((event: { code: number; reason?: string }) => void) | null = null;
   onerror: (() => void) | null = null;
 
   constructor(public readonly url: string) {
@@ -29,10 +29,10 @@ class MockWebSocket {
     this.onmessage?.({ data: JSON.stringify(value) });
   }
 
-  close(code = 1006) {
+  close(code = 1006, reason = "") {
     if (this.readyState === MockWebSocket.CLOSED) return;
     this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.({ code });
+    this.onclose?.({ code, reason });
   }
 
   send(value: string) {
@@ -166,4 +166,22 @@ describe("useWebSocket reliable chat delivery", () => {
     secondHook.unmount();
     window.removeEventListener(REALTIME_EVENT, globalListener);
   });
-});
+  test("a session replaced by another sign-in announces the sign-out and stops reconnecting", () => {
+    const revoked = vi.fn();
+    window.addEventListener(SESSION_REVOKED_EVENT, revoked);
+    const { unmount } = renderHook(() => useWebSocket(vi.fn()));
+    const live = () => MockWebSocket.instances.filter((s) => s.readyState !== MockWebSocket.CLOSED).at(-1)!;
+    act(() => live().open());
+    act(() => live().close(4001, SIGNED_IN_ELSEWHERE_REASON));
+    const count = MockWebSocket.instances.length;
+    act(() => vi.runOnlyPendingTimers());
+    expect(revoked).toHaveBeenCalledTimes(1);
+    expect(MockWebSocket.instances).toHaveLength(count);
+
+    const other = renderHook(() => useWebSocket(vi.fn()));
+    act(() => live().close(4001, "Session ended"));
+    other.unmount();
+    expect(revoked).toHaveBeenCalledTimes(1);
+    unmount();
+    window.removeEventListener(SESSION_REVOKED_EVENT, revoked);
+  });});

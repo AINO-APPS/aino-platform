@@ -23,6 +23,8 @@ import { initializePushFirebaseApp } from "../platform/pushNotifications/firebas
 
 /** FCM TTL for call-teardown pushes (android.ttl, ms) — the ring window. */
 const CALL_CANCEL_TTL_MS = 60 * 1000;
+/** A phone that was offline for a day signs out on its next start anyway (401). */
+const SESSION_REVOKED_TTL_MS = 24 * 60 * 60 * 1000;
 
 class PushNotificationService {
     private initialized = false;
@@ -357,6 +359,41 @@ class PushNotificationService {
         );
 
         return this.sendToDevices(query, tokens, payload, `call-cancel-${cancelData.callId}`);
+    }
+
+    /**
+     * DATA-ONLY high-priority push telling a phone that a newer sign-in on
+     * another device ended its session. The app clears its credential and
+     * local data even when backgrounded or killed (no socket is open then).
+     * [tokens] are the revoked device's tokens, already removed from the DB.
+     */
+    async sendSessionRevoked(
+        query: QueryFn,
+        tokens: string[],
+        tenantId: number | null,
+    ): Promise<{ succeeded: number; failed: number }> {
+        if (!this.initialized || !this.app || tokens.length === 0) {
+            return { succeeded: 0, failed: 0 };
+        }
+        const sessionKey = `${Date.now()}`;
+        const payload: FCMPayload = {
+            data: buildCommonPushData({
+                type: "session_revoked",
+                reason: "signed_in_elsewhere",
+                dedupeKey: `session_revoked:${sessionKey}`,
+            }, tenantId),
+            android: { priority: "high", ttl: SESSION_REVOKED_TTL_MS },
+            apns: {
+                headers: { "apns-priority": "10", "apns-push-type": "background" },
+                payload: { aps: { alert: { title: "", body: "" }, sound: "", "mutable-content": 1 } },
+            },
+        };
+        try {
+            assertRoutingPayloadContract("session_revoked", payload.data, logger);
+        } catch {
+            // Logged by the contract; signing the old device out matters more than payload purity.
+        }
+        return this.sendToDevices(query, tokens, payload, `session-revoked-${sessionKey}`);
     }
 
     async sendMessageNotification(

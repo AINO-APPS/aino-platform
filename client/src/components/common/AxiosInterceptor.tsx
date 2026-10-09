@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { default as API } from "../../api/client";
 import { useAuth } from "../../AuthContext";
 import { useToast } from "./Toast";
+import { SESSION_REVOKED_EVENT } from "../../hooks/useWebSocket";
 
 export default function AxiosInterceptor({ children }: { children: React.ReactNode }) {
     const navigate = useNavigate();
@@ -22,7 +23,8 @@ export default function AxiosInterceptor({ children }: { children: React.ReactNo
             (error) => {
                 const status = error.response?.status;
                 const url = error.config?.url || "";
-                if (status === 401 && !url.includes("/auth/logout")) {
+                // /auth/mfa/* 401s are sign-in steps (expired ticket), not an ended session.
+                if (status === 401 && !url.includes("/auth/logout") && !url.includes("/auth/mfa/") && !url.includes("/auth/login") && !url.includes("/auth/handoff")) {
                     // Debounce: only the first 401 triggers logout
                     if (!isLoggingOutRef.current) {
                         isLoggingOutRef.current = true;
@@ -46,6 +48,22 @@ export default function AxiosInterceptor({ children }: { children: React.ReactNo
         return () => {
             API.interceptors.response.eject(interceptor);
         };
+    }, [navigate]);
+
+    // A sign-in on another browser / desktop app ended this session: sign out now
+    // instead of waiting for the next API call to come back 401.
+    useEffect(() => {
+        const onRevoked = () => {
+            if (isLoggingOutRef.current) return;
+            isLoggingOutRef.current = true;
+            toastRef.current.warning("You were signed out because your account signed in on another device.");
+            logoutRef.current().finally(() => {
+                isLoggingOutRef.current = false;
+            });
+            navigate("/login", { replace: true });
+        };
+        window.addEventListener(SESSION_REVOKED_EVENT, onRevoked);
+        return () => window.removeEventListener(SESSION_REVOKED_EVENT, onRevoked);
     }, [navigate]);
 
     return children;

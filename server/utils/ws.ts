@@ -16,6 +16,7 @@ import { logger } from "./logger";
 import { handleChatMessage as dispatchMessage } from "../realtime/messageRouter";
 import { INSTANCE_ID, broadcast, broadcastLocal, deliverLocal, notifyUser, sendToUser } from "../realtime/fanout";
 import { registerConnection, unregisterConnection } from "../realtime/registry";
+import { REVOKE_SESSIONS_KIND, closeSessionSocketsLocal } from "../realtime/sessionRevocation";
 import { resolveRealtimeToken, revalidateSocketSession, verifyRealtimeToken } from "../realtime/auth";
 import { attachSocketHeartbeat, handleApplicationPing, startHeartbeat } from "../realtime/heartbeat";
 import type { DbLike, ExtWS } from "../realtime/types";
@@ -135,6 +136,10 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         const envelope = JSON.parse(raw);
         if (envelope._from === INSTANCE_ID) return; // ignore own publishes
         if (channel === "ws:broadcast") {
+          if (envelope.kind === REVOKE_SESSIONS_KIND) {
+            closeSessionSocketsLocal(envelope.tenantId, envelope.userId, envelope.sessionIds, envelope.reason, envelope.keepSessionId);
+            return;
+          }
           if (envelope.tenantWide) {
             broadcastLocal(envelope.tenantId, envelope.type, envelope.data);
             return;
@@ -227,7 +232,9 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
       // forever because the token version is otherwise only checked once.
       ws._tokenVersion = tokenVersion;
       ws._sessionId = payload.sid;
-      ws._tokenExpMs = payload.exp ? payload.exp * 1000 : null;
+      // A short-lived app token (P2.7) must not end an open socket every 15 min:
+      // its session row is re-checked live and revocation closes it at once.
+      ws._tokenExpMs = payload.exp && !payload.sid ? payload.exp * 1000 : null;
       ws._lastAuthCheckAt = Date.now();
     } catch {
       ws.close(4001, "Auth check failed");

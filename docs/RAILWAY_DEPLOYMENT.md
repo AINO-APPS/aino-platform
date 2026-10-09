@@ -91,6 +91,7 @@ In your app service → **Variables** tab, add:
 | Variable | Value |
 |---|---|
 | `JWT_SECRET` | Run `openssl rand -base64 48` locally and paste the result |
+| `MFA_ENC_KEY` | A different `openssl rand -base64 48` value. Encrypts admin two-step secrets (P2.1). Set it **before** the first admin enrolls and never change it: a new value makes every enrolled authenticator unreadable. Same value on every service |
 | `NODE_ENV` | `production` |
 | `PORT` | `5000` |
 | `USE_HTTPS` | `false` |
@@ -111,6 +112,18 @@ Optional — observability (Phase H). Safe to omit; the app runs without them:
 | `METRICS_TENANT_TOP_N` | Tenants that get their own metric label before the rest fold into `other`. Default `20`. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP/HTTP collector URL. **Setting this enables tracing**; leave unset to disable. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | e.g. `authorization=Bearer <token>` |
+
+Optional — error tracking (Sentry, P2.2). Unset means nothing is sent anywhere:
+
+| Variable | Where | Value |
+|---|---|---|
+| `SENTRY_DSN` | server (every role) | Project DSN of the server Sentry project. Enables server error reporting. |
+| `SENTRY_ENVIRONMENT` | server | e.g. `production` / `staging`. Defaults to `NODE_ENV`. |
+| `SENTRY_RELEASE` | server | Optional; defaults to `RAILWAY_GIT_COMMIT_SHA`. |
+| `VITE_SENTRY_DSN` | client **build** (web + desktop renderer) | DSN of the browser Sentry project. Baked in at `vite build`; a DSN is public by design. |
+| `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE` | client build | Optional labels. |
+
+Events carry the stack trace, route, release and the numeric user / tenant id only. Request bodies, cookies, auth headers, query strings, emails, IP addresses and local variables are never collected (`server/bootstrap/errorTracking.ts`, `client/src/errorTracking.ts`). Add Sentry as a subprocessor in the DPA (P3.1).
 
 Optional — only needed if you use email features:
 

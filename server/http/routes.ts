@@ -8,6 +8,9 @@
 import type { Express } from "express";
 import type { RateLimiters } from "./middleware/rateLimits";
 import authRoutes from "../routes/auth";
+import sessionsRoutes from "../routes/sessions";
+import mfaRoutes from "../routes/mfa";
+import { requireRecentMfa } from "../middleware/requireRecentMfa";
 import trackerRoutes from "../routes/tracker";
 import leaveRoutes from "../routes/leaves";
 import taskRoutes from "../routes/tasks";
@@ -66,7 +69,9 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/auth/register", registerLimiter);
     app.use("/api/auth/forgot-password", forgotPasswordLimiter);
     app.use("/api/auth/biometric/login", authLimiter);
+    app.use("/api/auth/mfa", authLimiter, mfaRoutes);
     app.use("/api/auth", authLimiter, authRoutes);
+    app.use("/api/sessions", apiLimiter, sessionsRoutes);
     app.use("/api/tracker", apiLimiter, trackerRoutes);
     app.use("/api/leaves", apiLimiter, leaveRoutes);
     app.use("/api/tasks", apiLimiter, taskRoutes);
@@ -88,9 +93,10 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     // intercept /api/admin/tenants/* with "Organization context required".
     // Administration is web-only: the native app's tokens are refused here
     // (middleware/webOnly.ts). Self-service reads it still needs are exempt.
-    app.use("/api/admin/tenants", apiLimiter, webOnly, tenantRoutes);
-    app.use("/api/admin", apiLimiter, webOnly, adminRoutes);
-    app.use("/api/platform-access", apiLimiter, webOnly, platformAccessRoutes);
+    // P2.1: changes made through these routers need a recent second factor (step-up).
+    app.use("/api/admin/tenants", apiLimiter, webOnly, requireRecentMfa, tenantRoutes);
+    app.use("/api/admin", apiLimiter, webOnly, requireRecentMfa, adminRoutes);
+    app.use("/api/platform-access", apiLimiter, webOnly, requireRecentMfa, platformAccessRoutes);
     app.use("/api/internal", apiLimiter, webOnly, internalRoutes);
     app.use("/api/manager", apiLimiter, managerRoutes);
     app.use("/api/leave-policy", apiLimiter, leavePolicyRoutes);

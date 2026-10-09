@@ -211,21 +211,55 @@ describe("POST /api/auth/login", () => {
                 email: "admin@example.test", is_active: true, token_version: 0,
                 failed_login_attempts: 0, must_change_password: true,
             }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ mfa_enabled: false }], rowCount: 1 }); // MFA state: not enrolled
+
+        const challenged = await request(app).post("/api/auth/login").set(CSRF)
+            .send({ username: "vvronline", password: "CorrectPass1!" });
+
+        // P2.1: a platform operator must enrol in two-step verification first; no session yet.
+        expect(challenged.status).toBe(401);
+        expect(challenged.body.code).toBe("MFA_ENROLL_REQUIRED");
+        expect(typeof challenged.body.mfaTicket).toBe("string");
+        expect(challenged.headers["set-cookie"]).toBeUndefined();
+        expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO user_sessions/.test(sql))).toBe(false);
+    });
+
+    test("a platform operator with MFA signs in tenantless after a valid code", async () => {
+        const { authenticator } = require("otplib");
+        const { encryptSecret } = require("../services/adminMfa");
+        const secret = authenticator.generateSecret(20);
+        const hash = await bcrypt.hash("CorrectPass1!", 10);
+        const operator = {
+            id: 9, username: "vvronline", password: hash, full_name: "Platform Admin",
+            email: "admin@example.test", is_active: true, token_version: 0,
+            failed_login_attempts: 0, must_change_password: true,
+        };
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user_directory miss
+            .mockResolvedValueOnce({ rows: [operator], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ mfa_enabled: true, mfa_secret: encryptSecret(secret) }], rowCount: 1 });
+        const challenged = await request(app).post("/api/auth/login").set(CSRF)
+            .send({ username: "vvronline", password: "CorrectPass1!" });
+        expect(challenged.body.code).toBe("MFA_REQUIRED");
+
+        mockQuery
+            .mockResolvedValueOnce({ rows: [operator], rowCount: 1 }) // load principal
+            .mockResolvedValueOnce({ rows: [{ mfa_enabled: true, mfa_secret: encryptSecret(secret) }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: "platform-session" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: "platform-session" }], rowCount: 1 });
-
-        const res = await request(app).post("/api/auth/login").set(CSRF)
-            .send({ username: "vvronline", password: "CorrectPass1!" });
+        const res = await request(app).post("/api/auth/mfa/verify").set(CSRF)
+            .send({ mfaTicket: challenged.body.mfaTicket, code: authenticator.generate(secret) });
 
         expect(res.status).toBe(200);
         expect(res.body.user).toMatchObject({
             id: 9, role: "platform_admin", tenant_id: null, org_id: null,
             must_change_password: true,
         });
-        const token = jwt.decode(res.body.token);
+        const token = jwt.decode(String(res.headers["set-cookie"][0]).split(";")[0].split("=")[1]);
         // PR-B: platform tokens carry aud="platform" so they cannot be replayed
         // against the application host.
         expect(token).toMatchObject({ platform: true, tenant_id: null, aud: "platform" });
+        expect(token.mfa_at).toEqual(expect.any(Number));
         expect(res.headers["set-cookie"][0]).toMatch(/^aino_console=/);
         expect(mockQuery.mock.calls.some(([sql]) => /FROM tenants/.test(sql))).toBe(false);
     });
@@ -363,8 +397,9 @@ describe("POST /api/auth/login", () => {
         const tenantQuery = jest
             .fn()
             .mockResolvedValueOnce({ rows: [userRow], rowCount: 1 }) // SELECT * FROM users WHERE id=...
-            .mockResolvedValueOnce({ rows: [{ id: "sess-1" }], rowCount: 1 }) // INSERT session
-            .mockResolvedValueOnce({ rows: [{ id: "sess-1" }], rowCount: 1 }) // list sessions
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // end same-class sessions
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT session
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // prune sessions
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // reports check
         tm.getTenantPool.mockResolvedValueOnce({
             query: tenantQuery,

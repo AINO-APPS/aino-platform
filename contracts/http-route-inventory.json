@@ -7,9 +7,9 @@
   ],
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
-    "routerMounts": 31,
-    "concreteEndpoints": 479,
-    "openApiOperations": 211
+    "routerMounts": 33,
+    "concreteEndpoints": 488,
+    "openApiOperations": 220
   },
   "standaloneRoutes": [
     {
@@ -50,7 +50,21 @@
       "mountPath": "/api/auth",
       "source": "server/routes/auth.ts",
       "coverage": "baseline",
-      "endpointCount": 22
+      "endpointCount": 28
+    },
+    {
+      "id": "sessions",
+      "mountPath": "/api/sessions",
+      "source": "server/routes/sessions.ts",
+      "coverage": "baseline",
+      "endpointCount": 3
+    },
+    {
+      "id": "mfa",
+      "mountPath": "/api/auth/mfa",
+      "source": "server/routes/mfa.ts",
+      "coverage": "baseline",
+      "endpointCount": 6
     },
     {
       "id": "tracker",
@@ -815,6 +829,36 @@
     {
       "method": "POST",
       "path": "/api/auth/logout",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/disable",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/enroll/confirm",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/enroll/start",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/mfa/status",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/step-up",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/mfa/verify",
       "coverage": "operation"
     },
     {
@@ -2251,6 +2295,21 @@
       "method": "PATCH",
       "path": "/api/service-desk/tickets/:id",
       "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:id",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/token",
+      "coverage": "operation"
     },
     {
       "method": "GET",

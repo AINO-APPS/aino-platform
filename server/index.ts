@@ -17,6 +17,7 @@ const { installCrashHandlers } = require("./bootstrap/crashHandlers");
 const { logger } = require("./utils/logger");
 
 validateEnvironment();
+require("./bootstrap/errorTracking").initErrorTracking();
 installCrashHandlers();
 
 const { bootstrap } = require("./bootstrap/migrations");

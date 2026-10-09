@@ -1,0 +1,8 @@
+{
+  "schema": "../../schemas/push/session-revoked.schema.json",
+  "variant": "signed_in_elsewhere",
+  "data": {
+    "type": "session_revoked", "reason": "signed_in_elsewhere",
+    "dedupeKey": "session_revoked:1791545400000", "tenantId": "1", "sentAt": "2026-10-09T11:30:00.000Z"
+  }
+}

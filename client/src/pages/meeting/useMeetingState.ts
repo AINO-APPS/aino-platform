@@ -1764,7 +1764,7 @@ export function useMeetingState({
                     }
                     break;
                 }
-                case "meeting_message_error": {
+                case "meeting_full": if (String(data.meetingId) === String(meetingId)) setStatus("full"); break; case "meeting_message_error": { // meeting_full: the mesh cap refused the join
                     const { clientMsgId, reason } = data as {
                         clientMsgId?: string;
                         reason?: string;

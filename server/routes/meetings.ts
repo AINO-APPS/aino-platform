@@ -10,8 +10,8 @@ const { requireTenant } = require("../middleware/tenant");
 const { meetingFeatureGate } = require("../middleware/meetingFeatureGate"); // calls vs meetings plans
 const { provisionBroadcast } = require("../utils/hlsBroadcast");
 const { pushNotifications } = require("../services/pushNotifications");
-// Phase 3 — Permission Presets: single source of truth for meeting permissions.
-const meetingPerms = require("../utils/meetingPermissions");
+const meetingPerms = require("../utils/meetingPermissions"); // Phase 3 permission presets
+const { MESH_PARTICIPANT_CAP } = require("../realtime/meetingCapacity");
 
 const router = express.Router();
 router.use(auth, requireTenant, meetingFeatureGate);
@@ -290,7 +290,7 @@ router.get("/:code", async (req: Request, res: Response) => {
                 await redis.setMeetingParticipants(req.tenantId, meeting.id, participantRows);
             }
         }
-        meeting.participants = participantRows;
+        Object.assign(meeting, { participants: participantRows, participant_cap: MESH_PARTICIPANT_CAP });
         res.json(meeting);
     } catch (err) {
         req.log.error({ err }, "Get meeting error");

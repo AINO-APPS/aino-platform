@@ -226,11 +226,11 @@ describe("POST /api/auth/biometric/login", () => {
             .set(CSRF)
             .send({ credentialId: "0.cred", deviceSecret: secret });
 
-        // finishLogin's platform-admin auto-provision path may attempt to create
-        // a tenant; in the unit-test mock that returns gracefully. We only assert
-        // the secret verification + user resolution succeeded (no 401/400).
-        expect(res.status).not.toBe(401);
-        expect(res.status).not.toBe(400);
+        // The device secret is one factor (the server cannot see the OS biometric),
+        // so a platform operator is asked for two-step verification next (P2.1).
+        // The credential itself was accepted: not "Invalid biometric credential".
+        expect(res.status).toBe(401);
+        expect(["MFA_REQUIRED", "MFA_ENROLL_REQUIRED"]).toContain(res.body.code);
     });
 });
 

@@ -21,6 +21,7 @@
   "dependencies": {
     "@hocuspocus/provider": "^4.0.0",
     "@mediapipe/selfie_segmentation": "^0.1.1675465747",
+    "@sentry/react": "^11.6.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/query-sync-storage-persister": "^5.101.1",
     "@tanstack/react-query": "^5.101.1",

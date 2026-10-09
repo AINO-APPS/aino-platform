@@ -33,7 +33,7 @@ router.use((req: Request, res: Response, next) => {
 const { cookieOptions, cookieNameForRealm, cookieNameForRequest } = require("../utils/cookie");
 import { realmClaims, TENANT_REALM, PLATFORM_REALM } from "../platform/realm";
 import { hasLinkedTenantRealm, platformProfile } from "../services/realmPrincipals";
-import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS } from "../services/authSessions";
+import { AUTH_TOKEN_TTL_MS, AUTH_TOKEN_TTL_SECONDS } from "../services/authSessions"; import { endUserSessions } from "../services/sessionSignOut"; import { verifyUploadContent } from "../utils/uploadPolicy";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -83,7 +83,7 @@ async function deleteAvatarObject(avatarUrl: string | null | undefined): Promise
     }
 }
 
-router.post("/avatar", auth, loadUserContext, upload.single("avatar"), async (req: Request, res: Response) => {
+router.post("/avatar", auth, loadUserContext, upload.single("avatar"), verifyUploadContent, async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     // Random, not `user_<id>_<timestamp>`: a predictable key is enumerable.
@@ -301,7 +301,7 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
         } else {
             await req.db!.query("DELETE FROM user_sessions WHERE user_id = $1", [req.userId]);
         }
-        await redis.invalidateUserSessions(req.tenantId, req.userId);
+        await endUserSessions(req.tenantId, req.userId!, "Password changed", null, req.sessionId || null);
         const updated = (await req.db!.query(`SELECT token_version FROM ${userTable} WHERE id = $1`, [req.userId])).rows[0];
         const tokenPayload: Record<string, unknown> = { id: req.userId, username: req.username, tv: updated.token_version || 0, sid: req.sessionId };
         if (req.tenantId) tokenPayload.tenant_id = req.tenantId;

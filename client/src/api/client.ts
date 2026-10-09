@@ -2,6 +2,7 @@ import axios from "axios";
 import type { InternalAxiosRequestConfig } from "axios";
 import NProgress from "nprogress";
 import "nprogress/nprogress.css";
+import { installMfaStepUp } from "../auth/mfaStepUp";
 
 export type AnyData = Record<string, unknown> | unknown;
 export type Params = Record<string, unknown>;
@@ -59,5 +60,8 @@ API.interceptors.response.use(
         return Promise.reject(error);
     },
 );
+
+// P2.1: admin changes may ask for a fresh second factor, then retry once.
+installMfaStepUp(API);
 
 export default API;

@@ -36,6 +36,7 @@ const { loadUserContext, requireRole, requireSameOrg } = require("../middleware/
 const { requireTenant } = require("../middleware/tenant");
 const { logAction } = require("../utils/audit");
 const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../utils/uploadPath");
+import { verifyUploadContent } from "../utils/uploadPolicy";
 const { getStorage, randomFilename } = require("../platform/storage");
 const {
     templates,
@@ -56,7 +57,7 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
     fileFilter(_req: Request, file: UploadedFile, cb: MulterCb<boolean>) {
-        if (!/^image\/(png|jpe?g|gif|svg\+xml|webp)$/i.test(file.mimetype)) {
+        if (!/^image\/(png|jpe?g|gif|webp)$/i.test(file.mimetype)) { // no SVG: it can carry script
             return cb(new Error("Only image files are allowed"));
         }
         cb(null, true);
@@ -151,7 +152,7 @@ router.put("/", requireRole("hr_admin"), requireSameOrg, async (req: Request, re
 });
 
 // ── POST /branding/logo (multipart upload) ──────────────────────────────
-router.post("/logo", requireRole("hr_admin"), requireSameOrg, upload.single("logo"), async (req: Request, res: Response) => {
+router.post("/logo", requireRole("hr_admin"), requireSameOrg, upload.single("logo"), verifyUploadContent, async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     // Random, not `logo-<timestamp>`: a predictable key is enumerable.

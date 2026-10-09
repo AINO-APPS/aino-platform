@@ -61,6 +61,12 @@ export default defineRailway(() => {
     // supplied integration credential below: hardcoding "" here would silently
     // WIPE values already configured in Railway on the next apply.
     JWT_SECRET: preserve(),
+    // P2.1: encrypts admin TOTP secrets. Set once before the first enrolment;
+    // changing it later makes every enrolled authenticator unreadable.
+    MFA_ENC_KEY: preserve(),
+    // P2.2: error tracking; unset = nothing is sent.
+    SENTRY_DSN: preserve(),
+    SENTRY_ENVIRONMENT: preserve(),
     ENCRYPTION_KEY: preserve(),
     DESKTOP_UPLOAD_SECRET: preserve(),
     METRICS_TOKEN: preserve(),

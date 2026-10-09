@@ -21,6 +21,11 @@ const CHAT_ACK_RETRY_MS = 10_000;
 const CHAT_MAX_SEND_ATTEMPTS = 6;
 
 export const REALTIME_EVENT = "aino-realtime";
+
+/** Close reason the server sends when a newer sign-in replaced this session (server/services/sessionSignOut.ts). */
+export const SIGNED_IN_ELSEWHERE_REASON = "Signed in on another device";
+/** Window event dispatched when the server ended this session for that reason. */
+export const SESSION_REVOKED_EVENT = "aino-session-revoked";
 let lastInboundFrame = "";
 let lastInboundAt = 0;
 
@@ -261,6 +266,15 @@ export default function useWebSocket(onMessage: OnMessage) {
       wsRef.current = null;
       stopAckRetry();
       stopHeartbeat();
+      // The account signed in on another browser / desktop app, which ended this
+      // session (one session per client class). AxiosInterceptor signs out.
+      if (e.code === 4001 && e.reason === SIGNED_IN_ELSEWHERE_REASON) {
+        try {
+          window.dispatchEvent(new CustomEvent(SESSION_REVOKED_EVENT, { detail: { reason: e.reason } }));
+        } catch {
+          /* non-browser env */
+        }
+      }
       // Reconnect after a delay unless auth failure or too-many-connections
       if (e.code !== 4001 && e.code !== 4029) {
         const attempt = retryCountRef.current++;

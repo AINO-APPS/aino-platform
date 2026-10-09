@@ -1,4 +1,4 @@
-export type RoutedPushType = "call" | "message" | "call_cancel";
+export type RoutedPushType = "call" | "message" | "call_cancel" | "session_revoked";
 
 interface ContractLogger {
     error(details: unknown, message: string): void;
@@ -16,6 +16,10 @@ const FIELDS: Record<RoutedPushType, { present: string[]; nonEmpty: string[] }> 
     call_cancel: {
         present: ["type", "callId", "conversationId", "dedupeKey", "sentAt"],
         nonEmpty: ["type", "callId", "conversationId", "dedupeKey", "sentAt"],
+    },
+    session_revoked: {
+        present: ["type", "reason", "dedupeKey", "sentAt"],
+        nonEmpty: ["type", "reason", "dedupeKey", "sentAt"],
     },
 };
 
@@ -47,6 +51,10 @@ export function assertRoutingPayloadContract(
     } else if (notificationType === "call_cancel") {
         if (data.type !== "call_handled_elsewhere") invalid.push("type");
         if (!/^call_cancel:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
+    } else if (notificationType === "session_revoked") {
+        if (data.type !== "session_revoked") invalid.push("type");
+        if (data.reason !== "signed_in_elsewhere") invalid.push("reason");
+        if (!/^session_revoked:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
     } else {
         if (data.type !== "chat_message") invalid.push("type");
         if (!/^msg:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");

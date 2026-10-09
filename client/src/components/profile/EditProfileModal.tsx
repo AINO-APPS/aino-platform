@@ -19,7 +19,7 @@ import {
     enableDesktopBiometric,
     disableDesktopBiometric,
 } from "../../auth/desktopBiometric";
-import s from "./EditProfileModal.module.css";
+import s from "./EditProfileModal.module.css"; import SignedInDevices from "./SignedInDevices"; import TwoStepVerification from "./TwoStepVerification";
 
 interface EditProfileModalProps {
     onClose: () => void;
@@ -622,8 +622,7 @@ export default function EditProfileModal({ onClose }: EditProfileModalProps) {
                         </>
                     )}
 
-                    <div className={s.divider} />
-
+                    <div className={s.divider} /><TwoStepVerification /><SignedInDevices /><div className={s.divider} />
                     {/* ── Danger Zone ── */}
                     <section className={`${s.section} ${s.dangerSection}`}>
                         <h3 className={`${s.sectionTitle} ${s.dangerTitle}`}>

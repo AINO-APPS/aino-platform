@@ -83,7 +83,8 @@ const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
 
 function authCookie(userId = 1) {
-    const token = jwt.sign({ id: userId, username: "testuser", tv: 0 }, SECRET, { expiresIn: "1h" });
+    // mfa_at: a recent second factor, required for admin changes (P2.1 step-up).
+    const token = jwt.sign({ id: userId, username: "testuser", tv: 0, mfa_at: Math.floor(Date.now() / 1000) }, SECRET, { expiresIn: "1h" });
     return `token=${token}`;
 }
 

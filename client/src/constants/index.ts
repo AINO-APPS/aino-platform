@@ -13,3 +13,6 @@ export const REFRESH_TOKEN_INTERVAL = 30 * 60 * 1000; // 30 min — auth token r
 export const QUOTE_ROTATION_INTERVAL = 20_000;          // 20 sec — dashboard quote rotation
 export const STATUS_POLL_INTERVAL = 120_000;         // 2 min  — dashboard status poll
 export const NOTIFICATION_POLL_INTERVAL = 30_000;         // 30 sec — notification bell poll
+
+/** Meetings, group calls and huddles are a WebRTC mesh capped at this many people (server realtime/meetingCapacity.ts). */
+export const MESH_PARTICIPANT_CAP = 8;

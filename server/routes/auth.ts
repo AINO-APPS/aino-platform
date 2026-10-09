@@ -29,7 +29,9 @@ const {
     TENANT_COOKIE: TENANT_COOKIE_NAME, PLATFORM_COOKIE: PLATFORM_COOKIE_NAME,
 } = require("../utils/cookie");
 import { realmClaims, expectedRealm, TENANT_REALM, PLATFORM_REALM, type Realm } from "../platform/realm";
-import { clientClaims } from "../middleware/webOnly";
+import { clientClaims, isMobileClient } from "../middleware/webOnly";
+import { endUserSessions, signOutRevokedSessions } from "../services/sessionSignOut";
+import { sessionTokenTerms, sessionUsesRotation, wantsRotatingRefresh } from "../services/refreshTokens"; import { requireAdminSecondFactor, requireStepUpForAdmins } from "../services/adminMfaGate";
 import { consoleHost } from "../platform/reservedHosts";
 import { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } from "../services/realmHandoff";
 import { availablePlatformPrincipal, findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
@@ -63,6 +65,7 @@ router.use((req: Request, res: Response, next: NextFunction) => {
             body.token === undefined
         ) {
             body.token = res.locals.authToken;
+            if (res.locals.refreshToken) body.refreshToken = res.locals.refreshToken;
         }
         return originalJson(body);
     }) as any;
@@ -137,16 +140,18 @@ async function resolveDefaultDomainUser(identifier: string): Promise<any> {
 }
 
 /**
- * Create an authentication session. Tenant users get one session per device
- * (concurrent across devices); platform operators get independent sessions.
- * Returns the new session ID.
+ * Create a session and return its ID. Tenant users get one session per client
+ * class (one phone, one browser / desktop): the user's other sessions of that
+ * class end and those devices are signed out at once (sessionSignOut.ts).
  */
-async function createSession(userId: number, deviceInfo: unknown, db: any, tenantId: number | null, concurrent = false, deviceId: string | null = null): Promise<string> {
-    const sid = concurrent
-        ? await createConcurrentSession(userId, deviceInfo, db)
-        : await createDeviceSession(userId, deviceInfo, deviceId, db);
+async function createSession(req: Request, userId: number, db: any, tenantId: number | null, concurrent = false): Promise<string> {
+    const clientClass = isMobileClient(req) ? "mobile" : "web";
+    const created = concurrent
+        ? { sid: await createConcurrentSession(userId, req.headers["user-agent"], db), revoked: [] }
+        : await createDeviceSession(userId, req.headers["user-agent"], deviceIdOf(req), clientClass, db);
     await redis.invalidateUserSessions(tenantId, userId);
-    return sid;
+    signOutRevokedSessions({ db, tenantId, userId, revoked: created.revoked, currentDeviceId: deviceIdOf(req) });
+    return created.sid;
 }
 
 /** The app's stable install id (`X-AINO-Device-Id`); browsers send none. */
@@ -326,7 +331,7 @@ router.post("/register", async (req: Request, res: Response) => {
             );
         }
 
-        const sid = await createSession(result.id, req.headers["user-agent"], db, tenantId, false, deviceIdOf(req));
+        const sid = await createSession(req, result.id, db, tenantId);
         // Registration always produces a TENANT identity — platform operators
         // are provisioned by an existing operator, never self-registered.
         const token = jwt.sign(
@@ -361,20 +366,18 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
         tenantId = null;
         db = { query: masterQuery };
     }
-    const sid = await createSession(user.id, req.headers["user-agent"], db, tenantId, Boolean(isPlatformUser), deviceIdOf(req));
+    if (await requireAdminSecondFactor(req, res, { user, db, tenantId, isPlatformUser: Boolean(isPlatformUser) })) return; // P2.1
+    const sid = await createSession(req, user.id, db, tenantId, Boolean(isPlatformUser));
     // The realm travels with the token as `aud`, so a console session can
     // never authenticate an app-host request (and vice-versa). See PR-B /
     // platform/realm.ts.
     const realm: Realm = isPlatformUser ? PLATFORM_REALM : TENANT_REALM;
+    const terms = await sessionTokenTerms({ optIn: !isPlatformUser && wantsRotatingRefresh(req.headers), sid, userId: user.id, tenantId, db, longTtlSeconds: AUTH_TOKEN_TTL_SECONDS });
+    if (terms.refreshToken) res.locals.refreshToken = terms.refreshToken; // P2.7: opted-in apps get 15-min tokens + rotating refresh
     const token = jwt.sign(
-        {
-            id: user.id, username: user.username, tv: user.token_version || 0, sid,
-            tenant_id: tenantId, platform: isPlatformUser || undefined,
-            ...realmClaims(realm),
-            ...clientClaims(req),
-        },
+        { id: user.id, username: user.username, tv: user.token_version || 0, sid, tenant_id: tenantId, platform: isPlatformUser || undefined, mfa_at: res.locals.mfaVerifiedAt, ...realmClaims(realm), ...clientClaims(req) },
         process.env.JWT_SECRET,
-        { expiresIn: AUTH_TOKEN_TTL_SECONDS },
+        { expiresIn: terms.expiresIn },
     );
     res.cookie(cookieNameForRealm(realm), token, cookieOptions(req, AUTH_TOKEN_TTL_MS));
 
@@ -775,7 +778,7 @@ router.post("/reset-password", async (req: Request, res: Response) => {
         await redis.invalidateTokenVersion(req.tenant?.id || null, row.user_id);
         // Clear all active sessions on password reset
         await db.query("DELETE FROM user_sessions WHERE user_id = $1", [row.user_id]);
-        await redis.invalidateUserSessions(req.tenant?.id || null, row.user_id);
+        await endUserSessions(req.tenant?.id || null, row.user_id, "Password reset");
         // Revoke any enrolled biometric device credentials — a password reset
         // means "I no longer trust the old devices", so the biometric-unlocked
         // refresh secrets must stop working too (mirrors the session wipe).
@@ -805,12 +808,12 @@ router.post("/refresh", auth, async (req: Request, res: Response) => {
     try {
         if (req.isImpersonated) {
             return res.status(403).json({ error: "Impersonation sessions cannot be refreshed", code: "IMPERSONATION_REFRESH_DENIED" });
-        }
+        } if (req.sessionId && await sessionUsesRotation(req.sessionId, req.db!)) return res.status(403).json({ error: "Use the refresh token for this session", code: "REFRESH_ROTATION_REQUIRED" }); // P2.7: no 15-min → long-lived upgrade
         const table = req.isPlatformUser && !req.tenantId ? "platform_users" : "users";
         const row = (await req.db!.query(`SELECT token_version FROM ${table} WHERE id = $1`, [req.userId])).rows[0];
         if (!row) return res.status(401).json({ error: "User not found" });
         const sessionTenantId = req.tenantId ? Number(req.tenantId) : null;
-        const sessionId = req.sessionId || await createSession(req.userId!, req.headers["user-agent"], req.db!, sessionTenantId, false, deviceIdOf(req));
+        const sessionId = req.sessionId || await createSession(req, req.userId!, req.db!, sessionTenantId);
 
         const claims: any = {
             id: req.userId,
@@ -863,7 +866,7 @@ router.post("/logout", async (req: Request, res: Response) => {
             if (decoded.sid) {
                 // Only delete the session that belongs to this user
                 await req.db!.query("DELETE FROM user_sessions WHERE id = $1 AND user_id = $2", [decoded.sid, decoded.id]);
-                await redis.invalidateUserSessions(decoded.tenant_id || null, decoded.id);
+                await endUserSessions(decoded.tenant_id || null, decoded.id, "Signed out", [decoded.sid]);
             }
             // Status service v2: close all open presence sessions for this
             // user (logout means every device is gone). The service handles
@@ -951,7 +954,7 @@ router.post("/device-token", auth, async (req: Request, res: Response) => {
         // accepts `link` / `linkTaskId` on general alerts; absent = legacy app.
         const db = req.db || { query: masterQuery };
         const pushVersion = Number(req.body.pushVersion) === 2 ? 2 : 1;
-        await registerDeviceToken((sql: string, params?: unknown[]) => db.query(sql, params), userId, tenantId, deviceToken, platform, logger, pushVersion);
+        await registerDeviceToken((sql: string, params?: unknown[]) => db.query(sql, params), userId, tenantId, deviceToken, platform, logger, pushVersion, deviceIdOf(req));
 
         logger.info({ userId, tenantId, platform }, "Device token registered for push notifications");
         res.json({ message: "Device token registered successfully" });
@@ -1008,7 +1011,7 @@ async function isBiometricLoginEnabled(db: any, userId: number, isPlatformUser?:
     }
 }
 
-router.post("/biometric/enroll", auth, async (req: Request, res: Response) => {
+router.post("/biometric/enroll", auth, requireStepUpForAdmins, async (req: Request, res: Response) => {
     try {
         const { platform, deviceLabel } = req.body || {};
         if (!platform || !BIOMETRIC_PLATFORMS.includes(platform)) {
@@ -1119,7 +1122,7 @@ router.post("/biometric/login", async (req: Request, res: Response) => {
             await db.query("UPDATE device_credentials SET last_used_at = NOW() WHERE id = $1", [credentialId]);
         } catch { /* non-fatal */ }
 
-        logAction(req, "biometric_login", "user", user.id, { credential_id: credentialId });
+        logAction(req, "biometric_login", "user", user.id, { credential_id: credentialId }); // not MFA: the server cannot see the OS biometric, so the device secret is one factor
         return finishLogin(req, res, { user, db, tenantId: resolvedTenantId, isPlatformUser });
     } catch (err: any) {
         req.log.error({ err: err?.message }, "POST /biometric/login error");
@@ -1214,7 +1217,7 @@ async function waDelChallenge(key: string): Promise<void> {
     _waChallengeMem.delete(key);
 }
 
-router.post("/webauthn/register/options", auth, async (req: Request, res: Response) => {
+router.post("/webauthn/register/options", auth, requireStepUpForAdmins, async (req: Request, res: Response) => {
     try {
         const userId = (req as any).userId;
         if (!userId) return res.status(401).json({ error: "User not authenticated" });
@@ -1443,7 +1446,7 @@ router.post("/webauthn/login/verify", async (req: Request, res: Response) => {
             return res.status(403).json({ error: "Biometric login is disabled for your organization." });
         }
 
-        logAction(req, "webauthn_login", "user", user.id, { credential_id: response.id });
+        logAction(req, "webauthn_login", "user", user.id, { credential_id: response.id }); res.locals.mfaVerifiedAt = Math.floor(Date.now() / 1000); // a verified passkey is phishing-resistant MFA
         return finishLogin(req, res, { user, db, tenantId: resolvedTenantId, isPlatformUser });
     } catch (err: any) {
         req.log.error({ err: err?.message }, "POST /webauthn/login/verify error");
@@ -1490,4 +1493,4 @@ router.delete("/webauthn/:id", auth, async (req: Request, res: Response) => {
     }
 });
 
-export = router;
+(router as any).finishLogin = finishLogin; export = router; // finishLogin: reused by routes/mfa.ts after the second factor

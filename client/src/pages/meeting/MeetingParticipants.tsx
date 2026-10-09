@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Hand, MicOff, Mic } from "lucide-react";
 import { searchChatUsers } from "../../api/chat";
+import { MESH_PARTICIPANT_CAP } from "../../constants";
 import "./MeetingRoom.css";
 
 interface MeetingParticipantsProps {
@@ -56,7 +57,7 @@ export default function MeetingParticipants({
     return (
         <div className="mp-panel">
             <div className="mp-header">
-                <span>Participants ({participantList.length})</span>
+                <span>Participants ({participantList.length + 1} / {MESH_PARTICIPANT_CAP})</span>
                 <div className="mp-header-actions">
                     {isOrganizer && onMuteAll && (
                         <button className="mp-mute-all-btn" onClick={onMuteAll} title="Mute all participants">

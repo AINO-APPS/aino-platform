@@ -49,6 +49,13 @@ describe("migration files", () => {
         expect(sql).toContain("on user_sessions(user_id, device_id) where device_id is not null");
     });
 
+    it("tracks the session client class and the device behind each push token", () => {
+        const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "0010_session_client_class.sql"), "utf8").toLowerCase();
+        expect(sql).toContain("alter table user_sessions add column if not exists client_class");
+        expect(sql).toContain("alter table device_tokens add column if not exists device_id");
+        expect(sql).toContain("create index if not exists idx_user_sessions_user_class");
+    });
+
     it("creates master-backed global announcements", () => {
         const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, "master", "0006_platform_announcements.sql"), "utf8").toLowerCase();
         expect(sql).toContain("create table if not exists platform_announcements");

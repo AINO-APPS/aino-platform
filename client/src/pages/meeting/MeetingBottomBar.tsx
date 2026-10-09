@@ -14,6 +14,7 @@ import {
     MicOffIcon,
     SmilePlus,
 } from "lucide-react";
+import { MESH_PARTICIPANT_CAP } from "../../constants";
 
 const REACTIONS = ["👍", "👏", "😂", "🎉", "❤️", "🔥"];
 
@@ -244,7 +245,7 @@ export default function MeetingBottomBar({
                                     setShowMore(false);
                                 }}
                             >
-                                <Users size={16} /> Participants ({participantCount})
+                                <Users size={16} /> Participants ({participantCount} / {MESH_PARTICIPANT_CAP})
                             </button>
                             {isHost && onToggleRecording && (
                                 <button

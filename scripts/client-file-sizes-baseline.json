@@ -10,7 +10,7 @@
   "components/chat/call/useCallControls.ts": 754,
   "components/chat/call/useWebRTC.ts": 1808,
   "components/organization/OfficeLocationSettings.tsx": 917,
-  "components/profile/EditProfileModal.tsx": 700,
+  "components/profile/EditProfileModal.tsx": 699,
   "pages/AgileSettings.tsx": 882,
   "pages/Projects.tsx": 906,
   "pages/SprintInsights.tsx": 755,

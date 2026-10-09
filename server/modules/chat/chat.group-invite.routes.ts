@@ -13,6 +13,7 @@ const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploa
 const { getStorage, randomFilename } = require("../../platform/storage");
 const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
+import { verifyUploadContent } from "../../utils/uploadPolicy";
 import { parseConversationId, parseUserId } from "./chat.schema";
 import { db, type DbLike, emitSystemMessage } from "./chat.shared";
 import { createGroupInviteService, isOwnGroupAvatarUrl } from "./chat.group-invite.service";
@@ -184,6 +185,7 @@ router.post(
             next();
         });
     },
+    verifyUploadContent,
     async (req: Request, res: Response) => {
         try {
             const conversationId = parseConversationId(req.params.id);

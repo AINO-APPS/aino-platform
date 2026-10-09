@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aino.local/contracts/push/session-revoked.schema.json",
+  "title": "Session revoked push data",
+  "description": "Data-only push to a phone whose session ended because the account signed in on another phone. The app clears its credential and local data.",
+  "type": "object",
+  "required": ["type", "reason", "dedupeKey", "tenantId", "sentAt"],
+  "properties": {
+    "type": { "const": "session_revoked" },
+    "reason": { "enum": ["signed_in_elsewhere"] },
+    "dedupeKey": { "type": "string", "pattern": "^session_revoked:[1-9][0-9]*$" },
+    "tenantId": { "type": "string", "pattern": "^(|[1-9][0-9]*)$" },
+    "sentAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

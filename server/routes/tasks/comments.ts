@@ -6,6 +6,7 @@
 
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { safeOriginalName, verifyUploadContent } from "../../utils/uploadPolicy";
 const multer = require('multer');
 const fsPromises = require('fs').promises;
 const auth = require('../../middleware/auth');
@@ -87,7 +88,7 @@ const handleUpload = (req: Request, res: Response, next: NextFunction) => {
         if (err) {
             return res.status(400).json({ error: err.message || 'File upload failed' });
         }
-        next();
+        verifyUploadContent(req, res, next);
     });
 };
 
@@ -130,7 +131,7 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                 return res.status(500).json({ error: 'Failed to store attachment' });
             }
             fileUrl = getUploadUrl(req.tenantId, req.userOrgId, 'task-comments', storedName);
-            fileName = req.file!.originalname;
+            fileName = safeOriginalName(req.file!.originalname);
             fileType = req.file!.mimetype;
             fileSize = req.file!.size;
         }

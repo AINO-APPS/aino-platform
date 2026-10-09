@@ -18,6 +18,7 @@ import {
   desktopBiometricLogin,
 } from "../auth/desktopBiometric";
 import { completeLogin } from "../auth/completeLogin";
+import MfaChallenge, { mfaChallengeFrom, type MfaChallengeState } from "../components/auth/MfaChallenge";
 import s from "./Auth.module.css";
 
 export default function Login() {
@@ -28,6 +29,7 @@ export default function Login() {
   const [error, setError] = useAutoDismiss("") as [string, (v: string) => void];
   const [loading, setLoading] = useState(false);
   const [realmChoice, setRealmChoice] = useState<any>(null);
+  const [mfaChallenge, setMfaChallenge] = useState<MfaChallengeState | null>(null);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   // Desktop (Electron) biometric: only offered when running in the desktop
   // app AND a credential is already enrolled on this device. On web this stays
@@ -56,6 +58,11 @@ export default function Login() {
         setRealmChoice(err.response.data);
         return;
       }
+      const challenge = mfaChallengeFrom(err.response?.data);
+      if (challenge) {
+        setMfaChallenge(challenge);
+        return;
+      }
       if (err.response?.data?.redirect) {
         window.location.assign(err.response.data.redirect);
         return;
@@ -72,6 +79,8 @@ export default function Login() {
       const { data } = await chooseLoginRealm(realmChoice.login_ticket, realm);
       completeLogin(data as any, saveAuth);
     } catch (err: any) {
+      const challenge = mfaChallengeFrom(err.response?.data);
+      if (challenge) { setRealmChoice(null); setMfaChallenge(challenge); return; }
       setError(err.response?.data?.error || "Realm selection failed");
       setRealmChoice(null);
     } finally { setLoading(false); }
@@ -131,6 +140,9 @@ export default function Login() {
       const { user } = await desktopBiometricLogin();
       saveAuth(user);
     } catch (err: any) {
+      // Admins still need their authenticator code after a device-key sign-in (P2.1).
+      const challenge = mfaChallengeFrom(err?.response?.data);
+      if (challenge) { setMfaChallenge(challenge); return; }
       setError(
         err?.response?.data?.error ||
           err?.message ||
@@ -188,7 +200,13 @@ export default function Login() {
         )}
         {error && <div className="error-msg">{error}</div>}
 
-        {realmChoice ? (
+        {mfaChallenge ? (
+          <MfaChallenge
+            challenge={mfaChallenge}
+            onSignedIn={(data) => completeLogin(data as any, saveAuth)}
+            onCancel={() => setMfaChallenge(null)}
+          />
+        ) : realmChoice ? (
           <div>
             <p style={{ color: "var(--text-secondary)", marginBottom: 12 }}>Choose where you want to work:</p>
             {(realmChoice.realms || []).map((r: any) => (

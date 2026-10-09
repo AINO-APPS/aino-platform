@@ -14,7 +14,7 @@
 import { logger } from "../logger";
 import { pushNotifications } from "../../services/pushNotifications";
 import { withIdempotency } from "../wsIdempotency";
-import * as signalStore from "../../realtime/signalStore";
+import * as signalStore from "../../realtime/signalStore"; import { MESH_PARTICIPANT_CAP, admitToMeeting } from "../../realtime/meetingCapacity";
 const statusService = require("../../services/status");
 import {
   DbLike,
@@ -86,8 +86,8 @@ export async function handleMeetingJoin({
       ).rows[0]
     : true;
   if (!mp && !isOrgMember) return;
-  // Track if this is a rejoin (already had status 'joined') to skip duplicate system messages
-  const wasAlreadyJoined = mp?.status === "joined";
+  const wasAlreadyJoined = mp?.status === "joined"; // mesh cap (P2.8): a rejoin keeps its seat, a new member needs one
+  if (!wasAlreadyJoined && !(await admitToMeeting({ db, tenantId, meetingId, userId: senderId, sendToUser }))) return;
   // Upsert participant
   await db.query(
     `INSERT INTO meeting_participants (meeting_id, user_id, role, status, joined_at)
@@ -241,7 +241,7 @@ export async function handleMeetingJoin({
       fullName: joiner?.full_name,
       avatar: joiner?.avatar,
       username: joiner?.username,
-      existingPeers: p.user_id === senderId ? existingPeers : undefined,
+      existingPeers: p.user_id === senderId ? existingPeers : undefined, participantCap: MESH_PARTICIPANT_CAP,
     });
   }
 

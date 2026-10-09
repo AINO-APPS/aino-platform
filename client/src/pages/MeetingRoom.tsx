@@ -11,6 +11,8 @@ import PresenterView from "./meeting/PresenterView";
 import MeetingBottomBar from "./meeting/MeetingBottomBar";
 import MeetingChat from "./meeting/MeetingChat";
 import MeetingParticipants from "./meeting/MeetingParticipants";
+import { useToast } from "../components/common/Toast";
+import { MESH_PARTICIPANT_CAP } from "../constants";
 import "./meeting/MeetingRoom.css";
 
 /**
@@ -21,6 +23,7 @@ export default function MeetingRoom() {
     const { code } = useParams<{ code: string }>();
     const { user } = useAuth() as any;
     const { session, ws, localStreamRef, setLocalStream: ctxSetLocalStream, leaveMeeting: ctxLeave, joinMeeting, joinedAt } = useMeeting() as any;
+    const toast = useToast();
     const [autoJoinError, setAutoJoinError] = useState("");
     const [codeCopied, setCodeCopied] = useState(false);
 
@@ -107,11 +110,14 @@ export default function MeetingRoom() {
 
     // Navigate away on end/leave
     useEffect(() => {
-        if (status === "ended" || status === "left") {
+        if (status === "full") {
+            toast.warning(`This call is full (${MESH_PARTICIPANT_CAP} people max).`);
+        }
+        if (status === "ended" || status === "left" || status === "full") {
             ctxLeave();
             navigate("/");
         }
-    }, [status, ctxLeave, navigate]);
+    }, [status, ctxLeave, navigate, toast]);
 
     // Keyboard shortcuts (Alt+A = mute, Alt+V = video)
     useEffect(() => {

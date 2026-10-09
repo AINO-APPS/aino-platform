@@ -12,6 +12,7 @@ import { logoutUser, refreshToken } from "./api/workforce";
 import { REFRESH_TOKEN_INTERVAL } from "./constants";
 import { queryClient, PERSISTED_QUERY_CACHE_KEY } from "./queryClient";
 import type { User } from "./types";
+import { setErrorUser } from "./errorTracking";
 
 interface AuthContextValue {
   user: User | null;
@@ -182,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
   const [isInitializing, setIsInitializing] = useState(true);
+  useEffect(() => setErrorUser(user), [user?.id, user?.tenant_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Only verify session if there's a cached user — avoids a 401 console error

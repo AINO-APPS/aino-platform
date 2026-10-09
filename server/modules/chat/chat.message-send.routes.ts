@@ -12,6 +12,7 @@ import { broadcastMediaJobUpdate, processChatMediaJob } from "../../services/cha
 import { buildUploadedMediaMetadata, copyForwardedMediaMetadata } from "../../utils/chatMediaMetadata";
 const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
+import { verifyUploadContent } from "../../utils/uploadPolicy";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
 import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
 
@@ -222,6 +223,7 @@ router.post(
   auth,
   loadUserContext,
   chatUpload.single("file"),
+  verifyUploadContent,
   async (req: Request, res: Response) => {
     try {
       const convId = parseInt(String(req.params.id), 10);

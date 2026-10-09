@@ -9,7 +9,7 @@ const { logAction, queryLogs } = require("../utils/audit");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { getOffsetMin, getTzModifier } = require("../utils/timezone");
 const { logger } = require("../utils/logger");
-const redis = require("../redis");
+const redis = require("../redis"); const { endUserSessions } = require("../services/sessionSignOut");
 const router = express.Router();
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireRole("hr_admin"), requireTenant);
@@ -561,7 +561,7 @@ router.put('/users/:id/deactivate', requireTenantAdminIdentity, async (req: Requ
         // Clear sessions when deactivating a user
         if (!newActive) {
             await req.db!.query('DELETE FROM user_sessions WHERE user_id = $1', [Number(id)]);
-            await redis.invalidateUserSessions(req.tenantId, Number(id));
+            await endUserSessions(req.tenantId, Number(id), 'Account deactivated');
         }
         const action = target.is_active ? 'deactivate' : 'reactivate';
         logAction(req, action, 'user', Number(id), { name: target.full_name });
@@ -593,7 +593,7 @@ router.post('/users/:id/reset-password', requireRole('hr_admin'), requireTenantA
         await redis.invalidateTokenVersion(req.tenantId, Number(id));
         // Clear all sessions for the target user
         await req.db!.query('DELETE FROM user_sessions WHERE user_id = $1', [Number(id)]);
-        await redis.invalidateUserSessions(req.tenantId, Number(id));
+        await endUserSessions(req.tenantId, Number(id), 'Password reset');
         logAction(req, 'admin_reset_password', 'user', Number(id), { name: target.full_name });
         res.json({ message: `Password reset for ${target.full_name}. User will be required to change password on next login.` });
     } catch (err) {
