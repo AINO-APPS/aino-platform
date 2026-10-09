@@ -871,7 +871,9 @@
   border-radius: 4px 16px 16px 4px;
 }
 .groupStart .myBubble::before,
-.groupStart .theirBubble::before {
+.groupStart .theirBubble::before,
+.groupStart .myBubble::after,
+.groupStart .theirBubble::after {
   display: none;
 }
 .forwarded {
