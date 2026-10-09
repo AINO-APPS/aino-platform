@@ -11,13 +11,15 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { ChatAvatar } from "../../components/chat";
+import { ChatAvatar, GroupAvatar } from "../../components/chat";
+import { callLabel } from "./callLabels";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { deleteCalls, getAllCallHistory } from "../../api/chat";
 import s from "./ChatSidebar.module.css";
 
 type CallEntry = {
   id: number;
+  conversation_id?: number;
   caller_id: number | string;
   caller_name?: string | null;
   caller_avatar?: string | null;
@@ -31,13 +33,6 @@ type CallEntry = {
   created_at: string;
 };
 
-function formatCallDuration(secs: number): string | null {
-  if (!secs) return null;
-  const m = Math.floor(secs / 60);
-  const sec = secs % 60;
-  return m === 0 ? `${sec}s` : `${m}m${sec > 0 ? ` ${sec}s` : ""}`;
-}
-
 function formatCallTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -46,18 +41,19 @@ function formatCallTime(iso: string): string {
   const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (d.toDateString() === now.toDateString()) return time;
   if (d.toDateString() === yesterday.toDateString())
-    return `Yesterday, ${time}`;
+    return "Yesterday";
   if (now.getTime() - d.getTime() < 7 * 86400000)
-    return `${d.toLocaleDateString([], { weekday: "short" })}, ${time}`;
+    return d.toLocaleDateString([], { weekday: "short" });
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 interface CallsTabProps {
   userId: number | string;
   query?: string;
+  onCallBack?: (conversationId: number, type: "voice" | "video") => void;
 }
 
-export default function CallsTab({ userId, query = "" }: CallsTabProps) {
+export default function CallsTab({ userId, query = "", onCallBack }: CallsTabProps) {
   const [calls, setCalls] = useState<CallEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -256,7 +252,8 @@ export default function CallsTab({ userId, query = "" }: CallsTabProps) {
         <div className={s.callsList}>
           {filteredCalls.map((call) => {
             const isOutgoing = Number(call.caller_id) === Number(userId);
-            const isMissed = call.status === "missed" && !isOutgoing;
+            const label = callLabel(call, userId);
+            const isMissed = label.missed;
             const otherName = isOutgoing
               ? call.other_name || "Unknown"
               : call.caller_name || "Unknown";
@@ -290,50 +287,42 @@ export default function CallsTab({ userId, query = "" }: CallsTabProps) {
                   </span>
                 )}
                 <div className={s.callAvatar}>
-                  <ChatAvatar
-                    name={displayName}
-                    avatar={otherAvatar}
-                    size="md"
-                  />
+                  {call.is_group ? (
+                    <GroupAvatar name={displayName} colorKey={call.conversation_id ?? call.id} size={48} />
+                  ) : (
+                    <ChatAvatar name={displayName} avatar={otherAvatar} size="lg" />
+                  )}
                 </div>
                 <div className={s.callInfo}>
-                  <div className={s.callName}>{displayName}</div>
+                  <div className={`${s.callName} ${label.missed ? s.callMetaMissed : ""}`}>{displayName}</div>
                   <div className={s.callMeta}>
-                    {isMissed ? (
+                    {label.missed ? (
                       <PhoneMissed size={13} className={s.iconMissed} />
                     ) : isOutgoing ? (
                       <PhoneOutgoing size={13} className={s.iconOutgoing} />
                     ) : (
                       <PhoneIncoming size={13} className={s.iconIncoming} />
                     )}
-                    <span
-                      className={isMissed ? s.callMetaMissed : s.callMetaText}
-                    >
-                      {isMissed
-                        ? "Missed"
-                        : isOutgoing
-                          ? "Outgoing"
-                          : "Incoming"}
-                      {call.call_type === "video" ? " video" : ""}
-                    </span>
-                    {!!call.duration && (
-                      <span className={s.callDuration}>
-                        · {formatCallDuration(call.duration)}
-                      </span>
-                    )}
+                    <span className={label.missed ? s.callMetaMissed : s.callMetaText}>{label.title}</span>
+                    {label.duration && <span className={s.callDuration}>· {label.duration}</span>}
                   </div>
                 </div>
                 <div className={s.callRight}>
-                  <span className={s.callTime}>
-                    {formatCallTime(call.created_at)}
-                  </span>
-                  <span className={s.callTypeIcon}>
-                    {call.call_type === "video" ? (
-                      <Video size={13} />
-                    ) : (
-                      <Phone size={13} />
-                    )}
-                  </span>
+                  <span className={s.callTime}>{formatCallTime(call.created_at)}</span>
+                  {!selectionMode && call.conversation_id && onCallBack && (
+                    <button
+                      type="button"
+                      className={s.callBackBtn}
+                      title={call.call_type === "video" ? "Video call" : "Voice call"}
+                      aria-label={`Call ${displayName}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCallBack(call.conversation_id!, call.call_type === "video" ? "video" : "voice");
+                      }}
+                    >
+                      {call.call_type === "video" ? <Video size={18} /> : <Phone size={18} />}
+                    </button>
+                  )}
                 </div>
               </div>
             );

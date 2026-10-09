@@ -346,7 +346,7 @@ export default function ChatMessages({
         />
       )}
       {showSharedFiles && (
-        <SharedFilesPanel convId={activeConv.id} onClose={onCloseSharedFiles} />
+        <SharedFilesPanel convId={activeConv.id} messages={messages} onJumpTo={onJumpTo} onClose={onCloseSharedFiles} />
       )}
       {showStarred && (
         <StarredMessages onJumpTo={onJumpToStarred} onClose={onCloseStarred} />

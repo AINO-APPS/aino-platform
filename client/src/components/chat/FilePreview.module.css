@@ -113,14 +113,6 @@
     cursor: default;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
 }
-.lbVideo {
-    max-width: 90vw;
-    max-height: 85vh;
-    border-radius: 6px;
-    cursor: default;
-    background: #000;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-}
 .lbClose {
     position: absolute;
     top: 16px;
@@ -267,102 +259,6 @@
     color: var(--primary);
 }
 
-.videoWrap {
-    position: relative;
-    display: block;
-    max-width: 280px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    border: 1px solid var(--glass-border);
-    background: #000;
-    line-height: 0;
-}
-
-.videoPoster {
-    display: block;
-    width: 100%;
-    border: none;
-    padding: 0;
-    margin: 0;
-    background: none;
-    cursor: pointer;
-    position: relative;
-    line-height: 0;
-}
-
-.videoPlayer {
-    display: block;
-    width: 100%;
-    max-width: 280px;
-    max-height: 360px;
-    background: #000;
-    border-radius: var(--radius-sm);
-}
-
-.videoPlayBtn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding-left: 3px;
-    backdrop-filter: blur(2px);
-    transition:
-        background 0.15s,
-        transform 0.12s;
-    pointer-events: none;
-}
-
-.videoPoster:hover .videoPlayBtn {
-    background: rgba(0, 0, 0, 0.72);
-    transform: translate(-50%, -50%) scale(1.06);
-}
-
-.videoExpand {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    border: none;
-    background: rgba(0, 0, 0, 0.5);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    backdrop-filter: blur(2px);
-    transition: background 0.15s;
-    z-index: 2;
-}
-
-.videoExpand:hover {
-    background: rgba(0, 0, 0, 0.72);
-}
-
-.videoThumb {
-    width: 100%;
-    display: block;
-    object-fit: cover;
-    aspect-ratio: 16 / 9;
-}
-
-.videoFallback {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px;
-    color: var(--text-secondary);
-}
-
 .file {
     display: flex;
     align-items: center;
@@ -405,9 +301,6 @@
     }
     .audioPlayer {
         max-width: 260px;
-    }
-    .videoWrap {
-        max-width: 220px;
     }
     .file {
         max-width: 100%;

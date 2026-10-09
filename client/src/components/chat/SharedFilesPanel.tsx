@@ -1,9 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { File, X, Search, Image, FileText, Film, Music } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, Download, FileText, Image as ImageIcon, Link2, Music, Play } from "lucide-react";
 import s from "./SharedFilesPanel.module.css";
 import { getSharedFiles } from "../../api/chat";
 import { isBeforeClearedAt } from "../../pages/chat/chatLocalDeletes";
 import FilePreview from "./FilePreview";
+import VideoViewer from "./video/VideoViewer";
+import { useVideoMeta } from "./video/useVideoMeta";
+import { saveToDevice } from "./messageActions";
 
 interface SharedFile {
     id: number | string;
@@ -16,162 +20,196 @@ interface SharedFile {
     [key: string]: unknown;
 }
 
-const FILE_FILTERS = [
-    { key: "all", label: "All" },
-    { key: "image", label: "Images", icon: Image },
-    { key: "document", label: "Docs", icon: FileText },
-    { key: "video", label: "Video", icon: Film },
-    { key: "audio", label: "Audio", icon: Music },
+type Tab = "media" | "files" | "audio" | "links";
+const TABS: { key: Tab; label: string }[] = [
+    { key: "media", label: "Media" },
+    { key: "files", label: "Files" },
+    { key: "audio", label: "Audio" },
+    { key: "links", label: "Links" },
 ];
 
-function getFileCategory(type?: string): string {
-    if (!type) return "other";
-    if (type.startsWith("image/")) return "image";
-    if (type.startsWith("video/")) return "video";
-    if (type.startsWith("audio/")) return "audio";
-    if (type.includes("pdf") || type.includes("document") || type.includes("sheet") || type.includes("text")) return "document";
-    return "other";
+const isVisual = (t?: string) => !!t && (t.startsWith("image/") || t.startsWith("video/"));
+const isAudio = (t?: string) => !!t && t.startsWith("audio/");
+
+function formatSize(bytes?: number): string {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-interface FileGroups {
-    today: SharedFile[];
-    thisWeek: SharedFile[];
-    thisMonth: SharedFile[];
-    older: SharedFile[];
-}
-
-function groupByDate(files: SharedFile[]): FileGroups {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today.getTime() - 7 * 86400000);
-    const monthAgo = new Date(today.getTime() - 30 * 86400000);
-
-    const groups: FileGroups = { today: [], thisWeek: [], thisMonth: [], older: [] };
-    for (const f of files) {
-        const d = new Date(f.created_at as string);
-        if (d >= today) groups.today.push(f);
-        else if (d >= weekAgo) groups.thisWeek.push(f);
-        else if (d >= monthAgo) groups.thisMonth.push(f);
-        else groups.older.push(f);
-    }
-    return groups;
+function MediaTile({ file, onOpen }: { file: SharedFile; onOpen: () => void }) {
+    const video = !!file.file_type?.startsWith("video/");
+    const meta = useVideoMeta(file.file_url || "", video);
+    const src = video ? meta.poster : file.file_url;
+    return (
+        <button type="button" className={s.tile} onClick={onOpen} aria-label={file.file_name || (video ? "Video" : "Photo")}>
+            {src ? <img src={src} alt="" loading="lazy" /> : <span className={s.tileBlank} />}
+            {video && (
+                <span className={s.tilePlay}>
+                    <Play size={11} fill="currentColor" />
+                </span>
+            )}
+        </button>
+    );
 }
 
 interface SharedFilesPanelProps {
     convId: number | string;
+    title?: string;
+    /** Loaded thread messages: the server has no links endpoint, so links come from these. */
+    messages?: any[];
+    onJumpTo?: (msgId: number | string) => void;
     onClose: () => void;
 }
 
-export default function SharedFilesPanel({ convId, onClose }: SharedFilesPanelProps) {
+/** Android "All media" page: Media grid · Files · Audio · Links tabs. */
+export default function SharedFilesPanel({ convId, title, messages = [], onJumpTo, onClose }: SharedFilesPanelProps) {
     const [files, setFiles] = useState<SharedFile[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState("all");
-    const [query, setQuery] = useState("");
+    const [tab, setTab] = useState<Tab>("media");
+    const [viewing, setViewing] = useState<SharedFile | null>(null);
 
     useEffect(() => {
         if (!convId) return;
         setLoading(true);
         getSharedFiles(convId)
             .then(({ data }) =>
-                // Signal-parity: hide files sent before this device's local
-                // "clear chat" cutoff (device-only; the source rows still exist
-                // on the server and for the other participant).
-                setFiles(
-                    (data as SharedFile[]).filter(
-                        (f) => !isBeforeClearedAt(convId, f.created_at),
-                    ),
-                ),
+                setFiles((data as SharedFile[]).filter((f) => !isBeforeClearedAt(convId, f.created_at))),
             )
             .catch(() => setFiles([]))
             .finally(() => setLoading(false));
     }, [convId]);
 
-    const filtered = useMemo(() => {
-        let result = files;
-        if (filter !== "all") {
-            result = result.filter(f => getFileCategory(f.file_type) === filter);
-        }
-        if (query.trim()) {
-            const q = query.toLowerCase();
-            result = result.filter(f => (f.file_name || "").toLowerCase().includes(q));
-        }
-        return result;
-    }, [files, filter, query]);
+    const visual = useMemo(() => files.filter((f) => isVisual(f.file_type)), [files]);
+    const audio = useMemo(() => files.filter((f) => isAudio(f.file_type)), [files]);
+    const docs = useMemo(() => files.filter((f) => !isVisual(f.file_type) && !isAudio(f.file_type)), [files]);
+    const links = useMemo(
+        () => messages.filter((m) => !m.deleted_at && m.link_preview).slice().reverse(),
+        [messages],
+    );
 
-    const groups = useMemo(() => groupByDate(filtered), [filtered]);
-
-    const renderGroup = (label: string, items: SharedFile[]) => {
-        if (items.length === 0) return null;
-        return (
-            <div key={label}>
-                <div className={s.groupLabel}>{label}</div>
-                {items.map(f => (
-                    <div key={f.id} className={s.fileItem}>
-                        <FilePreview
-                            fileUrl={f.file_url as string}
-                            fileName={f.file_name}
-                            fileType={f.file_type}
-                            fileSize={f.file_size}
-                        />
-                        <div className={s.fileMeta}>
-                            <span className={s.sender}>{f.sender_name}</span>
-                            <span className={s.date}>
-                                {new Date(f.created_at as string).toLocaleDateString([], { month: "short", day: "numeric" })}
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    const empty = (icon: React.ReactNode, text: string) => (
+        <div className={s.emptyState}>
+            <div className={s.emptyIcon}>{icon}</div>
+            <p className={s.emptyTitle}>{text}</p>
+        </div>
+    );
 
     return (
-        <div className={s.panel}>
+        <div className={s.panel} role="dialog" aria-label="All media">
             <div className={s.header}>
-                <span className={s.title}><File size={15} /> Shared Files</span>
-                <button className={s.closeBtn} onClick={onClose}><X size={16} /></button>
+                <button className={s.closeBtn} onClick={onClose} aria-label="Back">
+                    <ArrowLeft size={20} />
+                </button>
+                <span className={s.title}>{title || "All media"}</span>
             </div>
-
-            <div className={s.searchWrap}>
-                <Search size={14} className={s.searchIcon} />
-                <input
-                    className={s.searchInput}
-                    placeholder="Search files..."
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                />
-            </div>
-
-            <div className={s.filters}>
-                {FILE_FILTERS.map(f => (
+            <div className={s.tabs} role="tablist">
+                {TABS.map((t) => (
                     <button
-                        key={f.key}
-                        className={`${s.filterBtn} ${filter === f.key ? s.filterActive : ""}`}
-                        onClick={() => setFilter(f.key)}
+                        key={t.key}
+                        role="tab"
+                        aria-selected={tab === t.key}
+                        className={`${s.tab} ${tab === t.key ? s.tabActive : ""}`}
+                        onClick={() => setTab(t.key)}
                     >
-                        {f.icon && <f.icon size={12} />}
-                        {f.label}
+                        {t.label}
                     </button>
                 ))}
             </div>
 
             <div className={s.list}>
-                {loading && <div className={s.empty}>Loading...</div>}
-                {!loading && files.length === 0 && (
-                    <div className={s.emptyState}>
-                        <div className={s.emptyIcon}><File size={32} strokeWidth={1.2} /></div>
-                        <p className={s.emptyTitle}>No shared files</p>
-                        <p className={s.emptyDesc}>Files shared in this conversation will appear here</p>
-                    </div>
-                )}
-                {!loading && files.length > 0 && filtered.length === 0 && (
-                    <div className={s.empty}>No files match your filter</div>
-                )}
-                {renderGroup("Today", groups.today)}
-                {renderGroup("This Week", groups.thisWeek)}
-                {renderGroup("This Month", groups.thisMonth)}
-                {renderGroup("Older", groups.older)}
+                {loading && tab !== "links" && <div className={s.empty}>Loading…</div>}
+                {!loading && tab === "media" &&
+                    (visual.length === 0 ? (
+                        empty(<ImageIcon size={40} strokeWidth={1.3} />, "No media")
+                    ) : (
+                        <div className={s.grid}>
+                            {visual.map((f) => (
+                                <MediaTile key={f.id} file={f} onOpen={() => setViewing(f)} />
+                            ))}
+                        </div>
+                    ))}
+                {!loading && tab === "files" &&
+                    (docs.length === 0
+                        ? empty(<FileText size={40} strokeWidth={1.3} />, "No files")
+                        : docs.map((f) => {
+                              const ext = (f.file_name?.split(".").pop() || "").slice(0, 4).toUpperCase() || "FILE";
+                              return (
+                                  <div key={f.id} className={s.fileRow}>
+                                      <a className={s.fileMain} href={f.file_url} target="_blank" rel="noopener noreferrer">
+                                          <span className={s.fileExt}>{ext}</span>
+                                          <span className={s.fileText}>
+                                              <span className={s.fileName}>{f.file_name || "File"}</span>
+                                              <span className={s.fileSub}>
+                                                  {[formatSize(f.file_size), f.sender_name].filter(Boolean).join(" · ")}
+                                              </span>
+                                          </span>
+                                      </a>
+                                      <button
+                                          className={s.fileSave}
+                                          onClick={() => f.file_url && saveToDevice(f.file_url, f.file_name)}
+                                          aria-label="Save to device"
+                                          title="Save to device"
+                                      >
+                                          <Download size={18} />
+                                      </button>
+                                  </div>
+                              );
+                          }))}
+                {!loading && tab === "audio" &&
+                    (audio.length === 0
+                        ? empty(<Music size={40} strokeWidth={1.3} />, "No audio")
+                        : audio.map((f) => (
+                              <div key={f.id} className={s.audioRow}>
+                                  <FilePreview fileUrl={f.file_url as string} fileType={f.file_type} isMessage />
+                                  <span className={s.fileSub}>
+                                      {[f.sender_name, f.created_at && new Date(f.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}
+                                  </span>
+                              </div>
+                          )))}
+                {tab === "links" &&
+                    (links.length === 0
+                        ? empty(<Link2 size={40} strokeWidth={1.3} />, "No links")
+                        : links.map((m) => (
+                              <button
+                                  key={m.id}
+                                  className={s.linkRow}
+                                  onClick={() => {
+                                      onClose();
+                                      onJumpTo?.(m.id);
+                                  }}
+                              >
+                                  {m.link_preview.image ? (
+                                      <img src={m.link_preview.image} alt="" className={s.linkThumb} />
+                                  ) : (
+                                      <span className={s.linkThumb}>
+                                          <Link2 size={18} />
+                                      </span>
+                                  )}
+                                  <span className={s.fileText}>
+                                      <span className={s.fileName}>{m.link_preview.title || m.link_preview.url}</span>
+                                      <span className={s.fileSub}>{m.link_preview.siteName || m.link_preview.url}</span>
+                                  </span>
+                              </button>
+                          )))}
             </div>
+            {viewing &&
+                createPortal(
+                    viewing.file_type?.startsWith("video/") ? (
+                        <VideoViewer
+                            src={viewing.file_url as string}
+                            fileName={viewing.file_name}
+                            meta={{ senderName: viewing.sender_name, sentAt: viewing.created_at }}
+                            onClose={() => setViewing(null)}
+                        />
+                    ) : (
+                        <div className={s.imageViewer} onClick={() => setViewing(null)}>
+                            <img src={viewing.file_url} alt={viewing.file_name || ""} onClick={(e) => e.stopPropagation()} />
+                        </div>
+                    ),
+                    document.body,
+                )}
         </div>
     );
 }

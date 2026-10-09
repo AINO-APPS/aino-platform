@@ -1,4 +1,6 @@
 export { default as ChatAvatar } from "./ChatAvatar";
+export { default as GroupAvatar } from "./GroupAvatar";
+export { default as ConversationAvatar } from "./ConversationAvatar";
 export { default as CallOverlay } from "./call";
 export { default as ContextMenu } from "./ContextMenu";
 export { default as ReactionPicker } from "./ReactionPicker";

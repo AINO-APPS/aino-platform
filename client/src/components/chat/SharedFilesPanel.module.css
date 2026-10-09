@@ -1,206 +1,287 @@
+/* Android "All media" page */
 .panel {
-    width: 320px;
-    min-width: 320px;
+    position: absolute;
+    inset: 0;
+    z-index: 25;
     background: var(--bg);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: -1px 0 0 var(--separator);
+    animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 .header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 16px 16px 12px;
-    box-shadow: 0 1px 0 var(--separator);
+    gap: 8px;
+    height: var(--sig-toolbar-h, 64px);
+    padding: 0 8px;
+    flex-shrink: 0;
 }
 .title {
-    font-weight: 600;
-    font-size: 0.9rem;
+    flex: 1;
+    min-width: 0;
+    font-weight: 500;
+    font-size: 1.2rem;
     color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .closeBtn {
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--text);
     cursor: pointer;
     border-radius: 50%;
-    transition: background var(--transition-fast), color var(--transition-fast);
 }
-.closeBtn:hover { background: var(--surface-hover); color: var(--text); }
-
-/* ─── Search ─── */
-.searchWrap {
-    padding: 8px 12px 4px;
+.closeBtn:hover {
+    background: var(--surface-hover);
+}
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--sig-divider);
+    flex-shrink: 0;
+}
+.tab {
+    flex: 1;
     position: relative;
-}
-.searchIcon {
-    position: absolute;
-    left: 22px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    pointer-events: none;
-}
-.searchInput {
-    width: 100%;
-    padding: 7px 10px 7px 32px;
-    border-radius: 16px;
+    height: 46px;
     border: none;
-    background: var(--input-bg);
-    color: var(--text);
-    font-size: 0.82rem;
-    outline: none;
-    transition: box-shadow var(--transition-fast);
-}
-.searchInput:focus {
-    box-shadow: 0 0 0 1px var(--glass-border);
-}
-
-/* ─── Filters ─── */
-.filters {
-    display: flex;
-    gap: 4px;
-    padding: 8px 12px;
-    overflow-x: auto;
-    flex-shrink: 0;
-}
-.filterBtn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border: none;
-    background: var(--input-bg);
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    font-family: inherit;
-    border-radius: var(--radius-full);
+    background: none;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
-    white-space: nowrap;
-    flex-shrink: 0;
 }
-.filterBtn:hover {
-    background: var(--glass-border);
-    color: var(--text);
+.tab:hover {
+    background: var(--surface-hover);
 }
-.filterActive {
-    background: rgba(35, 131, 226, 0.1);
+.tabActive {
     color: var(--primary);
 }
-.filterActive:hover {
-    background: rgba(35, 131, 226, 0.15);
-    color: var(--primary);
+.tabActive::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 48px;
+    height: 3px;
+    margin-left: -24px;
+    border-radius: 3px 3px 0 0;
+    background: var(--primary);
 }
-
-/* ─── List ─── */
 .list {
     flex: 1;
     overflow-y: auto;
-    padding: 4px 10px 10px;
+}
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 2px;
+    padding: 2px;
+}
+.tile {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 0;
+    border: none;
+    background: var(--surface);
+    cursor: pointer;
+    overflow: hidden;
+}
+.tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.25s ease;
+}
+.tile:hover img {
+    transform: scale(1.04);
+}
+.tileBlank {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #1f2937, #0b0f17);
+}
+.tilePlay {
+    position: absolute;
+    left: 4px;
+    bottom: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 1px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+}
+.fileRow,
+.linkRow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    background: none;
+    text-align: left;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+.fileRow:hover,
+.linkRow:hover {
+    background: var(--surface-hover);
+}
+.fileMain {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: inherit;
+    text-decoration: none;
+}
+.fileExt {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 700;
+}
+.fileText {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.fileName {
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fileSub {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fileSave {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.fileSave:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+.audioRow {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--separator);
+}
+.linkThumb {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
 }
 .empty {
     padding: 2rem;
     text-align: center;
+    font-size: 0.85rem;
     color: var(--text-muted);
-    font-size: 0.82rem;
 }
-
-/* ─── Empty state ─── */
 .emptyState {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 3rem 1.5rem;
-    text-align: center;
+    justify-content: center;
+    padding: 4rem 1.5rem;
+    gap: 0.75rem;
+    color: var(--text-secondary);
 }
 .emptyIcon {
-    color: var(--text-muted);
-    opacity: 0.4;
-    margin-bottom: 12px;
+    opacity: 0.6;
 }
 .emptyTitle {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin: 0 0 4px;
-}
-.emptyDesc {
-    font-size: 0.78rem;
-    color: var(--text-muted);
     margin: 0;
+    font-size: 0.95rem;
 }
-
-/* ─── Date group label ─── */
-.groupLabel {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 12px 6px 6px;
-}
-
-/* ─── File item ─── */
-.fileItem {
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 4px;
-    transition: background var(--transition-fast);
-}
-.fileItem:hover {
-    background: var(--surface-hover);
-}
-.fileMeta {
+.imageViewer {
+    position: fixed;
+    inset: 0;
+    z-index: 10100;
     display: flex;
-    justify-content: space-between;
-    margin-top: 6px;
-    font-size: 0.72rem;
-    color: var(--text-muted);
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 10, 0.95);
+    cursor: zoom-out;
 }
-.sender { font-weight: 500; color: var(--text-secondary); }
-.date { font-size: 0.68rem; }
-
-/* ─── Tablet ─── */
-@media (max-width: 1024px) {
+.imageViewer img {
+    max-width: 92vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+    cursor: default;
+}
+@keyframes slideIn {
+    from {
+        transform: translateX(24px);
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
     .panel {
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 50;
-        box-shadow: -4px 0 20px rgba(0,0,0,.12);
+        animation: none;
     }
 }
 
-/* ─── Mobile ─── */
-@media (max-width: 768px) {
-    .panel {
-        position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        min-width: 0;
-        z-index: 200;
-    }
-    .header {
-        padding: 16px;
-    }
-    .fileItem {
-        padding: 12px;
-    }
-    .filters {
-        padding: 8px 14px;
-    }
+.tabs .tab.tab {
+  background: none;
+  box-shadow: none;
+  border: none;
+}
+.tabs .tab.tabActive {
+  color: var(--primary);
+}
+
+/* Flat Android surfaces: opt out of the global raised-button treatment. */
+.panel button:not(.btnPrimary),
+.panel button:not(.btnPrimary):hover,
+.panel button:not(.btnPrimary):active {
+  box-shadow: none !important;
+  transform: none !important;
 }

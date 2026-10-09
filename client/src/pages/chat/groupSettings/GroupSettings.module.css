@@ -1,0 +1,474 @@
+/* Android Signal-style settings pages (GroupSettingsScreen.kt) */
+.panel {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    animation: slideIn 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.topBar {
+    height: var(--sig-toolbar-h, 64px);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+}
+.topTitle {
+    flex: 1;
+    min-width: 0;
+    font-size: 1.22rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.iconBtn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.iconBtn:hover {
+    background: var(--surface-hover);
+}
+.body {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 32px;
+}
+.inner {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+/* Hero */
+.hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 24px 0;
+    text-align: center;
+}
+.avatarWrap {
+    position: relative;
+    width: 112px;
+    height: 112px;
+    border: none;
+    padding: 0;
+    background: none;
+    border-radius: 50%;
+    cursor: default;
+}
+.avatarWrap.editable {
+    cursor: pointer;
+}
+.avatarBadge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--sig-surface);
+    border: 2px solid var(--bg);
+    color: var(--text);
+}
+.avatarBusy {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+}
+.heroName {
+    margin-top: 16px;
+    font-size: 1.5rem;
+    font-weight: 500;
+    line-height: 1.25;
+    word-break: break-word;
+}
+.heroSub {
+    margin-top: 4px;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+.heroDesc {
+    margin-top: 10px;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+}
+.linkBtn {
+    margin-top: 10px;
+    padding: 6px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+.linkBtn:hover {
+    background: var(--surface-hover);
+}
+
+/* Quick actions */
+.quickRow {
+    display: flex;
+    gap: 10px;
+    padding: 20px 16px;
+}
+.quick {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 4px;
+    border: none;
+    border-radius: 12px;
+    background: var(--sig-surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: filter var(--transition-fast);
+}
+.quick:hover {
+    filter: brightness(0.96);
+}
+:global([data-theme="dark"]) .quick:hover {
+    filter: brightness(1.15);
+}
+
+/* Rows */
+.divider {
+    height: 1px;
+    margin: 8px 0;
+    background: var(--sig-divider);
+}
+.sectionTitle {
+    padding: 16px 24px 8px;
+    font-size: 1rem;
+    font-weight: 500;
+}
+.row {
+    width: 100%;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 24px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+}
+.row:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+.row:disabled {
+    cursor: default;
+}
+.rowIcon {
+    width: 24px;
+    display: inline-flex;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.rowText {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.rowLabel {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rowSub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rowTrailing {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+.accent {
+    color: var(--primary);
+}
+.danger {
+    color: var(--sig-danger);
+}
+
+/* Member row */
+.memberRow {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 24px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.memberRow:hover {
+    background: var(--surface-hover);
+}
+.memberRole {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Inputs */
+.field {
+    margin: 12px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.fieldLabel {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+.input,
+.textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--input-border);
+    border-radius: 12px;
+    background: var(--input-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    outline: none;
+}
+.input:focus,
+.textarea:focus {
+    border-color: var(--primary);
+}
+.textarea {
+    resize: vertical;
+    min-height: 88px;
+}
+.counter {
+    align-self: flex-end;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.searchPill {
+    margin: 4px 16px 8px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    border-radius: 22px;
+    background: var(--sig-search-pill);
+    color: var(--text-secondary);
+}
+.searchPill input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+}
+.check {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+}
+.checkOn {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 8px;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 4px;
+    border: none;
+    border-radius: 999px;
+    background: var(--sig-surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--sig-divider);
+    flex-shrink: 0;
+}
+.btn {
+    min-height: 40px;
+    padding: 0 20px;
+    border: none;
+    border-radius: 20px;
+    background: none;
+    color: var(--primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.btnPrimary {
+    background: var(--primary);
+    color: #fff;
+}
+.btnPrimary:hover:not(:disabled) {
+    background: var(--primary-dark, var(--primary));
+}
+.btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.toggle {
+    position: relative;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+    border-radius: 13px;
+    background: var(--text-muted);
+    transition: background 0.15s;
+}
+.toggle::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+}
+.toggleOn {
+    background: var(--primary);
+}
+.toggleOn::after {
+    transform: translateX(18px);
+}
+.linkBox {
+    margin: 8px 24px 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--sig-surface);
+    font-size: 0.85rem;
+    word-break: break-all;
+    color: var(--text-secondary);
+}
+.note {
+    padding: 12px 24px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+}
+.error {
+    margin: 8px 16px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--sig-danger) 14%, transparent);
+    color: var(--sig-danger);
+    font-size: 0.85rem;
+}
+.toast {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 0.88rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    animation: fadeUp 0.2s ease;
+    z-index: 2;
+}
+.loading {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.spin {
+    animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes slideIn {
+    from {
+        transform: translateX(24px);
+        opacity: 0;
+    }
+}
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 6px);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .panel,
+    .toast {
+        animation: none;
+    }
+}
+
+/* Flat Android surfaces: opt out of the global raised-button treatment. */
+.panel button:not(.btnPrimary),
+.panel button:not(.btnPrimary):hover,
+.panel button:not(.btnPrimary):active {
+  box-shadow: none !important;
+  transform: none !important;
+}

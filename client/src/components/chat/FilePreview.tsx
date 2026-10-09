@@ -13,9 +13,10 @@ import {
   Eye,
   EyeOff,
   Timer,
-  Maximize2,
 } from "lucide-react";
 import { markMessageViewed } from "../../api/chat";
+import VideoThumb from "./video/VideoThumb";
+import type { ViewerMeta } from "./video/VideoViewer";
 import s from "./FilePreview.module.css";
 
 const IMAGE_TYPES = [
@@ -57,7 +58,6 @@ function fmtTime(sec: number): string {
 
 const SPEEDS = [1, 1.5, 2];
 const audioDurationCache = new Map<string, number>();
-const videoPosterCache = new Map<string, string>();
 // Intrinsic aspect ratio ("w / h") per image URL, remembered across mounts so a
 // re-opened conversation reserves the exact attachment height on the FIRST
 // paint instead of settling on it a frame later.
@@ -196,6 +196,10 @@ interface FilePreviewProps {
   viewOnceConsumed?: boolean;
   /** Whether the current user is the sender (sender can't open view-once media). */
   isMine?: boolean;
+  /** Video bubbles: caption present (wider Signal media box). */
+  withCaption?: boolean;
+  /** Sender/actions shown in the full-screen video viewer. */
+  viewer?: ViewerMeta;
 }
 
 export default function FilePreview({
@@ -208,11 +212,10 @@ export default function FilePreview({
   viewOnce,
   viewOnceConsumed,
   isMine,
+  withCaption,
+  viewer,
 }: FilePreviewProps) {
   const [lightbox, setLightbox] = useState(false);
-  const [videoPoster, setVideoPoster] = useState<string | null>(
-    () => videoPosterCache.get(fileUrl) || null,
-  );
   // Drives the `--img-aspect` custom property on .imgWrap so the bubble
   // reserves the image's real height. Falls back to the CSS 4/3 default until
   // the first decode reports the intrinsic size.
@@ -226,55 +229,6 @@ export default function FilePreview({
   const isImage = !!fileType && IMAGE_TYPES.includes(fileType);
   const isAudio = fileType?.startsWith("audio/");
   const isVideo = fileType?.startsWith("video/");
-
-  useEffect(() => {
-    if (!isVideo || videoPosterCache.has(fileUrl)) return;
-    let cancelled = false;
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.muted = true;
-    video.src = fileUrl;
-    video.playsInline = true;
-    const capture = () => {
-      if (cancelled) return;
-      const w = Math.max(1, video.videoWidth || 0);
-      const h = Math.max(1, video.videoHeight || 0);
-      if (!w || !h) return;
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, w, h);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob || cancelled) return;
-          const posterUrl = URL.createObjectURL(blob);
-          videoPosterCache.set(fileUrl, posterUrl);
-          setVideoPoster(posterUrl);
-        },
-        "image/jpeg",
-        0.8,
-      );
-    };
-    video.addEventListener("loadeddata", () => {
-      if (cancelled) return;
-      try {
-        video.currentTime = 0.1;
-      } catch {
-        capture();
-      }
-    });
-    video.addEventListener("seeked", capture);
-    video.addEventListener("error", () => {
-      if (!cancelled) setVideoPoster(null);
-    });
-    return () => {
-      cancelled = true;
-      video.removeAttribute("src");
-      video.load();
-    };
-  }, [fileUrl, isVideo]);
 
   // Record the decoded image's intrinsic ratio so .imgWrap holds exactly the
   // right height from here on (and immediately on any future mount, via the
@@ -401,7 +355,7 @@ export default function FilePreview({
 
   if (isVideo && isMessage) {
     return (
-      <VideoPlayer fileUrl={fileUrl} fileName={fileName} poster={videoPoster} />
+      <VideoThumb fileUrl={fileUrl} fileName={fileName} withCaption={withCaption} viewer={viewer} />
     );
   }
 
@@ -422,135 +376,6 @@ export default function FilePreview({
         )}
       </div>
     </a>
-  );
-}
-
-/**
- * VideoPlayer — Signal/WhatsApp-style inline video. Shows the generated poster
- * frame with a centered play button; tapping it swaps to a native <video>
- * element that plays inline (in the bubble). An expand button opens a
- * full-screen player in a portal lightbox. Replaces the old behaviour of
- * opening the raw file URL in a new browser tab.
- */
-function VideoPlayer({
-  fileUrl,
-  fileName,
-  poster,
-}: {
-  fileUrl: string;
-  fileName?: string;
-  poster: string | null;
-}) {
-  const [playing, setPlaying] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-
-  return (
-    <>
-      <div className={s.videoWrap}>
-        {playing ? (
-          <video
-            src={fileUrl}
-            className={s.videoPlayer}
-            controls
-            autoPlay
-            playsInline
-            poster={poster || undefined}
-          />
-        ) : (
-          <button
-            type="button"
-            className={s.videoPoster}
-            onClick={() => setPlaying(true)}
-            title="Play video"
-          >
-            {poster ? (
-              <img
-                src={poster}
-                alt={fileName || "Video"}
-                className={s.videoThumb}
-                loading="lazy"
-              />
-            ) : (
-              <div className={s.videoFallback}>
-                <Film size={20} />
-                <span>{fileName || "Video"}</span>
-              </div>
-            )}
-            <span className={s.videoPlayBtn} aria-hidden="true">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M4 2.5v11l9-5.5L4 2.5z" />
-              </svg>
-            </span>
-          </button>
-        )}
-        <button
-          type="button"
-          className={s.videoExpand}
-          onClick={() => setFullscreen(true)}
-          title="Full screen"
-          aria-label="Play full screen"
-        >
-          <Maximize2 size={14} />
-        </button>
-      </div>
-      {fullscreen &&
-        createPortal(
-          <FullScreenVideo
-            url={fileUrl}
-            fileName={fileName}
-            onClose={() => setFullscreen(false)}
-          />,
-          document.body,
-        )}
-    </>
-  );
-}
-
-/** Full-screen video viewer (Esc / click-backdrop to close, with download). */
-function FullScreenVideo({
-  url,
-  fileName,
-  onClose,
-}: {
-  url: string;
-  fileName?: string;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className={s.lightbox} onClick={onClose}>
-      <button className={s.lbClose} onClick={onClose}>
-        <X size={16} />
-      </button>
-      <video
-        src={url}
-        className={s.lbVideo}
-        controls
-        autoPlay
-        playsInline
-        onClick={(e) => e.stopPropagation()}
-      />
-      <a
-        href={url}
-        download={fileName}
-        className={s.lbDownload}
-        onClick={(e) => e.stopPropagation()}
-      >
-        ⬇ Download
-      </a>
-    </div>
   );
 }
 

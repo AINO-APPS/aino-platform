@@ -1,20 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
-import {
-  Pin,
-  Star,
-  Pencil,
-  Trash2,
-  Reply,
-  Copy,
-  CheckSquare2,
-} from "lucide-react";
+import { Pin, Star } from "lucide-react";
 import s from "./MessageBubble.module.css";
 import ChatAvatar from "./ChatAvatar";
 import FilePreview from "./FilePreview";
 import ReplyPreview from "./ReplyPreview";
-import ContextMenu, { type ContextMenuItem } from "./ContextMenu";
+import ContextMenu from "./ContextMenu";
+import { buildMessageActions } from "./messageActions";
 import PollDisplay from "./PollDisplay";
 import MessageContent from "./MessageContent";
 import DeliveryStatus from "./DeliveryStatus";
@@ -268,71 +261,16 @@ function MessageBubble({
     isPendingMedia &&
     (localMediaState === "queued" || localMediaState === "uploading");
 
-  const hasText = !!String(msg.content || "").trim();
-
-  const menuItems: ContextMenuItem[] = isPending
-    ? []
-    : ([
-        {
-          icon: <CheckSquare2 size={14} />,
-          label: "Select",
-          onClick: () => onEnterSelection?.(msg),
-        },
-        {
-          icon: <Reply size={14} />,
-          label: "Reply",
-          onClick: () => onReply?.(msg),
-        },
-        isMine &&
-          !msg.file_url &&
-          !isPoll && {
-            icon: <Pencil size={14} />,
-            label: "Edit",
-            onClick: () => onEdit?.(msg),
-          },
-        hasText && {
-          icon: <Copy size={14} />,
-          label: "Copy",
-          onClick: handleCopy,
-        },
-        {
-          icon: <Pin size={14} />,
-          label: msg.pinned_at ? "Unpin" : "Pin",
-          onClick: () => onPin?.(msg),
-        },
-        {
-          icon: <Star size={14} />,
-          label: msg.starred ? "Unsave" : "Save",
-          onClick: () => onStar?.(msg),
-        },
-        {
-          icon: (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M10 3l4 4-4 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M14 7H7a5 5 0 000 5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          ),
-          label: "Forward",
-          onClick: () => onForward?.(msg),
-        },
-        isMine && {
-          icon: <Trash2 size={14} />,
-          label: "Delete",
-          onClick: () => onDelete?.(msg),
-          danger: true,
-        },
-      ].filter(Boolean) as ContextMenuItem[]);
+  const menuItems = buildMessageActions(msg, isMine, {
+    onReply,
+    onEdit,
+    onForward,
+    onCopy: handleCopy,
+    onSelect: onEnterSelection,
+    onPin,
+    onStar,
+    onDelete,
+  });
 
   return (
     <div
@@ -403,7 +341,7 @@ function MessageBubble({
           )}
 
           {msg.forwarded_from_id && (
-            <div className={s.forwarded}>↗ Forwarded</div>
+            <div className={s.forwarded}>Forwarded</div>
           )}
 
           {msg.reply_to_id && (
@@ -428,6 +366,14 @@ function MessageBubble({
                 msg.metadata.viewedBy.some((id: unknown) => (isMine ? id !== userId : id === userId))
               }
               isMine={isMine}
+              withCaption={!!String(msg.content || "").trim()}
+              viewer={{
+                senderName: isMine ? "You" : msg.sender_name,
+                senderAvatar: msg.sender_avatar,
+                sentAt: msg.created_at,
+                onForward: onForward ? () => onForward(msg) : undefined,
+                onGoToMessage: onJumpTo ? () => onJumpTo(msg.id) : undefined,
+              }}
             />
           )}
           {isUploadingLocally && !isFailed && (

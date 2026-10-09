@@ -33,7 +33,7 @@ export function getConvName(c: Conversation): string {
 }
 
 export function getConvAvatar(c: Conversation): string | null {
-    if (c.is_group) return null;
+    if (c.is_group) return c.group_avatar ?? null;
     return c.other_avatar ?? null;
 }
 

@@ -170,8 +170,8 @@ export default function useChatState() {
           setConversations((prev) => {
             const isActive = activeConvRef.current?.id === d.conversationId;
             const exists = prev.some((c) => c.id === d.conversationId);
-            // If conversation is not in the list (created from another device), reload
-            if (!exists) {
+            // Reload if the conversation is new here, or a group's info/roles changed (photo, name, policies).
+            if (!exists || ["group_info_updated", "group_renamed", "member_added", "member_removed", "member_left", "role_changed", "owner_transferred"].includes(String((d.metadata as AnyRecord | undefined)?.type))) {
               loadConversations();
               return prev;
             }

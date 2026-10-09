@@ -1011,7 +1011,7 @@ export default function CallOverlay({
         minimized && !hiddenForExternal ? "Restore call window" : undefined
       }
       tabIndex={minimized && !hiddenForExternal ? 0 : undefined}
-      style={hiddenForExternal ? { display: "none" } : undefined}
+      style={hiddenForExternal ? { display: "none" } : remoteAvatar ? ({ "--call-backdrop": `url("${String(remoteAvatar).replace(/"/g, "%22")}")` } as React.CSSProperties) : undefined}
     >
       {/* Window controls for frameless Electron window */}
       {isWinElectron && !minimized && (

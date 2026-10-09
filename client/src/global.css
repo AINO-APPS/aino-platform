@@ -125,6 +125,47 @@
   color-scheme: light;
 }
 
+/* Android chat parity: shared geometry + dark palette (SignalChatTokens.kt) */
+:root {
+  --sig-toolbar-h: 64px;
+  --sig-toolbar-avatar: 40px;
+  --sig-list-avatar: 48px;
+  --sig-bubble-radius: 16px;
+  --sig-bubble-radius-collapsed: 4px;
+  --sig-bubble-pad-x: 12px;
+  --sig-bubble-pad-y: 7px;
+  --sig-body-size: 15px;
+  --sig-footer-size: 12px;
+  --sig-media-min-w: 150px;
+  --sig-media-max-w: 240px;
+  --sig-media-min-h: 100px;
+  --sig-media-max-h: 320px;
+  --sig-call-red: #e5484d;
+}
+:root,
+[data-theme="dark"] {
+  --sig-bg: #121212;
+  --sig-surface: #1b1b1d;
+  --sig-text: #e9e9e9;
+  --sig-text-secondary: #b9b9b9;
+  --sig-divider: rgba(255, 255, 255, 0.12);
+  --sig-search-pill: #2a2a2c;
+  --sig-date-pill: #2a2a2c;
+  --sig-danger: #ff6f61;
+  --sig-scrim: rgba(0, 0, 0, 0.7);
+}
+[data-theme="light"] {
+  --sig-bg: #ffffff;
+  --sig-surface: #f6f6f6;
+  --sig-text: #1b1b1b;
+  --sig-text-secondary: #5e5e5e;
+  --sig-divider: rgba(0, 0, 0, 0.12);
+  --sig-search-pill: #eff1f4;
+  --sig-date-pill: #f0f0f0;
+  --sig-danger: #f44336;
+  --sig-scrim: rgba(0, 0, 0, 0.6);
+}
+
 /* ============= RESET ============= */
 * {
   margin: 0;

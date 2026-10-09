@@ -223,7 +223,7 @@ export default function GlobalIncomingCall() {
         )}
         <div className={s.callerText}>
           <span className={s.callerName}>{displayName}</span>
-          <span className={s.callerStatus}>Incoming call…</span>
+          <span className={s.callerStatus}>{callType === "video" ? "Incoming video call" : "Incoming voice call"}</span>
         </div>
       </div>
 
@@ -233,6 +233,7 @@ export default function GlobalIncomingCall() {
           className={`${s.btn} ${s.rejectBtn}`}
           onClick={handleReject}
           title="Decline"
+          aria-label="Decline"
         >
           <PhoneIcon />
         </button>
@@ -240,6 +241,7 @@ export default function GlobalIncomingCall() {
           className={`${s.btn} ${s.acceptBtn}`}
           onClick={handleAccept}
           title="Accept"
+          aria-label="Accept"
         >
           {callType === "video" ? <VideoIcon /> : <PhoneIcon />}
         </button>

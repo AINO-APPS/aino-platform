@@ -1,18 +1,4 @@
-import {
-  Pin,
-  Star,
-  Users,
-  UserPlus,
-  X,
-  Search,
-  Phone,
-  MessageSquare,
-  Video,
-  Archive,
-  ChevronLeft,
-  CheckSquare2,
-  Trash2,
-} from "lucide-react";
+import { X, Video, Archive, ChevronLeft, CheckSquare2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { ChatAvatar } from "../../components/chat";
@@ -20,6 +6,7 @@ import { useFeatures } from "../../FeaturesContext";
 import { getConvName } from "./chatUtils";
 import ConversationItem from "./ConversationItem";
 import CallsTab from "./CallsTab";
+import SidebarTopBar, { type SidebarTab } from "./SidebarTopBar";
 import s from "./ChatSidebar.module.css";
 
 interface ChatSidebarProps {
@@ -46,6 +33,9 @@ interface ChatSidebarProps {
   onArchiveConv?: (...args: any[]) => void;
   onToggleReadConv?: (...args: any[]) => void;
   onBulkDeleteConversations?: (ids: Array<number | string>) => Promise<void>;
+  onCallConv?: (c: any, type: "voice" | "video") => void;
+  onOpenConvSettings?: (c: any) => void;
+  onBlockConv?: (c: any) => void;
   onNewGroup: () => void;
   searchInputRef: React.RefObject<HTMLInputElement>;
 }
@@ -74,6 +64,9 @@ export default function ChatSidebar({
   onArchiveConv,
   onToggleReadConv,
   onBulkDeleteConversations,
+  onCallConv,
+  onOpenConvSettings,
+  onBlockConv,
   onNewGroup,
   searchInputRef,
 }: ChatSidebarProps) {
@@ -135,6 +128,10 @@ export default function ChatSidebar({
     onMute: onMuteConv,
     onArchive: onArchiveConv,
     onToggleRead: onToggleReadConv,
+    onCall: onCallConv,
+    onOpenSettings: onOpenConvSettings,
+    onBlock: onBlockConv,
+    callsEnabled: hasFeature("calls"),
     selectionMode,
     onToggleSelect: (id: number | string) => {
       setSelectedIds((current) => {
@@ -230,68 +227,35 @@ export default function ChatSidebar({
         </div>
       ) : null}
 
-      {/* ── Tabs ── */}
-      <div className={s.sidebarTabs}>
-        <button
-          className={`${s.tabBtn} ${sidebarTab === "msgs" ? s.tabActive : ""}`}
-          onClick={() => switchTab("msgs")}
-        >
-          <MessageSquare size={14} /> Chat
-          {totalUnread > 0 && (
-            <span className={s.totalBadge}>{totalUnread}</span>
-          )}
-        </button>
-        {hasFeature("meetings") && (
-          <button
-            className={`${s.tabBtn} ${sidebarTab === "meetings" ? s.tabActive : ""}`}
-            onClick={() => switchTab("meetings")}
-          >
-            <Video size={14} /> Meet
-            {meetingConvs.some((c) => c.unread_count > 0) && (
-              <span className={s.totalBadge}>
-                {meetingConvs.reduce(
-                  (sum, c) => sum + (c.unread_count || 0),
-                  0,
-                )}
-              </span>
-            )}
-          </button>
-        )}
-        <button
-          className={`${s.tabBtn} ${sidebarTab === "calls" ? s.tabActive : ""}`}
-          onClick={() => switchTab("calls")}
-        >
-          <Phone size={14} /> Calls
-        </button>
-      </div>
-
-      {sidebarTab !== "msgs" && (
-        <div className={s.searchHeader}>
-          <Search className={s.searchIcon} size={14} />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder={
-              sidebarTab === "calls" ? "Search calls…" : "Search meeting chats…"
-            }
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className={s.searchInput}
-          />
-          {search ? (
-            <button
-              className={s.searchCloseBtn}
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-            >
-              <X size={16} />
-            </button>
-          ) : null}
-        </div>
-      )}
+      <SidebarTopBar
+        tab={sidebarTab as SidebarTab}
+        onTab={switchTab}
+        unread={totalUnread}
+        meetingUnread={meetingConvs.reduce((sum, c) => sum + (c.unread_count || 0), 0)}
+        meetingsEnabled={!!hasFeature("meetings")}
+        search={search}
+        setSearch={setSearch}
+        searchOpen={showSearch}
+        onSearchOpen={(open) => (open ? openSearch() : closeSearch())}
+        searchInputRef={searchInputRef}
+        onNewGroup={onNewGroup}
+      />
 
       {/* ── Calls tab ── */}
-      {sidebarTab === "calls" && <CallsTab userId={userId} query={search} />}
+      {sidebarTab === "calls" && (
+        <CallsTab
+          userId={userId}
+          query={search}
+          onCallBack={
+            onCallConv
+              ? (id, type) => {
+                  const conv = conversations.find((c) => Number(c.id) === Number(id));
+                  if (conv) onCallConv(conv, type);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* ── Meetings tab ── */}
       {hasFeature("meetings") && sidebarTab === "meetings" && (
@@ -326,74 +290,6 @@ export default function ChatSidebar({
       {/* ── Messages tab ── */}
       {sidebarTab === "msgs" && (
         <>
-          {!showSearch ? (
-            <div className={s.sidebarHeader}>
-              <h2
-                style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
-              >
-                <MessageSquare size={18} /> Messages
-              </h2>
-              <div className={s.headerBtns}>
-                <button
-                  className={s.newGroupBtn}
-                  onClick={openSearch}
-                  title="Search people"
-                >
-                  <Search size={16} />
-                </button>
-                <button
-                  className={s.newGroupBtn}
-                  onClick={onNewGroup}
-                  title="New group"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.25rem",
-                  }}
-                >
-                  <Users size={15} />
-                  <UserPlus size={13} />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={s.searchHeader}>
-              <svg
-                className={s.searchIcon}
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-              >
-                <circle
-                  cx="6"
-                  cy="6"
-                  r="4.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                />
-                <path
-                  d="M10 10l2.5 2.5"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search chats and people..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className={s.searchInput}
-                autoFocus
-              />
-              <button className={s.searchCloseBtn} onClick={closeSearch}>
-                <X size={16} />
-              </button>
-            </div>
-          )}
-
           {search.trim().length >= 2 && (
             <div className={s.searchResults}>
               {searching && <div className={s.hint}>Searching...</div>}
@@ -434,19 +330,9 @@ export default function ChatSidebar({
 
           {showArchived && !normalizedSearch ? (
             <div className={s.convList}>
-              <div
-                className={s.convSection}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  cursor: "pointer",
-                }}
-                onClick={() => setShowArchived(false)}
-              >
-                <ChevronLeft size={14} /> <Archive size={13} /> Archived (
-                {archivedConvs.length})
-              </div>
+              <button type="button" className={s.archivedHeader} onClick={() => setShowArchived(false)}>
+                <ChevronLeft size={20} /> Archived chats
+              </button>
               {archivedConvs.length === 0 ? (
                 <div className={s.empty}>No archived chats</div>
               ) : (
@@ -489,57 +375,7 @@ export default function ChatSidebar({
                 </div>
               ) : (
                 <>
-                  {pinned.length > 0 && (
-                    <>
-                      <div className={s.convSection}>
-                        <Pin
-                          size={13}
-                          style={{ marginRight: 4, verticalAlign: "middle" }}
-                        />
-                        Pinned
-                      </div>
-                      {pinned.map((c) => (
-                        <ConversationItem
-                          key={c.id}
-                          conv={c}
-                          onOpen={onOpenConv}
-                          {...convProps}
-                          selected={selectedIds.has(c.id)}
-                        />
-                      ))}
-                    </>
-                  )}
-                  {favourites.length > 0 && (
-                    <>
-                      <div className={s.convSection}>
-                        <Star
-                          size={13}
-                          style={{ marginRight: 4, verticalAlign: "middle" }}
-                        />
-                        Favourites
-                      </div>
-                      {favourites.map((c) => (
-                        <ConversationItem
-                          key={c.id}
-                          conv={c}
-                          onOpen={onOpenConv}
-                          {...convProps}
-                          selected={selectedIds.has(c.id)}
-                        />
-                      ))}
-                    </>
-                  )}
-                  {(pinned.length > 0 || favourites.length > 0) &&
-                    others.length > 0 && (
-                      <div className={s.convSection}>
-                        <MessageSquare
-                          size={13}
-                          style={{ marginRight: 4, verticalAlign: "middle" }}
-                        />
-                        All Messages
-                      </div>
-                    )}
-                  {others.map((c) => (
+                  {[...pinned, ...favourites, ...others].map((c) => (
                     <ConversationItem
                       key={c.id}
                       conv={c}
@@ -549,20 +385,12 @@ export default function ChatSidebar({
                     />
                   ))}
                   {archivedConvs.length > 0 && (
-                    <div
-                      className={s.convSection}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.35rem",
-                        cursor: "pointer",
-                        marginTop: "0.5rem",
-                      }}
-                      onClick={() => setShowArchived(true)}
-                      title="Show archived chats"
-                    >
-                      <Archive size={13} /> Archived ({archivedConvs.length})
-                    </div>
+                    <button type="button" className={s.archivedRow} onClick={() => setShowArchived(true)} title="Show archived chats">
+                      <span className={s.archivedIcon}>
+                        <Archive size={20} />
+                      </span>
+                      Archived chats ({archivedConvs.length})
+                    </button>
                   )}
                 </>
               )}

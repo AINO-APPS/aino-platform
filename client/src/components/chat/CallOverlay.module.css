@@ -1883,3 +1883,113 @@
 .overlay.minimized .selfPreviewCard {
     display: none !important;
 }
+
+/* ═══ Android call screen parity (ActiveCallScreen.kt / IncomingCallScreen.kt) ═══
+   Blurred avatar backdrop, 112px avatar, top-left name/status, bottom gradient
+   control row with 56px round toggles and a red End button. */
+.overlay:not(.minimized) {
+    background: #1b1b1d;
+    isolation: isolate;
+}
+.overlay:not(.minimized)::before {
+    content: "";
+    position: absolute;
+    inset: -40px;
+    z-index: -1;
+    background: var(--call-backdrop, none) center / cover no-repeat, radial-gradient(circle at 50% 35%, #3a3a3e 0%, #161618 70%);
+    filter: blur(40px) saturate(120%) brightness(0.55);
+    pointer-events: none;
+}
+.overlay.videoMode::before {
+    display: none;
+}
+.overlay.videoMode {
+    background: #000;
+}
+.avatarContainer {
+    width: 112px;
+    height: 112px;
+    background: #3a3a3a;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+.callerName {
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.callStatus {
+    font-size: 0.95rem;
+    opacity: 0.85;
+}
+.controls {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    justify-content: center;
+    gap: 20px;
+    padding: 28px 16px 32px;
+    border-radius: 0;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    border: none;
+}
+.controlsHidden {
+    transform: translateY(12px);
+}
+.controlBtn {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.controlBtn:hover {
+    background: rgba(255, 255, 255, 0.26);
+    transform: none;
+}
+.controlBtn.active {
+    background: #fff;
+    color: #121212;
+}
+.smallBtn {
+    width: 44px;
+    height: 44px;
+}
+.endBtn,
+.rejectBtn {
+    background: var(--sig-call-red, #e5484d) !important;
+    color: #fff !important;
+}
+.endBtn:hover,
+.rejectBtn:hover {
+    background: #d13438 !important;
+}
+.acceptBtn {
+    background: #2fb36f !important;
+    color: #fff !important;
+}
+.selfPreviewCard {
+    width: 96px;
+    height: 160px;
+    bottom: 120px;
+    border-radius: 16px;
+    border: none;
+    background: #2c2c2c;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.videoOverlayInfo {
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 20px 32px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
+}
+.videoCallerName {
+    font-size: 1.35rem;
+    font-weight: 600;
+}

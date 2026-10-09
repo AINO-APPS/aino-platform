@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { Copy, Forward, Pin, Star, Trash2, X } from "lucide-react";
 import ConfirmDialog from "../components/common/ConfirmDialog";
-import { uploadChatFile } from "../api/chat";
+import { uploadChatFile, leaveGroup } from "../api/chat";
 import { MessageSearch, ForwardModal, GroupModal, PollCreator, CallOverlay } from "../components/chat";
 import ChatSidebar from "./chat/ChatSidebar";
 import ChatHeader from "./chat/ChatHeader";
 import ChatMessages from "./chat/ChatMessages";
 import ChatInputBar from "./chat/ChatInputBar";
 import ConversationInfoPanel from "./chat/ConversationInfoPanel";
+import GroupSettingsPanel from "./chat/groupSettings/GroupSettingsPanel";
+import { groupPermissions } from "./chat/groupSettings/groupPermissions";
+import MessageSelectionBar, { DeleteMessagesDialog } from "./chat/MessageSelectionBar";
+import ComposerNotice from "./chat/ComposerNotice";
+import useChatPageExtras from "./chat/useChatPageExtras";
 import useChatState from "./chat/useChatState";
 import useChatActions from "./chat/useChatActions";
 import { useStatus } from "../status/useStatus";
@@ -20,6 +24,7 @@ import msgStyles from "./chat/ChatMessages.module.css";
 export default function Chat() {
   const state = useChatState() as any;
   const actions = useChatActions(state) as any;
+  const x = useChatPageExtras(state, actions);
   const { effective: myStatus } = useStatus();
   const { pathname } = useLocation();
   const isChatPage = pathname === "/chat";
@@ -203,6 +208,7 @@ export default function Chat() {
           is_group: conv.is_group,
           is_self_chat: conv.is_self_chat,
           group_name: conv.group_name,
+          group_avatar: conv.group_avatar,
           name: conv.name,
           member_count: conv.member_count,
         }
@@ -216,6 +222,7 @@ export default function Chat() {
   }, [callState?.conversationId, conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useOpenConversationFromQuery(conversations, openConversation); // /chat?conv=<id> (invite-link joins)
+  useEffect(x.consumePendingCall, [x.pendingCall, activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { // Hide navbar & bottom tab bar on mobile when a chat conversation is active
     const isMobileChat = isChatPage && mobileView === "chat" && activeConv;
     if (isMobileChat) {
@@ -256,19 +263,10 @@ export default function Chat() {
         mobileView={mobileView}
         loadingConvs={loadingConvs}
         onSearchUser={startConversation}
-        onOpenConv={(c: any) =>
-          openConversation(c.id, {
-            other_user_id: c.other_user_id,
-            other_username: c.other_username,
-            other_full_name: c.other_full_name,
-            other_avatar: c.other_avatar,
-            is_group: c.is_group,
-            is_self_chat: c.is_self_chat,
-            group_name: c.group_name,
-            name: c.name,
-            member_count: c.member_count,
-          })
-        }
+        onOpenConv={x.openConvMeta}
+        onCallConv={x.callFrom}
+        onOpenConvSettings={x.openSettingsFor}
+        onBlockConv={handleToggleBlock}
         userId={user.id}
         onMenuToggle={(id: any) => setConvMenu(convMenu === id ? null : id)}
         onPinConv={handlePinConv}
@@ -302,90 +300,43 @@ export default function Chat() {
         ) : (
           <>
             {selectedMessageIds.size > 0 ? (
-              <div className={s.messageSelectionBar}>
-                <button
-                  type="button"
-                  className={s.selectionIconButton}
-                  onClick={clearMessageSelection}
-                  aria-label="Cancel message selection"
-                >
-                  <X size={19} />
-                </button>
-                <strong>{selectedMessageIds.size} selected</strong>
-                <div className={s.selectionActions}>
-                  <button
-                    type="button"
-                    onClick={copySelectedMessages}
-                    title="Copy selected text"
-                  >
-                    <Copy size={17} />
-                  </button>
-                  {selectedMessages.length === 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleForward(selectedMessages[0]);
-                        clearMessageSelection();
-                      }}
-                      title="Forward"
-                    >
-                      <Forward size={17} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => applyToSelected(handlePin)}
-                    title="Pin or unpin selected"
-                  >
-                    <Pin size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyToSelected(handleStar)}
-                    title="Save or unsave selected"
-                  >
-                    <Star size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    className={s.selectionDeleteForMe}
-                    onClick={deleteSelectedForMe}
-                    title="Hide only on this device"
-                  >
-                    <Trash2 size={17} /> For me
-                  </button>
-                  {canDeleteSelectedForEveryone && (
-                    <button
-                      type="button"
-                      className={s.selectionDeleteEveryone}
-                      onClick={deleteSelectedForEveryone}
-                      title="Delete for everyone"
-                    >
-                      <Trash2 size={17} /> Everyone
-                    </button>
-                  )}
-                </div>
-              </div>
+              <MessageSelectionBar
+                count={selectedMessageIds.size}
+                canForward={selectedMessages.length === 1}
+                canDeleteForEveryone={canDeleteSelectedForEveryone}
+                onCancel={clearMessageSelection}
+                onCopy={copySelectedMessages}
+                onForward={() => {
+                  handleForward(selectedMessages[0]);
+                  clearMessageSelection();
+                }}
+                onPin={() => applyToSelected(handlePin)}
+                onStar={() => applyToSelected(handleStar)}
+                onDeleteForMe={deleteSelectedForMe}
+                onDeleteForEveryone={deleteSelectedForEveryone}
+              />
             ) : (
               <ChatHeader
                 activeConv={activeConvFull || activeConv}
                 onlineUsers={onlineUsers}
                 userStatusMap={userStatusMap}
                 userWorkModeMap={userWorkModeMap}
+                typing={!!typingUsers[activeConv.id]}
                 onBack={() => setMobileView("list")}
-                onGroupEdit={openGroupEdit}
+                onGroupEdit={x.openSettings}
                 onToggleSearch={() => setShowSearch(true)}
                 onTogglePinned={() => setShowPinned(!showPinned)}
-                showPinned={showPinned}
                 onToggleSharedFiles={() => setShowSharedFiles(!showSharedFiles)}
-                showSharedFiles={showSharedFiles}
                 onToggleStarred={() => setShowStarred(!showStarred)}
-                showStarred={showStarred}
                 onVoiceCall={handleVoiceCall}
                 onVideoCall={handleVideoCall}
                 onClearChat={(convId: any) => setClearConfirm(convId)}
                 onToggleBlock={handleToggleBlock}
-                onOpenInfo={() => setShowInfo(true)}
+                onOpenInfo={x.openSettings}
+                onMute={x.muteActive}
+                onArchive={x.archiveActive}
+                onLeave={() => x.setLeaveConfirm(true)}
+                onDelete={() => setDeleteConfirm(activeConvFull || activeConv)}
               />
             )}
             {showSearch && (
@@ -419,7 +370,7 @@ export default function Chat() {
               onDrop={handleDrop}
               onReply={handleReply}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={x.setDeleteMsg}
               onPin={handlePin}
               onForward={handleForward}
               onReact={handleReact}
@@ -444,35 +395,9 @@ export default function Chat() {
             />
 
             {activeConvFull?.is_blocked ? (
-              <div
-                style={{
-                  padding: "0.9rem 1rem",
-                  textAlign: "center",
-                  fontSize: "0.85rem",
-                  color: "var(--text-secondary)",
-                  borderTop: "1px solid var(--border)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.6rem",
-                }}
-              >
-                <span>You blocked this user. Unblock to send messages.</span>
-                <button
-                  onClick={() => handleToggleBlock(activeConvFull)}
-                  style={{
-                    background: "var(--primary)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "0.35rem 0.8rem",
-                    cursor: "pointer",
-                    fontSize: "0.82rem",
-                  }}
-                >
-                  Unblock
-                </button>
-              </div>
+              <ComposerNotice text="You blocked this user. Unblock to send messages." action="Unblock" onAction={() => handleToggleBlock(activeConvFull)} />
+            ) : activeConvFull?.is_group && !groupPermissions(activeConvFull, convMembers, user?.id).canSend ? (
+              <ComposerNotice text="Only admins can send messages" />
             ) : (
               <ChatInputBar
                 input={input}
@@ -502,9 +427,10 @@ export default function Chat() {
               />
             )}
 
-            {showInfo && (
+            {showInfo && !activeConv.is_group && (
               <ConversationInfoPanel
                 activeConv={activeConvFull || activeConv}
+                currentUserId={user?.id}
                 onlineUsers={onlineUsers}
                 userStatusMap={userStatusMap}
                 userWorkModeMap={userWorkModeMap}
@@ -513,11 +439,32 @@ export default function Chat() {
                 onPinned={() => setShowPinned(true)}
                 onSharedFiles={() => setShowSharedFiles(true)}
                 onStarred={() => setShowStarred(true)}
-                onGroupEdit={openGroupEdit}
                 onVoiceCall={handleVoiceCall}
                 onVideoCall={handleVideoCall}
                 onClearChat={(convId: any) => setClearConfirm(convId)}
                 onToggleBlock={handleToggleBlock}
+                onPinConv={handlePinConv}
+                onFavConv={handleFavConv}
+                onMute={x.muteActive}
+                onArchive={handleArchiveConv}
+              />
+            )}
+            {x.groupSettingsOpen && activeConv.is_group && (
+              <GroupSettingsPanel
+                conv={activeConvFull || activeConv}
+                currentUserId={user?.id}
+                onClose={() => x.setGroupSettingsOpen(false)}
+                onChanged={loadConversations}
+                onLeft={() => x.afterLeft(activeConv.id)}
+                onVoiceCall={handleVoiceCall}
+                onVideoCall={handleVideoCall}
+                onMute={x.muteActive}
+                onSearch={() => setShowSearch(true)}
+                onAllMedia={() => setShowSharedFiles(true)}
+                onPinned={() => setShowPinned(true)}
+                onStarred={() => setShowStarred(true)}
+                onClear={() => setClearConfirm(activeConv.id)}
+                onMessageMember={x.messageMember}
               />
             )}
           </>
@@ -543,8 +490,8 @@ export default function Chat() {
       )}
       {showGroupModal && (
         <GroupModal
-          existingGroup={groupEditData?.group || null}
-          members={groupEditData?.members || []}
+          existingGroup={null}
+          members={[]}
           currentUserId={user?.id}
           onClose={() => {
             setShowGroupModal(false);
@@ -567,6 +514,32 @@ export default function Chat() {
         onCancel={() => setDeleteConfirm(null)}
       />
 
+      {x.deleteMsg && (
+        <DeleteMessagesDialog
+          count={1}
+          canDeleteForEveryone={Number(x.deleteMsg.sender_id) === Number(user.id)}
+          onDeleteForMe={() => x.deleteForMe(x.deleteMsg)}
+          onDeleteForEveryone={() => handleDelete(x.deleteMsg)}
+          onDismiss={() => x.setDeleteMsg(null)}
+        />
+      )}
+      <ConfirmDialog
+        isOpen={x.leaveConfirm}
+        title="Leave group?"
+        message="You will no longer be able to send or receive messages in this group."
+        confirmText="Leave"
+        onConfirm={async () => {
+          x.setLeaveConfirm(false);
+          if (!activeConv) return;
+          try {
+            await leaveGroup(activeConv.id);
+            x.afterLeft(activeConv.id);
+          } catch {
+            /* ignore */
+          }
+        }}
+        onCancel={() => x.setLeaveConfirm(false)}
+      />
       <ConfirmDialog
         isOpen={!!clearConfirm}
         title="Clear chat for you?"

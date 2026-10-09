@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Send, Timer, X } from "lucide-react";
+import VideoSurface from "./video/VideoSurface";
 import s from "./VideoPreview.module.css";
 
 interface VideoPreviewProps {
@@ -44,13 +45,7 @@ export default function VideoPreview({
       </div>
 
       <div className={s.stage}>
-        <video
-          src={previewUrl}
-          controls
-          autoPlay
-          playsInline
-          className={s.video}
-        />
+        <VideoSurface src={previewUrl} fileName={file.name} autoPlay autoFocus showDownload={false} className={s.video} />
       </div>
 
       <div className={s.options}>

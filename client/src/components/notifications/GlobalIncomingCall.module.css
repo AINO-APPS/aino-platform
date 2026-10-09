@@ -165,3 +165,77 @@
     height: 38px;
   }
 }
+
+/* ═══ Android IncomingCallScreen parity: blurred card, centred 72px avatar, labelled Decline/Accept ═══ */
+.pip {
+  width: 300px;
+  background: rgba(27, 27, 29, 0.96);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(16px);
+}
+.pip:hover {
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.6);
+}
+.callBar {
+  justify-content: center;
+  background: transparent;
+  border-bottom: none;
+  padding: 14px 14px 0;
+}
+.pulseRing {
+  background: #2fb36f;
+}
+.callLabel {
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.7);
+}
+.callerInfo {
+  flex-direction: column;
+  text-align: center;
+  gap: 10px;
+  padding: 14px 16px 6px;
+}
+.avatar,
+.avatarPlaceholder {
+  width: 72px;
+  height: 72px;
+  border: none;
+  font-size: 1.8rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  animation: avatarPulse 2s ease-in-out infinite;
+}
+@keyframes avatarPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 179, 111, 0.45); }
+  50% { box-shadow: 0 0 0 12px rgba(47, 179, 111, 0); }
+}
+.callerText {
+  align-items: center;
+}
+.callerName {
+  font-size: 18px;
+}
+.callerStatus {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.actions {
+  gap: 56px;
+  padding: 12px 16px 20px;
+}
+.btn {
+  width: 56px;
+  height: 56px;
+}
+.rejectBtn {
+  background: #e5484d;
+}
+.acceptBtn {
+  background: #2fb36f;
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar,
+  .avatarPlaceholder {
+    animation: none;
+  }
+}

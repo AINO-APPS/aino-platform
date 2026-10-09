@@ -56,3 +56,28 @@
         gap: 10px;
     }
 }
+
+/* Android SignalDropdownMenu look */
+.menu {
+    min-width: 200px;
+    padding: 6px 0;
+    border-radius: 12px;
+    background: var(--dropdown-bg, var(--bg-secondary));
+    border: 1px solid var(--dropdown-border, var(--glass-border));
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+}
+.menu .item,
+.menu .item:hover,
+.menu .item:active {
+    box-shadow: none !important;
+    transform: none !important;
+}
+.item {
+    min-height: 40px;
+    gap: 14px;
+    padding: 0 16px;
+    font-size: 0.9rem;
+}
+.danger {
+    color: var(--sig-danger);
+}

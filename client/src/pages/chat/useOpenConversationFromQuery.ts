@@ -25,6 +25,7 @@ export function useOpenConversationFromQuery(
             other_username: conv.other_username,
             other_full_name: conv.other_full_name,
             other_avatar: conv.other_avatar,
+            group_avatar: conv.group_avatar,
             is_group: conv.is_group,
             is_self_chat: conv.is_self_chat,
             group_name: conv.group_name,

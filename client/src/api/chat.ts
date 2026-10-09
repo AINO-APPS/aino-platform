@@ -31,6 +31,37 @@ export const getGroupInvite = (token: string) => API.get(`/chat/invite/${encodeU
 export const joinGroupInvite = (token: string) => API.post(`/chat/invite/${encodeURIComponent(token)}/join`);
 export const cancelGroupJoinRequest = (token: string) =>
     API.delete(`/chat/invite/${encodeURIComponent(token)}/request`);
+// Group link management + join requests (owner/admin).
+export interface GroupInviteLink {
+    enabled: boolean;
+    token: string | null;
+    requiresApproval: boolean;
+    pendingRequests: number;
+}
+export const getGroupInviteLink = (convId: number | string) =>
+    API.get<GroupInviteLink>(`/chat/conversations/${convId}/invite-link`);
+export const updateGroupInviteLink = (
+    convId: number | string,
+    changes: { enabled?: boolean; requiresApproval?: boolean },
+) => API.put<GroupInviteLink>(`/chat/conversations/${convId}/invite-link`, changes);
+export const resetGroupInviteLink = (convId: number | string) =>
+    API.post<GroupInviteLink>(`/chat/conversations/${convId}/invite-link/reset`);
+export const getGroupJoinRequests = (convId: number | string) =>
+    API.get(`/chat/conversations/${convId}/join-requests`);
+export const resolveGroupJoinRequest = (convId: number | string, userId: number | string, approve: boolean) =>
+    API.post(`/chat/conversations/${convId}/join-requests/${userId}/${approve ? "approve" : "deny"}`);
+// Group photo: upload sets it, PUT /group {avatar:null} removes it.
+export const uploadGroupAvatar = (convId: number | string, file: File) => {
+    const form = new FormData();
+    form.append("avatar", file);
+    return API.post<{ avatar: string }>(`/chat/conversations/${convId}/avatar`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+};
+export const removeGroupAvatar = (convId: number | string) =>
+    API.put(`/chat/conversations/${convId}/group`, { avatar: null });
+export const getGroupActiveCall = (convId: number | string) =>
+    API.get(`/chat/conversations/${convId}/active-call`);
 export const getMessages = (convId: number | string, before?: string) =>
     API.get(`/chat/conversations/${convId}/messages`, { params: { before } });
 export const markConversationRead = (convId: number | string) =>

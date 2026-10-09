@@ -1,0 +1,484 @@
+/* ─── In-bubble tile (Signal media box: 150–240 × 100–320, radius = bubble) ─── */
+.thumb {
+    position: relative;
+    display: block;
+    padding: 0;
+    border: none;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #111;
+    cursor: pointer;
+    max-width: 100%;
+    isolation: isolate;
+}
+.thumbImg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.thumb:hover .thumbImg {
+    transform: scale(1.03);
+}
+.thumbFallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.55);
+    background: linear-gradient(135deg, #1f2937, #0b0f17);
+}
+.thumbShade {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, 0.55) 100%),
+        rgba(0, 0, 0, 0.08);
+    transition: background 0.2s;
+}
+.thumb:hover .thumbShade {
+    background:
+        linear-gradient(180deg, transparent 50%, rgba(0, 0, 0, 0.6) 100%),
+        rgba(0, 0, 0, 0.2);
+}
+.thumbPlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 52px;
+    height: 52px;
+    margin: -26px 0 0 -26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 3px;
+    color: #fff;
+    background: rgba(20, 20, 24, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    transition: transform 0.18s ease, background 0.18s ease;
+}
+.thumb:hover .thumbPlay {
+    transform: scale(1.08);
+    background: var(--primary);
+    border-color: transparent;
+}
+.thumb:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+.thumbBadge {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px 2px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+/* ─── Player surface ─── */
+.surface {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+.surface:fullscreen {
+    width: 100vw;
+    height: 100vh;
+}
+.hideCursor {
+    cursor: none;
+}
+.video {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+.centre {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: #fff;
+}
+.bigPlay {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 4px;
+    background: rgba(20, 20, 24, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    animation: pop 0.18s ease;
+}
+.spin {
+    animation: spin 0.9s linear infinite;
+    opacity: 0.9;
+}
+
+/* ─── Controls ─── */
+.controls {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 28px 14px 10px;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.78));
+    color: #fff;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    cursor: default;
+}
+.controlsHidden {
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+}
+.track {
+    position: relative;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    touch-action: none;
+    outline: none;
+}
+.trackRail {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    transition: height 0.15s ease;
+}
+.track:hover .trackRail,
+.track:focus-visible .trackRail {
+    height: 6px;
+}
+.trackBuffered {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: rgba(255, 255, 255, 0.4);
+}
+.trackFill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--primary);
+}
+.trackThumb {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 45%, transparent);
+    transform: scale(0);
+    transition: transform 0.15s ease;
+}
+.track:hover .trackThumb,
+.track:focus-visible .trackThumb {
+    transform: scale(1);
+}
+.trackTip {
+    position: absolute;
+    bottom: 20px;
+    transform: translateX(-50%);
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgba(20, 20, 24, 0.92);
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+}
+.bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 4px;
+}
+.ctl {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+    text-decoration: none;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+}
+.ctl:hover,
+.ctl:focus-visible {
+    background: rgba(255, 255, 255, 0.16);
+    outline: none;
+}
+.volume {
+    display: inline-flex;
+    align-items: center;
+}
+.volSlider {
+    width: 0;
+    opacity: 0;
+    accent-color: #fff;
+    transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+    cursor: pointer;
+}
+.volume:hover .volSlider,
+.volume:focus-within .volSlider {
+    width: 76px;
+    opacity: 1;
+    margin: 0 8px 0 2px;
+}
+.time {
+    margin-left: 6px;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.92);
+    white-space: nowrap;
+}
+.spacer {
+    flex: 1;
+}
+.speedWrap {
+    position: relative;
+}
+.speedBtn {
+    width: auto;
+    min-width: 40px;
+    padding: 0 8px;
+}
+.speedMenu {
+    position: absolute;
+    right: 0;
+    bottom: 42px;
+    min-width: 120px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(28, 28, 32, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+}
+.speedMenu button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+.speedMenu button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+.speedActive {
+    color: var(--primary-light, #8ab4f8) !important;
+    font-weight: 700 !important;
+}
+.compact .time {
+    font-size: 11px;
+}
+.compact .ctl {
+    width: 32px;
+    height: 32px;
+}
+
+/* ─── Full-screen viewer (Teams) ─── */
+.viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 10100;
+    display: flex;
+    flex-direction: column;
+    background: rgba(8, 8, 10, 0.96);
+    backdrop-filter: blur(6px);
+    animation: fade 0.18s ease;
+}
+.viewerTop {
+    height: 60px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 12px 0 18px;
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.viewerWho {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.viewerWhoText {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.viewerName {
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.viewerSub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.viewerActions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.viewerBtn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+    text-decoration: none;
+}
+.viewerBtn:hover,
+.viewerBtn:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+}
+.viewerSep {
+    width: 1px;
+    height: 24px;
+    margin: 0 6px;
+    background: rgba(255, 255, 255, 0.16);
+}
+.viewerStage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.viewerSurface {
+    width: min(100%, 1280px);
+    height: 100%;
+    max-height: calc(100vh - 108px);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* ─── Inline (send-review) player ─── */
+.inline {
+    width: 100%;
+    max-height: 60vh;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes pop {
+    from {
+        transform: scale(0.85);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+@keyframes fade {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+@media (max-width: 640px) {
+    .viewerStage {
+        padding: 0;
+    }
+    .viewerSurface {
+        border-radius: 0;
+        max-height: calc(100vh - 60px);
+    }
+    .volSlider {
+        display: none;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .thumbImg,
+    .controls,
+    .viewer,
+    .bigPlay {
+        transition: none;
+        animation: none;
+    }
+}
+
+/* Flat surfaces: opt out of the global raised-button treatment. */
+.viewer button:hover,
+.viewer button:active,
+.surface button:hover,
+.surface button:active,
+.viewer button,
+.surface button,
+.thumb {
+  box-shadow: none !important;
+  transform: none !important;
+}

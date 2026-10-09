@@ -851,3 +851,36 @@
 .theirBubble .inlineCode {
   background: var(--surface-hover);
 }
+
+/* ═══ Android parity (SignalChatTokens.kt): grouped notch corners, footer, forwarded ═══ */
+.bubble {
+  font-size: var(--sig-body-size, 15px);
+  line-height: 1.45;
+  padding: var(--sig-bubble-pad-y, 7px) var(--sig-bubble-pad-x, 12px) 5px;
+}
+.mine.groupStart .myBubble {
+  border-radius: 16px 16px 4px 16px;
+}
+.mine.grouped .myBubble {
+  border-radius: 16px 4px 4px 16px;
+}
+.theirs.groupStart .theirBubble {
+  border-radius: 16px 16px 16px 4px;
+}
+.theirs.grouped .theirBubble {
+  border-radius: 4px 16px 16px 4px;
+}
+.groupStart .myBubble::before,
+.groupStart .theirBubble::before {
+  display: none;
+}
+.forwarded {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+}
+.time,
+.edited {
+  font-size: var(--sig-footer-size, 12px);
+}
