@@ -214,6 +214,42 @@ describe("POST /api/manager/approvals/bulk applies manual edit requests", () => 
         expect(res.status).toBe(200);
         expect(txSql().some((s) => /time_entries/.test(s))).toBe(false);
     });
+
+    test.each([
+        ["approve", "manualEntryApproved"],
+        ["reject", "manualEntryRejected"],
+    ])("bulk %s notifies every processed requester like the single route", async (action, template) => {
+        const { notifyByEmail } = require("../utils/mailer");
+        notifyByEmail.mockClear();
+        const requester = { email: "req@example.com", full_name: "Req" };
+        mockQuery.mockImplementation(async (sql: string) => (/SELECT email, full_name FROM users/.test(String(sql))
+            ? { rows: [requester], rowCount: 1 }
+            : { rows: [], rowCount: 0 }));
+        setupAuth("manager");
+        const second = { ...editApproval, id: 6, requester_id: 3 };
+        mockTxClient.query.mockImplementation(async (sql: string, params: any[] = []) => {
+            const text = String(sql);
+            if (/FROM approval_requests WHERE id = \$1 AND status = 'pending' FOR UPDATE/.test(text)) {
+                return { rows: [params[0] === 5 ? editApproval : second], rowCount: 1 };
+            }
+            if (/manager_id = \$2/.test(text)) return { rows: [{ "?column?": 1 }], rowCount: 1 };
+            if (/UPDATE approval_requests/.test(text)) return { rows: [{ id: params[3] }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app)
+            .post("/api/manager/approvals/bulk")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ ids: [5, 6], action, reject_reason: "nope" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.processed).toBe(2);
+        for (let i = 0; i < 50 && notifyByEmail.mock.calls.length < 2; i++) await new Promise((r) => setTimeout(r, 10));
+        expect(notifyByEmail.mock.calls.map((c: any[]) => c[0])).toEqual([template, template]);
+        const lookups = mockQuery.mock.calls.filter((c: any[]) => /SELECT email, full_name FROM users/.test(String(c[0])));
+        expect(lookups.map((c: any[]) => c[1])).toEqual([[2], [3]]);
+    });
 });
 
 describe("approval decisions are guarded against races / double-apply", () => {

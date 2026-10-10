@@ -428,6 +428,61 @@ router.get("/my-requests", async (req: Request, res: Response) => {
     }
 });
 
+type DecidedApproval = { approvalId: number; type?: string; requesterId?: number; referenceId?: number | null; metadata?: string | null };
+
+/** In-app + email notification to the requester of an approved / rejected request. Never throws. */
+async function notifyDecision(req: Request, decided: DecidedApproval, status: "approved" | "rejected", rejectReason?: string | null): Promise<void> {
+    try {
+        const requester = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [decided.requesterId])).rows[0];
+        if (!requester) return;
+        const base = { requesterId: decided.requesterId!, actorId: req.userId, status, approvalId: decided.approvalId };
+        let meta: any = {};
+        if (decided.metadata) { try { meta = JSON.parse(decided.metadata); } catch { } }
+        if (status === "approved") {
+            if (decided.type === "leave" || decided.type === "leave_withdraw") {
+                const leave = decided.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [decided.referenceId])).rows[0] : null;
+                const leaveInfo = leave || { leave_type: "leave", date: "" };
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: decided.referenceId,
+                    title: "Leave Approved \u2705", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been approved.` });
+                notifyByEmail("leaveApproved", requester, leaveInfo);
+            } else if (decided.type === "manual_entry") {
+                const entryDate = meta.date || "";
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
+                    title: "Manual Entry Approved \u2705", body: `Your manual time entry for ${entryDate} has been approved.` });
+                notifyByEmail("manualEntryApproved", requester, entryDate);
+            } else if (decided.type === "overtime") {
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
+                    title: "Overtime Approved \u2705", body: `Your overtime request for ${meta.date || ""} has been approved. Comp-off has been credited.` });
+            } else if (decided.type === "work_mode_change") {
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
+                    title: "Work Mode Change Approved \u2705", body: `You can clock in as ${meta.work_mode || "requested"} for the rest of ${meta.date || "today"}.` });
+            }
+        } else {
+            const why = rejectReason ? " Reason: " + rejectReason : "";
+            if (decided.type === "leave") {
+                const leave = decided.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [decided.referenceId])).rows[0] : null;
+                const leaveInfo = leave || { leave_type: "leave", date: "" };
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: decided.referenceId,
+                    title: "Leave Rejected", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been rejected.${why}` });
+                notifyByEmail("leaveRejected", requester, leaveInfo, rejectReason);
+            } else if (decided.type === "manual_entry") {
+                const entryDate = meta.date || "";
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
+                    title: "Manual Entry Rejected", body: `Your manual time entry for ${entryDate} has been rejected.${why}` });
+                notifyByEmail("manualEntryRejected", requester, entryDate, rejectReason);
+            } else if (decided.type === "overtime") {
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
+                    title: "Overtime Rejected", body: `Your overtime request for ${meta.date || ""} has been rejected.${why}` });
+            } else if (decided.type === "work_mode_change") {
+                await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
+                    title: "Work Mode Change Rejected", body: `Your request to work ${meta.work_mode || ""} on ${meta.date || "today"} was rejected.${why}` });
+            }
+        }
+    } catch (notifErr) {
+        req.log.error({ err: notifErr }, status === "approved" ? "Approval notification error" : "Rejection notification error");
+    }
+}
+
 router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -495,34 +550,7 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
         // Notify the requester about approval (deferred — see comment above)
         void (async () => {
             const approvalId = Number(id);
-            try {
-                const requester = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [txResult.requesterId])).rows[0];
-                if (requester) {
-                    const base = { requesterId: txResult.requesterId!, actorId: req.userId, status: "approved", approvalId };
-                    let meta: any = {};
-                    if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
-                    if (txResult.type === "leave" || txResult.type === "leave_withdraw") {
-                        const leave = txResult.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [txResult.referenceId])).rows[0] : null;
-                        const leaveInfo = leave || { leave_type: "leave", date: "" };
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: txResult.referenceId,
-                            title: "Leave Approved \u2705", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been approved.` });
-                        notifyByEmail("leaveApproved", requester, leaveInfo);
-                    } else if (txResult.type === "manual_entry") {
-                        const entryDate = meta.date || "";
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
-                            title: "Manual Entry Approved \u2705", body: `Your manual time entry for ${entryDate} has been approved.` });
-                        notifyByEmail("manualEntryApproved", requester, entryDate);
-                    } else if (txResult.type === "overtime") {
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
-                            title: "Overtime Approved \u2705", body: `Your overtime request for ${meta.date || ""} has been approved. Comp-off has been credited.` });
-                    } else if (txResult.type === "work_mode_change") {
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
-                            title: "Work Mode Change Approved \u2705", body: `You can clock in as ${meta.work_mode || "requested"} for the rest of ${meta.date || "today"}.` });
-                    }
-                }
-            } catch (notifErr) {
-                req.log.error({ err: notifErr }, "Approval notification error");
-            }
+            await notifyDecision(req, { ...txResult, approvalId }, "approved");
             emitApproverDecision(req.tenantId, req.userId, txResult.type, "approved", approvalId);
         })();
     } catch (err) {
@@ -575,35 +603,7 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
         // Notify the requester about rejection (deferred)
         void (async () => {
             const approvalId = Number(id);
-            try {
-                const requester = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [txResult.requesterId])).rows[0];
-                if (requester) {
-                    const base = { requesterId: txResult.requesterId!, actorId: req.userId, status: "rejected", approvalId };
-                    const why = reject_reason ? " Reason: " + reject_reason : "";
-                    let meta: any = {};
-                    if (txResult.metadata) { try { meta = JSON.parse(txResult.metadata); } catch { } }
-                    if (txResult.type === "leave") {
-                        const leave = txResult.referenceId ? (await req.db!.query("SELECT * FROM leaves WHERE id = $1", [txResult.referenceId])).rows[0] : null;
-                        const leaveInfo = leave || { leave_type: "leave", date: "" };
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "leave", leaveId: txResult.referenceId,
-                            title: "Leave Rejected", body: `Your ${leaveInfo.leave_type} leave on ${leaveInfo.date} has been rejected.${why}` });
-                        notifyByEmail("leaveRejected", requester, leaveInfo, reject_reason);
-                    } else if (txResult.type === "manual_entry") {
-                        const entryDate = meta.date || "";
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "manual_entry",
-                            title: "Manual Entry Rejected", body: `Your manual time entry for ${entryDate} has been rejected.${why}` });
-                        notifyByEmail("manualEntryRejected", requester, entryDate, reject_reason);
-                    } else if (txResult.type === "overtime") {
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "overtime",
-                            title: "Overtime Rejected", body: `Your overtime request for ${meta.date || ""} has been rejected.${why}` });
-                    } else if (txResult.type === "work_mode_change") {
-                        await notifyRequesterOfDecision(req.db, req.tenantId, { ...base, kind: "work_mode_change",
-                            title: "Work Mode Change Rejected", body: `Your request to work ${meta.work_mode || ""} on ${meta.date || "today"} was rejected.${why}` });
-                    }
-                }
-            } catch (notifErr) {
-                req.log.error({ err: notifErr }, "Rejection notification error");
-            }
+            await notifyDecision(req, { ...txResult, approvalId }, "rejected", reject_reason);
             emitApproverDecision(req.tenantId, req.userId, txResult.type, "rejected", approvalId);
         })();
     } catch (err) {
@@ -621,6 +621,7 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
 
         const status = action === "approve" ? "approved" : "rejected";
         let processed = 0, skipped = 0, ownSkipped = 0;
+        const decided: DecidedApproval[] = [];
 
         await (req.db as unknown as DbLike).transaction(async (client) => {
             for (const id of ids) {
@@ -681,6 +682,7 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
                     }
                 }
                 processed++;
+                decided.push({ approvalId: Number(approval.id), type: approval.type, requesterId: approval.requester_id, referenceId: approval.reference_id, metadata: approval.metadata });
             }
         });
 
@@ -690,7 +692,12 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
             ownSkipped > 0 ? `${ownSkipped} skipped (your own request)` : "",
         ].filter(Boolean);
         res.json({ message: [`${processed} request(s) ${status}`, ...skipNotes].join(", "), processed, skipped: skipped + ownSkipped, ownSkipped });
-        if (processed > 0) emitApproverDecision(req.tenantId, req.userId, "bulk", status);
+        if (processed === 0) return;
+        // Notify each requester like the single approve/reject routes (deferred, after the response).
+        void (async () => {
+            for (const item of decided) await notifyDecision(req, item, status, action === "reject" ? reject_reason : undefined);
+            emitApproverDecision(req.tenantId, req.userId, "bulk", status);
+        })();
     } catch (err) {
         req.log.error({ err }, "POST /approvals/bulk error");
         res.status(500).json({ error: "Failed to process bulk action" });
