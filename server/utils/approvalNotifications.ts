@@ -6,6 +6,7 @@
  */
 const { notifyUser, sendToUser } = require("./ws");
 import { ATTENDANCE_LINK, LEAVES_LINK, MANUAL_ENTRY_LINK, approvalLink } from "./notificationLinks";
+import { getTenantRolesMap, levelForRole } from "../middleware/rbac";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
@@ -92,4 +93,69 @@ export function emitApproverDecision(
         type,
         status,
     });
+}
+
+export interface ApprovalDecision {
+    approvalId?: number | null;
+    requesterId: number;
+    originalApproverId?: number | null;
+    type?: string;
+}
+
+/** Emit after commit; actor delivery does not wait for recipient lookups or notifications. */
+export async function emitApprovalDecisions(
+    db: DbLike,
+    tenantId: number | null | undefined,
+    actorId: number,
+    decisions: readonly ApprovalDecision[],
+    status: "approved" | "rejected",
+): Promise<void> {
+    if (decisions.length === 0) return;
+    if (decisions.length === 1) {
+        emitApproverDecision(tenantId, actorId, decisions[0].type, status, decisions[0].approvalId);
+    } else {
+        emitApproverDecision(tenantId, actorId, "bulk", status);
+    }
+
+    const requesters = (await db.query(
+        "SELECT id, org_id, manager_id FROM users WHERE id = ANY($1)",
+        [[...new Set(decisions.map((d) => d.requesterId))]],
+    )).rows as { id: number; org_id: number | null; manager_id: number | null }[];
+    const orgIds = [...new Set(requesters.map((u) => u.org_id).filter((id): id is number => id != null))];
+    if (orgIds.length === 0) return;
+    const roleMaps = new Map(await Promise.all(orgIds.map(async (orgId) =>
+        [orgId, await getTenantRolesMap(db, orgId, tenantId)] as const,
+    )));
+    const adminRoles = new Set(["hr_admin", "super_admin", "platform_admin"]);
+    for (const map of roleMaps.values()) {
+        for (const role of Object.keys(map)) if (levelForRole(role, map) >= 4) adminRoles.add(role);
+    }
+    const assignedIds = [...new Set([
+        ...decisions.map((d) => d.originalApproverId),
+        ...requesters.map((u) => u.manager_id),
+    ].filter((id): id is number => id != null))];
+    const viewers = (await db.query(
+        `SELECT id, role, org_id FROM users
+         WHERE org_id = ANY($1) AND is_active = TRUE
+           AND (id = ANY($2) OR role = ANY($3::text[]))`,
+        [orgIds, assignedIds, [...adminRoles]],
+    )).rows as { id: number; role: string; org_id: number }[];
+
+    for (const decision of decisions) {
+        const requester = requesters.find((u) => u.id === decision.requesterId);
+        if (!requester?.org_id) continue;
+        const recipients = new Set<number>();
+        for (const viewer of viewers) {
+            if (viewer.org_id !== requester.org_id || viewer.id === actorId) continue;
+            const level = levelForRole(viewer.role, roleMaps.get(viewer.org_id));
+            if (viewer.id === requester.id && viewer.role !== "super_admin") continue;
+            if (level >= 4 || (level >= 2 &&
+                (viewer.id === decision.originalApproverId || viewer.id === requester.manager_id))) {
+                recipients.add(viewer.id);
+            }
+        }
+        for (const id of recipients) {
+            emitApproverDecision(tenantId, id, decision.type, status, decision.approvalId);
+        }
+    }
 }

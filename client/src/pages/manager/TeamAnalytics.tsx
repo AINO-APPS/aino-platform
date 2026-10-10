@@ -31,6 +31,7 @@ export default function TeamAnalytics({ onSelectMember }: TeamAnalyticsProps) {
     range === "custom" && !!customFrom && !!customTo && customFrom <= customTo;
   const { data = null } = useQuery({
     queryKey: ["manager", "teamAnalytics", range, customFrom, customTo],
+    refetchOnMount: "always",
     queryFn: async () =>
       (range === "custom"
         ? (await getTeamAnalytics(null as any, customFrom, customTo)).data

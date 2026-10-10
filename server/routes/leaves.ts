@@ -8,6 +8,7 @@ const { logger } = require("../utils/logger");
 const { notifyByEmail } = require("../utils/mailer");
 const { sendToUser } = require("../utils/ws");
 const { notifyApproverOfRequest, notifyRequesterOfDecision, emitApproverDecision } = require("../utils/approvalNotifications");
+import { emitApprovalDecisions } from "../utils/approvalNotifications";
 const { requireTenant } = require("../middleware/tenant");
 const { canSelfApprove, selfApprovalError } = require("../utils/selfApproval");
 const { updateLeaveBalance } = require("../utils/leaveBalance");
@@ -495,6 +496,10 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
         });
         if (!approved) return res.status(400).json({ error: "Leave is no longer pending" });
 
+        void emitApprovalDecisions(req.db!, req.tenantId ? Number(req.tenantId) : null, req.userId!, [{
+            approvalId: approvalRequestId, requesterId: leave.user_id,
+            originalApproverId: leave.approved_by, type: "leave",
+        }], "approved").catch((err) => req.log.error({ err }, "Leave approval realtime delivery error"));
         // Notify the leave requester
         const leaveUser = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [leave.user_id])).rows[0];
         if (leaveUser) {
@@ -502,7 +507,6 @@ router.patch("/:id/approve", requireRole("manager"), async (req: Request, res: R
                 leaveId: leave.id, title: "Leave Approved ✅", body: `Your ${leave.leave_type} leave on ${leave.date} has been approved.` });
             notifyByEmail("leaveApproved", leaveUser, leave);
         }
-        emitApproverDecision(req.tenantId, req.userId, "leave", "approved", approvalRequestId);
 
         res.json({ message: "Leave approved" });
     } catch (err) {
@@ -550,6 +554,10 @@ router.patch("/:id/reject", requireRole("manager"), async (req: Request, res: Re
             approvalRequestId = arUpdate?.rows?.[0]?.id ?? null;
         });
 
+        void emitApprovalDecisions(req.db!, req.tenantId ? Number(req.tenantId) : null, req.userId!, [{
+            approvalId: approvalRequestId, requesterId: leave.user_id,
+            originalApproverId: leave.approved_by, type: "leave",
+        }], "rejected").catch((err) => req.log.error({ err }, "Leave rejection realtime delivery error"));
         // Notify the leave requester
         const leaveUser = (await req.db!.query("SELECT email, full_name FROM users WHERE id = $1", [leave.user_id])).rows[0];
         if (leaveUser) {
@@ -557,7 +565,6 @@ router.patch("/:id/reject", requireRole("manager"), async (req: Request, res: Re
                 leaveId: leave.id, title: "Leave Rejected", body: `Your ${leave.leave_type} leave on ${leave.date} has been rejected.${reason ? " Reason: " + reason : ""}` });
             notifyByEmail("leaveRejected", leaveUser, leave, reason);
         }
-        emitApproverDecision(req.tenantId, req.userId, "leave", "rejected", approvalRequestId);
 
         res.json({ message: "Leave rejected" });
     } catch (err) {

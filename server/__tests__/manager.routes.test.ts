@@ -56,6 +56,7 @@ jest.mock("../db", () => ({
 }));
 
 const { app } = require("../index");
+const { sendToUser } = require("../utils/ws");
 
 const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
@@ -145,6 +146,80 @@ describe("POST /api/manager/approvals/:id/approve", () => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    describe("committed approval realtime delivery", () => {
+        beforeEach(() => {
+            sendToUser.mockClear();
+            mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+            mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+            mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+        });
+
+        test.each(["approve", "reject"])("%s syncs the actor before requester lookup completes", async (action) => {
+            let release!: (value: { rows: unknown[]; rowCount: number }) => void;
+            const delayed = new Promise((resolve) => { release = resolve; });
+            mockQuery.mockImplementation((sql: string) => /SELECT email, full_name/.test(sql)
+                ? delayed : Promise.resolve({ rows: [], rowCount: 0 }));
+            setupAuth("team_lead", { role_level: 3 });
+            mockTxClient.query
+                .mockResolvedValueOnce({ rows: [{ id: 5, org_id: 1, requester_id: 2, approver_id: 1, status: "pending", type: "work_mode_change" }] })
+                .mockResolvedValueOnce({ rows: [{ ok: 1 }] })
+                .mockResolvedValueOnce({ rows: [{ id: 5 }] });
+            const res = await request(app).post(`/api/manager/approvals/5/${action}`)
+                .set(CSRF).set("Cookie", authCookie()).send({});
+            expect(res.status).toBe(200);
+            expect(sendToUser).toHaveBeenCalledWith(null, 1, "approval_update", {
+                id: 5, type: "work_mode_change", status: action === "approve" ? "approved" : "rejected",
+            });
+            release({ rows: [], rowCount: 0 });
+            await new Promise((resolve) => setImmediate(resolve));
+        });
+
+        test("rollback never announces an approval", async () => {
+            setupAuth("team_lead", { role_level: 3 });
+            mockTransaction.mockRejectedValueOnce(new Error("Commit failed"));
+            const res = await request(app).post("/api/manager/approvals/5/approve")
+                .set(CSRF).set("Cookie", authCookie());
+            expect(res.status).toBe(500);
+            expect(sendToUser).not.toHaveBeenCalled();
+        });
+
+        test("a skipped bulk batch emits nothing", async () => {
+            setupAuth("team_lead", { role_level: 3 });
+            const res = await request(app).post("/api/manager/approvals/bulk")
+                .set(CSRF).set("Cookie", authCookie()).send({ ids: [5], action: "approve" });
+            expect(res.status).toBe(200);
+            expect(res.body.processed).toBe(0);
+            expect(sendToUser).not.toHaveBeenCalled();
+        });
+
+        test("bulk decisions retain the original approver for cross-device fanout", async () => {
+            setupAuth("team_lead", { role_level: 3 });
+            mockQuery.mockImplementation(async (sql: string) => {
+                if (/SELECT id, org_id, manager_id FROM users/.test(sql)) {
+                    return { rows: [{ id: 2, org_id: 1, manager_id: 1 }], rowCount: 1 };
+                }
+                if (/SELECT id, role, org_id FROM users/.test(sql)) {
+                    return { rows: [{ id: 9, org_id: 1, role: "team_lead" }], rowCount: 1 };
+                }
+                return { rows: [], rowCount: 0 };
+            });
+            mockTxClient.query.mockImplementation(async (sql: string, params: unknown[]) => {
+                if (/SELECT \* FROM approval_requests/.test(sql)) {
+                    return { rows: [{ id: params[0], org_id: 1, requester_id: 2, approver_id: 9, type: "work_mode_change" }] };
+                }
+                return { rows: [{ id: 5 }] };
+            });
+            const res = await request(app).post("/api/manager/approvals/bulk")
+                .set(CSRF).set("Cookie", authCookie()).send({ ids: [5, 6], action: "approve" });
+            expect(res.status).toBe(200);
+            expect(res.body.processed).toBe(2);
+            await new Promise((resolve) => setImmediate(resolve));
+            expect(sendToUser).toHaveBeenCalledWith(null, 1, "approval_update", { type: "bulk", status: "approved" });
+            expect(sendToUser).toHaveBeenCalledWith(null, 9, "approval_update", { id: 5, type: "work_mode_change", status: "approved" });
+            expect(sendToUser).toHaveBeenCalledWith(null, 9, "approval_update", { id: 6, type: "work_mode_change", status: "approved" });
+        });
     });
 
     test("returns 401 without auth", async () => {

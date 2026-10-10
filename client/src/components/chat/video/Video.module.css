@@ -125,6 +125,27 @@
     pointer-events: none;
     color: #fff;
 }
+.playbackError {
+    position: absolute;
+    inset: 0 0 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.75);
+}
+.playbackError button {
+    padding: 8px 16px;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
 .bigPlay {
     width: 72px;
     height: 72px;

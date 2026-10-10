@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getApprovals, approveRequest, rejectRequest, bulkApproval } from "../../api/organization";
-import useRealtimeEvent from "../../hooks/useRealtimeEvent";
+import { refreshApprovalQueries } from "../../hooks/useApprovalSync";
 import ApprovalBadge from "./ApprovalBadge";
 import RequestDetails from "./RequestDetails";
 import s from "../Admin.module.css";
@@ -40,14 +40,10 @@ export default function ApprovalsTab({ highlightId = null }: ApprovalsTabProps) 
 
   const { data: approvals = EMPTY, isLoading: loading } = useQuery({
     queryKey: ["manager", "approvals", filter],
+    refetchOnMount: "always",
     queryFn: async () =>
       (await getApprovals({ status: filter || undefined }))
         .data as ApprovalRow[],
-  });
-
-  // Live refresh when any device/approver changes an approval.
-  useRealtimeEvent(["approval_update"], () => {
-    queryClient.invalidateQueries({ queryKey: ["manager", "approvals"] });
   });
 
   const isHighlighted = (a: ApprovalRow) =>
@@ -66,7 +62,10 @@ export default function ApprovalsTab({ highlightId = null }: ApprovalsTabProps) 
   }, [highlightId, loading, approvals, filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshApprovals = () => {
-    queryClient.invalidateQueries({ queryKey: ["manager", "approvals"] });
+    void refreshApprovalQueries(queryClient).catch((err: unknown) => {
+      console.error("Approval refresh failed:", err);
+      setNotice({ kind: "error", text: "Decision saved, but approvals could not be refreshed." });
+    });
     setSelected(new Set());
   };
 

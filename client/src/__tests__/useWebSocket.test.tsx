@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import useWebSocket, { REALTIME_EVENT, SESSION_REVOKED_EVENT, SIGNED_IN_ELSEWHERE_REASON } from "../hooks/useWebSocket";
+import useWebSocket, { REALTIME_EVENT, REALTIME_CONNECTED_EVENT, SESSION_REVOKED_EVENT, SIGNED_IN_ELSEWHERE_REASON } from "../hooks/useWebSocket";
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -44,6 +44,21 @@ class MockWebSocket {
 }
 
 describe("useWebSocket reliable chat delivery", () => {
+  test("announces connection recovery separately from server messages", () => {
+    const connected = vi.fn();
+    const onMessage = vi.fn();
+    window.addEventListener(REALTIME_CONNECTED_EVENT, connected);
+    const { unmount } = renderHook(() => useWebSocket(onMessage));
+    act(() => MockWebSocket.instances[0].open());
+    expect(connected).toHaveBeenCalledTimes(1);
+    expect(onMessage).not.toHaveBeenCalled();
+    act(() => MockWebSocket.instances[0].close());
+    act(() => vi.runOnlyPendingTimers());
+    act(() => MockWebSocket.instances[1].open());
+    expect(connected).toHaveBeenCalledTimes(2);
+    unmount();
+    window.removeEventListener(REALTIME_CONNECTED_EVENT, connected);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     MockWebSocket.instances = [];

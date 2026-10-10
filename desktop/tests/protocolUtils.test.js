@@ -1,12 +1,24 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const fs = require("node:fs");
 const { createProxyRequest, isAllowedAppNavigation, isReadOnlyMethod, normalizeProtocolPath, resolveClientFile, shouldApplyAppCsp } = require("../protocolUtils");
 
 test("normalizes encoded and Windows protocol paths", () => {
   assert.equal(normalizeProtocolPath(new URL("workpulse://app/api%2Ftasks")), "/api/tasks");
   assert.equal(normalizeProtocolPath(new URL("workpulse://app/uploads%5Cavatar.png")), "/uploads/avatar.png");
   assert.equal(normalizeProtocolPath(new URL("workpulse://app/bad%ZZ")), "/bad%ZZ");
+});
+
+test("registers the app scheme for media streaming without bypassing security", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../application.ts"), "utf8");
+  const registration = source.match(/protocol\.registerSchemesAsPrivileged\(\[([\s\S]*?)\]\);/)[1];
+  for (const privilege of ["standard", "secure", "supportFetchAPI", "corsEnabled", "stream"]) {
+    assert.match(registration, new RegExp(`${privilege}: true`));
+  }
+  assert.match(registration, /allowServiceWorkers: false/);
+  assert.doesNotMatch(registration, /bypassCSP: true/);
+  assert.ok(source.indexOf("protocol.registerSchemesAsPrivileged") < source.indexOf("app.whenReady"));
 });
 
 test("keeps static files inside the client root", () => {

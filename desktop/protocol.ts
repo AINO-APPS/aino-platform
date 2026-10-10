@@ -190,12 +190,11 @@ protocol.handle("workpulse", async (request) => {
       );
 
       if (!resp.ok && resp.status !== 206) {
-        return new Response("File not found", { status: resp.status });
+        return new Response(request.method === "HEAD" ? null : "File not found", { status: resp.status });
       }
 
       // Re-wrap the body so R2's CORS/auth headers never reach the renderer,
       // and so the response is attributed to the workpulse:// origin.
-      const body = await resp.arrayBuffer();
       const outHeaders: Record<string, string> = {
         "Content-Type":
           resp.headers.get("content-type") || getMimeType(pathname),
@@ -208,14 +207,17 @@ protocol.handle("workpulse", async (request) => {
       };
       const contentRange = resp.headers.get("content-range");
       if (contentRange) outHeaders["Content-Range"] = contentRange;
+      const contentLength = resp.headers.get("content-length");
+      if (contentLength && !resp.headers.get("content-encoding")) outHeaders["Content-Length"] = contentLength;
 
-      return new Response(body, { status: resp.status, headers: outHeaders });
+      // Do not hold media responses until the entire upload has downloaded.
+      return new Response(request.method === "HEAD" ? null : resp.body, { status: resp.status, headers: outHeaders });
     } catch (err) {
       console.error(
         `[proxy] UPLOAD FETCH ERROR ${pathname}:`,
         (err as Error)?.message,
       );
-      return new Response("File not found", { status: 404 });
+      return new Response(request.method === "HEAD" ? null : "File not found", { status: 404 });
     }
   }
 

@@ -41,6 +41,7 @@ import InspectorSessionBanner from "./components/common/InspectorSessionBanner";
 import ScreenPicker from "./components/common/ScreenPicker";
 import WorkModeChangeDialog from "./components/attendance/WorkModeChangeDialog";
 import KeepAlive from "./components/common/KeepAlive";
+import useApprovalSync from "./hooks/useApprovalSync";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import {
   queryClient,
@@ -157,6 +158,11 @@ function AppRoutes() {
   const { isAuthenticated, isInitializing, user } = useAuth() as any;
   const location = useLocation();
   const tenantlessPlatformAdmin = isTenantlessPlatformAdmin(user);
+  useApprovalSync(
+    isAuthenticated && !isInitializing && !tenantlessPlatformAdmin && user?.id
+      ? `${user.tenant_id}:${user.org_id}:${user.id}`
+      : null,
+  );
 
   // A cached profile intentionally omits role and permissions. Wait for the
   // server verification before mounting tenant-scoped pages or navbar polling.

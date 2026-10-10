@@ -1,7 +1,10 @@
-import React, { memo, useState, useEffect, useCallback } from "react";
+import React, { memo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, Check, X } from "lucide-react";
 import { getApprovals, approveRequest, rejectRequest } from "../../api/organization";
+import { refreshApprovalQueries } from "../../hooks/useApprovalSync";
+import { useToast } from "../common/Toast";
 import s from "./PendingApprovalsCard.module.css";
 
 interface Approval {
@@ -25,35 +28,48 @@ function formatType(type: string): string {
 
 const PendingApprovalsCard = memo(function PendingApprovalsCard() {
     const navigate = useNavigate();
-    const [approvals, setApprovals] = useState<Approval[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+    const toast = useToast();
+    const { data: approvals = [], isLoading: loading, isError } = useQuery({
+        queryKey: ["manager", "approvals", "pending"],
+        queryFn: async () => (await getApprovals({ status: "pending" })).data as Approval[],
+        refetchOnMount: "always",
+    });
     const [actioning, setActioning] = useState<number | string>("");
 
-    const fetch = useCallback(async () => {
-        try {
-            const res = await getApprovals({ status: "pending" });
-            setApprovals((res.data as Approval[]) || []);
-        } catch {
-            /* silent */
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => { fetch(); }, [fetch]);
-
     const handleApprove = async (id: number | string) => {
+        if (actioning !== "") return;
         setActioning(id);
-        try { await approveRequest(id); await fetch(); } catch { /* */ }
+        try {
+            await approveRequest(id);
+            await refreshApprovalQueries(queryClient).catch((err: unknown) => {
+                console.error("Approval refresh failed:", err);
+                toast.error("Request approved, but approvals could not be refreshed.");
+            });
+        } catch (err: unknown) {
+            console.error("Approve failed:", err);
+            toast.error("Failed to approve request.");
+        }
         finally { setActioning(""); }
     };
 
     const handleReject = async (id: number | string) => {
+        if (actioning !== "") return;
         setActioning(id);
-        try { await rejectRequest(id); await fetch(); } catch { /* */ }
+        try {
+            await rejectRequest(id);
+            await refreshApprovalQueries(queryClient).catch((err: unknown) => {
+                console.error("Approval refresh failed:", err);
+                toast.error("Request rejected, but approvals could not be refreshed.");
+            });
+        } catch (err: unknown) {
+            console.error("Reject failed:", err);
+            toast.error("Failed to reject request.");
+        }
         finally { setActioning(""); }
     };
 
+    if (isError) return <p className="error-msg" role="alert">Could not refresh pending approvals.</p>;
     if (loading || approvals.length === 0) return null;
 
     // Count by type

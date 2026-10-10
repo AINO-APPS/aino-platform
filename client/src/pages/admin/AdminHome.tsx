@@ -83,14 +83,16 @@ const DEFAULT_SETUP: SetupState = {
  *   onNavigate(key) – call to switch to a section in the parent shell
  */
 export default function AdminHome({ user, onNavigate }: AdminHomeProps) {
-  const { data: homeData } = useQuery({
+  const { data: homeData, isError: homeError } = useQuery({
     queryKey: ["admin", "home", "stats"],
+    refetchOnMount: "always",
     queryFn: async () => {
       const [statsR, roleR, apprR] = await Promise.allSettled([
         getAdminStats(),
         getRoleChangeRequests({ status: "pending" }),
         getApprovals({ status: "pending" }),
       ]);
+      if (apprR.status === "rejected") throw apprR.reason;
       return {
         stats:
           statsR.status === "fulfilled"
@@ -101,13 +103,11 @@ export default function AdminHome({ user, onNavigate }: AdminHomeProps) {
             ? ((roleR.value.data as any[]) || []).length
             : 0,
         pendingApprovals:
-          apprR.status === "fulfilled"
-            ? (
+          (
                 ((apprR.value.data as any)?.data ||
                   apprR.value.data ||
                   []) as any[]
-              ).length
-            : 0,
+              ).length,
       };
     },
   });
@@ -248,6 +248,7 @@ export default function AdminHome({ user, onNavigate }: AdminHomeProps) {
 
   return (
     <div className={s.homeWrap}>
+      {homeError && <p className="error-msg" role="alert">Could not refresh dashboard approvals.</p>}
       {/* ─── Attention strip ─── */}
       {attention.length > 0 && (
         <div className={s.attentionGrid}>

@@ -11,6 +11,10 @@ jest.mock("../utils/ws", () => ({
     sendToUser: (...args: unknown[]) => wsSendToUser(...args),
 }));
 const fanoutSendToUser = jest.fn();
+jest.mock("../redis", () => ({
+    getOrgRolesMap: jest.fn().mockResolvedValue(null),
+    setOrgRolesMap: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("../realtime/fanout", () => ({
     sendToUser: (...args: unknown[]) => fanoutSendToUser(...args),
 }));
@@ -19,6 +23,7 @@ const {
     notifyApproverOfRequest,
     notifyRequesterOfDecision,
     emitApproverDecision,
+    emitApprovalDecisions,
 } = require("../utils/approvalNotifications");
 const { emitTeamAttendanceUpdate } = require("../utils/teamAttendanceRealtime");
 const { approvalLink, taskLink, noteLink } = require("../utils/notificationLinks");
@@ -48,6 +53,63 @@ describe("notification links", () => {
 });
 
 describe("approval notifications", () => {
+    test.each(["leave", "leave_withdraw", "manual_entry", "overtime", "work_mode_change"])(
+        "%s decisions reach only authorized same-org viewers, including custom admin roles",
+        async (type) => {
+            const d = db([
+                [/SELECT id, org_id, manager_id FROM users/, [{ id: 2, org_id: 1, manager_id: 9 }]],
+                [/SELECT role_key, permission_level FROM tenant_roles/, [
+                    { role_key: "people_ops", permission_level: 4 },
+                    { role_key: "hr_admin", permission_level: 1 },
+                ]],
+                [/SELECT id, role, org_id FROM users/, [
+                    { id: 1, org_id: 1, role: "manager" },
+                    { id: 9, org_id: 1, role: "manager" },
+                    { id: 10, org_id: 1, role: "team_lead" },
+                    { id: 11, org_id: 1, role: "people_ops" },
+                    { id: 12, org_id: 2, role: "super_admin" },
+                    { id: 13, org_id: 1, role: "employee" },
+                    { id: 14, org_id: 1, role: "hr_admin" },
+                    { id: 2, org_id: 1, role: "people_ops" },
+                    { id: 9, org_id: 1, role: "manager" },
+                ]],
+            ]);
+            await emitApprovalDecisions(d, 7, 1, [
+                { approvalId: 77, requesterId: 2, originalApproverId: 10, type },
+            ], "approved");
+            expect(wsSendToUser.mock.calls.map((c: unknown[]) => c[1])).toEqual([1, 9, 10, 11]);
+            expect(wsSendToUser.mock.calls.every((c: unknown[]) => c[0] === 7)).toBe(true);
+            expect(d.query.mock.calls.at(-1)?.[0]).toContain("is_active = TRUE");
+        },
+    );
+
+    test("actor synchronization happens before a delayed or failed recipient lookup", async () => {
+        let reject!: (reason: Error) => void;
+        const d = { query: jest.fn(() => new Promise<never>((_resolve, fail) => { reject = fail; })) };
+        const pending = emitApprovalDecisions(d, 7, 1, [
+            { approvalId: 77, requesterId: 2, type: "leave" },
+        ], "rejected");
+        expect(wsSendToUser).toHaveBeenCalledWith(7, 1, "approval_update", { id: 77, type: "leave", status: "rejected" });
+        reject(new Error("lookup failed"));
+        await expect(pending).rejects.toThrow("lookup failed");
+    });
+
+    test("bulk recipient lookup is batched and empty/skipped batches emit nothing", async () => {
+        const d = db([
+            [/SELECT id, org_id, manager_id FROM users/, [{ id: 2, org_id: 1, manager_id: 9 }]],
+            [/SELECT id, role, org_id FROM users/, [{ id: 9, org_id: 1, role: "manager" }]],
+        ]);
+        await emitApprovalDecisions(d, 7, 1, [], "approved");
+        expect(wsSendToUser).not.toHaveBeenCalled();
+        await emitApprovalDecisions(d, 7, 1, [
+            { approvalId: 77, requesterId: 2, originalApproverId: 9, type: "leave" },
+            { approvalId: 78, requesterId: 2, originalApproverId: 9, type: "manual_entry" },
+        ], "approved");
+        expect(wsSendToUser.mock.calls.map((c: unknown[]) => c[1])).toEqual([1, 9, 9]);
+        expect(d.query).toHaveBeenCalledTimes(3);
+        expect(wsSendToUser).toHaveBeenCalledWith(7, 1, "approval_update", { type: "bulk", status: "approved" });
+    });
+
     test("approver gets an approval deep link + approval_update with the request id", async () => {
         const d = db([[/SELECT full_name FROM users/, [{ full_name: "Ann" }]]]);
         await notifyApproverOfRequest(d, 7, {

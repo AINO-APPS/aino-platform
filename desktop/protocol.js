@@ -179,11 +179,10 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
                 console.log(`[proxy] ${request.method} ${pathname} -> ${resp.status}` +
                     `${followed ? " (via R2 redirect)" : ""} (${Date.now() - startedAt}ms)`);
                 if (!resp.ok && resp.status !== 206) {
-                    return new Response("File not found", { status: resp.status });
+                    return new Response(request.method === "HEAD" ? null : "File not found", { status: resp.status });
                 }
                 // Re-wrap the body so R2's CORS/auth headers never reach the renderer,
                 // and so the response is attributed to the workpulse:// origin.
-                const body = await resp.arrayBuffer();
                 const outHeaders = {
                     "Content-Type": resp.headers.get("content-type") || getMimeType(pathname),
                     // Uploads are immutable (filenames embed a timestamp), but the URL we
@@ -196,11 +195,15 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
                 const contentRange = resp.headers.get("content-range");
                 if (contentRange)
                     outHeaders["Content-Range"] = contentRange;
-                return new Response(body, { status: resp.status, headers: outHeaders });
+                const contentLength = resp.headers.get("content-length");
+                if (contentLength && !resp.headers.get("content-encoding"))
+                    outHeaders["Content-Length"] = contentLength;
+                // Do not hold media responses until the entire upload has downloaded.
+                return new Response(request.method === "HEAD" ? null : resp.body, { status: resp.status, headers: outHeaders });
             }
             catch (err) {
                 console.error(`[proxy] UPLOAD FETCH ERROR ${pathname}:`, err?.message);
-                return new Response("File not found", { status: 404 });
+                return new Response(request.method === "HEAD" ? null : "File not found", { status: 404 });
             }
         }
         // Proxy /api/* requests to server (cookies managed by Electron session)

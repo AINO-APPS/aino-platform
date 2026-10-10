@@ -20,8 +20,13 @@ interface Props {
 export default function VideoSurface({ src, poster, fileName, autoPlay, compact, showDownload = true, className, autoFocus }: Props) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const wrapRef = useRef<HTMLDivElement | null>(null);
-    const api = useVideoPlayer(videoRef, wrapRef);
+    const api = useVideoPlayer(videoRef, wrapRef, src);
     const { state } = api;
+    const { play } = api;
+
+    useEffect(() => {
+        if (autoPlay) void play();
+    }, [autoPlay, src, play]);
 
     useEffect(() => {
         if (autoFocus) wrapRef.current?.focus();
@@ -52,16 +57,21 @@ export default function VideoSurface({ src, poster, fileName, autoPlay, compact,
                 src={src}
                 poster={poster || undefined}
                 className={s.video}
-                autoPlay={autoPlay}
                 playsInline
                 preload="metadata"
             />
-            {state.waiting && state.playing && (
+            {state.error && (
+                <div className={s.playbackError} role="alert" onClick={(e) => e.stopPropagation()}>
+                    <span>{state.error}</span>
+                    <button type="button" onClick={() => void api.play()}>Try again</button>
+                </div>
+            )}
+            {state.waiting && !state.error && (
                 <div className={s.centre} aria-hidden="true">
                     <Loader2 size={36} className={s.spin} />
                 </div>
             )}
-            {!state.playing && !state.waiting && (
+            {!state.playing && !state.waiting && !state.error && (
                 <div className={s.centre}>
                     <span className={s.bigPlay} aria-hidden="true">
                         {state.ended ? <RotateCcw size={28} /> : <Play size={30} fill="currentColor" />}

@@ -16,6 +16,7 @@ export interface VideoPlayerState {
     waiting: boolean;
     ended: boolean;
     controlsVisible: boolean;
+    error: string | null;
 }
 
 /**
@@ -25,6 +26,7 @@ export interface VideoPlayerState {
 export function useVideoPlayer(
     videoRef: RefObject<HTMLVideoElement | null>,
     containerRef: RefObject<HTMLElement | null>,
+    src: string,
 ) {
     const [st, setSt] = useState<VideoPlayerState>({
         playing: false,
@@ -39,13 +41,17 @@ export function useVideoPlayer(
         waiting: false,
         ended: false,
         controlsVisible: true,
+        error: null,
     });
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const playAttempt = useRef(0);
     const patch = useCallback((p: Partial<VideoPlayerState>) => setSt((s) => ({ ...s, ...p })), []);
 
     useEffect(() => {
         const v = videoRef.current;
         if (!v) return;
+        playAttempt.current++;
+        patch({ playing: false, current: 0, duration: 0, buffered: 0, waiting: false, ended: false, error: null, controlsVisible: true });
         const sync = () => {
             const b = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
             patch({
@@ -55,24 +61,38 @@ export function useVideoPlayer(
             });
         };
         const handlers: Record<string, () => void> = {
-            play: () => patch({ playing: true, ended: false }),
-            pause: () => patch({ playing: false, controlsVisible: true }),
-            ended: () => patch({ playing: false, ended: true, controlsVisible: true }),
+            play: () => patch({ playing: true, ended: false, error: null }),
+            pause: () => {
+                playAttempt.current++;
+                patch({ playing: false, waiting: false, controlsVisible: true });
+            },
+            ended: () => patch({ playing: false, waiting: false, ended: true, controlsVisible: true }),
             timeupdate: sync,
             durationchange: sync,
             loadedmetadata: sync,
             progress: sync,
             waiting: () => patch({ waiting: true }),
-            playing: () => patch({ waiting: false }),
+            playing: () => patch({ waiting: false, error: null }),
             canplay: () => patch({ waiting: false }),
             volumechange: () => patch({ volume: v.volume, muted: v.muted }),
             ratechange: () => patch({ speed: v.playbackRate }),
             enterpictureinpicture: () => patch({ pip: true }),
             leavepictureinpicture: () => patch({ pip: false }),
+            error: () => {
+                playAttempt.current++;
+                const message = v.error?.code === 3 || v.error?.code === 4
+                    ? "This video could not be decoded or its format is not supported."
+                    : "The video could not be loaded. Check your connection and try again.";
+                patch({ playing: false, waiting: false, error: message, controlsVisible: true });
+            },
         };
         Object.entries(handlers).forEach(([e, h]) => v.addEventListener(e, h));
-        return () => Object.entries(handlers).forEach(([e, h]) => v.removeEventListener(e, h));
-    }, [videoRef, patch]);
+        return () => {
+            playAttempt.current++;
+            Object.entries(handlers).forEach(([e, h]) => v.removeEventListener(e, h));
+            v.pause();
+        };
+    }, [videoRef, patch, src]);
 
     useEffect(() => {
         const onFs = () => patch({ fullscreen: document.fullscreenElement === containerRef.current });
@@ -88,17 +108,41 @@ export function useVideoPlayer(
         patch({ controlsVisible: true });
         if (hideTimer.current) clearTimeout(hideTimer.current);
         hideTimer.current = setTimeout(() => {
-            if (videoRef.current && !videoRef.current.paused) patch({ controlsVisible: false });
+            if (videoRef.current && !videoRef.current.paused && !videoRef.current.error) patch({ controlsVisible: false });
         }, HIDE_AFTER_MS);
     }, [patch, videoRef]);
+
+    const play = useCallback(async () => {
+        const v = videoRef.current;
+        if (!v) return;
+        if (v.error) v.load();
+        const attempt = ++playAttempt.current;
+        patch({ error: null, waiting: true, controlsVisible: true });
+        try {
+            await v.play();
+            if (attempt === playAttempt.current) patch({ waiting: false });
+        } catch (err) {
+            if (attempt !== playAttempt.current) return;
+            const name = (err as Error)?.name;
+            patch({
+                playing: false,
+                waiting: false,
+                controlsVisible: true,
+                error: name === "AbortError" ? null
+                    : name === "NotAllowedError" ? "Playback was blocked. Press play to try again."
+                    : name === "NotSupportedError" ? "This video format is not supported."
+                    : "The video could not be played. Try again.",
+            });
+        }
+    }, [videoRef, patch]);
 
     const toggle = useCallback(() => {
         const v = videoRef.current;
         if (!v) return;
-        if (v.paused || v.ended) void v.play().catch(() => undefined);
+        if (v.paused || v.ended || v.error) void play();
         else v.pause();
         poke();
-    }, [videoRef, poke]);
+    }, [videoRef, play, poke]);
 
     const seekTo = useCallback(
         (t: number) => {
@@ -182,6 +226,7 @@ export function useVideoPlayer(
 
     return {
         state: st,
+        play,
         toggle,
         seekTo,
         skip,

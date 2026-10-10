@@ -183,6 +183,7 @@ electron_1.protocol.registerSchemesAsPrivileged([
             standard: true,
             secure: true,
             supportFetchAPI: true,
+            stream: true,
             corsEnabled: true,
             allowServiceWorkers: false,
         },

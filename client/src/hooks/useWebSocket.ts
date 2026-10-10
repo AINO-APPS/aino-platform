@@ -21,6 +21,7 @@ const CHAT_ACK_RETRY_MS = 10_000;
 const CHAT_MAX_SEND_ATTEMPTS = 6;
 
 export const REALTIME_EVENT = "aino-realtime";
+export const REALTIME_CONNECTED_EVENT = "aino-realtime-connected";
 
 /** Close reason the server sends when a newer sign-in replaced this session (server/services/sessionSignOut.ts). */
 export const SIGNED_IN_ELSEWHERE_REASON = "Signed in on another device";
@@ -225,6 +226,7 @@ export default function useWebSocket(onMessage: OnMessage) {
       connectingRef.current = false;
       retryCountRef.current = 0; // reset backoff on a successful open
       setConnected(true);
+      window.dispatchEvent(new Event(REALTIME_CONNECTED_EVENT));
       // Reliable chat goes first so user-authored messages are not held
       // behind transient typing/presence traffic accumulated offline.
       flushReliable();

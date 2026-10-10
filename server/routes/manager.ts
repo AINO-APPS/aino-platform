@@ -8,7 +8,8 @@ const { computeFloorMs, computeBreakMs, endOfLocalDayMs } = require("../utils/ti
 const { updateLeaveBalance } = require("./leaves");
 const { logger } = require("../utils/logger");
 const { notifyByEmail } = require("../utils/mailer");
-const { notifyRequesterOfDecision, emitApproverDecision } = require("../utils/approvalNotifications");
+import { emitApprovalDecisions } from "../utils/approvalNotifications";
+const { notifyRequesterOfDecision } = require("../utils/approvalNotifications");
 const { requireTenant } = require("../middleware/tenant");
 const { parseWorkDays, isJsDowWorkDay } = require("../utils/workDays");
 const { canSelfApprove, selfApprovalError } = require("../utils/selfApproval");
@@ -28,6 +29,7 @@ interface TxResult {
     ok?: boolean;
     type?: string;
     requesterId?: number;
+    originalApproverId?: number | null;
     referenceId?: number | null;
     metadata?: string | null;
 }
@@ -428,7 +430,7 @@ router.get("/my-requests", async (req: Request, res: Response) => {
     }
 });
 
-type DecidedApproval = { approvalId: number; type?: string; requesterId?: number; referenceId?: number | null; metadata?: string | null };
+type DecidedApproval = { approvalId: number; type?: string; requesterId: number; originalApproverId?: number | null; referenceId?: number | null; metadata?: string | null };
 
 /** In-app + email notification to the requester of an approved / rejected request. Never throws. */
 async function notifyDecision(req: Request, decided: DecidedApproval, status: "approved" | "rejected", rejectReason?: string | null): Promise<void> {
@@ -533,7 +535,7 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
                     }
                 }
             }
-            return { ok: true, type: approval.type, requesterId: approval.requester_id, referenceId: approval.reference_id, metadata: approval.metadata };
+            return { ok: true, type: approval.type, requesterId: approval.requester_id, originalApproverId: approval.approver_id, referenceId: approval.reference_id, metadata: approval.metadata };
         });
 
         if (txResult.error) return res.status(txResult.status!).json({ error: txResult.error });
@@ -547,12 +549,11 @@ router.post("/approvals/:id/approve", async (req: Request, res: Response) => {
         logAction(req, "approve", "approval_request", Number(id), { type: txResult.type });
         res.json({ message: "Request approved" });
 
+        const decided = { ...txResult, approvalId: Number(id), requesterId: txResult.requesterId! };
+        void emitApprovalDecisions(req.db!, req.tenantId ? Number(req.tenantId) : null, req.userId!, [decided], "approved")
+            .catch((err) => req.log.error({ err }, "Approval realtime delivery error"));
         // Notify the requester about approval (deferred — see comment above)
-        void (async () => {
-            const approvalId = Number(id);
-            await notifyDecision(req, { ...txResult, approvalId }, "approved");
-            emitApproverDecision(req.tenantId, req.userId, txResult.type, "approved", approvalId);
-        })();
+        void notifyDecision(req, decided, "approved");
     } catch (err) {
         req.log.error({ err }, "POST /approvals/:id/approve error");
         res.status(500).json({ error: "Failed to approve request" });
@@ -590,7 +591,7 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
             } else if (approval.type === "manual_entry") {
                 await applyManualEntryDecision(client, approval, req.userId, "rejected");
             }
-            return { ok: true, type: approval.type, requesterId: approval.requester_id, referenceId: approval.reference_id, metadata: approval.metadata };
+            return { ok: true, type: approval.type, requesterId: approval.requester_id, originalApproverId: approval.approver_id, referenceId: approval.reference_id, metadata: approval.metadata };
         });
 
         if (txResult.error) return res.status(txResult.status!).json({ error: txResult.error });
@@ -600,12 +601,11 @@ router.post("/approvals/:id/reject", async (req: Request, res: Response) => {
         logAction(req, "reject", "approval_request", Number(id), { type: txResult.type, reject_reason });
         res.json({ message: "Request rejected" });
 
+        const decided = { ...txResult, approvalId: Number(id), requesterId: txResult.requesterId! };
+        void emitApprovalDecisions(req.db!, req.tenantId ? Number(req.tenantId) : null, req.userId!, [decided], "rejected")
+            .catch((err) => req.log.error({ err }, "Rejection realtime delivery error"));
         // Notify the requester about rejection (deferred)
-        void (async () => {
-            const approvalId = Number(id);
-            await notifyDecision(req, { ...txResult, approvalId }, "rejected", reject_reason);
-            emitApproverDecision(req.tenantId, req.userId, txResult.type, "rejected", approvalId);
-        })();
+        void notifyDecision(req, decided, "rejected", reject_reason);
     } catch (err) {
         req.log.error({ err }, "POST /approvals/:id/reject error");
         res.status(500).json({ error: "Failed to reject request" });
@@ -682,7 +682,7 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
                     }
                 }
                 processed++;
-                decided.push({ approvalId: Number(approval.id), type: approval.type, requesterId: approval.requester_id, referenceId: approval.reference_id, metadata: approval.metadata });
+                decided.push({ approvalId: Number(approval.id), type: approval.type, requesterId: approval.requester_id, originalApproverId: approval.approver_id, referenceId: approval.reference_id, metadata: approval.metadata });
             }
         });
 
@@ -693,10 +693,11 @@ router.post("/approvals/bulk", async (req: Request, res: Response) => {
         ].filter(Boolean);
         res.json({ message: [`${processed} request(s) ${status}`, ...skipNotes].join(", "), processed, skipped: skipped + ownSkipped, ownSkipped });
         if (processed === 0) return;
+        void emitApprovalDecisions(req.db!, req.tenantId ? Number(req.tenantId) : null, req.userId!, decided, status)
+            .catch((err) => req.log.error({ err }, "Bulk approval realtime delivery error"));
         // Notify each requester like the single approve/reject routes (deferred, after the response).
         void (async () => {
             for (const item of decided) await notifyDecision(req, item, status, action === "reject" ? reject_reason : undefined);
-            emitApproverDecision(req.tenantId, req.userId, "bulk", status);
         })();
     } catch (err) {
         req.log.error({ err }, "POST /approvals/bulk error");

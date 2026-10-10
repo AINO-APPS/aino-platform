@@ -4,6 +4,8 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, test, vi } from "vitest";
 import { REALTIME_EVENT } from "../hooks/useWebSocket";
 import useRealtimeEvent from "../hooks/useRealtimeEvent";
+import useApprovalSync from "../hooks/useApprovalSync";
+import { ToastProvider } from "../components/common/Toast";
 
 const getApprovals = vi.fn();
 vi.mock("../api/organization", () => ({
@@ -16,6 +18,10 @@ vi.mock("../api/organization", () => ({
 
 import ManagerDashboard from "../pages/manager";
 
+function ApprovalSync() {
+    useApprovalSync("1:1");
+    return null;
+}
 function emit(type: string, data: unknown = {}) {
     act(() => {
         window.dispatchEvent(new CustomEvent(REALTIME_EVENT, { detail: { type, data } }));
@@ -48,9 +54,12 @@ describe("Manager dashboard approvals deep link", () => {
         const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
         return render(
             <QueryClientProvider client={client}>
+              <ToastProvider>
+                <ApprovalSync />
                 <MemoryRouter initialEntries={[url]}>
                     <ManagerDashboard />
                 </MemoryRouter>
+              </ToastProvider>
             </QueryClientProvider>,
         );
     }

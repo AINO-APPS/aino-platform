@@ -992,7 +992,43 @@ On disconnect:                 →   Remove from clients map
                                    broadcastPresence(userId, 'offline')
 ```
 
+### Approval Synchronization (Web and Desktop)
+
+Manager approve/reject/bulk decisions and the leave approve/reject endpoints emit
+`approval_update` only after the database transaction commits. The acting
+approver's other devices are notified immediately, independently of requester
+notifications and email. The shared decision helper also resolves the original
+approver, the requester's direct manager, and same-organization HR/admin viewers,
+using effective permission levels (including custom tenant roles), excluding
+inactive or unauthorized viewers. Delivery uses tenant-scoped `sendToUser` and
+the existing Redis cross-instance fan-out, not a tenant-wide broadcast.
+
+The dashboard pending card shares the manager pending-approvals React Query key.
+`useApprovalSync`, mounted for a verified tenant session, invalidates approval
+lists, admin home counts, and team analytics on `approval_update`. It also
+reconciles missed events on focus, visible state, network return, Electron
+`window-shown`, and the client-only `aino-realtime-connected` connection-open
+signal. Nearby triggers are coalesced; no additional socket or polling is used.
+Approval-bearing queries revalidate on mount even when persisted cached data is
+still fresh. Refresh failures are shown explicitly, and session cleanup cancels
+queued refreshes and removes listeners.
+
 ### Chat WebSocket Events
+
+#### Desktop Chat Video Playback
+
+Normal video attachments open the shared in-app video viewer on web and desktop.
+The Electron `workpulse` scheme enables media streaming, and its authenticated
+upload proxy returns the upstream body as a stream rather than buffering the
+entire video before playback can begin. Range requests and Content-Range,
+Content-Length, and MIME headers are preserved; HEAD responses remain bodyless.
+Credentials go only to the API hop, never to a presigned storage URL.
+
+The shared player displays rejected playback and media-load errors with a retry
+action rather than silently leaving a non-playing video. Changing the source
+resets error state, and closing the viewer pauses playback and releases its media
+source. Codec support remains that of the installed Chromium/Electron runtime;
+the app does not transcode unsupported attachments.
 
 | Client → Server | Server → Client | Description |
 |-----------------|-----------------|-------------|
