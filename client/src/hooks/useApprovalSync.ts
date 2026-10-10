@@ -20,38 +20,49 @@ export default function useApprovalSync(sessionKey: string | null): void {
     if (!sessionKey) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
-    const refresh = () => {
+    // Only a known approval change makes cached approvals stale enough to toast;
+    // opportunistic reconciles fail quietly and widgets show their own errors.
+    let batchHasApprovalUpdate = false;
+    const refresh = (approvalUpdate = false) => {
+      if (approvalUpdate) batchHasApprovalUpdate = true;
       if (timer) return;
       // Multiple feature sockets and desktop focus/visibility events arrive together.
       timer = setTimeout(() => {
         timer = undefined;
+        const notify = batchHasApprovalUpdate;
+        batchHasApprovalUpdate = false;
         void refreshApprovalQueries(client).catch((err: unknown) => {
           if (disposed) return;
+          if (!notify) {
+            console.warn("Background approval refresh failed:", err);
+            return;
+          }
           console.error("Approval refresh failed:", err);
           toast.error("Could not refresh approvals. Please try again.");
         });
       }, 100);
     };
+    const reconcile = () => refresh();
     const onRealtime = (event: Event) => {
       const msg = (event as CustomEvent<WebSocketMessage>).detail;
-      if (msg?.type === "approval_update") refresh();
+      if (msg?.type === "approval_update") refresh(true);
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     window.addEventListener(REALTIME_EVENT, onRealtime);
-    window.addEventListener(REALTIME_CONNECTED_EVENT, refresh);
-    window.addEventListener("focus", refresh);
-    window.addEventListener("online", refresh);
+    window.addEventListener(REALTIME_CONNECTED_EVENT, reconcile);
+    window.addEventListener("focus", reconcile);
+    window.addEventListener("online", reconcile);
     document.addEventListener("visibilitychange", onVisible);
-    const unsubscribe = window.electronAPI?.onWindowShown?.(refresh);
+    const unsubscribe = window.electronAPI?.onWindowShown?.(reconcile);
     return () => {
       disposed = true;
       if (timer) clearTimeout(timer);
       window.removeEventListener(REALTIME_EVENT, onRealtime);
-      window.removeEventListener(REALTIME_CONNECTED_EVENT, refresh);
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("online", refresh);
+      window.removeEventListener(REALTIME_CONNECTED_EVENT, reconcile);
+      window.removeEventListener("focus", reconcile);
+      window.removeEventListener("online", reconcile);
       document.removeEventListener("visibilitychange", onVisible);
       unsubscribe?.();
     };

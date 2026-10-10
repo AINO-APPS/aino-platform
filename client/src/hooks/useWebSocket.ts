@@ -30,6 +30,21 @@ export const SESSION_REVOKED_EVENT = "aino-session-revoked";
 let lastInboundFrame = "";
 let lastInboundAt = 0;
 
+// Feature sockets are independent, but the server fans every event out to all
+// of them. Realtime only "recovers" (and events may have been missed) when the
+// app goes from zero open sockets to one — not when a page mounts another one.
+const openSockets = new Set<WebSocket>();
+
+function markSocketOpen(ws: WebSocket): void {
+  const wasDown = openSockets.size === 0;
+  openSockets.add(ws);
+  if (wasDown) window.dispatchEvent(new Event(REALTIME_CONNECTED_EVENT));
+}
+
+function markSocketClosed(ws: WebSocket | null): void {
+  if (ws) openSockets.delete(ws);
+}
+
 function publishInboundFrame(msg: WebSocketMessage): void {
   const serialized = JSON.stringify(msg);
   const now = Date.now();
@@ -226,7 +241,7 @@ export default function useWebSocket(onMessage: OnMessage) {
       connectingRef.current = false;
       retryCountRef.current = 0; // reset backoff on a successful open
       setConnected(true);
-      window.dispatchEvent(new Event(REALTIME_CONNECTED_EVENT));
+      markSocketOpen(ws);
       // Reliable chat goes first so user-authored messages are not held
       // behind transient typing/presence traffic accumulated offline.
       flushReliable();
@@ -263,6 +278,7 @@ export default function useWebSocket(onMessage: OnMessage) {
     };
 
     ws.onclose = (e) => {
+      markSocketClosed(ws);
       connectingRef.current = false;
       setConnected(false);
       wsRef.current = null;
@@ -328,6 +344,7 @@ export default function useWebSocket(onMessage: OnMessage) {
       // Detach onclose so its auto-reconnect (with backoff) doesn't race
       // our explicit connect() below; we drive the reconnect ourselves.
       ws.onclose = null;
+      markSocketClosed(ws);
       try {
         ws.close();
       } catch {
@@ -414,6 +431,7 @@ export default function useWebSocket(onMessage: OnMessage) {
       stopHeartbeat();
       if (wsRef.current) {
         wsRef.current.onclose = null;
+        markSocketClosed(wsRef.current);
         wsRef.current.close();
         wsRef.current = null;
       }
@@ -428,6 +446,7 @@ export default function useWebSocket(onMessage: OnMessage) {
       stopHeartbeat();
       if (wsRef.current) {
         wsRef.current.onclose = null; // prevent reconnect on unmount
+        markSocketClosed(wsRef.current);
         wsRef.current.close();
       }
     };

@@ -1007,10 +1007,15 @@ The dashboard pending card shares the manager pending-approvals React Query key.
 `useApprovalSync`, mounted for a verified tenant session, invalidates approval
 lists, admin home counts, and team analytics on `approval_update`. It also
 reconciles missed events on focus, visible state, network return, Electron
-`window-shown`, and the client-only `aino-realtime-connected` connection-open
-signal. Nearby triggers are coalesced; no additional socket or polling is used.
+`window-shown`, and the client-only `aino-realtime-connected` signal. That signal
+fires only when the app goes from zero open realtime sockets to one (first
+connect or recovery after every socket dropped); a page mounting an additional
+feature socket is not a recovery and does not trigger a reconcile. Nearby
+triggers are coalesced; no additional socket or polling is used.
 Approval-bearing queries revalidate on mount even when persisted cached data is
-still fresh. Refresh failures are shown explicitly, and session cleanup cancels
+still fresh. A failed refresh for a batch that includes an `approval_update`
+event is shown as a toast; failed opportunistic reconciles are only logged, and
+approval widgets show their own inline error state. Session cleanup cancels
 queued refreshes and removes listeners.
 
 ### Chat WebSocket Events

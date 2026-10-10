@@ -101,6 +101,31 @@ describe("approval synchronization", () => {
         expect(screen.queryByText("Ann")).not.toBeInTheDocument();
         log.mockRestore();
     });
+    test.each(["focus", REALTIME_CONNECTED_EVENT])("a failed background %s reconcile does not toast", async (eventName) => {
+        const cache = client();
+        getApprovals.mockResolvedValue({ data: [{ id: 7, type: "leave", requester_name: "Ann" }] });
+        render(<><Sync /><PendingApprovalsCard /></>, { wrapper: harness(cache) });
+        expect(await screen.findByText("Ann")).toBeInTheDocument();
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        getApprovals.mockRejectedValue(new Error("Offline"));
+        act(() => window.dispatchEvent(new Event(eventName)));
+        expect(await screen.findByText("Could not refresh pending approvals.")).toBeInTheDocument();
+        await waitFor(() => expect(warn).toHaveBeenCalledWith("Background approval refresh failed:", expect.any(Error)));
+        expect(screen.queryByText("Could not refresh approvals. Please try again.")).not.toBeInTheDocument();
+        warn.mockRestore();
+    });
+    test("a coalesced batch containing an approval update still toasts on failure", async () => {
+        const cache = client();
+        getApprovals.mockResolvedValue({ data: [{ id: 7, type: "leave", requester_name: "Ann" }] });
+        render(<><Sync /><PendingApprovalsCard /></>, { wrapper: harness(cache) });
+        expect(await screen.findByText("Ann")).toBeInTheDocument();
+        const log = vi.spyOn(console, "error").mockImplementation(() => {});
+        getApprovals.mockRejectedValue(new Error("Offline"));
+        act(() => window.dispatchEvent(new Event("focus")));
+        emit("approval_update");
+        expect(await screen.findByText("Could not refresh approvals. Please try again.")).toBeInTheDocument();
+        log.mockRestore();
+    });
     test("coalesces desktop restore/socket events and unsubscribes on logout", async () => {
         const cache = client();
         let shown: (() => void) | undefined;

@@ -59,6 +59,29 @@ describe("useWebSocket reliable chat delivery", () => {
     unmount();
     window.removeEventListener(REALTIME_CONNECTED_EVENT, connected);
   });
+  test("an extra feature socket opening while realtime is up is not a recovery", () => {
+    const connected = vi.fn();
+    const onFirst = vi.fn();
+    const onSecond = vi.fn();
+    window.addEventListener(REALTIME_CONNECTED_EVENT, connected);
+    const first = renderHook(() => useWebSocket(onFirst));
+    act(() => MockWebSocket.instances[0].open());
+    expect(connected).toHaveBeenCalledTimes(1);
+    // A newly visited page mounts its own socket.
+    const second = renderHook(() => useWebSocket(onSecond));
+    act(() => MockWebSocket.instances[1].open());
+    expect(connected).toHaveBeenCalledTimes(1);
+    // Realtime only recovers after every socket dropped.
+    act(() => MockWebSocket.instances[0].close());
+    act(() => MockWebSocket.instances[1].close());
+    act(() => vi.runOnlyPendingTimers());
+    act(() => MockWebSocket.instances[2].open());
+    act(() => MockWebSocket.instances[3].open());
+    expect(connected).toHaveBeenCalledTimes(2);
+    first.unmount();
+    second.unmount();
+    window.removeEventListener(REALTIME_CONNECTED_EVENT, connected);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     MockWebSocket.instances = [];
