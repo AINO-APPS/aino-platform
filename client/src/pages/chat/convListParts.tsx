@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { RippleTickGlyph, type TickState } from "../../components/chat/DeliveryStatus";
 
 /**
  * Signal-style last-message attachment label. Shows a type-aware emoji + word
@@ -30,9 +31,8 @@ export function attachmentPreview(
 }
 
 /**
- * Signal-style conversation-list delivery tick for the caller's OWN last
- * message: sent (bare ✓) → delivered (circled ✓) → read (accent-filled ✓).
- * Mirrors the in-thread DeliveryStatus glyphs so both screens read the same.
+ * Conversation-list delivery tick for the caller's OWN last message, using the
+ * same ripple-tick glyphs as the in-thread DeliveryStatus (read = org accent).
  */
 export function ListTick({ conv, userId }: { conv: any; userId?: number | string }) {
   if (userId == null || Number(conv.last_sender_id) !== Number(userId))
@@ -49,50 +49,11 @@ export function ListTick({ conv, userId }: { conv: any; userId?: number | string
     flexShrink: 0,
     color: read ? "var(--primary)" : "var(--text-muted, #8a8f98)",
   };
-  if (read) {
-    return (
-      <span style={style} title="Read" aria-label="Read">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.1" />
-          <circle cx="8" cy="8" r="5.2" fill="currentColor" />
-          <path
-            d="M5.4 8.1l1.8 1.8L10.7 6"
-            stroke="var(--read-check-bg, #fff)"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    );
-  }
-  if (delivered) {
-    return (
-      <span style={style} title="Delivered" aria-label="Delivered">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.3" />
-          <path
-            d="M4.6 8.2l2.2 2.2L11.4 5.6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    );
-  }
+  const state: TickState = read ? "read" : delivered ? "delivered" : "sent";
+  const label = read ? "Read" : delivered ? "Delivered" : "Sent";
   return (
-    <span style={style} title="Sent" aria-label="Sent">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <path
-          d="M3.5 8.5l3 3 6-7"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+    <span style={style} title={label} aria-label={label}>
+      <RippleTickGlyph state={state} size={14} />
     </span>
   );
 }
