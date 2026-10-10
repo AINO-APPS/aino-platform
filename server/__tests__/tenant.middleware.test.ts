@@ -240,4 +240,15 @@ describe("requireTenant middleware", () => {
         expect(next).not.toHaveBeenCalled();
         expect(statusFn).toHaveBeenCalledWith(400);
     });
+
+    test("rejects with 401 when the presented token was expired", async () => {
+        const token = jwt.sign({ id: 1, tenant_id: 7, realm: "tenant" }, SECRET, { expiresIn: -10 });
+        const { req, res, next, getStatus, getJson } = makeReqRes({ token });
+        await resolveTenant(req, res, jest.fn());
+        expect(req.tenant).toBeNull();
+        requireTenant(req, res, next);
+        expect(next).not.toHaveBeenCalled();
+        expect(getStatus()).toBe(401);
+        expect(getJson().code).toBe("TOKEN_EXPIRED");
+    });
 });

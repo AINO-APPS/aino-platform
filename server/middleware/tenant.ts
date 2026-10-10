@@ -42,7 +42,10 @@ async function resolveFromJwt(req: any): Promise<number | null> {
     const verified = verifyRealmToken(token, req);
     if (!verified.ok) {
         // Invalid, expired, or wrong-realm — auth middleware produces the
-        // user-facing error. We simply decline to resolve a tenant.
+        // user-facing error. We simply decline to resolve a tenant, but
+        // remember an expired/invalid token so requireTenant can answer 401
+        // (refresh and retry) instead of a misleading 400.
+        if (verified.reason === "invalid") req.authTokenRejected = true;
         return null;
     }
 
@@ -217,6 +220,11 @@ async function resolveTenant(req: any, res: Response, next: NextFunction): Promi
  */
 function requireTenant(req: any, res: Response, next: NextFunction): void | Response {
     if (!req.tenant) {
+        // The tenant comes from the JWT: an expired access token is an auth
+        // failure, so clients refresh their token instead of showing an error.
+        if (req.authTokenRejected) {
+            return res.status(401).json({ error: "Session expired. Please sign in again.", code: "TOKEN_EXPIRED" });
+        }
         return res.status(400).json({ error: "Organization context required. Please log in from your organization domain." });
     }
     next();

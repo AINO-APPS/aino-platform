@@ -192,7 +192,8 @@ async function setupWebSocket(server: HTTPServer): Promise<any> {
         db = { query: poolEntry.query, transaction: poolEntry.transaction };
       } catch (e: any) {
         logger.warn({ err: e.message, tenantId }, "WS tenant pool failed");
-        ws.close(4003, "Tenant unavailable");
+        // Transient: 1013 "Try Again Later" so clients reconnect instead of giving up.
+        ws.close(1013, "Tenant temporarily unavailable");
         return;
       }
     } else {
