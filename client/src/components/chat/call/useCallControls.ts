@@ -107,17 +107,14 @@ export default function useCallControls({
 
       prevBytesRef.current = { sent: 0, received: 0, timestamp: 0 };
       let lastQuality: ConnectionQuality | null = null;
+      let retryVideoTier = false;
 
       const interval = setInterval(async () => {
         try {
           const stats = await pc.getStats();
           const wantDetailed = statsPanelOpenRef.current;
 
-          // Counters fed to the controller are CUMULATIVE — it differences
-          // them itself. Do NOT pre-average here: computing
-          // `lost / (lost + received)` over since-call-start totals is what
-          // used to pin the encoder low for the rest of the call after a
-          // single early loss burst.
+          // Receive counters are cumulative; uplink loss comes from peer feedback.
           let rttSeconds: number | null = null;
           let packetsLost = 0;
           let packetsReceived = 0;
@@ -125,8 +122,8 @@ export default function useCallControls({
           let jitterBufferDelay = 0;
           let jitterBufferEmittedCount = 0;
           let qualityLimitationReason: string | null = null;
+          let outboundFractionLost: number | null = null;
 
-          // Debug-panel-only fields.
           let bytesSent = 0,
             bytesReceived = 0;
           let frameRate: number | null = null,
@@ -186,9 +183,15 @@ export default function useCallControls({
                 qualityLimitationReason = report.qualityLimitationReason;
               }
             }
-            // Fallback RTT only — never `Math.max` it with the candidate-pair
-            // value: that biased every reading pessimistic and helped keep the
-            // old classifier parked on the wrong side of its threshold.
+            if (
+              report.type === "remote-inbound-rtp" &&
+              report.kind === "video" &&
+              typeof report.fractionLost === "number" &&
+              Number.isFinite(report.fractionLost)
+            ) {
+              outboundFractionLost = Math.max(outboundFractionLost ?? 0, report.fractionLost);
+            }
+            // Use RTCP RTT only when candidate-pair RTT is unavailable.
             if (
               report.type === "remote-inbound-rtp" &&
               rttSeconds === null &&
@@ -207,14 +210,13 @@ export default function useCallControls({
             jitterBufferDelay,
             jitterBufferEmittedCount,
             qualityLimitationReason,
+            outboundFractionLost,
           };
 
           const decision = controller.observe(sample);
 
-          // Only write to the encoder when the ladder actually moved. Every
-          // needless setParameters() risks an encoder reconfigure (and a
-          // resolution change costs a keyframe → a visible freeze).
-          if (decision.changed) {
+          // Write only changed or rejected tiers; avoid needless encoder reconfiguration.
+          if (decision.changed || retryVideoTier) {
             console.log(
               "[call-quality] tier →",
               decision.tierIndex,
@@ -223,11 +225,9 @@ export default function useCallControls({
               `${decision.tier.maxFramerate}fps —`,
               decision.reason,
             );
-            void applyVideoEncodingTier(pc, decision.tier);
+            retryVideoTier = !(await applyVideoEncodingTier(pc, decision.tier));
           }
 
-          // Only re-render on a REAL quality change (the badge), never on
-          // every sample.
           if (decision.quality !== lastQuality) {
             lastQuality = decision.quality;
             setConnectionQuality(decision.quality);
@@ -289,8 +289,8 @@ export default function useCallControls({
             freezeCount,
             totalFreezesDuration,
           });
-        } catch {
-          /* stats unavailable this tick */
+        } catch (error) {
+          console.warn("[call-quality] stats sample failed:", error);
         }
       }, STATS_INTERVAL_MS);
       return interval;
