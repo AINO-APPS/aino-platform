@@ -722,8 +722,109 @@ describe("POST /api/chat/conversations/:id/messages", () => {
 });
 
 describe("POST /api/chat/messages/:id/reactions", () => {
+    const { pushNotifications } = require("../services/pushNotifications");
+    const { sendToUser } = require("../utils/ws");
+    let push: jest.SpyInstance;
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        sendToUser.mockClear();
+        push = jest.spyOn(pushNotifications, "sendReactionNotification").mockResolvedValue({ succeeded: 1, failed: 0 });
+    });
+    afterEach(() => push.mockRestore());
+
+    function prepareReaction(ownerId = 2, removed = false, eligible = true, inserted = true) {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 12, conversation_id: 10, sender_id: ownerId, deleted_at: null }] })
+            .mockResolvedValueOnce({ rows: [{ user_id: 1 }] })
+            .mockResolvedValueOnce({ rows: removed ? [{ id: 91 }] : [] })
+            .mockResolvedValueOnce({ rows: removed || !inserted ? [] : [{ id: 91, created_at: "2026-10-11T12:00:00Z" }] })
+            .mockResolvedValueOnce({ rows: [{ full_name: "Alice" }] })
+            .mockResolvedValueOnce({ rows: [{ user_id: 1 }, { user_id: ownerId }, { user_id: 3 }] });
+        if (!removed && inserted && ownerId !== 1) {
+            mockQuery.mockResolvedValueOnce({ rows: eligible ? [{ full_name: "Alice", avatar: "/uploads/alice.png" }] : [] });
+        }
+    }
+
+    function postReaction() {
+        return request(app).post("/api/chat/messages/12/reactions")
+            .set("Cookie", authCookie(1)).set(CSRF).send({ emoji: "👍" });
+    }
+
+    test("pushes only to the message owner and preserves all participant realtime fanout", async () => {
+        prepareReaction();
+        const res = await postReaction();
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true, action: "added" });
+        expect(push).toHaveBeenCalledTimes(1);
+        expect(push).toHaveBeenCalledWith(expect.any(Function), 2, null, {
+            conversationId: 10, messageId: 12, messageOwnerId: 2, actorId: 1,
+            actorName: "Alice", actorAvatar: "/uploads/alice.png", emoji: "👍", reactionId: 91, sentAt: 1791720000,
+        });
+        const fanout = sendToUser.mock.calls.filter((call: any[]) => call[2] === "chat_reaction");
+        expect(fanout.map((call: any[]) => call[1])).toEqual([1, 2, 3]);
+        expect(fanout[0][3]).toEqual({
+            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice",
+            emoji: "👍", action: "added", reactionId: 91, sentAt: 1791720000,
+        });
+    });
+
+    test.each(["muted", "owner left", "deleted after addition", "blocked", "inactive owner"])(
+        "does not push when eligibility lookup excludes %s", async () => {
+            prepareReaction(2, false, false);
+            expect((await postReaction()).status).toBe(200);
+            expect(push).not.toHaveBeenCalled();
+            const eligibility = mockQuery.mock.calls.find(([sql]: any[]) => sql.includes("SELECT actor.full_name"));
+            expect(eligibility[1]).toEqual([91, 2]);
+            expect(eligibility[0]).toContain("m.deleted_at IS NULL");
+            expect(eligibility[0]).toContain("cp.user_id = m.sender_id");
+            expect(eligibility[0]).toContain("cp.muted_until > NOW()");
+            expect(eligibility[0]).toContain("owner.is_active = TRUE");
+            expect(eligibility[0]).toContain("blocked_users");
+        },
+    );
+
+    test.each([["self", 1, false], ["removed", 2, true]])(
+        "does not push %s reactions", async (_name, ownerId, removed) => {
+            prepareReaction(ownerId as number, removed as boolean);
+            expect((await postReaction()).status).toBe(200);
+            expect(push).not.toHaveBeenCalled();
+            expect(mockQuery.mock.calls.some(([sql]: any[]) => sql.includes("SELECT actor.full_name"))).toBe(false);
+        },
+    );
+
+    test("push failure cannot fail a persisted reaction or prevent realtime delivery", async () => {
+        prepareReaction();
+        push.mockRejectedValueOnce(new Error("push unavailable"));
+        expect((await postReaction()).status).toBe(200);
+        expect(sendToUser.mock.calls.filter((call: any[]) => call[2] === "chat_reaction")).toHaveLength(3);
+    });
+
+    test("duplicate no-op insert never pushes or invents addition metadata", async () => {
+        prepareReaction(2, false, true, false);
+        expect((await postReaction()).status).toBe(200);
+        expect(push).not.toHaveBeenCalled();
+        const event = sendToUser.mock.calls.find((call: any[]) => call[2] === "chat_reaction")[3];
+        expect(event).not.toHaveProperty("reactionId");
+        expect(event).not.toHaveProperty("sentAt");
+    });
+
+    test("removed realtime events retain the original exact metadata shape", async () => {
+        prepareReaction(2, true);
+        expect((await postReaction()).status).toBe(200);
+        const event = sendToUser.mock.calls.find((call: any[]) => call[2] === "chat_reaction")[3];
+        expect(event).toEqual({
+            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice", emoji: "👍", action: "removed",
+        });
+    });
+
+    test("rejects an unauthorized actor before inserting or pushing", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 12, conversation_id: 10, sender_id: 2, deleted_at: null }] });
+        mockQuery.mockResolvedValueOnce({ rows: [] });
+        expect((await postReaction()).status).toBe(403);
+        expect(push).not.toHaveBeenCalled();
+        expect(sendToUser).not.toHaveBeenCalled();
     });
 
     test("rejects reactions on deleted messages", async () => {
@@ -741,6 +842,7 @@ describe("POST /api/chat/messages/:id/reactions", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/deleted/i);
+        expect(push).not.toHaveBeenCalled();
     });
 });
 

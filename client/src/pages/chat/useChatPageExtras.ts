@@ -15,7 +15,6 @@ export default function useChatPageExtras(state: any, actions: any) {
     const setGroupSettingsOpen = (open: boolean) => setGroupSettingsId(open && activeConv ? activeConv.id : null);
     const [deleteMsg, setDeleteMsg] = useState<any>(null);
     const [leaveConfirm, setLeaveConfirm] = useState(false);
-    const [pendingCall, setPendingCall] = useState<"voice" | "video" | null>(null);
 
     const openConvMeta = (c: any) =>
         openConversation(c.id, {
@@ -46,20 +45,10 @@ export default function useChatPageExtras(state: any, actions: any) {
         else setShowInfo(true);
     };
 
-    /** From a chat-list row: open the conversation, then place the call once it is active. */
+    /** Capture the row target before asynchronous conversation navigation. */
     const callFrom = async (c: any, type: "voice" | "video") => {
-        if (activeConv?.id === c.id) {
-            (type === "video" ? actions.handleVideoCall : actions.handleVoiceCall)();
-            return;
-        }
-        await openConvMeta(c);
-        setPendingCall(type);
-    };
-    const consumePendingCall = () => {
-        if (!pendingCall || !activeConv) return;
-        const t = pendingCall;
-        setPendingCall(null);
-        (t === "video" ? actions.handleVideoCall : actions.handleVoiceCall)();
+        actions.requestCall(type, c);
+        if (activeConv?.id !== c.id) await openConvMeta(c);
     };
 
     const muteActive = (d: MuteDuration | null) => activeConv && actions.handleMuteConv(activeConv.id, d);
@@ -102,8 +91,6 @@ export default function useChatPageExtras(state: any, actions: any) {
         setDeleteMsg,
         leaveConfirm,
         setLeaveConfirm,
-        pendingCall,
-        consumePendingCall,
         openConvMeta,
         openSettings,
         openSettingsFor,

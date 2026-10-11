@@ -57,7 +57,8 @@ export default function useWebRTC({
   // initial `undefined`.
   const callIdRef = useRef(callId);
   callIdRef.current = callId;
-  const [remoteVideoOff, setRemoteVideoOff] = useState(false);
+  const [remoteVideoOff, setRemoteVideoOff] = useState(callType !== "video");
+  const remoteVideoStateRef = useRef<boolean | null>(null);
   const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   const [remoteMuted, setRemoteMuted] = useState(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
@@ -74,7 +75,8 @@ export default function useWebRTC({
 
   // Track whether the *local* user has their camera explicitly off, so the
   // peer can be told and render an avatar instead of a frozen black frame.
-  const [localVideoOff, setLocalVideoOff] = useState(false);
+  const [localVideoOff, setLocalVideoOff] = useState(callType !== "video");
+  const [localMediaStream, setLocalMediaStream] = useState<MediaStream | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -307,6 +309,7 @@ export default function useWebRTC({
           );
         }
         localStreamRef.current = stream;
+        setLocalMediaStream(stream);
         if (
           localVideoRef.current &&
           callType === "video" &&
@@ -369,6 +372,7 @@ export default function useWebRTC({
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
+      setLocalMediaStream(null);
     }
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (pcRef.current) {
@@ -472,7 +476,10 @@ export default function useWebRTC({
     const transceivers = pcRef.current.getTransceivers();
     const usedTransceivers = new Set<RTCRtpTransceiver>();
 
-    for (const track of stream.getTracks()) {
+    const tracks = screenStreamRef.current
+      ? [...stream.getAudioTracks(), ...screenStreamRef.current.getVideoTracks()]
+      : stream.getTracks();
+    for (const track of tracks) {
       // Skip if this exact track is already on some sender
       const alreadyAttached = transceivers.some(
         (t) => t.sender.track && t.sender.track.id === track.id,
@@ -577,7 +584,10 @@ export default function useWebRTC({
       // tracks must be attached AFTER setRemoteDescription(offer) so they
       // bind to the existing transceivers instead of creating new m-lines.
       if (stream && addTracksNow) {
-        stream.getTracks().forEach((track) => {
+        const tracks = screenStreamRef.current
+          ? [...stream.getAudioTracks(), ...screenStreamRef.current.getVideoTracks()]
+          : stream.getTracks();
+        tracks.forEach((track) => {
           const sender = pc.addTrack(track, stream);
           if (track.kind === "video") {
             screenSenderRef.current = sender;
@@ -591,13 +601,21 @@ export default function useWebRTC({
       }
 
       // Auto-renegotiate when tracks are added/removed mid-call (e.g. screen share)
-      pc.onnegotiationneeded = async () => {
+      let negotiationPending = false;
+      const renegotiate = async () => {
         if (!initialNegotiationDone) return;
+        negotiationPending = true;
+        if (makingOfferRef.current || pc.signalingState !== "stable") return;
         try {
           // Mark the offer-in-flight window so a colliding inbound offer is
           // detected as glare (Perfect Negotiation).
           makingOfferRef.current = true;
+          negotiationPending = false;
           const offer = withOpusFec(await pc.createOffer());
+          if (pc.signalingState !== "stable") {
+            negotiationPending = true;
+            return;
+          }
           await pc.setLocalDescription(offer);
           wsSend("call_signal", {
             callId: callIdRef.current,
@@ -610,6 +628,10 @@ export default function useWebRTC({
         } finally {
           makingOfferRef.current = false;
         }
+      };
+      pc.onnegotiationneeded = renegotiate;
+      pc.onsignalingstatechange = () => {
+        if (negotiationPending && pc.signalingState === "stable") void renegotiate();
       };
 
       pc.ontrack = (e) => {
@@ -690,14 +712,14 @@ export default function useWebRTC({
           // on some Android Chrome builds and Firefox-on-Linux). Start
           // optimistic; the onmute handler below catches the real case
           // where the remote turns their camera off mid-call.
-          setRemoteVideoOff(false);
+          setRemoteVideoOff(remoteVideoStateRef.current ?? false);
           e.track.onmute = () => {
             console.log("[call-webrtc] remote video track muted");
             setRemoteVideoOff(true);
           };
           e.track.onunmute = () => {
             console.log("[call-webrtc] remote video track unmuted");
-            setRemoteVideoOff(false);
+            setRemoteVideoOff(remoteVideoStateRef.current ?? false);
             if (remoteVideoRef.current && remoteStreamRef.current) {
               if (
                 remoteVideoRef.current.srcObject !== remoteStreamRef.current
@@ -843,7 +865,7 @@ export default function useWebRTC({
           // dropped, leaving us painting a black tile. Ask the peer to
           // re-announce their camera state ONCE; their inbound
           // `request-video-state` handler replies with the ground truth.
-          if (callType === "video" && !videoStateRequestedRef.current) {
+          if (!videoStateRequestedRef.current) {
             if (remoteVideoWatchdogRef.current)
               clearTimeout(remoteVideoWatchdogRef.current);
             remoteVideoWatchdogRef.current = setTimeout(() => {
@@ -1058,46 +1080,10 @@ export default function useWebRTC({
           // sender does NOT reliably end the receiver's track at all),
           // so this explicit signal is the source of truth.
           const videoOff = !!signal.videoOff;
+          remoteVideoStateRef.current = videoOff;
           setRemoteVideoOff(videoOff);
 
-          if (callType !== "video") {
-            // ── Audio call ────────────────────────────────────────
-            // The only video that ever exists here is the peer's
-            // screen share. When they stop sharing we drop the video
-            // entirely so the tile collapses back to the audio UI.
-            if (videoOff) {
-              setRemoteHasVideo(false);
-              if (remoteVideoRef.current) {
-                try {
-                  remoteVideoRef.current.srcObject = null;
-                } catch {
-                  /* ignore */
-                }
-              }
-              // The remote stream may also still hold a stopped
-              // video track from the peer's removeTrack — drop it
-              // so a subsequent share starts from a clean slate.
-              if (remoteStreamRef.current) {
-                remoteStreamRef.current.getVideoTracks().forEach((t) => {
-                  try {
-                    remoteStreamRef.current!.removeTrack(t);
-                  } catch {
-                    /* ignore */
-                  }
-                });
-              }
-            } else if (remoteStreamRef.current?.getVideoTracks().length) {
-              // Peer is sharing again and we already have a video
-              // track on the remote stream (e.g. the renegotiation
-              // re-used the transceiver) — restore the tile.
-              setRemoteHasVideo(true);
-              if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-                remoteVideoRef.current.srcObject = remoteStreamRef.current;
-                remoteVideoRef.current.play().catch(() => {});
-              }
-            }
-          } else {
-            // ── Video call ────────────────────────────────────────
+          {
             if (videoOff) {
               if (remoteVideoRef.current) {
                 try {
@@ -1111,7 +1097,7 @@ export default function useWebRTC({
                   /* ignore */
                 }
               }
-            } else if (remoteVideoRef.current) {
+            } else {
               // Build/restore the stream that drives the <video>.
               let stream = remoteStreamRef.current;
               if (!stream || stream.getVideoTracks().length === 0) {
@@ -1131,11 +1117,12 @@ export default function useWebRTC({
                 }
                 remoteStreamRef.current = stream;
               }
+              setRemoteHasVideo(!!stream?.getVideoTracks().some((t) => t.readyState !== "ended"));
               try {
-                if (remoteVideoRef.current.srcObject !== stream) {
+                if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
                   remoteVideoRef.current.srcObject = stream;
                 }
-                remoteVideoRef.current.play().catch(() => {});
+                remoteVideoRef.current?.play().catch(() => {});
               } catch {
                 /* ignore */
               }
@@ -1151,9 +1138,8 @@ export default function useWebRTC({
           const tgt =
             fromUserId ?? (isIncoming ? callerId : acceptedBy || reconnectTo);
           if (tgt) {
-            const localStr = localStreamRef.current;
+            const localStr = screenStreamRef.current ?? localStreamRef.current;
             const liveLocalVideo =
-              callType === "video" &&
               !!localStr &&
               localStr
                 .getVideoTracks()
@@ -1293,6 +1279,7 @@ export default function useWebRTC({
       if (warmup.stream) {
         stream = warmup.stream;
         localStreamRef.current = stream;
+        setLocalMediaStream(stream);
         if (
           localVideoRef.current &&
           callType === "video" &&
@@ -1304,6 +1291,7 @@ export default function useWebRTC({
         stream = await warmup.promise;
         if (stream) {
           localStreamRef.current = stream;
+          setLocalMediaStream(stream);
           if (
             localVideoRef.current &&
             callType === "video" &&
@@ -1489,6 +1477,7 @@ export default function useWebRTC({
   useEffect(() => {
     if (!isIncoming && !isReconnect && localStream && !localStreamRef.current) {
       localStreamRef.current = localStream;
+      setLocalMediaStream(localStream);
       if (localVideoRef.current && callType === "video") {
         localVideoRef.current.srcObject = localStream;
       }
@@ -1664,7 +1653,7 @@ export default function useWebRTC({
   // ─── Cleanup on unmount ───
   useEffect(() => cleanup, [cleanup]);
 
-  // ─── Sync remote stream to video element when it mounts (audio call screen share) ───
+  // Reattach retained receiver tracks after a camera/share tile remounts.
   useEffect(() => {
     if (remoteHasVideo && remoteVideoRef.current && remoteStreamRef.current) {
       if (!remoteVideoRef.current.srcObject) {
@@ -1672,7 +1661,7 @@ export default function useWebRTC({
       }
       remoteVideoRef.current.play().catch(() => {});
     }
-  }, [remoteHasVideo]);
+  }, [remoteHasVideo, remoteVideoOff, remoteScreenSharing]);
 
   // ─── Connection timeout ───
   useEffect(() => {
@@ -1795,6 +1784,7 @@ export default function useWebRTC({
     isMobile,
     remoteVideoOff,
     remoteHasVideo,
+    localMediaStream,
     remoteMuted,
     remoteScreenSharing,
     sendLocalVideoState,

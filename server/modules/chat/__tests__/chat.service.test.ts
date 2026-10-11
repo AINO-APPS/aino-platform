@@ -57,10 +57,10 @@ describe("chat.service toggleReaction", () => {
 
     test("adds a reaction when none exists yet", async () => {
         const db = makeDb([
-            { rows: [{ id: 12, conversation_id: 10, deleted_at: null }] }, // getMessage
+            { rows: [{ id: 12, conversation_id: 10, sender_id: 2, deleted_at: null }] }, // getMessage
             { rows: [{ user_id: 1 }] }, // verifyParticipant hit
             { rows: [] }, // findExistingReaction miss
-            { rows: [] }, // insertReaction
+            { rows: [{ id: 91, created_at: "2026-10-11T12:00:00Z" }] }, // insertReaction
             { rows: [{ full_name: "Alice" }] }, // getUserDisplayName
             { rows: [{ user_id: 1 }, { user_id: 2 }] }, // getConversationParticipantIds
         ]);
@@ -69,6 +69,38 @@ describe("chat.service toggleReaction", () => {
         const result = await service.toggleReaction(db, 1, 12, "👍");
         expect(result.action).toBe("added");
         expect(result.participantIds).toEqual([1, 2]);
+        expect(result).toMatchObject({ messageOwnerId: 2, reactionId: 91, sentAt: 1791720000 });
+        expect(db.query).toHaveBeenCalledWith(expect.stringContaining("RETURNING id, created_at"), [12, 1, "👍"]);
+    });
+
+    test("removal has no addition identity and re-add uses a fresh persisted id", async () => {
+        const db = makeDb([
+            { rows: [{ id: 12, conversation_id: 10, sender_id: 2, deleted_at: null }] },
+            { rows: [{ user_id: 1 }] }, { rows: [{ id: 91 }] }, { rows: [] },
+            { rows: [{ full_name: "Alice" }] }, { rows: [{ user_id: 1 }, { user_id: 2 }] },
+            { rows: [{ id: 12, conversation_id: 10, sender_id: 2, deleted_at: null }] },
+            { rows: [{ user_id: 1 }] }, { rows: [] },
+            { rows: [{ id: 92, created_at: "2026-10-11T12:01:00Z" }] },
+            { rows: [{ full_name: "Alice" }] }, { rows: [{ user_id: 1 }, { user_id: 2 }] },
+        ]);
+        const service = createChatService();
+        expect(await service.toggleReaction(db, 1, 12, "👍")).toMatchObject({
+            action: "removed", reactionId: null, sentAt: null,
+        });
+        expect(await service.toggleReaction(db, 1, 12, "👍")).toMatchObject({
+            action: "added", reactionId: 92, sentAt: 1791720060,
+        });
+    });
+
+    test("an insertion conflict has no addition identity to push", async () => {
+        const db = makeDb([
+            { rows: [{ id: 12, conversation_id: 10, sender_id: 2, deleted_at: null }] },
+            { rows: [{ user_id: 1 }] }, { rows: [] }, { rows: [] },
+            { rows: [{ full_name: "Alice" }] }, { rows: [] },
+        ]);
+        expect(await createChatService().toggleReaction(db, 1, 12, "👍")).toMatchObject({
+            reactionId: null, sentAt: null,
+        });
     });
 });
 

@@ -1,4 +1,5 @@
 import { createMeeting } from "../../api/meetings";
+import { useEffect, useRef, useState } from "react";
 import type useChatState from "./useChatState";
 
 type ChatState = ReturnType<typeof useChatState>;
@@ -6,13 +7,41 @@ type ChatState = ReturnType<typeof useChatState>;
 export default function useCallActions(state: ChatState) {
     const { user, wsSend, activeConv, setCallState, callSignalRef, callEndRef } =
         state;
+    const [pendingCall, setPendingCall] = useState<{
+        conversation: NonNullable<ChatState["activeConv"]>;
+        callType: "voice" | "video";
+        accountId: NonNullable<ChatState["user"]>["id"];
+        tenantId: NonNullable<ChatState["user"]>["tenant_id"];
+    } | null>(null);
+    const pendingCallRef = useRef(pendingCall);
+    const callStateRef = useRef(state.callState);
+    callStateRef.current = state.callState;
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
+    const requestCall = (callType: "voice" | "video", conversation = activeConv) => {
+        if (!conversation || !user || state.callState) return;
+        const request = { conversation: { ...conversation }, callType, accountId: user.id, tenantId: user.tenant_id };
+        pendingCallRef.current = request;
+        setPendingCall(request);
+    };
+    const cancelPendingCall = () => {
+        pendingCallRef.current = null;
+        setPendingCall(null);
+    };
+    useEffect(() => {
+        pendingCallRef.current = null;
+        setPendingCall(null);
+    }, [user?.id, user?.tenant_id]);
 
     // Start an instant GROUP CALL (huddle). The group stays a pure chat group:
     // the server creates a hidden huddle (no "Meeting:" rename / no meeting
     // card / no calendar artifact) bound to THIS conversation and RINGS every
     // member with `call_incoming` (Signal-style group call). The initiator joins
     // the n-way mesh by navigating to the meeting room with the returned code.
-    async function startGroupCall(callType: string) {
+    async function startGroupCall(callType: string, activeConv: NonNullable<ChatState["activeConv"]>) {
         if (!activeConv) return;
         const groupName =
             (activeConv.group_name as string) ||
@@ -40,10 +69,13 @@ export default function useCallActions(state: ChatState) {
         }
     }
 
-    const initiateCall = (callType: string) => {
-        if (!activeConv) return;
+    const confirmPendingCall = () => {
+        const request = pendingCallRef.current;
+        cancelPendingCall();
+        if (!request || state.callState || request.accountId !== user?.id || request.tenantId !== user?.tenant_id) return;
+        const { conversation: activeConv, callType } = request;
         if (activeConv.is_group) {
-            void startGroupCall(callType);
+            void startGroupCall(callType, activeConv);
             return;
         }
 
@@ -55,7 +87,7 @@ export default function useCallActions(state: ChatState) {
             ? null
             : (activeConv.other_avatar as string | null);
 
-        setCallState({
+        const outgoingCall = {
             callId: undefined,
             conversationId: activeConv.id,
             callType,
@@ -69,7 +101,10 @@ export default function useCallActions(state: ChatState) {
             onSignal: callSignalRef as React.MutableRefObject<unknown>,
             onEndExternal: callEndRef as React.MutableRefObject<unknown>,
             localStream: null,
-        });
+            mediaRequest: request,
+        };
+        callStateRef.current = outgoingCall;
+        setCallState(outgoingCall);
 
         wsSend("call_initiate", {
             conversationId: activeConv.id,
@@ -102,11 +137,20 @@ export default function useCallActions(state: ChatState) {
                 video: callType === "video" ? videoConstraints : false,
             })
             .then((stream) => {
-                setCallState((prev) =>
-                    prev ? { ...prev, localStream: stream } : prev,
-                );
+                if (!mountedRef.current) {
+                    stream.getTracks().forEach((track) => track.stop());
+                    return;
+                }
+                setCallState((prev) => {
+                    if (prev?.mediaRequest === request) {
+                        return { ...prev, localStream: stream };
+                    }
+                    stream.getTracks().forEach((track) => track.stop());
+                    return prev;
+                });
             })
             .catch((err) => {
+                if (!mountedRef.current || callStateRef.current?.mediaRequest !== request) return;
                 console.error("Failed to get media:", err);
                 const device =
                     callType === "video" ? "camera/microphone" : "microphone";
@@ -124,17 +168,24 @@ export default function useCallActions(state: ChatState) {
                     );
                 }
                 wsSend("call_cancel", { conversationId: activeConv.id });
-                setCallState(null);
+                setCallState((prev) => prev?.mediaRequest === request ? null : prev);
             });
     };
 
-    const handleVoiceCall = () => initiateCall("voice");
-    const handleVideoCall = () => initiateCall("video");
-    const handleEndCall = () => setCallState(null);
+    const handleVoiceCall = () => requestCall("voice");
+    const handleVideoCall = () => requestCall("video");
+    const handleEndCall = () => {
+        callStateRef.current = null;
+        setCallState(null);
+    };
 
     return {
         handleVoiceCall,
         handleVideoCall,
         handleEndCall,
+        requestCall,
+        pendingCall,
+        confirmPendingCall,
+        cancelPendingCall,
     };
 }

@@ -33,6 +33,9 @@ export interface ToggleReactionResult {
     conversationId: number;
     senderName: string;
     participantIds: number[];
+    messageOwnerId: number | null;
+    reactionId: number | null;
+    sentAt: number | null;
 }
 
 export interface TogglePinResult {

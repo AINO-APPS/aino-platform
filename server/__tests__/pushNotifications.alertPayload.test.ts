@@ -77,6 +77,7 @@ describe("pushNotifications.sendNotificationAlert", () => {
         expect(result).toEqual({ succeeded: 1, failed: 0 });
 
         const sent = sendEachForMulticast.mock.calls[0][0];
+        expect(sent).not.toHaveProperty("notification");
         // Android side must be data-only — NO android.notification block.
         expect(sent.android).toEqual({ priority: "high" });
         expect(sent.android.notification).toBeUndefined();

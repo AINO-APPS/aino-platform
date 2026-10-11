@@ -28,6 +28,8 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 interface CallDurationProps {
+  /** Shared call anchor survives audio/video layout and reconnect transitions. */
+  startedAtRef?: React.MutableRefObject<number | null>;
   /** Ticks only while true. Pass `status === "connected"`. */
   running: boolean;
   /** Optional wrapper class. */
@@ -45,6 +47,7 @@ interface CallDurationProps {
 }
 
 function CallDurationImpl({
+  startedAtRef: sharedStartedAtRef,
   running,
   className,
   prefix,
@@ -57,11 +60,12 @@ function CallDurationImpl({
   // Anchor on a wall-clock start so the counter stays accurate even when the
   // tab is throttled in the background (setInterval callbacks get coalesced,
   // which used to make the displayed duration drift behind the real one).
-  const startedAtRef = useRef<number | null>(null);
+  const localStartedAtRef = useRef<number | null>(null);
+  const startedAtRef = sharedStartedAtRef ?? localStartedAtRef;
 
   useEffect(() => {
     if (!running) {
-      startedAtRef.current = null;
+      if (!sharedStartedAtRef) startedAtRef.current = null;
       return;
     }
     if (startedAtRef.current === null) startedAtRef.current = Date.now();
@@ -73,7 +77,7 @@ function CallDurationImpl({
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, startedAtRef, sharedStartedAtRef]);
 
   return (
     <span className={className}>

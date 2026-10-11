@@ -81,6 +81,23 @@ const { app } = require("../index");
 
 const CSRF = { "X-Requested-With": "WorkPulse" };
 
+describe("POST /api/auth/device-token push capabilities", () => {
+    test.each([[undefined, 1], [1, 1], [2, 2], [3, 3], [4, 1]])(
+        "registers requested push version %s as %s", async (requestedVersion, expectedVersion) => {
+            mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+            mockQuery.mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 });
+            const token = jwt.sign({ id: 1, username: "testuser", tv: 0 }, process.env.JWT_SECRET || "test-secret", { expiresIn: "1h" });
+            const res = await request(app).post("/api/auth/device-token")
+                .set("Cookie", `token=${token}`).set(CSRF)
+                .send({ deviceToken: "test-device", platform: "android", pushVersion: requestedVersion });
+            expect(res.status).toBe(200);
+            const insert = mockQuery.mock.calls.find(([sql]: any[]) => sql.includes("INSERT INTO device_tokens"));
+            expect(insert).toBeDefined();
+            expect(insert[1][4]).toBe(expectedVersion);
+        },
+    );
+});
+
 describe("POST /api/auth/register", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
