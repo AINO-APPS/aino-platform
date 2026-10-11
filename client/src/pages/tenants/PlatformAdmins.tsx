@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { getPlatformUsers, createPlatformUser, deactivatePlatformUser, resetPlatformUserPassword,
     getPlatformUserLinks, createPlatformUserLink, deletePlatformUserLink } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
-import { Shield, Plus, X, Loader2, Key, UserX, UserCheck, Link2, Unlink } from "lucide-react";
+import { Shield, Plus, X, Loader2, Key, UserX, UserCheck, Link2, Unlink } from "../../constants/icons";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./Tenants.module.css";
 

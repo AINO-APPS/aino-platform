@@ -9,7 +9,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getPayPeriods } from "../../api/notes";
 import { getSalarySlips, runPayroll, publishSalarySlip, bulkPublishSlips, downloadSalarySlipPdf, disburseSalaries, getDisbursements, retryDisbursement } from "../../api/compensation";
 import ConfirmDialog from "../../components/common/ConfirmDialog";

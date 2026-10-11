@@ -1,4 +1,4 @@
-import { Thermometer, Palmtree, CalendarDays, User, FileEdit } from "lucide-react";
+import { Thermometer, Palmtree, CalendarDays, User, FileEdit } from "./icons";
 import type { ComponentType } from "react";
 
 /** Metadata describing a leave type for rendering in pickers / chips. */

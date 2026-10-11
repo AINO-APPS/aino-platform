@@ -1,3 +1,4 @@
+import { Check as InlineCheck } from "../../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -7,7 +8,7 @@ import {
   Eye,
   ChevronRight,
   AlertCircle,
-} from "lucide-react";
+} from "../../constants/icons";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { getEmailTemplates, updateEmailTemplate, revertEmailTemplate, previewEmailTemplate } from "../../api/meetings";
 import s from "./EmailTemplatesSection.module.css";
@@ -301,7 +302,7 @@ function TemplateEditor({
           disabled={!canEdit || !dirty || saving}
         >
           <Save size={14} />{" "}
-          {saving ? "Saving…" : savedFlash ? "Saved ✓" : "Save changes"}
+          {saving ? "Saving…" : savedFlash ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Saved</> : "Save changes"}
         </button>
         {template.is_overridden && (
           <button

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Paperclip, FileText, Send, AlertCircle, Loader2, RefreshCcw } from "lucide-react";
+import { Paperclip, FileText, Send, AlertCircle, Loader2, RefreshCcw } from "../../constants/icons";
 import "./MeetingRoom.css";
 
 function formatFileSize(bytes: number): string {

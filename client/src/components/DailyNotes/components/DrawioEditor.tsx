@@ -1,3 +1,4 @@
+import { Ruler as GlyphRuler } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* ─────────────────────────────────────────────────────────
    DrawioEditor — full-screen modal that hosts the official
@@ -127,7 +128,7 @@ export default function DrawioEditor({ initialXml, onSave, onCancel, onDelete }:
     return (
         <div className={s.panel} role="region" aria-label="Draw.io diagram editor">
             <header className={s.header}>
-                <span className={s.title}>📐 Draw.io diagram</span>
+                <span className={s.title}><GlyphRuler size="1em" style={{ verticalAlign: "middle" }} /> Draw.io diagram</span>
                 <span className={s.hint}>
                     Press <strong>Save</strong> in the toolbar to commit, or <strong>Exit</strong> / Esc to discard.
                 </span>

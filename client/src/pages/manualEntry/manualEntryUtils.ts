@@ -1,3 +1,4 @@
+import { CircleFilled, type IconComponent } from "../../constants/icons";
 import type { TimeEntry } from "../../types";
 
 // Convert a UTC timestamp string (SQLite or ISO format) to local HH:MM
@@ -53,9 +54,9 @@ export const entryTypeLabels: Record<string, string> = {
     clock_out: "Logged Out",
 };
 
-export const entryTypeIcons: Record<string, string> = {
-    clock_in: "🟢",
-    break_start: "🟡",
-    break_end: "🔵",
-    clock_out: "🔴",
+export const entryTypeIcons: Record<string, IconComponent> = {
+    clock_in: CircleFilled,
+    break_start: CircleFilled,
+    break_end: CircleFilled,
+    clock_out: CircleFilled,
 };

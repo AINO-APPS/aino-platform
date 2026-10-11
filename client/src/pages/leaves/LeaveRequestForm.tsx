@@ -1,3 +1,4 @@
+import { Calendar as InlineCalendar } from "../../constants/icons";
 import React, { useState, useMemo, useEffect } from "react";
 import { addLeave, addLeavesBatch } from "../../api/workforce";
 import { getLeavePolicies } from "../../api/organization";
@@ -236,7 +237,7 @@ export default function LeaveRequestForm({ onSuccess }: LeaveRequestFormProps) {
                                         onClick={() => setLeaveType(t.value)}
                                     >
                                         <span className={s.typeEmoji}>
-                                            {Icon ? <Icon size={18} /> : "🗓️"}
+                                            {Icon ? <Icon size={18} /> : <><InlineCalendar size="1em" style={{ verticalAlign: "middle" }} /></>}
                                         </span>
                                         <span className={s.typeLabel}>{t.label}</span>
                                     </button>

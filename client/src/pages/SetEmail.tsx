@@ -1,3 +1,4 @@
+import { Mail as GlyphMail } from "../constants/icons";
 import React, { useState } from "react";
 import { useAuth } from "../AuthContext";
 import { updateEmail } from "../api/organization";
@@ -30,7 +31,7 @@ export default function SetEmail() {
     return (
         <div className={s["auth-container"]}>
             <div className={s["auth-card"]}>
-                <div className={s["auth-icon"]}>📧</div>
+                <div className={s["auth-icon"]}><GlyphMail size="1em" style={{ verticalAlign: "middle" }} /></div>
                 <h2>Add Your Email</h2>
                 <p>Hi {user?.full_name || user?.username}, an email address is now required for account recovery.</p>
 

@@ -1,10 +1,11 @@
+import { Run as GlyphRun, Plus as GlyphPlus, X as GlyphX } from "../../constants/icons";
 import React from "react";
 import { PRIORITIES, COLUMNS } from "./constants";
 import { formatDate } from "./utils";
 import { getLocalToday } from "../../api/client";
 import { useTaskCtx } from "./TaskContext";
 import { useFeatures } from "../../FeaturesContext";
-import { CalendarDays, Package, Search, Headset, BarChart3 } from "lucide-react";
+import { CalendarDays, Package, Search, Headset, BarChart3 } from "../../constants/icons";
 import { Link } from "react-router-dom";
 import s from "./TasksHeader.module.css";
 
@@ -113,7 +114,7 @@ export default function TasksHeader({
                     {activeTab === "sprint" ? (
                         <>
                             <h2>
-                                <span className="page-icon">🏃</span> {teamName} —{" "}
+                                <span className="page-icon"><GlyphRun size="1em" style={{ verticalAlign: "middle" }} /></span> {teamName} —{" "}
                                 {currentSprint ? currentSprint.name : "Sprint"}
                                 {currentSprint?.status === "active" && (
                                     <span className={s["sprint-status-pill"]} data-status="active">
@@ -272,7 +273,7 @@ export default function TasksHeader({
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={() => setBacklogFormOpen((o) => !o)}
                         >
-                            ➕ New Ticket
+                            <GlyphPlus size="1em" style={{ verticalAlign: "middle" }} /> New Ticket
                         </button>
                     )}
 
@@ -320,7 +321,7 @@ export default function TasksHeader({
                                     setGlobalSearchOpen(false);
                                 }}
                             >
-                                ✕
+                                <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
                             </button>
                         )}
                     </div>
@@ -496,7 +497,7 @@ export default function TasksHeader({
                                 className={`btn btn-secondary btn-sm ${s["clear-filters-btn"]}`}
                                 onClick={clearFilters}
                             >
-                                ✕ Clear
+                                <GlyphX size="1em" style={{ verticalAlign: "middle" }} /> Clear
                             </button>
                         )}
                     </div>

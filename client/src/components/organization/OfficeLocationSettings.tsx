@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -14,7 +15,7 @@ import {
     Wifi,
     Plus,
     Trash2,
-} from "lucide-react";
+} from "../../constants/icons";
 import { updateOrgSettings } from "../../api/organization";
 import {
     getCurrentPosition,
@@ -24,16 +25,12 @@ import {
 } from "../../utils/geolocation";
 import s from "./OfficeLocationSettings.module.css";
 
-// Leaflet's default marker icon URLs are broken when bundled by Vite/Webpack,
-// so we point them at the CDN copy that ships with the npm package.
-const defaultIcon = new L.Icon({
-    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+const defaultIcon = L.divIcon({
+    className: "",
+    html: renderToStaticMarkup(createElement(MapPin, { width: 25, height: 41, color: "var(--primary)" })),
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
-    shadowSize: [41, 41],
 });
 
 interface WifiAp {

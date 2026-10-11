@@ -1,3 +1,4 @@
+import { Check as InlineCheck } from "../../constants/icons";
 import React, { useState } from "react";
 import { submitOvertimeRequest, getOvertimeRequests } from "../../api/workforce";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
@@ -81,7 +82,7 @@ export default function OvertimeRequestForm({ onSubmitted }: OvertimeRequestForm
                     />
                 </div>
                 <button type="submit" className="btn btn-primary btn-fullwidth" disabled={otLoading}>
-                    {otLoading ? "Submitting..." : "✓ Submit Overtime Request"}
+                    {otLoading ? "Submitting..." : <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Submit Overtime Request</>}
                 </button>
             </form>
         </>

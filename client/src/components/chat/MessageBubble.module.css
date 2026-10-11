@@ -40,8 +40,7 @@
 .selectedRow {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
-.selectedRow::before {
-  content: "✓";
+.selectionCheck {
   position: absolute;
   left: 10px;
   top: 50%;

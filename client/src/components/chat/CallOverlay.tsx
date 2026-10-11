@@ -1,3 +1,4 @@
+import { Check as ActiveCheck, X as GlyphX, Mic as MaterialMic, MicOff as MaterialMicOff, Video as MaterialVideo, VideoOff as MaterialVideoOff, Phone as MaterialPhone, MonitorUp as MaterialMonitorUp, ScreenShareOff as MaterialScreenShareOff, Maximize as MaterialMaximize, Minimize as MaterialMinimize, Pause as MaterialPause, Play as MaterialPlay, SwitchCamera as MaterialSwitchCamera, PictureInPicture2 as MaterialPictureInPicture2, Minus as MaterialMinus, WindowMaximize as MaterialWindowMaximize, X as MaterialX, UserPlus as MaterialUserPlus } from "../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChatAvatar } from "./";
@@ -12,20 +13,19 @@ const ICE_SERVERS = [
     { urls: "stun:stun1.l.google.com:19302" }
 ];
 
-/* ── SVG Icon components ── */
-const MicIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="9" y="1" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="2"/><path d="M5 12a7 7 0 0 0 14 0M12 19v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const MicOffIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M1 1l22 22M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M17 16.95A7 7 0 0 1 5 12m14-1a7 7 0 0 1-.11 1.23M12 19v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const CamIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M16 11l6-4v10l-6-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
-const CamOffIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M1 1l22 22M10.66 5H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M7 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 1.73-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const PhoneIcon = ({ rotate }: { rotate?: boolean }) => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={rotate ? { transform: "rotate(135deg)" } : undefined}><path d="M3.51 5.47a2.5 2.5 0 0 1 3.53 0l1.06 1.06a2.5 2.5 0 0 1 0 3.54l-.53.53a9 9 0 0 0 5.83 5.83l.53-.53a2.5 2.5 0 0 1 3.54 0l1.06 1.06a2.5 2.5 0 0 1 0 3.53l-.87.87a3 3 0 0 1-3.15.73C9.42 20.45 3.55 14.58 1.91 9.49a3 3 0 0 1 .73-3.15l.87-.87z" stroke="currentColor" strokeWidth="2" fill="none"/></svg>;
-const ScreenShareIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M12 7v4m0 0l-2-2m2 2l2-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
-const ScreenShareOffIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M2 2l20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const FullscreenIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
-const ExitFullscreenIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 14h4v4M20 10h-4V6M14 10h4V6M4 14h4v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 10l7-7M3 21l7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const HoldIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="4" width="4" height="16" rx="1" stroke="currentColor" strokeWidth="2"/><rect x="14" y="4" width="4" height="16" rx="1" stroke="currentColor" strokeWidth="2"/></svg>;
-const ResumeIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><polygon points="5,3 19,12 5,21" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor"/></svg>;
-const SwitchCamIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M16 3h5v5M8 21H3v-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M21 3l-7 7M3 21l7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-const PipIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><rect x="12" y="9" width="8" height="6" rx="1" fill="currentColor" opacity="0.5" stroke="currentColor" strokeWidth="1.5"/><path d="M8 21h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
+const MicIcon = () => <MaterialMic size="20" width="20" height="20" />;
+const MicOffIcon = () => <MaterialMicOff size="20" width="20" height="20" />;
+const CamIcon = () => <MaterialVideo size="20" width="20" height="20" />;
+const CamOffIcon = () => <MaterialVideoOff size="20" width="20" height="20" />;
+const PhoneIcon = ({ rotate }: { rotate?: boolean }) => <MaterialPhone size="24" width="24" height="24" style={rotate ? { transform: "rotate(135deg)" } : undefined} />;
+const ScreenShareIcon = () => <MaterialMonitorUp size="20" width="20" height="20" />;
+const ScreenShareOffIcon = () => <MaterialScreenShareOff size="20" width="20" height="20" />;
+const FullscreenIcon = () => <MaterialMaximize size="18" width="18" height="18" />;
+const ExitFullscreenIcon = () => <MaterialMinimize size="18" width="18" height="18" />;
+const HoldIcon = () => <MaterialPause size="18" width="18" height="18" />;
+const ResumeIcon = () => <MaterialPlay size="18" width="18" height="18" />;
+const SwitchCamIcon = () => <MaterialSwitchCamera size="18" width="18" height="18" />;
+const PipIcon = () => <MaterialPictureInPicture2 size="18" width="18" height="18" />;
 /* ── Quality badge (colored dot) ── */
 function QualityBadge({ quality }: { quality: string }) {
     const color = quality === "good" ? "#4caf50" : quality === "fair" ? "#ff9800" : quality === "poor" ? "#f44336" : "#666";
@@ -60,7 +60,7 @@ function DeviceSelector({ devices, activeId, onSelect, onClose, label }: DeviceS
                     className={`${s.deviceOption} ${d.deviceId === activeId ? s.deviceOptionActive : ""}`}
                     onClick={() => { onSelect(d.deviceId); onClose(); }}
                 >
-                    {d.label || `Device ${d.deviceId.slice(0, 8)}`}
+                    {d.deviceId === activeId && <ActiveCheck size={14} color="#3b82f6" />} {d.label || `Device ${d.deviceId.slice(0, 8)}`}
                 </button>
             ))}
         </div>
@@ -753,13 +753,13 @@ export default function CallOverlay({ callState, user, wsSend, onEnd }: CallOver
             {isWinElectron && (
                 <div className={s.windowControls}>
                     <button className={s.winBtn} onClick={() => window.electronAPI!.minimize()} title="Minimize">
-                        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor"/></svg>
+                        <MaterialMinus size="12" width="12" height="12" />
                     </button>
                     <button className={s.winBtn} onClick={() => window.electronAPI!.maximize()} title="Maximize">
-                        <svg width="12" height="12" viewBox="0 0 12 12"><rect x="0.5" y="0.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1"/></svg>
+                        <MaterialWindowMaximize size="12" width="12" height="12" />
                     </button>
                     <button className={`${s.winBtn} ${s.winCloseBtn}`} onClick={() => window.electronAPI!.close()} title="Close">
-                        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                        <MaterialX size="12" width="12" height="12" />
                     </button>
                 </div>
             )}
@@ -853,7 +853,7 @@ export default function CallOverlay({ callState, user, wsSend, onEnd }: CallOver
                 <div className={s.addPartPopup}>
                     <div className={s.addPartHeader}>
                         <span>Add to call</span>
-                        <button className={s.addPartClose} onClick={() => { setShowAddParticipant(false); setAddPartQuery(""); setAddPartResults([]); }}>×</button>
+                        <button className={s.addPartClose} onClick={() => { setShowAddParticipant(false); setAddPartQuery(""); setAddPartResults([]); }}><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                     </div>
                     <input
                         className={s.addPartInput}
@@ -981,7 +981,7 @@ export default function CallOverlay({ callState, user, wsSend, onEnd }: CallOver
                                 onClick={() => setShowAddParticipant(v => !v)}
                                 title="Add participant"
                             >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3M20 20c0-2.21-1.79-4-4-4M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4M4 20c0-2.21 1.79-4 4-4h8c2.21 0 4 1.79 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M19 8h4M21 6v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                                <MaterialUserPlus size="18" width="18" height="18" />
                             </button>
                         )}
 

@@ -1,5 +1,6 @@
+import { AlarmClock as WidgetAlarm } from "../../constants/icons";
 import React, { memo } from "react";
-import { BarChart3, Calendar, Target, Palmtree, Building2 } from "lucide-react";
+import { BarChart3, Calendar, Target, Palmtree, Building2 } from "../../constants/icons";
 import s from "./WidgetsGrid.module.css";
 
 interface WidgetsData {
@@ -31,7 +32,7 @@ const WidgetsGrid = memo(function WidgetsGrid({ widgets, children }: { widgets?:
                 <div className="stat-label">Avg Work Time</div>
             </div>
             <div className={`stat-card ${s["widget-card"]} ${s["animated-widget"]}`}>
-                <div className={`${s["widget-icon-bg"]} ${s["punct-bg"]}`}><span className="page-icon">⏰</span></div>
+                <div className={`${s["widget-icon-bg"]} ${s["punct-bg"]}`}><span className="page-icon"><WidgetAlarm size="1em" /></span></div>
                 <div className={`stat-value ${widgets.punctualityPercent >= 80 ? "stat-value-success" : "stat-value-warning"}`}>
                     {widgets.punctualityPercent}%
                 </div>

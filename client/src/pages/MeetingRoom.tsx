@@ -1,6 +1,7 @@
+import { X as GlyphX } from "../constants/icons";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Copy, Check, Minimize2 } from "lucide-react";
+import { Copy, Check, Minimize2 } from "../constants/icons";
 import { useMeeting } from "../MeetingContext";
 import { useAuth } from "../AuthContext";
 import { getMeeting } from "../api/meetings";
@@ -347,7 +348,7 @@ export default function MeetingRoom() {
                             <span className="mr-sidebar-title">
                                 {activePanel === "chat" ? "Chat" : "Participants"}
                             </span>
-                            <button className="mr-sidebar-close" onClick={() => setActivePanel(null)}>✕</button>
+                            <button className="mr-sidebar-close" onClick={() => setActivePanel(null)}><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                         </div>
                         <div className="mr-sidebar-body">
                             {activePanel === "chat" && (

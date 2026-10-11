@@ -4,7 +4,7 @@ import { useAuth } from "../AuthContext";
 import { useBranding } from "../BrandingContext";
 import { login as loginApi, chooseLoginRealm } from "../api/workforce";
 import { serverURL } from "../api/client";
-import { ArrowRight, Fingerprint } from "lucide-react";
+import { ArrowRight, Fingerprint } from "../constants/icons";
 import PasswordInput from "../components/common/PasswordInput";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import {

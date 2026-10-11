@@ -44,10 +44,10 @@ export default function TeamAttendance({
   });
 
   const statusLabel: Record<string, string> = {
-    working: "🟢 Working",
-    away: "🟡 Away",
-    not_started: "⚪ Not Started",
-    on_leave: "🔴 On Leave",
+    working: "Working",
+    away: "Away",
+    not_started: "Not Started",
+    on_leave: "On Leave",
   };
 
   return (

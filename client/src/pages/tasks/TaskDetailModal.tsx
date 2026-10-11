@@ -1,3 +1,4 @@
+import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, CheckSquare as InlineCheckSquare, Square as InlineSquare, Ban as GlyphBan, X, Package, CalendarDays, Save, Pencil, MessageSquare, Clock, Trash2, Folder } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
@@ -34,17 +35,6 @@ import {
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useCustomFields } from "../../CustomFieldsContext";
 import { getTaskDetail, getTaskCustomFieldValues } from "../../api/tasks";
-import {
-    X,
-    Package,
-    CalendarDays,
-    Save,
-    Pencil,
-    MessageSquare,
-    Clock,
-    Trash2,
-    Folder,
-} from "lucide-react";
 import s from "./TaskDetailModal.module.css";
 
 interface TaskDetailModalProps {
@@ -608,7 +598,7 @@ export default function TaskDetailModal({
                                         className={s["detail-blocker-readonly"]}
                                         title={detailTask.blocked_reason || "Blocked"}
                                     >
-                                        ⛔ Blocked
+                                        <GlyphBan size="1em" style={{ verticalAlign: "middle" }} /> Blocked
                                         {detailTask.blocked_reason
                                             ? `: ${detailTask.blocked_reason}`
                                             : ""}
@@ -643,7 +633,7 @@ export default function TaskDetailModal({
                                                         className={c.done ? s["ac-done"] : ""}
                                                     >
                                                         <span className={s["ac-check"]}>
-                                                            {c.done ? "☑" : "☐"}
+                                                            {c.done ? <><InlineCheckSquare size="1em" style={{ verticalAlign: "middle" }} /></> : <><InlineSquare size="1em" style={{ verticalAlign: "middle" }} /></>}
                                                         </span>{" "}
                                                         {c.text}
                                                     </li>
@@ -815,17 +805,18 @@ export default function TaskDetailModal({
                                     </div>
                                 )}
                                 {detailHistory.map((h) => {
-                                    const actionIcons: Record<string, string> = {
-                                        created: "+",
-                                        status_change: "\u21d4",
-                                        updated: "\u270e",
-                                        scheduled: "\u25b8",
-                                        unscheduled: "\u25a1",
-                                        comment_added: "\u2022",
-                                        comment_edited: "\u270e",
-                                        comment_deleted: "\u00d7",
-                                        deleted: "\u00d7",
+                                    const actionIcons: Record<string, IconComponent> = {
+                                        created: ActivityPlus,
+                                        status_change: ActivitySwap,
+                                        updated: ActivityEdit,
+                                        scheduled: ActivityCalendar,
+                                        unscheduled: ActivityCalendar,
+                                        comment_added: ActivityMessage,
+                                        comment_edited: ActivityEdit,
+                                        comment_deleted: ActivityDelete,
+                                        deleted: ActivityDelete,
                                     };
+                                    const ActivityIcon = actionIcons[h.action] || ActivityEdit;
                                     const fieldLabels: Record<string, string> = {
                                         status: "status",
                                         title: "title",
@@ -908,7 +899,7 @@ export default function TaskDetailModal({
                                     return (
                                         <div key={h.id} className={s["history-item"]}>
                                             <span className={s["history-icon"]}>
-                                                {actionIcons[h.action] || "✎"}
+                                                <ActivityIcon size={14} />
                                             </span>
                                             <div className={s["history-content"]}>
                                                 <span className={s["history-actor"]}>

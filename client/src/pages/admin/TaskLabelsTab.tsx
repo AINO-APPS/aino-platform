@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Tag } from "lucide-react";
+import { Tag } from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { getTaskLabelsManage, createTaskLabel, updateTaskLabel, deleteTaskLabel } from "../../api/tasks";

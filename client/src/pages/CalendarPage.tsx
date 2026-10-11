@@ -1,6 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon } from "../constants/icons";
 import Calendar from "../components/calendar/Calendar";
 import { getTasks } from "../api/tasks";
 import { getLocalToday } from "../api/client";

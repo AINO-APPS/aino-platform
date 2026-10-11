@@ -1,3 +1,5 @@
+import { Check as InlineCheck, Play as InlinePlay } from "../../constants/icons";
+import { CheckCircle2 as GlyphCheckCircle2 } from "../../constants/icons";
 import WorkModeLockHint from "../attendance/WorkModeLockHint";
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../AuthContext";
@@ -5,7 +7,7 @@ import { useFloatingTimer } from "../../hooks/useFloatingTimer";
 import { formatTimeSec, formatTime } from "../../utils/time";
 import ConfirmDialog from "../common/ConfirmDialog";
 import ClockInVerifyModal from "../attendance/ClockInVerifyModal";
-import { Timer, Coffee, Pause, Play, Square, ChevronUp, ChevronDown, X, Building2, House, Clock, Zap } from "lucide-react";
+import { Timer, Coffee, Pause, Play, Square, ChevronUp, ChevronDown, X, Building2, House, Clock, Zap } from "../../constants/icons";
 import s from "./FloatingTimer.module.css";
 
 export default function FloatingTimer() {
@@ -56,7 +58,7 @@ export default function FloatingTimer() {
                 <span className={s["pill-dot"]} />
                 {state === "on_floor" && <span className={s["pill-time"]}>{formatTimeSec(liveFloorSec)}</span>}
                 {state === "on_break" && <span className={s["pill-time"]}>{formatTimeSec(liveBreakSec)}</span>}
-                {state === "logged_out" && <span className={s["pill-time"]}>{dailyTargetMet ? "Done ✓" : "Offline"}</span>}
+                {state === "logged_out" && <span className={s["pill-time"]}>{dailyTargetMet ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Done</> : "Offline"}</span>}
             </button>
         );
     }
@@ -93,7 +95,7 @@ export default function FloatingTimer() {
                         <span className={`${s.time} ${s[state]}`}>
                             {state === "on_floor" && formatTimeSec(liveFloorSec)}
                             {state === "on_break" && formatTimeSec(liveBreakSec)}
-                            {state === "logged_out" && (dailyTargetMet ? "Done ✓" : "Ready")}
+                            {state === "logged_out" && (dailyTargetMet ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Done</> : "Ready")}
                         </span>
                         <span className={s.label}>
                             {state === "on_floor" && "Working"}
@@ -203,13 +205,13 @@ export default function FloatingTimer() {
                                 </div>
                                 <WorkModeLockHint lockedWorkMode={lockedWorkMode} workModeRequest={workModeRequest} />
                                 <button className={`${s["action-btn"]} ${s.success}`} onClick={onLoginClick} disabled={!!actionLoading}>
-                                    {actionLoading === "clockIn" ? "Logging in..." : "▶ Login"}
+                                    {actionLoading === "clockIn" ? "Logging in..." : <><InlinePlay size="1em" style={{ verticalAlign: "middle" }} /> Login</>}
                                 </button>
                             </div>
                         )}
 
                         {state === "logged_out" && dailyTargetMet && (
-                            <div className={s["target-done"]}>✅ Daily target complete!</div>
+                            <div className={s["target-done"]}><GlyphCheckCircle2 size="1em" style={{ verticalAlign: "middle" }} /> Daily target complete!</div>
                         )}
                     </div>
                 )}

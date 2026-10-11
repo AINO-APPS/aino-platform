@@ -1,6 +1,7 @@
+import { Check as GlyphCheck } from "../../constants/icons";
 import { handleWorkModeLocked } from "./WorkModeChangeDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ShieldCheck, Loader2, X, AlertTriangle, CheckCircle2, Wifi, WifiOff, MapPin, ScanFace } from "lucide-react";
+import { ShieldCheck, Loader2, X, AlertTriangle, CheckCircle2, Wifi, WifiOff, MapPin, ScanFace } from "../../constants/icons";
 import FaceCapture from "./FaceCapture";
 import { preloadFaceModels } from "../../utils/faceApi";
 import { getCurrentPosition, getWifiInfo, geolocationErrorMessage } from "../../utils/geolocation";
@@ -345,7 +346,7 @@ export default function ClockInVerifyModal({
                             {needsLocation && wifiVerified && (
                                 <div className={s.locDone}>
                                     <Wifi size={14} /> Connected to&nbsp;<strong>{wifi?.ssid || "office Wi-Fi"}</strong>
-                                    <span className={s.acc}> — office network detected ✓</span>
+                                    <span className={s.acc}> — office network detected <GlyphCheck size="1em" style={{ verticalAlign: "middle" }} /></span>
                                 </div>
                             )}
                             {needsLocation && !wifiVerified && wifiConnected && (

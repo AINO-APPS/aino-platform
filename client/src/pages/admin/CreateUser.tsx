@@ -1,5 +1,6 @@
+import { Plus as GlyphPlus } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
-import { ClipboardList, Users, UserCheck, Building, Info } from "lucide-react";
+import { ClipboardList, Users, UserCheck, Building, Info } from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { createAdminUser, getAdminOrganizations, getCurrentOrg, getOrgDepartments, getOrgTeams, getAdminUsers } from "../../api/organization";
 import { ROLES, ROLE_LABELS } from "./constants";
@@ -90,7 +91,7 @@ export default function CreateUser({ userRole, onCreated }: CreateUserProps) {
 
     return (
         <div className={su["form-container"]}>
-            <h2 className={su["section-heading"]}>➕ Create New User</h2>
+            <h2 className={su["section-heading"]}><GlyphPlus size="1em" style={{ verticalAlign: "middle" }} /> Create New User</h2>
             <p className={su["section-subtitle"]}>
                 Create a new user account. The user will be required to change their password on first login.
             </p>

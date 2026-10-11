@@ -1,5 +1,6 @@
+import { Bell as MaterialBell } from "../../constants/icons";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, AtSign, ClipboardList, FileText, CheckCircle2, Video, X } from "lucide-react";
+import { Bell, AtSign, ClipboardList, FileText, CheckCircle2, Video, X } from "../../constants/icons";
 import { useNavigate } from "react-router-dom";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification } from "../../api/notes";
 import useWebSocket from "../../hooks/useWebSocket";
@@ -182,15 +183,7 @@ export default function NotificationBell() {
                 aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ""}`}
                 title="Notifications"
             >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path
-                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <MaterialBell size="20" width="20" height="20" />
                 {unread > 0 && <span className="notif-badge">{unread > 99 ? "99+" : unread}</span>}
             </button>
 

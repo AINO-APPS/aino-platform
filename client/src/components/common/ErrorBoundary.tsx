@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "../../constants/icons";
 import { captureError } from "../../errorTracking";
 
 interface ErrorBoundaryProps {

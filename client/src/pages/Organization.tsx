@@ -1,6 +1,6 @@
 import React, { useState, Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Users, GitBranch, Tag, CreditCard } from "lucide-react";
+import { Building2, Users, GitBranch, Tag, CreditCard } from "../constants/icons";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import { useAuth } from "../AuthContext";
 import { createOrg, getCurrentOrg } from "../api/organization";

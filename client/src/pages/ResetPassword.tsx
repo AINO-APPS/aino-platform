@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { resetPassword } from "../api/workforce";
-import { Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Lock, ArrowLeft, CheckCircle2 } from "../constants/icons";
 import PasswordInput from "../components/common/PasswordInput";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import s from "./Auth.module.css";

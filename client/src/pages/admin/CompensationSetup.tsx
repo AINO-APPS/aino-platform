@@ -12,7 +12,7 @@ import {
   CheckCircle,
   XCircle,
   Settings,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getCompensationTemplates, createCompensationTemplate, updateCompensationTemplate, deleteCompensationTemplate, getEmployeeCompensations, assignCompensation, getBankVerifications, approveBankDetails, rejectBankDetails, getCtcConfig, saveCtcConfig } from "../../api/compensation";
 import { getOrgMembers } from "../../api/organization";
 import s from "./AdminPages.module.css";

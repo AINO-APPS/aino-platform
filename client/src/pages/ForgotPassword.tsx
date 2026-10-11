@@ -1,7 +1,8 @@
+import { Mail as GlyphMail } from "../constants/icons";
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { forgotPassword } from "../api/workforce";
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "../constants/icons";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import s from "./Auth.module.css";
 
@@ -55,7 +56,7 @@ export default function ForgotPassword() {
                     </form>
                 ) : (
                     <div className={s["reset-sent"]}>
-                        <div className={s["reset-sent-icon"]}>✉️</div>
+                        <div className={s["reset-sent-icon"]}><GlyphMail size="1em" style={{ verticalAlign: "middle" }} /></div>
                         <p>Check your inbox for the reset link. It will expire in 1 hour.</p>
                     </div>
                 )}

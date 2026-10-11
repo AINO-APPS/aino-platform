@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Trash2,
   ChevronLeft,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useNavigate } from "react-router-dom";
 import { getFaceStatus, enrollFace, clearFaceEnrollment } from "../../api/workforce";
 import FaceCapture from "../../components/attendance/FaceCapture";

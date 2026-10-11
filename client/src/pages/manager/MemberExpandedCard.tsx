@@ -1,6 +1,7 @@
+import { Flame as GlyphFlame } from "../../constants/icons";
 import React from "react";
 import { formatMin, LEAVE_ICONS } from "./constants";
-import { Building2, House } from "lucide-react";
+import { Building2, House } from "../../constants/icons";
 import m from "../ManagerDashboard.module.css";
 
 interface MemberExpandedCardProps {
@@ -67,7 +68,7 @@ export default function MemberExpandedCard({
                 <div className={m.expandedStat}>
                     <span className={m.expandedStatLabel}>Current Streak</span>
                     <span className={m.expandedStatValue}>
-                        {mem.streak} day{mem.streak !== 1 ? "s" : ""} 🔥
+                        {mem.streak} day{mem.streak !== 1 ? "s" : ""} <GlyphFlame size="1em" style={{ verticalAlign: "middle" }} />
                     </span>
                 </div>
                 <div className={m.expandedStat}>

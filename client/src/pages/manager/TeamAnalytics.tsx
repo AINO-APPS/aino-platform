@@ -1,10 +1,11 @@
+import { ChevronUp as SortUp, ChevronDown as SortDown } from "../../constants/icons";
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTeamAnalytics } from "../../api/organization";
 import { exportTeamAnalytics } from "../../api/notes";
 import { getLocalDate, getLocalToday } from "../../api/client";
 import { ROLE_LABELS, formatMin } from "./constants";
-import { Users, Timer, ClipboardList, Target, AlarmClock } from "lucide-react";
+import { Users, Timer, ClipboardList, Target, AlarmClock } from "../../constants/icons";
 import TodayStatusBadge from "./TodayStatusBadge";
 import PercentBar from "./PercentBar";
 import MiniTrend from "./MiniTrend";
@@ -88,7 +89,7 @@ export default function TeamAnalytics({ onSelectMember }: TeamAnalyticsProps) {
   };
 
   const SortIcon = ({ col }: { col: string }) =>
-    sortBy === col ? (sortAsc ? " ▲" : " ▼") : "";
+    sortBy === col ? (sortAsc ? <SortUp size={12} /> : <SortDown size={12} />) : "";
 
   if (!data) return <p>Loading...</p>;
 

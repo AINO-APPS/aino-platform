@@ -1,3 +1,4 @@
+import { Check as MaterialCheck, Minus as MaterialMinus, Clock as MaterialClock, Circle as MaterialCircle, Phone as MaterialPhone, Video as MaterialVideo } from "../../constants/icons";
 import s from "./ChatAvatar.module.css";
 
 // Keep this map in sync with server/services/status/constants.js
@@ -58,36 +59,22 @@ export default function ChatAvatar({ avatar, name, size = "md", online, userStat
                     title={statusInfo?.label || (online ? "Online" : "Offline")}
                 >
                     {showIcon && userStatus === "available" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <path d="M2.2 5.1L4.2 7L7.8 3.4" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <MaterialCheck size={"100%"} className={s.dotIcon} color="#fff" />
                     )}
                     {showIcon && userStatus === "dnd" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <line x1="3" y1="5" x2="7" y2="5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
+                        <MaterialMinus size={"100%"} className={s.dotIcon} color="#fff" />
                     )}
                     {showIcon && userStatus === "away" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <circle cx="5" cy="5" r="3" stroke="#fff" strokeWidth="1.3" />
-                            <path d="M5 3.3V5.3L6.4 6.2" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <MaterialClock size={"100%"} className={s.dotIcon} color="#fff" />
                     )}
                     {showIcon && userStatus === "offline" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <circle cx="5" cy="5" r="3" stroke="currentColor" strokeWidth="1.4" />
-                        </svg>
+                        <MaterialCircle size={"100%"} className={s.dotIcon} />
                     )}
                     {showIcon && userStatus === "in_call" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <path d="M2.5 3.5c0-0.5 0.5-1 1-1s1.5 1 1.5 1.5-0.5 0.7-0.5 1 1.2 1.7 1.5 1.7 0.5-0.5 1-0.5 1.5 0.5 1.5 1-0.5 1-1 1C4.5 8.2 1.8 5.5 2.5 3.5z" fill="#fff" />
-                        </svg>
+                        <MaterialPhone size={"100%"} className={s.dotIcon} color="#fff" />
                     )}
                     {showIcon && userStatus === "in_meeting" && (
-                        <svg className={s.dotIcon} viewBox="0 0 10 10" fill="none">
-                            <rect x="1.5" y="3" width="5" height="4" rx="0.5" fill="#fff" />
-                            <path d="M6.5 4.2L8.5 3v4L6.5 5.8" fill="#fff" />
-                        </svg>
+                        <MaterialVideo size={"100%"} className={s.dotIcon} color="#fff" />
                     )}
                 </span>
             )}

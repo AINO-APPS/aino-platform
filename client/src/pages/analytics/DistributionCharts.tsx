@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Doughnut } from "react-chartjs-2";
-import { PieChart, Building2 } from "lucide-react";
+import { PieChart, Building2 } from "../../constants/icons";
 import { formatTime } from "../../utils/time";
 import { tooltipStyle, legendStyle, chartTextColor } from "./chartConfig";
 import s from "./Analytics.module.css";

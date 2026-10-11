@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
-import { Shield, AlertTriangle, X } from "lucide-react";
+import { Shield, AlertTriangle, X } from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import { getActiveInspectorSession, revokeAccessSession } from "../../api/organization";
 

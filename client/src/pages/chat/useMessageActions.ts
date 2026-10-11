@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { uploadChatFile, cancelChatMediaJob, retryChatMediaJob, toggleReaction, editMessage, deleteMessage, togglePin, toggleStar, createPoll } from "../../api/chat";
+import { uploadChatFile, cancelChatMediaJob, retryChatMediaJob, toggleReaction, editMessage, deleteMessage, togglePin, toggleStar, createPoll, type PollSubmitData } from "../../api/chat";
+import { cleanPollDraft } from "../../components/chat/pollHelpers";
 import type useChatState from "./useChatState";
 import type { AnyRecord } from "../../types";
 import { createPendingMessageId } from "./messageDelivery";
@@ -56,7 +57,6 @@ export default function useMessageActions(state: ChatState) {
     setRecording,
     setDragOver,
     setShowEmojiPicker,
-    setShowPollCreator,
     mentionInputRef,
     pendingCounter,
     selectedMessageIds,
@@ -687,14 +687,10 @@ export default function useMessageActions(state: ChatState) {
     if (text) await navigator.clipboard?.writeText(text);
   };
 
-  const handleCreatePoll = async (pollData: AnyRecord) => {
-    if (!activeConv) return;
-    try {
-      await createPoll(activeConv.id, pollData);
-      setShowPollCreator(false);
-    } catch {
-      /* ignore */
-    }
+  const handleCreatePoll = async (pollData: PollSubmitData) => {
+    if (!activeConv) throw new Error("Select a conversation before creating a poll.");
+    const { data } = await createPoll(activeConv.id, cleanPollDraft(pollData));
+    if (data?.ok === false) throw new Error("Could not create poll. Try again.");
   };
 
   const handleEmojiInsert = (emoji: string) => {

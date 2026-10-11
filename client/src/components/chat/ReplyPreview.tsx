@@ -1,3 +1,5 @@
+import { Paperclip as AttachmentIcon, Mic as VoiceIcon } from "../../constants/icons";
+import { X as MaterialX } from "../../constants/icons";
 import s from "./ReplyPreview.module.css";
 
 interface ReplyPreviewProps {
@@ -13,7 +15,7 @@ export default function ReplyPreview({ senderName, content, onClear, onClick }: 
             <div className={s.accent} />
             <div className={s.body}>
                 <span className={s.name}>{senderName}</span>
-                <span className={s.text}>{content?.slice(0, 100) || "📎 Attachment"}</span>
+                <span className={s.text}>{content?.slice(0, 100) || <><AttachmentIcon size={14} /> Attachment</>}</span>
             </div>
             {onClear && (
                 <button
@@ -22,7 +24,7 @@ export default function ReplyPreview({ senderName, content, onClear, onClick }: 
                     onClick={(e) => { e.stopPropagation(); onClear(); }}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                    <MaterialX size="14" width="14" height="14" />
                 </button>
             )}
         </div>

@@ -212,11 +212,11 @@ router.get("/polls/:id", auth, async (req: Request, res: Response) => {
 
     const voteMap: Record<
       number,
-      Array<{ userId: number; fullName: string }>
+      Array<{ userId: number; fullName: string; avatar: string | null }>
     > = {};
     for (const v of votes) {
       if (!voteMap[v.option_idx]) voteMap[v.option_idx] = [];
-      voteMap[v.option_idx].push({ userId: v.user_id, fullName: v.full_name });
+      voteMap[v.option_idx].push({ userId: v.user_id, fullName: v.full_name, avatar: v.avatar ?? null });
     }
 
     res.json({ ...poll, votes: voteMap });

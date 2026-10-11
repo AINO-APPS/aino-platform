@@ -17,7 +17,7 @@ import {
     PhoneIncoming,
     PhoneOutgoing,
     PhoneMissed,
-} from "lucide-react";
+} from "../../constants/icons";
 import ConversationAvatar from "../../components/chat/ConversationAvatar";
 import SignalMenu, { MUTE_DURATIONS, type MuteDuration } from "../../components/chat/signal/SignalMenu";
 import { getCallHistory, getSharedFiles } from "../../api/chat";

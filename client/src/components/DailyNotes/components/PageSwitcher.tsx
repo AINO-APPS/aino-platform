@@ -1,7 +1,8 @@
+import { ChevronDown as MaterialChevronDown, Search as MaterialSearch, Edit as MaterialEdit, Plus as MaterialPlus } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* PageSwitcher — inline header dropdown for picking/renaming pages */
 import React from "react";
-import { Pin } from "lucide-react";
+import { Pin } from "../../../constants/icons";
 import { formatDate } from "../notesUtils";
 import s from "./PageSwitcher.module.css";
 
@@ -48,21 +49,14 @@ export default function PageSwitcher({
             >
                 {activePage?.pinned && <span className={s.pinSmall}><Pin size={11} /></span>}
                 <span className={s.switcherName}>{activePage?.title || "Untitled"}</span>
-                <svg
-                    className={`${s.switcherChevron} ${menuOpen ? s.switcherChevronOpen : ""}`}
-                    viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"
-                >
-                    <path d="M2 3.5l3 3 3-3" />
-                </svg>
+                <MaterialChevronDown size={10} className={`${s.switcherChevron} ${menuOpen ? s.switcherChevronOpen : ""}`} />
             </button>
 
             {menuOpen && (
                 <div className={s.menu}>
                     {/* Search */}
                     <div className={s.menuSearchWrap}>
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                            <circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5l3 3" />
-                        </svg>
+                        <MaterialSearch size={13} />
                         <input
                             className={s.menuSearchInput}
                             placeholder="Search pages…"
@@ -111,9 +105,7 @@ export default function PageSwitcher({
                                         onClick={e => { e.stopPropagation(); onStartRename(page.id, page.title); }}
                                         title="Rename"
                                     >
-                                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" />
-                                        </svg>
+                                        <MaterialEdit size={12} />
                                     </button>
                                 )}
                             </div>
@@ -122,9 +114,7 @@ export default function PageSwitcher({
 
                     {/* New page */}
                     <button className={s.menuNewBtn} onClick={() => { onNewPage(); setMenuOpen(false); }}>
-                        <svg viewBox="0 0 14 14" fill="currentColor">
-                            <path d="M7 2a.75.75 0 01.75.75v3.5h3.5a.75.75 0 010 1.5h-3.5v3.5a.75.75 0 01-1.5 0v-3.5h-3.5a.75.75 0 010-1.5h3.5v-3.5A.75.75 0 017 2z" />
-                        </svg>
+                        <MaterialPlus size={14} />
                         New page
                     </button>
                 </div>

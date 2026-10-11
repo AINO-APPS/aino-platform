@@ -1,3 +1,4 @@
+import { Mic as MaterialMic, MicOff as MaterialMicOff, Phone as MaterialPhone, Maximize as MaterialMaximize } from "../constants/icons";
 import { useEffect, useState } from "react";
 import type { CallPipAction } from "../../../desktop/ipc-types";
 
@@ -138,28 +139,16 @@ export default function CallPipPage() {
 
 // ─── Inline icons ──────────────────────────────────────────────────────
 const MicIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <rect x="9" y="1" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="2" />
-        <path d="M5 12a7 7 0 0 0 14 0M12 19v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    <MaterialMic size="16" width="16" height="16" />
 );
 const MicOffIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M1 1l22 22M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <path d="M17 16.95A7 7 0 0 1 5 12m14-1a7 7 0 0 1-.11 1.23M12 19v4m-4 0h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    <MaterialMicOff size="16" width="16" height="16" />
 );
 const PhoneIcon = ({ rotate }: { rotate?: boolean }) => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={rotate ? { transform: "rotate(135deg)" } : undefined}>
-        <path d="M3.51 5.47a2.5 2.5 0 0 1 3.53 0l1.06 1.06a2.5 2.5 0 0 1 0 3.54l-.53.53a9 9 0 0 0 5.83 5.83l.53-.53a2.5 2.5 0 0 1 3.54 0l1.06 1.06a2.5 2.5 0 0 1 0 3.53l-.87.87a3 3 0 0 1-3.15.73C9.42 20.45 3.55 14.58 1.91 9.49a3 3 0 0 1 .73-3.15l.87-.87z"
-            stroke="currentColor" strokeWidth="2" fill="none" />
-    </svg>
+    <MaterialPhone size="16" width="16" height="16" style={rotate ? { transform: "rotate(135deg)" } : undefined} />
 );
 const RestoreIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <MaterialMaximize size="16" width="16" height="16" />
 );
 
 // ─── Inline styles (no global CSS dependency) ──────────────────────────

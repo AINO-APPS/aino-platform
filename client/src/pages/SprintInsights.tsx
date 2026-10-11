@@ -1,3 +1,4 @@
+import { Check as InlineCheck, X as GlyphX, BarChart3, LineChart, Layers, ListChecks, RefreshCw, ArrowLeft, MessageSquare } from "../constants/icons";
 /**
  * SprintInsights — Phase 3 Agile reporting view.
  *
@@ -14,15 +15,6 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  BarChart3,
-  LineChart,
-  Layers,
-  ListChecks,
-  RefreshCw,
-  ArrowLeft,
-  MessageSquare,
-} from "lucide-react";
 import { getSprints, getSprintStats, getSprintTasks, getSprintCumulativeFlow, getSprintCycleTime, getSprintRetrospective, updateSprintRetrospective } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import {
@@ -665,7 +657,7 @@ function RetrospectivePanel({
                 }}
                 title="Remove"
               >
-                ×
+                <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
               </button>
             </label>
           ))}
@@ -714,7 +706,7 @@ function RetrospectivePanel({
           />
         </div>
         <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : saved ? "Saved ✓" : "Save retrospective"}
+          {saving ? "Saving…" : saved ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Saved</> : "Save retrospective"}
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "../../constants/icons";
 import s from "./WeeklyChart.module.css";
 
 interface WeeklyDay {

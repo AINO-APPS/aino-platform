@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import { BarChart3, BellRing } from "lucide-react";
+import { BarChart3, BellRing } from "../../constants/icons";
 import {
   Chart as ChartJS,
   CategoryScale,

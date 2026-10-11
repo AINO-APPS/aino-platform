@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Copy, RefreshCw, Search, Share2, UserCheck, X } from "lucide-react";
+import { Copy, RefreshCw, Search, Share2, UserCheck, X } from "../../../constants/icons";
 import { searchChatUsers } from "../../../api/chat";
 import { ChatAvatar } from "../../../components/chat";
 import SignalDialog from "../../../components/chat/signal/SignalDialog";

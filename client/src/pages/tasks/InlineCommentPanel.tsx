@@ -1,9 +1,10 @@
+import { Send as GlyphSend } from "../../constants/icons";
 import React, { useState, useRef } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import { COMMENT_QUILL_MODULES } from "./constants";
 import { HighlightedHtml, stripHtml, getAvatarUrl } from "./utils";
-import { MessageSquare, X, Paperclip } from "lucide-react";
+import { MessageSquare, X, Paperclip } from "../../constants/icons";
 import CommentAttachment from "../../components/common/CommentAttachment";
 import s from "./InlineCommentPanel.module.css";
 
@@ -215,7 +216,7 @@ export default function InlineCommentPanel({
                             title="Send comment"
                             aria-label="Send comment"
                         >
-                            ➤
+                            <GlyphSend size="1em" style={{ verticalAlign: "middle" }} />
                         </button>
                     </div>
                     <button

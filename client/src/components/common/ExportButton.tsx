@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
-import { FileSpreadsheet, FileText } from "lucide-react";
+import { FileSpreadsheet, FileText } from "../../constants/icons";
 
 interface ExportButtonProps {
     fetchFn: (params: any) => Promise<any>;

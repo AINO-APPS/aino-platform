@@ -4,9 +4,12 @@
    object (defined once at module level – never re-created).
    ───────────────────────────────────────────────────────── */
 import ReactQuill from "react-quill-new";
+import { materialIconMarkup, registerMaterialQuillIcons } from "./quillMaterialIcons";
+import { Ruler, Mic } from "../../constants/icons";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const Quill: any = (ReactQuill as any).Quill;
+registerMaterialQuillIcons(Quill);
 const BlockEmbed: any = Quill.import("blots/block/embed");
 const InlineEmbed: any = Quill.import("blots/embed");
 const Inline: any = Quill.import("blots/inline");
@@ -249,7 +252,7 @@ class DrawioBlot extends BlockEmbed {
         if (svg) {
             node.innerHTML = svg + '<div class="ql-drawio-overlay">Click to edit</div>';
         } else {
-            node.innerHTML = '<div class="ql-drawio-empty">📐 Draw.io diagram — click to edit</div>';
+            node.innerHTML = `<div class="ql-drawio-empty">${materialIconMarkup(Ruler)} Draw.io diagram — click to edit</div>`;
         }
     }
 }
@@ -333,11 +336,11 @@ class AudioBlot extends BlockEmbed {
         const src = node.getAttribute("data-src") || "";
         const label = node.getAttribute("data-label") || "Recording";
         if (!src) {
-            node.innerHTML = '<div class="ql-audio-empty">🎙️ No recording</div>';
+            node.innerHTML = `<div class="ql-audio-empty">${materialIconMarkup(Mic)} No recording</div>`;
             return;
         }
         node.innerHTML = `<div class="ql-audio-row">
-         <span class="ql-audio-icon" aria-hidden="true">🎙️</span>
+         <span class="ql-audio-icon" aria-hidden="true">${materialIconMarkup(Mic)}</span>
          <span class="ql-audio-label">${label.replace(
              /[<>&]/g,
              (c: string) => (({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }) as Record<string, string>)[c]

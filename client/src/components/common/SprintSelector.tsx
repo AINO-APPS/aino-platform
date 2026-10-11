@@ -1,3 +1,4 @@
+import { Run as GlyphRun } from "../../constants/icons";
 import React from "react";
 import s from "./SprintSelector.module.css";
 import type { Sprint } from "../../types";
@@ -18,7 +19,7 @@ export default function SprintSelector({ sprints, selected, onChange, disabled =
 
     return (
         <div className={s["form-extra-group"]}>
-            <label>🏃 Sprint</label>
+            <label><GlyphRun size="1em" style={{ verticalAlign: "middle" }} /> Sprint</label>
             <select
                 value={selected || ""}
                 onChange={(e) => onChange(e.target.value ? parseInt(e.target.value, 10) : "")}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../../AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Palmtree, ClipboardList, Users } from "lucide-react";
+import { BarChart3, Palmtree, ClipboardList, Users } from "../../constants/icons";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import PoliciesTab from "./PoliciesTab";
 import MyBalances from "./MyBalances";

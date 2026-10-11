@@ -1,3 +1,4 @@
+import { Search as SearchEmpty } from "../../constants/icons";
 // Signal-style emoji picker — categories, search, recents, and skin-tone
 // selection, rendering the bundled image emoji set (with native fallback).
 // Keeps the original props (onSelectEmoji / onClose / style) so every existing
@@ -252,7 +253,7 @@ export default function EmojiGifPicker({
                     </div>
                 ) : tenorItems.length === 0 ? (
                     <div className={s.noResults}>
-                        <span className={s.noResultsEmoji}>🔎</span>
+                        <span className={s.noResultsEmoji}><SearchEmpty size="1em" /></span>
                         <span>No {mode === "gif" ? "GIFs" : "stickers"} found</span>
                     </div>
                 ) : (
@@ -274,7 +275,7 @@ export default function EmojiGifPicker({
             ) : query.trim() ? (
                 results.length === 0 ? (
                     <div className={s.noResults}>
-                        <span className={s.noResultsEmoji}>🔍</span>
+                        <span className={s.noResultsEmoji}><SearchEmpty size="1em" /></span>
                         <span>No emoji found for &ldquo;{query}&rdquo;</span>
                     </div>
                 ) : (

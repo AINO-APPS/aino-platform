@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock } from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { getRoleChangeRequests, approveRoleChange, rejectRoleChange, cancelRoleChange } from "../../api/organization";
 import { ROLE_LABELS } from "./constants";

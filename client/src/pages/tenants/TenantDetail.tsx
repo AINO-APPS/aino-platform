@@ -4,7 +4,7 @@ import {
     ArrowLeft, Building2, Users, Shield, Globe, Database, HardDrive,
     BarChart3, ExternalLink, Settings2, Loader2,
     Pause, Play, X,
-} from "lucide-react";
+} from "../../constants/icons";
 import RequestAccessModal from "./RequestAccessModal";
 import s from "./Tenants.module.css";
 

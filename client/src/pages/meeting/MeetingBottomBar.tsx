@@ -13,7 +13,7 @@ import {
     MoreVertical,
     MicOffIcon,
     SmilePlus,
-} from "lucide-react";
+} from "../../constants/icons";
 import { MESH_PARTICIPANT_CAP } from "../../constants";
 
 const REACTIONS = ["👍", "👏", "😂", "🎉", "❤️", "🔥"];

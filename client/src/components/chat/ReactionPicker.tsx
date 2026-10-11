@@ -1,3 +1,4 @@
+import { Smile as MaterialSmile } from "../../constants/icons";
 import s from "./ReactionPicker.module.css";
 import React, { useRef, useEffect } from "react";
 
@@ -38,7 +39,7 @@ export default function ReactionPicker({ onSelect, onClose, onOpenFull, style }:
             </div>
             {onOpenFull && (
                 <button className={s.openFull} onClick={() => { onClose(); onOpenFull(); }} title="Browse all emoji">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.3" /><circle cx="5.2" cy="6.5" r="0.8" fill="currentColor" /><circle cx="10.8" cy="6.5" r="0.8" fill="currentColor" /><path d="M5 10a3.5 3.5 0 006 0" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></svg>
+                    <MaterialSmile size="14" width="14" height="14" />
                     <span>All Emoji</span>
                 </button>
             )}

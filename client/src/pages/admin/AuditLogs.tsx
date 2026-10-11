@@ -7,7 +7,7 @@ import {
   ChevronRight,
   Search,
   ShieldAlert,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getAuditLogs, getAdminUsers } from "../../api/organization";
 import s from "../Admin.module.css";
 import al from "./AuditLogs.module.css";

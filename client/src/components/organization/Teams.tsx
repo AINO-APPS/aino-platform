@@ -1,7 +1,10 @@
+import { Plus as ActionPlus } from "../../constants/icons";
+import { PlayCircle as SprintPlay } from "../../constants/icons";
+import { Run as GlyphRun, Settings as GlyphSettings } from "../../constants/icons";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays } from "../../constants/icons";
 import { getOrgTeams, getOrgDepartments, getOrgMembers, createTeam, updateTeam, deleteTeam, getTeamSprintConfig, updateTeamSprintConfig } from "../../api/organization";
 import { getActiveSprint, pauseSprint, resumeSprint } from "../../api/tasks";
 import s from "../../pages/Admin.module.css";
@@ -228,7 +231,7 @@ export default function Teams({ orgId, userRole }: TeamsProps) {
             </form>
           ) : (
             <button className={s.btnPrimary} onClick={() => setShowForm(true)}>
-              + Add Team
+              <ActionPlus size="1em" /> Add Team
             </button>
           )}
         </div>
@@ -410,7 +413,7 @@ export default function Teams({ orgId, userRole }: TeamsProps) {
                     <div className={tc["sprint-config-form"]}>
                       <div className={tc["sprint-field"]}>
                         <label className={tc["field-label"]}>
-                          🏃 Sprint Duration (weeks)
+                          <GlyphRun size="1em" style={{ verticalAlign: "middle" }} /> Sprint Duration (weeks)
                         </label>
                         <input
                           type="number"
@@ -460,7 +463,7 @@ export default function Teams({ orgId, userRole }: TeamsProps) {
                       </div>
                       <div className={tc["sprint-field"]}>
                         <label className={tc["field-label"]}>
-                          ⚙️ Sprint Mode
+                          <GlyphSettings size="1em" style={{ verticalAlign: "middle" }} /> Sprint Mode
                         </label>
                         <select
                           value={editForm.sprint_mode || "manual"}
@@ -487,7 +490,7 @@ export default function Teams({ orgId, userRole }: TeamsProps) {
                       {editForm.sprint_mode === "auto" && editActiveSprint && (
                         <div className={tc["sprint-field"]}>
                           <label className={tc["field-label"]}>
-                            ⏯️ Active Sprint — {editActiveSprint.name} (
+                            <SprintPlay size="1em" /> Active Sprint — {editActiveSprint.name} (
                             {editPaused ? "Paused" : editActiveSprint.status})
                           </label>
                           <button

@@ -16,6 +16,7 @@ import useChatPageExtras from "./chat/useChatPageExtras";
 import useChatState from "./chat/useChatState";
 import useChatActions from "./chat/useChatActions";
 import { useStatus } from "../status/useStatus";
+import { MessageSquare } from "../constants/icons";
 import { getConvName } from "./chat/chatUtils";
 import { useOpenConversationFromQuery } from "./chat/useOpenConversationFromQuery";
 import s from "./Chat.module.css";
@@ -293,7 +294,7 @@ export default function Chat() {
       >
         {!activeConv ? (
           <div className={s.noChat}>
-            <div className={s.noChatIcon}>💬</div>
+            <div className={s.noChatIcon}><MessageSquare size={48} aria-hidden="true" /></div>
             <h3>Select a conversation</h3>
             <p>Search for a colleague to start chatting</p>
           </div>
@@ -474,6 +475,7 @@ export default function Chat() {
       {/* ─── Modals ─── */}
       {showPollCreator && (
         <PollCreator
+          key={activeConv?.id}
           onSubmit={handleCreatePoll}
           onClose={() => setShowPollCreator(false)}
         />

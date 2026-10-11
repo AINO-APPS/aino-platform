@@ -1217,6 +1217,14 @@ Delete chat **for the requester only**: sets their `cleared_at` and `hidden_at` 
 - **Auth**: `auth` (any participant)
 - **Response**: `200 { ok: true }`; emits `chat_conv_deleted { conversationId }` to the requester's own sessions only
 
+### GET `/api/chat/polls/:id`
+Get a poll and voter identities, grouped by option index.
+
+- **Auth**: `auth` (conversation participant, tenant-scoped)
+- **Response**: `200` poll fields plus `votes: { [optionIndex]: [{ userId, fullName, avatar }] }`; `avatar` is a profile-photo URL or `null`.
+- **Errors**: `400` invalid poll ID, `403` not a participant, `404` poll not found.
+- Vote mutation responses and `chat_poll_vote` events remain ID-only. Reload this endpoint after a vote or event to refresh names and photos together.
+
 ### GET `/api/chat/calls`
 Get call history for the current user across all conversations.
 

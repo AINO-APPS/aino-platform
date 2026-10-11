@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowLeft, Phone, Video, MoreVertical, Building2, House } from "lucide-react";
+import { ArrowLeft, Phone, Video, MoreVertical, Building2, House } from "../../constants/icons";
 import ConversationAvatar from "../../components/chat/ConversationAvatar";
 import SignalMenu, { type MuteDuration } from "../../components/chat/signal/SignalMenu";
 import { useFeatures } from "../../FeaturesContext";

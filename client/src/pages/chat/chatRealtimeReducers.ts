@@ -15,7 +15,10 @@ export function applyRealtimeConversationMessage(
     const fromPeer = Number(data.senderId) !== Number(currentUserId);
     return {
         ...conversation,
-        last_message: data.content || (data.fileName ? `📎 ${data.fileName}` : "🎤 Voice"),
+        last_message: data.content || "",
+        last_file_url: data.fileUrl || null,
+        last_file_name: data.fileName || null,
+        last_file_type: data.fileType || null,
         last_sender_id: data.senderId,
         last_message_at: data.createdAt,
         last_deleted: null,

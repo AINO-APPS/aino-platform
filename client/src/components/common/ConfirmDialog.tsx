@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { X } from "lucide-react";
+import { X } from "../../constants/icons";
 import s from "./ConfirmDialog.module.css";
 
 interface ConfirmDialogProps {

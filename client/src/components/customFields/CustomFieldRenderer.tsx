@@ -1,3 +1,4 @@
+import { Check as InlineCheck } from "../../constants/icons";
 /**
  * CustomFieldRenderer & CustomFieldsEditor — render and edit task custom field
  * values based on the org's CustomFieldsContext definitions.
@@ -11,7 +12,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useCustomFields } from "../../CustomFieldsContext";
 import { getTaskCustomFieldValues, updateTaskCustomFieldValues } from "../../api/tasks";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2 } from "../../constants/icons";
 import s from "./CustomFields.module.css";
 
 interface FieldOption {
@@ -44,7 +45,7 @@ export function CustomFieldRenderer({ field, value }: { field?: CustomFieldDefin
     }
     switch (field.field_type) {
         case "checkbox":
-            return <span className={s.checkValue}>{value ? "✓ Yes" : "— No"}</span>;
+            return <span className={s.checkValue}>{value ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Yes</> : "— No"}</span>;
         case "date":
             return <span>{value as React.ReactNode}</span>;
         case "number":

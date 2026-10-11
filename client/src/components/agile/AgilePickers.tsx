@@ -1,3 +1,4 @@
+import { Ban as GlyphBan } from "../../constants/icons";
 /**
  * Reusable Agile pickers + badges, all driven by the tenant's customisable
  * AgileConfig. Bundled in one module so consumers can import multiple bits
@@ -200,7 +201,7 @@ export function BlockerBadge({ task }: BlockerBadgeProps) {
     if (!task?.is_blocked) return null;
     return (
         <span className={s.blocker} title={task.blocked_reason || "Blocked"}>
-            ⛔ Blocked
+            <GlyphBan size="1em" style={{ verticalAlign: "middle" }} /> Blocked
         </span>
     );
 }

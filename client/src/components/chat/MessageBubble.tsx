@@ -1,7 +1,8 @@
+import { Reply as MaterialReply, Check as MaterialCheck } from "../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
-import { Pin, Star } from "lucide-react";
+import { Pin, Star } from "../../constants/icons";
 import s from "./MessageBubble.module.css";
 import ChatAvatar from "./ChatAvatar";
 import FilePreview from "./FilePreview";
@@ -280,23 +281,10 @@ function MessageBubble({
       } ${selectionActive ? s.selectionRow : ""}`}
       onClick={selectionActive ? () => onSelect?.(msg) : undefined}
     >
+      {selected && <MaterialCheck size={16} className={s.selectionCheck} />}
       {/* Swipe-to-reply indicator */}
       <div className={s.swipeReply} data-swipe-reply>
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M6 3L2 7l4 4"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M2 7h7a5 5 0 010 5"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </svg>
+        <MaterialReply size="18" width="18" height="18" />
       </div>
 
       <div className={s.avatarCol}>
@@ -420,6 +408,7 @@ function MessageBubble({
               pollId={msg.metadata.pollId}
               userId={userId as number | string}
               isMine={isMine}
+              interactionEnabled={!selectionActive}
             />
           )}
 

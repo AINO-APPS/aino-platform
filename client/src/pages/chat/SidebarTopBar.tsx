@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from "react";
-import { ArrowLeft, MessageCircle, MoreVertical, Phone, Search, UserPlus, Video, X } from "lucide-react";
+import { ArrowLeft, MessageCircle, MoreVertical, Phone, Search, UserPlus, Video, X } from "../../constants/icons";
 import SignalMenu from "../../components/chat/signal/SignalMenu";
 import s from "./ChatSidebar.module.css";
 

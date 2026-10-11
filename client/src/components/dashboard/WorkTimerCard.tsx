@@ -1,3 +1,5 @@
+import { Check as InlineCheck, Play as InlinePlay } from "../../constants/icons";
+import { CheckCircle2 as GlyphCheckCircle2 } from "../../constants/icons";
 import WorkModeLockHint from "../attendance/WorkModeLockHint";
 import React, { useEffect, useState } from "react";
 import { useFloatingTimer } from "../../hooks/useFloatingTimer";
@@ -5,7 +7,7 @@ import { formatTimeSec, formatTime } from "../../utils/time";
 import ConfirmDialog from "../common/ConfirmDialog";
 import ClockInVerifyModal from "../attendance/ClockInVerifyModal";
 import { preloadFaceModels } from "../../utils/faceApi";
-import { Timer, Coffee, Play, LogOut, Building2, House, Clock, Zap } from "lucide-react";
+import { Timer, Coffee, Play, LogOut, Building2, House, Clock, Zap } from "../../constants/icons";
 import s from "./WorkTimerCard.module.css";
 
 export default function WorkTimerCard() {
@@ -81,7 +83,7 @@ export default function WorkTimerCard() {
                                 <span className={`${s["ring-time"]} ${s[state]}`}>
                                     {state === "on_floor" && formatTimeSec(liveFloorSec)}
                                     {state === "on_break" && formatTimeSec(liveBreakSec)}
-                                    {state === "logged_out" && (dailyTargetMet ? "✓" : "—")}
+                                    {state === "logged_out" && (dailyTargetMet ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /></> : "—")}
                                 </span>
                             </span>
                         </div>
@@ -189,13 +191,13 @@ export default function WorkTimerCard() {
                                     </div>
                                     <WorkModeLockHint lockedWorkMode={lockedWorkMode} workModeRequest={workModeRequest} />
                                     <button className={`${s.btn} ${s.success}`} onClick={onLoginClick} disabled={!!actionLoading}>
-                                        {actionLoading === "clockIn" ? "Logging in..." : "▶ Login"}
+                                        {actionLoading === "clockIn" ? "Logging in..." : <><InlinePlay size="1em" style={{ verticalAlign: "middle" }} /> Login</>}
                                     </button>
                                 </>
                             )}
 
                             {state === "logged_out" && dailyTargetMet && (
-                                <div className={s["target-done"]}>✅ Daily target complete!</div>
+                                <div className={s["target-done"]}><GlyphCheckCircle2 size="1em" style={{ verticalAlign: "middle" }} /> Daily target complete!</div>
                             )}
 
                             {state === "on_floor" && (

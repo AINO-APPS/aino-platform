@@ -1,15 +1,6 @@
+import { Verified as InlineVerified, Download, CheckCircle, Clock, XCircle, CreditCard, Building2, Edit3, Save } from "../../constants/icons";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Download,
-  CheckCircle,
-  Clock,
-  XCircle,
-  CreditCard,
-  Building2,
-  Edit3,
-  Save,
-} from "lucide-react";
 import { getMySalarySlips, downloadMySalarySlipPdf, getMyBankDetails, saveMyBankDetails } from "../../api/compensation";
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -301,7 +292,7 @@ export default function MySalarySlips() {
                 }}
               >
                 {bankDetails.is_verified
-                  ? "✓ Verified"
+                  ? <><InlineVerified size="1em" style={{ verticalAlign: "middle" }} /> Verified</>
                   : "Pending Verification"}
               </div>
             </div>

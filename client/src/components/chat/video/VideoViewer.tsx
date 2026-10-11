@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { X, Download, Forward, MessageSquareText } from "lucide-react";
+import { X, Download, Forward, MessageSquareText } from "../../../constants/icons";
 import ChatAvatar from "../ChatAvatar";
 import VideoSurface from "./VideoSurface";
 import s from "./Video.module.css";

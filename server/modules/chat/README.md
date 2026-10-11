@@ -106,6 +106,14 @@ chat.routes.ts -> chat.*.routes.ts -> chat.service.ts -> chat.repository.ts
   extracted conversation and message actions; endpoint-specific validation
   remains unchanged at the HTTP boundary.
 
+## Poll voter identities
+
+`GET /polls/:id` returns votes grouped by option index. Each voter includes
+`userId`, `fullName`, and nullable `avatar`, so clients can show profile photos
+without separate directory requests. Existing tenant and participant checks apply.
+Vote mutation responses and `chat_poll_vote` events remain ID-only; clients reload
+the poll to refresh identities and counts together.
+
 ## Validation
 
 - `modules/chat/__tests__/chat.module-composition.test.ts` pins all 65 method

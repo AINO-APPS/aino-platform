@@ -20,7 +20,7 @@
      the start index of that <pre> with `code-block: <lang>`.
    ───────────────────────────────────────────────────────── */
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "../../../constants/icons";
 import { CODE_LANGUAGES } from "../quillConfig";
 import s from "./CodeBlockLanguagePicker.module.css";
 

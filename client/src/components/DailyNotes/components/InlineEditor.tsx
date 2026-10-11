@@ -1,3 +1,4 @@
+import { Plus as ActionPlus } from "../../../constants/icons";
 /* InlineEditor — expanded editor shown beneath the widget header */
 import React from "react";
 import QuillEditor from "./QuillEditor";
@@ -29,7 +30,7 @@ export default function InlineEditor({
         return (
             <div className={s.empty}>
                 <p>No pages yet</p>
-                <button className="btn btn-primary btn-sm" onClick={onNewPage}>+ New page</button>
+                <button className="btn btn-primary btn-sm" onClick={onNewPage}><ActionPlus size="1em" /> New page</button>
             </div>
         );
     }

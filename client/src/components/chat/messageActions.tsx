@@ -1,4 +1,4 @@
-import { CheckSquare2, Copy, Download, Forward, Pencil, Pin, Reply, Star, Trash2 } from "lucide-react";
+import { CheckSquare2, Copy, Download, Forward, Pencil, Pin, Reply, Star, Trash2 } from "../../constants/icons";
 import type { ContextMenuItem } from "./ContextMenu";
 
 export interface MessageActionHandlers {

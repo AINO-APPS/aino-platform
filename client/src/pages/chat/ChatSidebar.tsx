@@ -1,4 +1,4 @@
-import { X, Video, Archive, ChevronLeft, CheckSquare2, Trash2 } from "lucide-react";
+import { X, Video, Archive, ChevronLeft, CheckSquare2, Trash2 } from "../../constants/icons";
 import { useState } from "react";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { ChatAvatar } from "../../components/chat";

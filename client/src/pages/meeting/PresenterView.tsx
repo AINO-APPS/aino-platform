@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { MonitorUp } from "lucide-react";
+import { MonitorUp } from "../../constants/icons";
 
 interface PresenterViewProps {
     presenterStream: MediaStream | null;

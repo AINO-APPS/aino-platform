@@ -1,3 +1,4 @@
+import { AlertCircle as MaterialAlertCircle, X as MaterialX, Trash2 as MaterialTrash2, Send as MaterialSend } from "../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import s from "./VoiceRecorder.module.css";
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -127,16 +128,10 @@ export default function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) 
     if (error) {
         return (
             <div className={s.recorderError}>
-                <svg className={s.errorIcon} width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-                    <path d="M8 4.5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    <circle cx="8" cy="11" r="0.75" fill="currentColor"/>
-                </svg>
+                <MaterialAlertCircle size="16" className={s.errorIcon} width="16" height="16" />
                 <span className={s.errorMsg}>{error}</span>
                 <button className={s.cancelBtn} onClick={cancel} title="Close">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
+                    <MaterialX size="14" width="14" height="14" />
                 </button>
             </div>
         );
@@ -145,9 +140,7 @@ export default function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) 
     return (
         <div className={s.recorder}>
             <button className={s.cancelBtn} onClick={cancel} title="Cancel recording">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <rect x="3" y="3" width="12" height="12" rx="2" fill="currentColor"/>
-                </svg>
+                <MaterialTrash2 size="18" width="18" height="18" />
             </button>
 
             <div className={s.liveIndicator}>
@@ -162,9 +155,7 @@ export default function VoiceRecorder({ onSend, onCancel }: VoiceRecorderProps) 
             </div>
 
             <button className={s.sendBtn} onClick={stop} title="Send voice message">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M3 10l6-7v4.5h8v5h-8V17L3 10z" fill="currentColor"/>
-                </svg>
+                <MaterialSend size="20" width="20" height="20" />
             </button>
         </div>
     );

@@ -1,3 +1,4 @@
+import { X as GlyphX, Plus, Search, StickyNote, Pin, Clock, Tag, ArrowUpRight, FileText, Heart, Home, History, LayoutTemplate, Archive, CheckSquare } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* ─────────────────────────────────────────────────────────
    NotesHome — redesigned landing for the /notes route.
@@ -15,22 +16,6 @@ import { useAuth } from "../../../AuthContext";
 import { TEMPLATES } from "../templates";
 import { formatDate, tagColor, stripHtml } from "../notesUtils";
 import FolderTree from "./FolderTree";
-import {
-    Plus,
-    Search,
-    StickyNote,
-    Pin,
-    Clock,
-    Tag,
-    ArrowUpRight,
-    FileText,
-    Heart,
-    Home,
-    History,
-    LayoutTemplate,
-    Archive,
-    CheckSquare,
-} from "../../../constants/icons";
 import s from "./NotesHome.module.css";
 import TodoApp from "./TodoApp";
 
@@ -347,7 +332,7 @@ export default function NotesHome({ store }: NotesHomeProps) {
                                         className={s.searchClear}
                                         onClick={() => setSearch("")}
                                         aria-label="Clear search"
-                                    >×</button>
+                                    ><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                                 )}
 
                                 {/* Inline live results dropdown */}

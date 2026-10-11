@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "../../constants/icons";
 import API from "../../api/client";
 
 export interface MfaChallengeState {

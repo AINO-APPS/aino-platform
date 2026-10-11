@@ -1,7 +1,8 @@
+import { MessageCircle as GlyphMessageCircle } from "../../constants/icons";
 import React, { useState } from "react";
 import { HighlightedHtml, formatDueDate, isDueOverdue } from "./utils";
 import { PRIORITIES, type PriorityOption } from "./constants";
-import { User, CalendarDays, PenLine, Check, Copy } from "lucide-react";
+import { User, CalendarDays, PenLine, Check, Copy } from "../../constants/icons";
 import {
     StoryPointBadge,
     WorkItemTypeBadge,
@@ -156,7 +157,7 @@ export default function TaskCard({
                         onClick={() => onOpenComments(task.id)}
                         title="Comments"
                     >
-                        💬
+                        <GlyphMessageCircle size="1em" style={{ verticalAlign: "middle" }} />
                         {task.comment_count > 0 && (
                             <span className={s["comment-badge"]}>{task.comment_count}</span>
                         )}

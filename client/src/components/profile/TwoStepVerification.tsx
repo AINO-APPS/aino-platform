@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "../../constants/icons";
 import API from "../../api/client";
 import { RecoveryCodes, confirmMfaEnrollment, startMfaEnrollment } from "../auth/MfaChallenge";
 import s from "./EditProfileModal.module.css";

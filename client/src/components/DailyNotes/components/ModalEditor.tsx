@@ -1,3 +1,5 @@
+import { Plus as ActionPlus } from "../../../constants/icons";
+import { Ruler as GlyphRuler, FileText } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* ModalEditor — right panel of the maximized modal.
    Now also renders breadcrumbs, page metadata (icon/cover/properties),
@@ -128,9 +130,9 @@ export default function ModalEditor({
         const range = q.getSelection(true);
         q.insertText(range.index, "\n", "user");
         q.insertEmbed(range.index + 1, "divider", true, "user");
-        q.insertText(range.index + 2, " 📊 Sprint Board (live embed below) ", "user");
-        q.insertEmbed(range.index + 2 + " 📊 Sprint Board (live embed below) ".length, "divider", true, "user");
-        q.setSelection(range.index + 2 + " 📊 Sprint Board (live embed below) ".length + 1, "silent");
+        q.insertText(range.index + 2, " Sprint Board (live embed below) ", "user");
+        q.insertEmbed(range.index + 2 + " Sprint Board (live embed below) ".length, "divider", true, "user");
+        q.setSelection(range.index + 2 + " Sprint Board (live embed below) ".length + 1, "silent");
         setSprintEmbeds(prev => [...prev, { id: Date.now() }]);
     }, []);
 
@@ -139,9 +141,9 @@ export default function ModalEditor({
         const range = q.getSelection(true);
         q.insertText(range.index, "\n", "user");
         q.insertEmbed(range.index + 1, "divider", true, "user");
-        q.insertText(range.index + 2, " ⏱ Time Tracking (live embed below) ", "user");
-        q.insertEmbed(range.index + 2 + " ⏱ Time Tracking (live embed below) ".length, "divider", true, "user");
-        q.setSelection(range.index + 2 + " ⏱ Time Tracking (live embed below) ".length + 1, "silent");
+        q.insertText(range.index + 2, " Time Tracking (live embed below) ", "user");
+        q.insertEmbed(range.index + 2 + " Time Tracking (live embed below) ".length, "divider", true, "user");
+        q.setSelection(range.index + 2 + " Time Tracking (live embed below) ".length + 1, "silent");
         setTimeEmbeds(prev => [...prev, { id: Date.now() }]);
     }, []);
 
@@ -180,7 +182,7 @@ export default function ModalEditor({
             <div className={s.editorArea}>
                 <div className={s.empty}>
                     <p>No pages yet</p>
-                    <button className="btn btn-primary btn-sm" onClick={onNewPage}>+ New page</button>
+                    <button className="btn btn-primary btn-sm" onClick={onNewPage}><ActionPlus size="1em" /> New page</button>
                 </div>
             </div>
         );
@@ -226,7 +228,7 @@ export default function ModalEditor({
                         title="Change icon / cover"
                         aria-label="Change icon"
                     >
-                        <span className={s.iconChar}>{activePage.icon || "📝"}</span>
+                        <span className={s.iconChar}>{activePage.icon || <FileText size="1em" />}</span>
                     </button>
                     {iconOpen && (
                         <IconPicker
@@ -448,10 +450,10 @@ export default function ModalEditor({
             {diagramMode && (
                 <div className={s.diagramOverlay}>
                     <div className={s.diagramContextBar}>
-                        <span className={s.diagramContextIcon}>{activePage.icon || "📝"}</span>
+                        <span className={s.diagramContextIcon}>{activePage.icon || <FileText size="1em" />}</span>
                         <span className={s.diagramContextTitle}>{activePage.title || "Untitled"}</span>
                         <span className={s.diagramContextSep}>›</span>
-                        <span>📐 Editing diagram</span>
+                        <span><GlyphRuler size="1em" style={{ verticalAlign: "middle" }} /> Editing diagram</span>
                     </div>
                     <div className={s.diagramFill}>
                         <DrawioEditor

@@ -1,3 +1,4 @@
+import { Plus as ActionPlus } from "../../constants/icons";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
@@ -139,7 +140,7 @@ export default function Departments({ orgId, userRole }: DepartmentsProps) {
             </form>
           ) : (
             <button className={s.btnPrimary} onClick={() => setShowForm(true)}>
-              + Add Department
+              <ActionPlus size="1em" /> Add Department
             </button>
           )}
         </div>

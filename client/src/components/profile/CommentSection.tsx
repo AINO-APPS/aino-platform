@@ -1,7 +1,8 @@
+import { Send as GlyphSend } from "../../constants/icons";
 import { useState, useMemo, useRef } from "react";
 import ReactQuill from "react-quill-new";
 import DOMPurify from "dompurify";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip, X } from "../../constants/icons";
 import hljs from "../../hljs-setup";
 import MentionInput from "../common/MentionInput";
 import CommentAttachment from "../common/CommentAttachment";
@@ -294,7 +295,7 @@ export default function CommentSection({
                         title="Send comment"
                         aria-label="Send comment"
                     >
-                        ➤
+                        <GlyphSend size="1em" style={{ verticalAlign: "middle" }} />
                     </button>
                 </div>
                 <button

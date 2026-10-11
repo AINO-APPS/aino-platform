@@ -76,11 +76,15 @@ A dedicated reporting view so the day-to-day Sprint board stays focused on plann
 - **Withdraw leave** (employee) and **revoke** (manager) flows with notifications.
 - **Per-user holiday calendar** integration.
 
+
+**Shared UI icons:** import named icons and `IconProps` / `IconComponent` from `client/src/constants/icons.ts`. The registry uses explicit, tree-shakeable `@mui/icons-material` imports; its minimal adapter preserves `size`, CSS dimensions, color, styles, classes, SVG refs, and accessible labels. Material and Emotion are rendering peers, not a theme redesign. Quill controls and CSS masks also use genuine Material paths. Brand/tray assets, charts/progress drawings, user-selected page emoji, reactions, exported prose, and uploaded content remain unchanged.
+
 ### 💬 Real-time Chat
 - 1:1 and group conversations with **persistent history**, presence indicators, typing indicators, **read receipts**, **edit / delete / forward** of messages.
 - **Reactions**, **threading** via inline replies, **pinned messages**, **starred messages** (personal bookmarks).
 - **File sharing** with previews; **shared-files** drawer per conversation for quick re-find.
-- **Polls** (single or multi-vote) inline in conversations.
+- **Camera** in the web and desktop composer: tap Photo or hold for 400 ms to record a quick video; Video mode taps start/stop. Space/Enter also operate the shutter. Photos and videos open the existing review editor; Gallery reuses the file picker without clearing text drafts. Videos are limited to 60 seconds / 25 MiB; unsupported recording keeps photos available. Microphone access is requested when recording starts, with an explicit silent option after denial. Camera switching, zoom/presets/pinch and light controls appear only for capabilities reported by the device. Closing, cancelling, or backgrounding discards unfinished capture.
+- **Polls** (single or multi-vote) inline in web and desktop conversations, with an expandable **View votes** dialog grouped by option. Voters show photos or initials; live refreshes retain rich identities. Unique-person totals are distinct from selection-share percentages for multiple-choice polls.
 - **@mentions** trigger desktop notifications, email, and a notification-centre entry.
 - **Search** across conversations + messages + files.
 - **Pin / favourite** conversations to the top of the list.
@@ -216,7 +220,7 @@ A dedicated reporting view so the day-to-day Sprint board stays focused on plann
 
 | Layer | Tools |
 |-------|-------|
-| **Frontend** | React 18, React Router 6, Vite, lucide-react icons, highlight.js, axios, NProgress |
+| **Frontend** | React 19, React Router 7, Vite, Material UI icons (`@mui/icons-material`), highlight.js, axios, NProgress |
 | **Editor / blocks** | TipTap-style rich text (custom), `@dnd-kit` for drag-and-drop |
 | **Realtime** | Native WebSocket, WebRTC (with optional Coturn for TURN/STUN) |
 | **Streaming** | HLS broadcast mode for large meetings |

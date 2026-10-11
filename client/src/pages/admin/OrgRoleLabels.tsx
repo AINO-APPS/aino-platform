@@ -10,7 +10,7 @@ import {
   Edit3,
   ShieldCheck,
   Users,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getOrgRoles, createOrgRole, updateOrgRole, deleteOrgRole } from "../../api/organization";
 import { useRoleLabels } from "../../RoleLabelsContext";
 import { useToast } from "../../components/common/Toast";

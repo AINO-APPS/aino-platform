@@ -1,12 +1,12 @@
 import React, { memo } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Play, Coffee, Stop, type IconComponent } from "../../constants/icons";
 import s from "./TimelineCard.module.css";
 
-const TIMELINE_ICONS: Record<string, string> = {
-    clock_in: "▶",
-    break_start: "☕",
-    break_end: "▶",
-    clock_out: "⏹",
+const TIMELINE_ICONS: Record<string, IconComponent> = {
+    clock_in: Play,
+    break_start: Coffee,
+    break_end: Play,
+    clock_out: Stop,
 };
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -39,11 +39,12 @@ const TimelineCard = memo(function TimelineCard({ entries }: { entries?: Timelin
                         const d = new Date(raw.endsWith("Z") ? raw : raw + "Z");
                         time = isNaN(d.getTime()) ? "—" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
                     }
+                    const Icon = TIMELINE_ICONS[entry.entry_type];
                     return (
                         <div key={i} className={s["timeline-entry"]}>
                             <div className={s["timeline-connector"]}>
                                 <div className={`${s["timeline-icon-circle"]} ${s[entry.entry_type]}`}>
-                                    <span className="page-icon">{TIMELINE_ICONS[entry.entry_type]}</span>
+                                    <span className="page-icon">{Icon && <Icon size={16} />}</span>
                                 </div>
                                 {i < entries.length - 1 && <div className={s["timeline-line"]} />}
                             </div>

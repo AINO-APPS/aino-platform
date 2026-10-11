@@ -1,12 +1,16 @@
+import { Plus as ActionPlus } from "../constants/icons";
+import { Edit as EntryEdit, CircleFilled as EntryStatus } from "../constants/icons";
+import { Edit as InlineEdit, Plus as InlinePlus, Check as InlineCheck } from "../constants/icons";
+import { X as GlyphX, Plus as GlyphPlus } from "../constants/icons";
 import React, { useState, useRef, useEffect } from "react";
-import { FileEdit, Ban, AlertCircle, Building2, House, ArrowRight, ClipboardList, Timer } from "lucide-react";
+import { FileEdit, Ban, AlertCircle, Building2, House, ArrowRight, ClipboardList, Timer } from "../constants/icons";
 import { addManualEntry, updateManualEntry, getEntries, getLeaves, getStatus, getManualEntryRequests, getOvertimeRequests } from "../api/workforce";
 import { getLocalToday } from "../api/client";
 import { getCurrentOrg } from "../api/organization";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import useRealtimeEvent from "../hooks/useRealtimeEvent";
 // NOTE (status v2): tracker no longer writes status — see useFloatingTimer.js
-import { tsToLocalTime, parseEntries, entryTypeLabels, entryTypeIcons } from "./manualEntry/manualEntryUtils";
+import { tsToLocalTime, parseEntries, entryTypeLabels } from "./manualEntry/manualEntryUtils";
 import PendingRequestsList from "./manualEntry/PendingRequestsList";
 import OvertimeRequestForm from "./manualEntry/OvertimeRequestForm";
 import s from "./ManualEntry.module.css";
@@ -282,7 +286,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
       <div className={s["manual-entry-grid"]}>
         {/* Form Card */}
         <div className={s["manual-entry-card"]}>
-          <h3>{isEditMode ? "✏️ Edit Entry" : "➕ Add Entry"}</h3>
+          <h3>{isEditMode ? <><InlineEdit size="1em" style={{ verticalAlign: "middle" }} /> Edit Entry</> : <><InlinePlus size="1em" style={{ verticalAlign: "middle" }} /> Add Entry</>}</h3>
 
           {error && <div className="error-msg">{error}</div>}
           {success && <div className="success-msg">{success}</div>}
@@ -304,9 +308,9 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
 
             {isEditMode && (
               <div className={s["edit-mode-banner"]}>
-                <span>✏️ Editing entry for <strong>{date}</strong></span>
+                <span><EntryEdit size="1em" /> Editing entry for <strong>{date}</strong></span>
                 <button type="button" className={s["cancel-edit-btn"]} onClick={handleCancelEdit}>
-                  ✕ Cancel
+                  <GlyphX size="1em" style={{ verticalAlign: "middle" }} /> Cancel
                 </button>
               </div>
             )}
@@ -361,7 +365,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                 <div className={s["existing-list"]}>
                   {existingEntries.map((entry, i) => (
                     <div key={i} className={s["existing-item"]}>
-                      <span>{entryTypeIcons[entry.entry_type]}</span>
+                      <span><EntryStatus size={10} color={entry.entry_type === "clock_in" ? "#22c55e" : entry.entry_type === "break_start" ? "#eab308" : entry.entry_type === "break_end" ? "#3b82f6" : "#ef4444"} /></span>
                       <span>{entryTypeLabels[entry.entry_type]}</span>
                       <span className={s["existing-time"]}>
                         {tsToLocalTime(entry.timestamp)}
@@ -379,7 +383,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                   onClick={handleEditExisting}
                   disabled={loading}
                 >
-                  ✏️ Edit These Entries
+                  <EntryEdit size="1em" /> Edit These Entries
                 </button>
               </div>
             )}
@@ -448,7 +452,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                   <div className={s["breaks-header"]}>
                     <label>Breaks</label>
                     <button type="button" className={s["btn-add-break"]} onClick={addBreak}>
-                      + Add Break
+                      <ActionPlus size="1em" /> Add Break
                     </button>
                   </div>
                   {breaks.map((brk, i) => (
@@ -474,7 +478,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                         onClick={() => removeBreak(i)}
                         title="Remove break"
                       >
-                        ✕
+                        <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
                       </button>
                     </div>
                   ))}
@@ -487,7 +491,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
                 >
                   {loading
                     ? (isEditMode ? "Updating..." : "Saving...")
-                    : (isEditMode ? "✓ Update Entry" : "✓ Save Manual Entry")}
+                    : (isEditMode ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Update Entry</> : <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Save Manual Entry</>)}
                 </button>
               </>
             )}
@@ -512,7 +516,7 @@ export default function ManualEntry({ isActive, onEntryChanged }: ManualEntryPro
         <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}><Timer size={22} /> Overtime Request</h2>
         <div className={s["manual-entry-grid"]}>
           <div className={s["manual-entry-card"]}>
-            <h3>➕ Request Overtime</h3>
+            <h3><GlyphPlus size="1em" style={{ verticalAlign: "middle" }} /> Request Overtime</h3>
             <OvertimeRequestForm onSubmitted={setOvertimeRequests} />
           </div>
 

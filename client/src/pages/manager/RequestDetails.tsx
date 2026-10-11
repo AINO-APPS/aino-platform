@@ -1,5 +1,5 @@
 import React from "react";
-import { RotateCcw, FileEdit, Clock, ArrowLeftRight } from "lucide-react";
+import { RotateCcw, FileEdit, Clock, ArrowLeftRight } from "../../constants/icons";
 import { LEAVE_ICONS } from "./constants";
 
 interface LeaveIconForProps {

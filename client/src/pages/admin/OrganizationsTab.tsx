@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Hammer, Building, UsersRound, GitBranch, X } from "lucide-react";
+import { Hammer, Building, UsersRound, GitBranch, X } from "../../constants/icons";
 import OrganizationsManagement from "./OrganizationsManagement";
 import MyOrganization from "./MyOrganization";
 import Departments from "../../components/organization/Departments";

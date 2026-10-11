@@ -1,6 +1,7 @@
+import { X as MaterialX } from "../../constants/icons";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell } from "lucide-react";
+import { Bell } from "../../constants/icons";
 import s from "./EventReminderToast.module.css";
 
 const AUTO_CLOSE_MS = 15000;
@@ -61,15 +62,7 @@ function ReminderItem({ reminder, onDismiss }: ReminderItemProps) {
                         onClick={() => onDismiss(reminder.id)}
                         aria-label="Dismiss"
                     >
-                        <svg
-                            viewBox="0 0 14 14"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                        >
-                            <path d="M2 2l10 10M12 2L2 12" />
-                        </svg>
+                        <MaterialX size={14} />
                     </button>
                 </div>
                 <div className={s.title}>{event.title}</div>

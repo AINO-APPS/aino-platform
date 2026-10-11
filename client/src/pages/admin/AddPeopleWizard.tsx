@@ -11,7 +11,7 @@ import {
   AlertTriangle,
   FileText,
   Plus,
-} from "lucide-react";
+} from "../../constants/icons";
 import { createAdminUser, getAdminOrganizations, getCurrentOrg, getOrgDepartments, getOrgTeams } from "../../api/organization";
 import { importUsers } from "../../api/compensation";
 import { ROLES, ROLE_LABELS } from "./constants";

@@ -1,3 +1,4 @@
+import { Menu as MaterialMenu } from "../../constants/icons";
 import { useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
@@ -15,8 +16,8 @@ import {
     Users,
     Settings,
     Server,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "../../constants/icons";
+import type { IconComponent } from "../../constants/icons";
 import s from "./Navbar.module.css";
 
 const ROLE_LEVELS: Record<string, number> = {
@@ -31,7 +32,7 @@ const ROLE_LEVELS: Record<string, number> = {
 interface MoreItem {
     to: string;
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
 }
 
 export default function MobileTabBar() {
@@ -109,14 +110,7 @@ export default function MobileTabBar() {
                     aria-haspopup="menu"
                 >
                     <span className={s["nav-icon"]}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M4 6h16M4 12h16M4 18h16"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <MaterialMenu size="20" width="20" height="20" />
                     </span>
                     <span className={s["tab-label"]}>More</span>
                 </button>

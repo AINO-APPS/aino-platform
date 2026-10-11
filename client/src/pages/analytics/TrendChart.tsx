@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Line } from "react-chartjs-2";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "../../constants/icons";
 import { tooltipStyle, legendStyle, axisStyle } from "./chartConfig";
 import s from "./Analytics.module.css";
 

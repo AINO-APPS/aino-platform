@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Download, FileText, Image as ImageIcon, Link2, Music, Play } from "lucide-react";
+import { ArrowLeft, Download, FileText, Image as ImageIcon, Link2, Music, Play } from "../../constants/icons";
 import s from "./SharedFilesPanel.module.css";
 import { getSharedFiles } from "../../api/chat";
 import { isBeforeClearedAt } from "../../pages/chat/chatLocalDeletes";

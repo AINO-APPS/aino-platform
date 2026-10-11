@@ -1,5 +1,6 @@
+import { Paperclip as AttachmentIcon, Mic as VoiceIcon } from "../../constants/icons";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Pin, X } from "lucide-react";
+import { ChevronDown, Pin, X } from "../../constants/icons";
 import {
   ChatAvatar,
   MessageBubble,
@@ -193,8 +194,8 @@ export default function ChatMessages({
               <span className={s.pinnedBannerText}>
                 {latestPin.content ||
                   (latestPin.file_name
-                    ? `📎 ${latestPin.file_name}`
-                    : "🎤 Voice message")}
+                    ? <><AttachmentIcon size={14} /> {latestPin.file_name}</>
+                    : <><VoiceIcon size={14} /> Voice message</>)}
               </span>
             </button>
             <button

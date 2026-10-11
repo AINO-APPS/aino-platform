@@ -1,6 +1,7 @@
+import { Check as InlineCheck, X as InlineX } from "../../constants/icons";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save, TestTube2, CheckCircle, AlertCircle } from "lucide-react";
+import { Save, TestTube2, CheckCircle, AlertCircle } from "../../constants/icons";
 import { getPaymentConfig, savePaymentConfig, testPaymentConfig } from "../../api/compensation";
 import s from "./AdminPages.module.css";
 
@@ -94,7 +95,7 @@ export default function PaymentSettings() {
         <div className={s.infoBox}>
           <p>
             <strong>Current Status:</strong>{" "}
-            {config.is_active ? "✓ Active" : "✗ Inactive"}
+            {config.is_active ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Active</> : <><InlineX size="1em" style={{ verticalAlign: "middle" }} /> Inactive</>}
           </p>
           <p>
             <strong>Key ID:</strong> {config.api_key_id || "Not set"}

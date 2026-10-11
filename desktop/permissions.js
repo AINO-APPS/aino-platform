@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isAllowedPermission = isAllowedPermission;
 exports.setupPermissions = setupPermissions;
-const electron_1 = require("electron");
 const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "mediaKeySystem", "geolocation"]);
 function isAllowedPermission(permission, requestingOrigin) {
     if (!ALLOWED_PERMISSIONS.has(permission))
@@ -38,10 +37,6 @@ function setupPermissions(electronSession) {
         console.log(`[AINO] Permission check: ${permission} → ${granted ? "GRANTED" : "DENIED"}`);
         return granted;
     });
-    // macOS: request camera/mic access at OS level
-    if (process.platform === "darwin") {
-        electron_1.systemPreferences.askForMediaAccess("camera").catch(() => { });
-        electron_1.systemPreferences.askForMediaAccess("microphone").catch(() => { });
-    }
+    // getUserMedia requests OS consent only when a camera or microphone feature is used.
 }
 //# sourceMappingURL=permissions.js.map

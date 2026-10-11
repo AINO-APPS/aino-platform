@@ -1,3 +1,4 @@
+import { AlertTriangle as GlyphAlertTriangle, Plus, Trash2, Save, Settings as SettingsIcon, Layers, Workflow as WorkflowIcon, Lock, ShieldCheck, Tag, ListChecks } from "../constants/icons";
 /**
  * AgileSettings — tenant-level Agile administration UI.
  *
@@ -13,18 +14,6 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Plus,
-  Trash2,
-  Save,
-  Settings as SettingsIcon,
-  Layers,
-  Workflow as WorkflowIcon,
-  Lock,
-  ShieldCheck,
-  Tag,
-  ListChecks,
-} from "lucide-react";
 import TaskLabelsTab from "./admin/TaskLabelsTab";
 import CustomFieldsTab from "./CustomFieldsTab";
 import { getAgileSettings, updateAgileSettings, getWorkItemTypes, createWorkItemType, updateWorkItemType, deleteWorkItemType, getWorkflowStates, createWorkflowState, updateWorkflowState, deleteWorkflowState, getAgilePermissions } from "../api/tasks";
@@ -767,7 +756,7 @@ function WorkflowTab({ canEdit, onChanged, setError }: WorkflowTabProps) {
           </h3>
           {grouped[cat.key].length === 0 && (
             <div className={s.warn}>
-              ⚠ No active state in this category — add one to keep reporting
+              <GlyphAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /> No active state in this category — add one to keep reporting
               accurate.
             </div>
           )}

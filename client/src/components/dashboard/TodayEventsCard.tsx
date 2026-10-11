@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, Video } from "lucide-react";
+import { CalendarDays, Video } from "../../constants/icons";
 import { useBranding } from "../../BrandingContext";
 import s from "./TodayEventsCard.module.css";
 

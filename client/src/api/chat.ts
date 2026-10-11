@@ -103,11 +103,29 @@ export const forwardMessage = (msgId: number | string, conversationIds: (number 
     API.post(`/chat/messages/${msgId}/forward`, { conversationIds });
 export const toggleStar = (msgId: number | string) => API.post(`/chat/messages/${msgId}/star`);
 export const getStarredMessages = () => API.get("/chat/starred");
-export const createPoll = (convId: number | string, data: AnyData) =>
-    API.post(`/chat/conversations/${convId}/polls`, data);
+export interface PollVoter {
+    userId: number | string;
+    fullName: string;
+    avatar: string | null;
+}
+export interface ChatPoll {
+    id: number | string;
+    question: string;
+    options: string[];
+    votes: Record<string, PollVoter[]>;
+    closed_at?: string | null;
+    multi_select?: boolean;
+}
+export interface PollSubmitData {
+    question: string;
+    options: string[];
+    multiSelect: boolean;
+}
+export const createPoll = (convId: number | string, data: PollSubmitData) =>
+    API.post<{ ok: boolean; poll: ChatPoll; messageId: number | string }>(`/chat/conversations/${convId}/polls`, data);
 export const votePoll = (pollId: number | string, optionIdx: number) =>
-    API.post(`/chat/polls/${pollId}/vote`, { optionIdx });
-export const getPoll = (pollId: number | string) => API.get(`/chat/polls/${pollId}`);
+    API.post<{ ok: boolean; votes: Record<string, Array<number | string>> }>(`/chat/polls/${pollId}/vote`, { optionIdx });
+export const getPoll = (pollId: number | string) => API.get<ChatPoll>(`/chat/polls/${pollId}`);
 export const getSharedFiles = (convId: number | string) =>
     API.get(`/chat/conversations/${convId}/files`);
 export const ackDelivered = (msgId: number | string) =>

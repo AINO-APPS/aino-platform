@@ -17,7 +17,7 @@ import {
     UserCheck,
     UserPlus,
     Video,
-} from "lucide-react";
+} from "../../../constants/icons";
 import ConversationAvatar from "../../../components/chat/ConversationAvatar";
 import SignalMenu, { MUTE_DURATIONS, type MuteDuration } from "../../../components/chat/signal/SignalMenu";
 import { getConvName } from "../chatUtils";

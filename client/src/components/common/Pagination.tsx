@@ -4,7 +4,7 @@
 // (`{ limit, offset, total, hasMore }`) — currently Projects list,
 // per-project Tasks panel, and the Backlog list.
 
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "../../constants/icons";
 
 interface PaginationProps {
     total: number;

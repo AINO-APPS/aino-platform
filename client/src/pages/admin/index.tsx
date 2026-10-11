@@ -4,7 +4,7 @@ import {
     RefreshCw, DollarSign, Settings as SettingsIcon,
     Menu, X, ChevronDown, ExternalLink, Workflow as WorkflowIcon,
     Wallet, Receipt, CreditCard, Folder, GitMerge, Shield,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -32,7 +32,7 @@ import AgileSettings from "../AgileSettings";
 import Projects from "../Projects";
 import Integrations from "../Integrations";
 import s from "./AdminLayout.module.css";
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "../../constants/icons";
 
 // ─── Section registry ─────────────────────────────────────────────────────
 //
@@ -45,7 +45,7 @@ import type { LucideIcon } from "lucide-react";
 interface Section {
     key: string;
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
     group: string;
     requires?: string | ((user: any) => boolean);
     feature?: string;

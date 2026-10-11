@@ -1,3 +1,4 @@
+import { Check as MaterialCheck, Minus as MaterialMinus, Clock as MaterialClock, Circle as MaterialCircle, ChevronDown as MaterialChevronDown, Edit as MaterialEdit, Trash2 as MaterialTrash2, Sun as MaterialSun, Moon as MaterialMoon, RefreshCw as MaterialRefreshCw, LogOut as MaterialLogOut } from "../../constants/icons";
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
@@ -7,7 +8,7 @@ import { useStatus } from "../../status/useStatus";
 import { clockOut as apiClockOut, switchRealm } from "../../api/workforce";
 import { uploadAvatar, removeAvatar } from "../../api/organization";
 import { baseURL } from "../../api/client";
-import { Camera, Building2, House, Bell, ScanFace, Repeat2, ShieldCheck, FileText } from "lucide-react";
+import { Camera, Building2, House, Bell, ScanFace, Repeat2, ShieldCheck, FileText } from "../../constants/icons";
 import { currentRealm } from "../../AuthContext";
 import EditProfileModal from "../profile/EditProfileModal";
 import NotificationSoundsModal from "../profile/NotificationSoundsModal";
@@ -96,51 +97,22 @@ export default function ProfileMenu() {
     const renderStatusGlyph = (glyph: Glyph, className: string) => {
         if (glyph === "check") {
             return (
-                <svg className={className} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                    <path
-                        d="M2.1 5.1L4.2 7L7.9 3.3"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <MaterialCheck size={10} className={className} aria-hidden="true" />
             );
         }
         if (glyph === "minus") {
             return (
-                <svg className={className} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                    <line
-                        x1="2.6"
-                        y1="5"
-                        x2="7.4"
-                        y2="5"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                    />
-                </svg>
+                <MaterialMinus size={10} className={className} aria-hidden="true" />
             );
         }
         if (glyph === "clock") {
             return (
-                <svg className={className} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                    <circle cx="5" cy="5" r="3.1" stroke="currentColor" strokeWidth="1.3" />
-                    <path
-                        d="M5 3.2V5.1L6.4 6"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <MaterialClock size={10} className={className} aria-hidden="true" />
             );
         }
         if (glyph === "ring") {
             return (
-                <svg className={className} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                    <circle cx="5" cy="5" r="3" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
+                <MaterialCircle size={10} className={className} aria-hidden="true" />
             );
         }
         return <span className={s["status-glyph-dot"]} aria-hidden="true" />;
@@ -227,21 +199,7 @@ export default function ProfileMenu() {
                     </span>
                 </div>
                 <span className={s["profile-name"]}>{user?.full_name}</span>
-                <svg
-                    className={`${s["profile-chevron-icon"]} ${profileOpen ? s.open : ""}`}
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    fill="none"
-                >
-                    <path
-                        d="M3 4.5L6 7.5L9 4.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <MaterialChevronDown size="12" className={`${s["profile-chevron-icon"]} ${profileOpen ? s.open : ""}`} width="12" height="12" />
             </button>
 
             {profileOpen && (
@@ -324,15 +282,7 @@ export default function ProfileMenu() {
                             }}
                         >
                             <span className={s["dd-item-icon"]}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path
-                                        d="M11.5 2.5a1.414 1.414 0 012 2L5 13H2v-3L11.5 2.5z"
-                                        stroke="currentColor"
-                                        strokeWidth="1.2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    />
-                                </svg>
+                                <MaterialEdit size="16" width="16" height="16" />
                             </span>
                             Edit Profile
                         </button>
@@ -345,15 +295,7 @@ export default function ProfileMenu() {
                                 }}
                             >
                                 <span className={s["dd-item-icon"]}>
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path
-                                            d="M4 6h8l-.7 7.3a1 1 0 01-1 .7H5.7a1 1 0 01-1-.7L4 6zM6 6V4a1 1 0 011-1h2a1 1 0 011 1v2M3 6h10"
-                                            stroke="currentColor"
-                                            strokeWidth="1.2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        />
-                                    </svg>
+                                    <MaterialTrash2 size="16" width="16" height="16" />
                                 </span>
                                 Remove Photo
                             </button>
@@ -383,27 +325,7 @@ export default function ProfileMenu() {
                         </Link>
                         <button className={s["profile-dropdown-item"]} onClick={toggleTheme}>
                             <span className={s["dd-item-icon"]}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    {theme === "dark" ? (
-                                        <>
-                                            <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.2" />
-                                            <path
-                                                d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.75 3.75l1.06 1.06M11.19 11.19l1.06 1.06M3.75 12.25l1.06-1.06M11.19 4.81l1.06-1.06"
-                                                stroke="currentColor"
-                                                strokeWidth="1.2"
-                                                strokeLinecap="round"
-                                            />
-                                        </>
-                                    ) : (
-                                        <path
-                                            d="M13.36 10.06A6 6 0 015.94 2.64 6 6 0 1013.36 10.06z"
-                                            stroke="currentColor"
-                                            strokeWidth="1.2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        />
-                                    )}
-                                </svg>
+                                {theme === "dark" ? <MaterialSun size={16} /> : <MaterialMoon size={16} />}
                             </span>
                             {theme === "dark" ? "Light Mode" : "Dark Mode"}
                         </button>
@@ -416,22 +338,7 @@ export default function ProfileMenu() {
                                 }}
                             >
                                 <span className={s["dd-item-icon"]}>
-                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                        <path
-                                            d="M14 8a6 6 0 1 1-4.15-5.7"
-                                            stroke="currentColor"
-                                            strokeWidth="1.2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        />
-                                        <polyline
-                                            points="14 2 14 6 10 6"
-                                            stroke="currentColor"
-                                            strokeWidth="1.2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        />
-                                    </svg>
+                                    <MaterialRefreshCw size="16" width="16" height="16" />
                                 </span>
                                 Check for Updates
                             </button>
@@ -481,15 +388,7 @@ export default function ProfileMenu() {
                         }}
                     >
                         <span className={`${s["dd-item-icon"]} ${s["dd-signout-icon"]}`}>
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                <path
-                                    d="M6 14H3.33A1.33 1.33 0 012 12.67V3.33A1.33 1.33 0 013.33 2H6M10.67 11.33L14 8l-3.33-3.33M14 8H6"
-                                    stroke="currentColor"
-                                    strokeWidth="1.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                />
-                            </svg>
+                            <MaterialLogOut size="16" width="16" height="16" />
                         </span>
                         Sign Out
                     </button>

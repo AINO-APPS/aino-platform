@@ -14,7 +14,7 @@ import {
     StarOff,
     Trash2,
     Video,
-} from "lucide-react";
+} from "../../constants/icons";
 import { muteEntry, type MuteDuration, type SignalMenuEntry } from "../../components/chat/signal/SignalMenu";
 
 export interface ConversationMenuHandlers {

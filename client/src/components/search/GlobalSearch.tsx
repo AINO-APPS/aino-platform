@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { Search, X, ClipboardList, FileText, Calendar, Palmtree, Rocket, User, ScrollText, ArrowRight } from "lucide-react";
+import { Search, X, ClipboardList, FileText, Calendar, Palmtree, Rocket, User, ScrollText, ArrowRight } from "../../constants/icons";
 import { useGlobalSearch } from "../../hooks/useGlobalSearch";
 import s from "./GlobalSearch.module.css";
 

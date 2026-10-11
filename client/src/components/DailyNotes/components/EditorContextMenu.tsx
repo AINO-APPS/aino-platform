@@ -1,3 +1,5 @@
+import { Info as VariantInfo, AlertTriangle as VariantWarning, CheckCircle2 as VariantSuccess, Lightbulb as VariantTip } from "../../../constants/icons";
+import { Check as GlyphCheck } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* EditorContextMenu — right-click context menu for the Quill editor canvas.
    Detects the element type at the click position and shows relevant actions
@@ -7,7 +9,7 @@ import {
     Trash2, Copy, ClipboardPaste, Scissors,
     Type, Image as ImageIcon, Table2, Code2, Minus, SplitSquareHorizontal,
     Volume2, PencilLine, MessageSquareQuote, ChevronRight,
-} from "lucide-react";
+} from "../../../constants/icons";
 import s from "./EditorContextMenu.module.css";
 
 interface DetectedTarget {
@@ -111,10 +113,10 @@ function getTypeIcon(type: string) {
 }
 
 const CALLOUT_VARIANTS = [
-    { id: "info", label: "ℹ️ Info", color: "#3b82f6" },
-    { id: "warn", label: "⚠️ Warning", color: "#f59e0b" },
-    { id: "success", label: "✅ Success", color: "#10b981" },
-    { id: "tip", label: "💡 Tip", color: "#8b5cf6" },
+    { id: "info", label: "Info", icon: VariantInfo, color: "#3b82f6" },
+    { id: "warn", label: "Warning", icon: VariantWarning, color: "#f59e0b" },
+    { id: "success", label: "Success", icon: VariantSuccess, color: "#10b981" },
+    { id: "tip", label: "Tip", icon: VariantTip, color: "#8b5cf6" },
 ];
 
 interface MenuState {
@@ -379,8 +381,8 @@ export default function EditorContextMenu({ quillRef, pageId, resetKey, readOnly
                                         {CALLOUT_VARIANTS.map(v => (
                                             <button key={v.id} className={s.item}
                                                 onClick={() => changeCalloutVariant(v.id)}>
-                                                <span>{v.label}</span>
-                                                {target.variant === v.id && <span className={s.check}>✓</span>}
+                                                <span><v.icon size={13} /> {v.label}</span>
+                                                {target.variant === v.id && <span className={s.check}><GlyphCheck size="1em" style={{ verticalAlign: "middle" }} /></span>}
                                             </button>
                                         ))}
                                     </div>

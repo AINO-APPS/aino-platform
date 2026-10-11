@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Monitor, Smartphone, LogOut } from "lucide-react";
+import { Monitor, Smartphone, LogOut } from "../../constants/icons";
 import API from "../../api/client";
 import s from "./EditProfileModal.module.css";
 

@@ -7,7 +7,7 @@ import {
   AlarmClock,
   GitBranch,
   Settings,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import { getCurrentOrg } from "../../api/organization";
 import OrgSettings from "../../components/organization/OrgSettings";
