@@ -17,6 +17,32 @@ non-speakers to a low-cost HLS viewer.
 
 ---
 
+## Call behavior (desktop/shared React)
+
+- Every new outgoing voice/video call shows the shared **Call / Cancel**
+  confirmation before signaling, device capture, or group huddle creation.
+  Headers, chat/group information, chat-list actions, and history callbacks use
+  the same boundary. The requested conversation and call type are captured:
+  switching chats while the dialog is open cannot change its target. Cancel,
+  Escape, and dismissal have no call side effects. Account or tenant changes
+  invalidate pending confirmation.
+- Each participant can turn their own camera on/off during an established
+  call, including a call that began as voice. A peer's camera never enables
+  yours. Turning the camera off releases capture; microphone, duration and the
+  connection remain intact. Permission/device failure leaves audio connected
+  and shows a camera error. Tracks acquired after hang-up are stopped.
+- Live tracks and media-state signals determine the overlay and PiP
+  presentation. When neither side sends video or shares a screen the UI returns
+  to audio. Original invitation/history call type remains unchanged.
+- Camera controls do not replace an audio sender or stop an active screen share.
+  Sharing uses the existing video path and restores the current camera (or no
+  video) on stop. Hold restores prior track enablement; it does not enable a
+  previously disabled camera or unmute an already-muted microphone. Existing
+  negotiation collision handling and reconnect paths remain in use.
+- Focused automated client checks cover confirmation, camera toggles, media-state
+  recovery and sender selection. Cross-platform calls, real camera LEDs, network
+  handoffs, and Electron/native PiP still require signed-in device verification.
+
 ## 1. Architecture overview
 
 ```
@@ -422,7 +448,7 @@ That's $0 extra at small scale and ~5 minutes of setup.
 ## Background Effects (Blur & Virtual Backgrounds)
 
 WorkPulse meetings support background blur and virtual (image) backgrounds
-entirely client-side — no server work is required.
+entirely client-side ï¿½ no server work is required.
 
 ### How it works
 
@@ -431,7 +457,7 @@ entirely client-side — no server work is required.
 - The raw camera `MediaStreamTrack` is fed through a `<canvas>` compositor
   that masks the person and draws the chosen background underneath.
 - The processed canvas track is swapped onto every `RTCRtpSender` via
-  `replaceTrack` — no SDP renegotiation required, so peers see the new
+  `replaceTrack` ï¿½ no SDP renegotiation required, so peers see the new
   video instantly without reconnecting.
 
 ### Where it appears
@@ -443,10 +469,10 @@ entirely client-side — no server work is required.
 
 ### Available effects
 
-- **None** — raw camera track
-- **Blur** — adjustable strength (4–30 px)
-- **Built-in virtual backgrounds** — Aurora, Sunset, Forest, Graphite, Paper
-- **Custom upload** — any image up to 6 MB; stays on-device, never uploaded
+- **None** ï¿½ raw camera track
+- **Blur** ï¿½ adjustable strength (4ï¿½30 px)
+- **Built-in virtual backgrounds** ï¿½ Aurora, Sunset, Forest, Graphite, Paper
+- **Custom upload** ï¿½ any image up to 6 MB; stays on-device, never uploaded
 
 ### Browser requirements & graceful degradation
 

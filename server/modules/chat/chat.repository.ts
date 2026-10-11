@@ -184,11 +184,30 @@ export async function insertReaction(
     messageId: number,
     userId: number,
     emoji: string,
-): Promise<void> {
-    await db.query(
-        "INSERT INTO message_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3) ON CONFLICT (message_id, user_id, emoji) DO NOTHING",
+): Promise<{ id: number; created_at: string | Date } | undefined> {
+    const result = await db.query(
+        "INSERT INTO message_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3) ON CONFLICT (message_id, user_id, emoji) DO NOTHING RETURNING id, created_at",
         [messageId, userId, emoji],
     );
+    return result.rows[0];
+}
+
+export async function getReactionPushRecipient(db: ChatDb, reactionId: number, ownerId: number) {
+    return (await db.query(
+        `SELECT actor.full_name, actor.avatar FROM message_reactions r
+         JOIN messages m ON m.id = r.message_id AND m.deleted_at IS NULL
+         JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = m.sender_id
+         JOIN conversation_participants acting ON acting.conversation_id = m.conversation_id AND acting.user_id = r.user_id
+         JOIN users owner ON owner.id = m.sender_id AND owner.is_active = TRUE
+         JOIN users actor ON actor.id = r.user_id AND actor.is_active = TRUE
+         WHERE r.id = $1 AND m.sender_id = $2 AND r.user_id <> m.sender_id
+         AND NOT (cp.is_muted AND (cp.muted_until IS NULL OR cp.muted_until > NOW()))
+         AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
+         AND NOT EXISTS (SELECT 1 FROM blocked_users b
+             WHERE (b.blocker_id = m.sender_id AND b.blocked_id = r.user_id)
+                OR (b.blocker_id = r.user_id AND b.blocked_id = m.sender_id))`,
+        [reactionId, ownerId],
+    )).rows[0] as { full_name: string; avatar: string | null } | undefined;
 }
 
 // ── Pin ─────────────────────────────────────────────────────────────────

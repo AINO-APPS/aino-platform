@@ -16,6 +16,7 @@ import {
 } from "../platform/pushNotifications/payloadContract";
 import {
     getDeviceTokenGroups,
+    getReactionDeviceTokens,
     getDeviceTokens,
     registerDeviceToken,
 } from "../platform/pushNotifications/deviceTokens";
@@ -521,6 +522,43 @@ class PushNotificationService {
         return this.sendToDevices(query, tokens, payload, `msg-${messageData.messageId}`);
     }
 
+    async sendReactionNotification(
+        query: QueryFn, userId: number, tenantId: number | null,
+        reaction: {
+            conversationId: number; messageId: number; messageOwnerId: number;
+            actorId: number; actorName: string; actorAvatar: string;
+            emoji: string; reactionId: number; sentAt: number;
+        },
+    ): Promise<{ succeeded: number; failed: number }> {
+        if (!this.initialized || !this.app || userId !== reaction.messageOwnerId || userId === reaction.actorId) {
+            return { succeeded: 0, failed: 0 };
+        }
+        const data: Record<string, string> = {
+            ...buildCommonPushData({
+            type: "chat_reaction", title: reaction.actorName,
+            body: `${reaction.actorName} reacted ${reaction.emoji} to your message`,
+            conversationId: String(reaction.conversationId), messageId: String(reaction.messageId),
+            messageOwnerId: String(userId), actorId: String(reaction.actorId),
+            actorName: reaction.actorName, actorAvatar: reaction.actorAvatar, emoji: reaction.emoji,
+            reactionId: String(reaction.reactionId), action: "added",
+            dedupeKey: `reaction:${reaction.reactionId}`,
+            expiresAt: String(reaction.sentAt + 24 * 60 * 60),
+            }, tenantId),
+            sentAt: new Date(reaction.sentAt * 1000).toISOString(),
+        };
+        assertRoutingPayloadContract("reaction", data, logger);
+        const ttl = Number(data.expiresAt) * 1000 - Date.now();
+        if (ttl <= 0) return { succeeded: 0, failed: 0 };
+        const tokens = await getReactionDeviceTokens(query, userId, tenantId, logger);
+        if (!tokens.length) {
+            logger.info({ event: "push_skip_no_tokens", notificationType: "chat_reaction", userId, tenantId }, "No capable Android reaction tokens");
+            return { succeeded: 0, failed: 0 };
+        }
+        return this.sendToDevices(query, tokens, {
+            data, androidDataOnly: true, android: { priority: "high", ttl },
+        }, `reaction-${reaction.reactionId}`);
+    }
+
     async sendNotificationAlert(
         query: QueryFn,
         userId: number,
@@ -569,6 +607,7 @@ class PushNotificationService {
         // the browser/desktop alert. iOS keeps its visible APNs alert below.
         const badge = notificationData.badgeCount ?? 1;
         const payload: FCMPayload = {
+            androidDataOnly: true,
             data: buildCommonPushData({
                 notificationId: String(notificationData.notificationId),
                 type: notificationData.type || "notification",

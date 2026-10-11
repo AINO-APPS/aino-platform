@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { findVideoSender } from "./videoSender";
+import useCallMediaState from "./useCallMediaState";
 import {
   applyVideoEncodingTier,
   createQualityController,
@@ -28,6 +30,7 @@ interface DetailedStats {
 }
 
 interface UseCallControlsParams {
+  localMediaStream?: MediaStream | null;
   localStreamRef: React.MutableRefObject<MediaStream | null>;
   pcRef: React.MutableRefObject<RTCPeerConnection | null>;
   screenStreamRef: React.MutableRefObject<MediaStream | null>;
@@ -49,6 +52,7 @@ interface UseCallControlsParams {
 const STATS_INTERVAL_MS = 2000;
 
 export default function useCallControls({
+  localMediaStream,
   localStreamRef,
   pcRef,
   screenStreamRef,
@@ -58,10 +62,11 @@ export default function useCallControls({
   overlayRef,
   qualityControllerRef,
 }: UseCallControlsParams) {
-  const [muted, setMuted] = useState(false);
-  const [videoOff, setVideoOff] = useState(false);
-  const [screenSharing, setScreenSharing] = useState(false);
-  const [onHold, setOnHold] = useState(false);
+  const {
+    muted, videoOff, setVideoOff, cameraError, setCameraError,
+    screenSharing, setScreenSharing, onHold, onHoldRef, mountedRef,
+    heldTracksRef, toggleMute, toggleHold,
+  } = useCallMediaState(localMediaStream, localStreamRef);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [connectionQuality, setConnectionQuality] =
     useState<ConnectionQuality>("unknown");
@@ -325,42 +330,27 @@ export default function useCallControls({
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  const toggleMute = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach((t) => {
-        t.enabled = !t.enabled;
-      });
-      setMuted(!muted);
-    }
-  };
-
-  // ─── Camera ON/OFF — releases the hardware (LED off) when turned off ─────
-  //
-  // The previous implementation only flipped `track.enabled`, which stops
-  // *transmitting* frames but keeps the OS-level camera capture alive. That
-  // is why the camera LED stayed on and the camera remained "in use" by the
-  // browser tab in the background. We now fully release the device when
-  // turning the camera off, and re-acquire a fresh track when turning it
-  // back on. We use `sender.replaceTrack()` so the peer's video tile stays
-  // attached to the same transceiver across the toggle — no renegotiation,
-  // no flicker, no spontaneous video drop.
+  // Release capture on off; reuse only video senders, adding one for voice upgrades.
   const videoToggleInFlightRef = useRef(false);
+  const screenToggleInFlightRef = useRef(false);
   const toggleVideo = useCallback(async () => {
-    if (videoToggleInFlightRef.current) return;
+    if (videoToggleInFlightRef.current || screenToggleInFlightRef.current) return;
     videoToggleInFlightRef.current = true;
     try {
       const stream = localStreamRef.current;
       const pc = pcRef.current;
       if (!stream) return;
 
-      if (!videoOff) {
+      setCameraError(null);
+      const cameraTracks = stream.getVideoTracks().filter((t) => t.readyState !== "ended");
+      if (cameraTracks.length) {
         // ── Turn camera OFF ────────────────────────────────────────
         // 1. Tell every video sender to stop sending (peer sees track
         //    end immediately, far faster than renegotiation).
         if (pc) {
           const videoSenders = pc
             .getSenders()
-            .filter((s) => s.track && s.track.kind === "video");
+            .filter((s) => s.track && cameraTracks.includes(s.track));
           await Promise.all(
             videoSenders.map((s) => s.replaceTrack(null).catch(() => {})),
           );
@@ -388,7 +378,6 @@ export default function useCallControls({
             /* ignore */
           }
         }
-        screenSenderRef.current = null;
         setVideoOff(true);
       } else {
         // ── Turn camera ON ─────────────────────────────────────────
@@ -406,46 +395,46 @@ export default function useCallControls({
           });
         } catch (err) {
           console.error("[call] re-acquire camera failed:", err);
+          if (mountedRef.current) setCameraError("Could not access your camera. Check camera permission and device settings; your audio call is still connected.");
           return;
         }
         const newTrack = newStream.getVideoTracks()[0];
-        if (!newTrack) return;
+        if (!newTrack || !mountedRef.current || localStreamRef.current !== stream ||
+            pcRef.current !== pc || pc?.signalingState === "closed") {
+          newStream.getTracks().forEach((t) => t.stop());
+          if (!newTrack && mountedRef.current) setCameraError("No camera video was available. Your audio call is still connected.");
+          return;
+        }
         try {
           (newTrack as any).contentHint = "motion";
         } catch {
           /* ignore */
         }
-        stream.addTrack(newTrack);
-
-        if (pc) {
+        newTrack.enabled = !onHoldRef.current;
+        if (onHoldRef.current) heldTracksRef.current.set(newTrack, true);
+        if (pc && !screenStreamRef.current) {
           const videoSender =
-            pc
-              .getSenders()
-              .find((s) => s.track == null && ((s as any).transport || true)) || // prefer empty sender
-            pc.getSenders().find((s) => s.track && s.track.kind === "video");
-          if (videoSender) {
-            try {
+            findVideoSender(pc);
+          try {
+            if (videoSender) {
               await videoSender.replaceTrack(newTrack);
               screenSenderRef.current = videoSender;
-            } catch (err: any) {
-              console.warn(
-                "[call] replaceTrack failed, falling back to addTrack:",
-                err?.message || err,
-              );
-              try {
-                screenSenderRef.current = pc.addTrack(newTrack, stream);
-              } catch {
-                /* ignore */
-              }
-            }
-          } else {
-            try {
+            } else {
               screenSenderRef.current = pc.addTrack(newTrack, stream);
-            } catch {
-              /* ignore */
             }
+          } catch (err) {
+            newStream.getTracks().forEach((t) => t.stop());
+            if (mountedRef.current) setCameraError("Could not enable your camera. Your audio call is still connected.");
+            return;
           }
         }
+        if (!mountedRef.current || localStreamRef.current !== stream || pcRef.current !== pc) {
+          newStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        newTrack.enabled = !onHoldRef.current;
+        if (onHoldRef.current) heldTracksRef.current.set(newTrack, true);
+        stream.addTrack(newTrack);
 
         if (localVideoRef.current) {
           try {
@@ -459,48 +448,48 @@ export default function useCallControls({
             /* ignore */
           }
         }
-        setVideoOff(false);
+        setVideoOff(!newTrack.enabled);
       }
     } finally {
       videoToggleInFlightRef.current = false;
     }
   }, [
-    videoOff,
     localStreamRef,
     pcRef,
     localVideoRef,
     screenSenderRef,
     activeVideoDevice,
+    screenStreamRef,
   ]);
 
   const toggleScreenShare = async () => {
-    if (!pcRef.current) return;
-
-    if (screenSharing) {
+    if (!pcRef.current || videoToggleInFlightRef.current || screenToggleInFlightRef.current) return;
+    screenToggleInFlightRef.current = true;
+    let acquiredStream: MediaStream | null = null;
+    try {
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
-      }
-      const camTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (camTrack && screenSenderRef.current) {
-        await screenSenderRef.current.replaceTrack(camTrack);
-      } else if (screenSenderRef.current && !camTrack) {
-        pcRef.current.removeTrack(screenSenderRef.current);
-        screenSenderRef.current = null;
-      }
-      if (localVideoRef.current && localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-      setScreenSharing(false);
-    } else {
-      try {
+        const camTrack = localStreamRef.current?.getVideoTracks()[0];
+        await screenSenderRef.current?.replaceTrack(camTrack ?? null);
+        if (localVideoRef.current && localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+        setScreenSharing(false);
+      } else {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: { cursor: "always" } as any,
           audio: false,
         });
+        acquiredStream = screenStream;
+        if (!mountedRef.current || !pcRef.current || pcRef.current.signalingState === "closed") {
+          screenStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         screenStreamRef.current = screenStream;
         const screenTrack = screenStream.getVideoTracks()[0];
 
+        screenSenderRef.current = screenSenderRef.current ?? findVideoSender(pcRef.current) ?? null;
         if (screenSenderRef.current) {
           await screenSenderRef.current.replaceTrack(screenTrack);
         } else {
@@ -508,29 +497,21 @@ export default function useCallControls({
           screenSenderRef.current = sender;
         }
 
-        screenTrack.onended = () => {
-          toggleScreenShare();
+        screenTrack.onended = async () => {
+          if (screenStreamRef.current !== screenStream) return;
+          screenStreamRef.current = null;
+          await screenSenderRef.current?.replaceTrack(localStreamRef.current?.getVideoTracks()[0] ?? null).catch(() => {});
+          if (mountedRef.current) setScreenSharing(false);
         };
         setScreenSharing(true);
-      } catch (err) {
-        console.error("Screen share failed:", err);
       }
-    }
-  };
-
-  const toggleHold = () => {
-    if (!localStreamRef.current) return;
-    const hold = !onHold;
-    localStreamRef.current.getTracks().forEach((t) => {
-      t.enabled = !hold;
-    });
-    setOnHold(hold);
-    if (hold) {
-      setMuted(true);
-      setVideoOff(true);
-    } else {
-      setMuted(false);
-      setVideoOff(false);
+    } catch (err) {
+      acquiredStream?.getTracks().forEach((t) => t.stop());
+      if (screenStreamRef.current === acquiredStream) screenStreamRef.current = null;
+      if (!screenStreamRef.current && mountedRef.current) setScreenSharing(false);
+      console.error("Screen share failed:", err);
+    } finally {
+      screenToggleInFlightRef.current = false;
     }
   };
 
@@ -581,12 +562,25 @@ export default function useCallControls({
   };
 
   const switchVideoDevice = async (deviceId: string) => {
+    setActiveVideoDevice(deviceId);
+    if (!localStreamRef.current?.getVideoTracks().some((t) => t.readyState !== "ended")) return;
+    const stream = localStreamRef.current;
+    const pc = pcRef.current;
+    let acquiredStream: MediaStream | null = null;
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: deviceId }, width: 1280, height: 720 },
       });
+      acquiredStream = newStream;
       const newTrack = newStream.getVideoTracks()[0];
+      if (!newTrack || !mountedRef.current || localStreamRef.current !== stream || pcRef.current !== pc ||
+          !stream.getVideoTracks().some((t) => t.readyState !== "ended")) {
+        newStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+      newTrack.enabled = oldTrack?.enabled ?? !onHold;
+      if (onHoldRef.current) heldTracksRef.current.set(newTrack, true);
       if (screenSenderRef.current && !screenSharing) {
         await screenSenderRef.current.replaceTrack(newTrack);
       }
@@ -599,6 +593,8 @@ export default function useCallControls({
         localVideoRef.current.srcObject = localStreamRef.current;
       setActiveVideoDevice(deviceId);
     } catch (err) {
+      acquiredStream?.getTracks().forEach((t) => t.stop());
+      if (mountedRef.current) setCameraError("Could not switch your camera. Your audio call is still connected.");
       console.error("Switch camera failed:", err);
     }
   };
@@ -721,6 +717,7 @@ export default function useCallControls({
   return {
     muted,
     videoOff,
+    cameraError,
     screenSharing,
     onHold,
     isFullscreen,

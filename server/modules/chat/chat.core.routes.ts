@@ -13,6 +13,8 @@ import { broadcastMediaJobUpdate, processChatMediaJob } from "../../services/cha
 import { buildUploadedMediaMetadata, copyForwardedMediaMetadata } from "../../utils/chatMediaMetadata";
 const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
+import { pushNotifications } from "../../services/pushNotifications";
+import type { QueryFn } from "../../types/domain";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
 import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
 
@@ -35,7 +37,25 @@ router.post("/messages/:id/reactions", auth, async (req: Request, res: Response)
                 fullName: result.senderName,
                 emoji,
                 action: result.action,
+                ...(result.reactionId ? { reactionId: result.reactionId, sentAt: result.sentAt } : {}),
             });
+        }
+
+        if (result.action === "added" && result.reactionId && result.sentAt &&
+            result.messageOwnerId && result.messageOwnerId !== req.userId) {
+            try {
+                const recipient = await service.getReactionPushRecipient(db(req), result.reactionId, result.messageOwnerId);
+                if (recipient) {
+                    await pushNotifications.sendReactionNotification(req.db!.query as unknown as QueryFn, result.messageOwnerId, req.tenantId != null ? Number(req.tenantId) : null, {
+                        conversationId: result.conversationId, messageId: msgId,
+                        messageOwnerId: result.messageOwnerId, actorId: req.userId!,
+                        actorName: recipient.full_name || "Someone", actorAvatar: recipient.avatar || "",
+                        emoji, reactionId: result.reactionId, sentAt: result.sentAt,
+                    });
+                }
+            } catch (err) {
+                req.log.error({ err, reactionId: result.reactionId }, "Reaction push failed");
+            }
         }
 
         res.json({ ok: true, action: result.action });

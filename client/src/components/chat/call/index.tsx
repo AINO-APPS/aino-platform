@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ChatAvatar } from "../";
 import useWebRTC from "./useWebRTC";
 import useCallControls from "./useCallControls";
+import CameraControl from "./CameraControl";
 import { QualityBadge, DeviceSelector } from "./CallWidgets";
 import CallDuration, { formatDuration } from "./CallDuration";
 import { AddParticipantPopup } from "./AddParticipantPopup";
@@ -13,8 +14,6 @@ import { useNotificationPrefs } from "../../../NotificationPrefsContext";
 import {
   MicIcon,
   MicOffIcon,
-  CamIcon,
-  CamOffIcon,
   PhoneIcon,
   ScreenShareIcon,
   ScreenShareOffIcon,
@@ -126,6 +125,7 @@ export default function CallOverlay({
   // are updated from CallDuration's onTick rather than from React state.
   // Mirrors what the mobile client already does.
   const durationRef = useRef(0);
+  const durationStartedAtRef = useRef<number | null>(null);
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
@@ -178,6 +178,7 @@ export default function CallOverlay({
   });
 
   const controls = useCallControls({
+    localMediaStream: webrtc.localMediaStream,
     localStreamRef: webrtc.localStreamRef,
     pcRef: webrtc.pcRef,
     screenStreamRef: webrtc.screenStreamRef,
@@ -292,7 +293,11 @@ export default function CallOverlay({
   }, [status]);
 
   const isConnected = status === "connected";
-  const isVideoCall = callType === "video";
+  const remoteVideoActive = webrtc.remoteHasVideo && (!webrtc.remoteVideoOff || webrtc.remoteScreenSharing);
+  const isVideoCall = !controls.videoOff || remoteVideoActive || controls.screenSharing;
+  useEffect(() => {
+    if (controls.videoOff || !remoteVideoActive) setSwapped(false);
+  }, [controls.videoOff, remoteVideoActive]);
 
   // ─── Track unread chat messages while the panel is closed ───
   useEffect(() => {
@@ -342,14 +347,9 @@ export default function CallOverlay({
   // ─── Tell the peer whenever our outgoing video state changes ───
   useEffect(() => {
     if (status !== "connected") return;
-    let peerSeesNoVideo;
-    if (isVideoCall) {
-      peerSeesNoVideo = controls.videoOff && !controls.screenSharing;
-    } else {
-      peerSeesNoVideo = !controls.screenSharing;
-    }
+    const peerSeesNoVideo = controls.videoOff && !controls.screenSharing;
     webrtc.sendLocalVideoState?.(peerSeesNoVideo);
-  }, [status, isVideoCall, controls.videoOff, controls.screenSharing]);
+  }, [status, controls.videoOff, controls.screenSharing]);
 
   // Send local mute state to remote peer
   useEffect(() => {
@@ -404,7 +404,7 @@ export default function CallOverlay({
       if (key === "m") {
         controls.toggleMute();
         resetControlsTimer();
-      } else if (key === "v" && isVideoCall) {
+      } else if (key === "v" && isConnected) {
         controls.toggleVideo();
         resetControlsTimer();
       } else if (key === "s" && isConnected && canScreenShare) {
@@ -859,7 +859,7 @@ export default function CallOverlay({
       controls.setShowVideoDevices?.(false);
       setMinimized(true);
 
-      const hasRemoteVideoStream = isVideoCall || webrtc.remoteHasVideo;
+      const hasRemoteVideoStream = remoteVideoActive;
       if (hasRemoteVideoStream) {
         const ok = await openNativeVideoPip();
         if (ok) return;
@@ -875,6 +875,7 @@ export default function CallOverlay({
       controls,
       isVideoCall,
       webrtc.remoteHasVideo,
+      remoteVideoActive,
       openElectronPip,
       openNativeVideoPip,
       openDocumentPip,
@@ -995,7 +996,7 @@ export default function CallOverlay({
   const overlayContent = (
     <div
       ref={overlayRef}
-      className={`${s.overlay} ${(isVideoCall || controls.screenSharing || webrtc.remoteHasVideo) && isConnected ? s.videoMode : ""} ${controls.onHold ? s.holdMode : ""} ${minimized ? s.minimized : ""}`}
+      className={`${s.overlay} ${isVideoCall && isConnected ? s.videoMode : ""} ${controls.onHold ? s.holdMode : ""} ${minimized ? s.minimized : ""}`}
       onClick={minimized && !hiddenForExternal ? handleRestore : undefined}
       onMouseMove={!minimized ? resetControlsTimer : undefined}
       onTouchStart={!minimized ? resetControlsTimer : undefined}
@@ -1036,7 +1037,7 @@ export default function CallOverlay({
       <audio ref={webrtc.remoteAudioRef} autoPlay />
 
       {/* ─── Remote video tile (fullscreen) ─── */}
-      {webrtc.remoteHasVideo && (
+      {remoteVideoActive && (
         <video
           ref={webrtc.remoteVideoRef}
           className={`${s.remoteVideo} ${swapped ? s.swapped : ""}`}
@@ -1054,7 +1055,6 @@ export default function CallOverlay({
       )}
 
       {/* ─── Local self-view tile (draggable corner snap) ─── */}
-      {isVideoCall && (
         <video
           ref={webrtc.localVideoRef}
           className={`${s.localVideo} ${controls.videoOff ? s.localVideoHidden : ""} ${swapped ? s.swapped : ""} ${!swapped ? (s as any)[`localVideo_${localVideoCorner.replace("-", "_")}`] || "" : ""}`}
@@ -1069,11 +1069,9 @@ export default function CallOverlay({
               : undefined
           }
         />
-      )}
 
       {/* Local self-tile AVATAR fallback */}
-      {((isVideoCall && controls.videoOff) ||
-        (!isVideoCall && webrtc.remoteHasVideo)) && (
+      {isVideoCall && controls.videoOff && (
         <div
           className={`${s.localVideoAvatar} ${!swapped ? (s as any)[`localVideoAvatar_${localVideoCorner.replace("-", "_")}`] || "" : ""}`}
           onClick={isVideoCall ? () => setSwapped((prev) => !prev) : undefined}
@@ -1096,10 +1094,10 @@ export default function CallOverlay({
                 inside the self-preview card below instead. */}
       {controls.muted &&
         isConnected &&
-        (isVideoCall || webrtc.remoteHasVideo) &&
+        isVideoCall &&
         !swapped && (
           <div
-            className={`${s.localTileBadgeAnchor} ${(s as any)[`localTileBadgeAnchor_${localVideoCorner.replace("-", "_")}`] || ""} ${(isVideoCall && controls.videoOff) || !isVideoCall ? s.localTileBadgeAnchorAvatar : s.localTileBadgeAnchorVideo}`}
+            className={`${s.localTileBadgeAnchor} ${(s as any)[`localTileBadgeAnchor_${localVideoCorner.replace("-", "_")}`] || ""} ${controls.videoOff ? s.localTileBadgeAnchorAvatar : s.localTileBadgeAnchorVideo}`}
             aria-hidden="true"
           >
             <div
@@ -1121,7 +1119,7 @@ export default function CallOverlay({
                 Draggable & corner-snapping just like the local video tile. */}
       {isConnected &&
         !isVideoCall &&
-        !webrtc.remoteHasVideo &&
+        !remoteVideoActive &&
         !controls.screenSharing && (
           <div
             className={`${s.selfPreviewCard} ${(s as any)[`selfPreviewCard_${localVideoCorner.replace("-", "_")}`] || ""}`}
@@ -1307,10 +1305,8 @@ export default function CallOverlay({
         let showCallInfo;
         if (preConnect) {
           showCallInfo = true;
-        } else if (isVideoCall) {
-          showCallInfo = webrtc.remoteVideoOff && !controls.screenSharing;
         } else {
-          showCallInfo = !webrtc.remoteHasVideo;
+          showCallInfo = !remoteVideoActive && !controls.screenSharing;
         }
         if (!showCallInfo) return null;
         // Auto-hide the caller-info card (name + duration) once connected
@@ -1344,6 +1340,7 @@ export default function CallOverlay({
                   {status === "reconnecting" && "Reconnecting..."}
                   {isConnected && (
                     <CallDuration
+                      startedAtRef={durationStartedAtRef}
                       running={isConnected}
                       prefix={controls.onHold ? "On Hold \u00B7 " : undefined}
                       onTick={paintPipSurfaces}
@@ -1380,6 +1377,7 @@ export default function CallOverlay({
             </button>
           </div>
           <CallDuration
+            startedAtRef={durationStartedAtRef}
             running={isConnected}
             className={s.videoDuration}
             onTick={paintPipSurfaces}
@@ -1544,19 +1542,12 @@ export default function CallOverlay({
               </button>
             )}
 
-            {isVideoCall && (
-              <button
-                className={`${s.controlBtn} ${controls.videoOff ? s.active : ""}`}
-                onClick={controls.toggleVideo}
-                title={
-                  controls.videoOff
-                    ? "Turn on camera (V)"
-                    : "Turn off camera (V)"
-                }
-              >
-                {controls.videoOff ? <CamOffIcon /> : <CamIcon />}
-              </button>
-            )}
+            <CameraControl
+              connected={isConnected}
+              videoOff={controls.videoOff}
+              cameraError={controls.cameraError}
+              toggleVideo={controls.toggleVideo}
+            />
 
             {isConnected && canScreenShare && (
               <button
@@ -1668,7 +1659,7 @@ export default function CallOverlay({
             <span className={s.miniBarName}>{remoteName || "Call"}</span>
             <span className={s.miniBarMeta}>
               {isConnected ? (
-                <CallDuration running={isConnected} onTick={paintPipSurfaces} />
+                <CallDuration startedAtRef={durationStartedAtRef} running={isConnected} onTick={paintPipSurfaces} />
               ) : status === "incoming" ? (
                 "Incoming\u2026"
               ) : status === "ringing" ? (

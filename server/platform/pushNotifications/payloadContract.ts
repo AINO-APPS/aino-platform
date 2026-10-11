@@ -1,4 +1,4 @@
-export type RoutedPushType = "call" | "message" | "call_cancel" | "session_revoked";
+export type RoutedPushType = "call" | "message" | "call_cancel" | "session_revoked" | "reaction";
 
 interface ContractLogger {
     error(details: unknown, message: string): void;
@@ -20,6 +20,10 @@ const FIELDS: Record<RoutedPushType, { present: string[]; nonEmpty: string[] }> 
     session_revoked: {
         present: ["type", "reason", "dedupeKey", "sentAt"],
         nonEmpty: ["type", "reason", "dedupeKey", "sentAt"],
+    },
+    reaction: {
+        present: ["type", "title", "body", "conversationId", "messageId", "messageOwnerId", "actorId", "actorName", "actorAvatar", "emoji", "reactionId", "action", "dedupeKey", "tenantId", "sentAt", "expiresAt"],
+        nonEmpty: ["type", "title", "body", "conversationId", "messageId", "messageOwnerId", "actorId", "actorName", "emoji", "reactionId", "action", "dedupeKey", "sentAt", "expiresAt"],
     },
 };
 
@@ -55,6 +59,19 @@ export function assertRoutingPayloadContract(
         if (data.type !== "session_revoked") invalid.push("type");
         if (data.reason !== "signed_in_elsewhere") invalid.push("reason");
         if (!/^session_revoked:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
+    } else if (notificationType === "reaction") {
+        if (data.type !== "chat_reaction") invalid.push("type");
+        if (data.action !== "added") invalid.push("action");
+        for (const field of ["conversationId", "messageId", "messageOwnerId", "actorId", "reactionId", "expiresAt"]) {
+            if (!/^[1-9]\d*$/.test(data[field] || "") || !Number.isSafeInteger(Number(data[field]))) invalid.push(field);
+        }
+        if (data.actorId === data.messageOwnerId) invalid.push("actorId");
+        if (data.dedupeKey !== `reaction:${data.reactionId}`) invalid.push("dedupeKey");
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(data.sentAt || "")) invalid.push("sentAt");
+        if (Number(data.expiresAt) * 1000 <= Date.parse(data.sentAt)) invalid.push("expiresAt");
+        if (data.tenantId && !/^[1-9]\d*$/.test(data.tenantId)) invalid.push("tenantId");
+        if (Object.keys(data).some((field) => !presentFields.includes(field))) invalid.push("unknownFields");
+        if (Object.values(data).some((value) => typeof value !== "string")) invalid.push("dataTypes");
     } else {
         if (data.type !== "chat_message") invalid.push("type");
         if (!/^msg:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");

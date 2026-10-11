@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import CallConfirmation from "./chat/CallConfirmation";
 import { uploadChatFile, leaveGroup } from "../api/chat";
 import { MessageSearch, ForwardModal, GroupModal, PollCreator, CallOverlay } from "../components/chat";
 import ChatSidebar from "./chat/ChatSidebar";
@@ -223,7 +224,6 @@ export default function Chat() {
   }, [callState?.conversationId, conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useOpenConversationFromQuery(conversations, openConversation); // /chat?conv=<id> (invite-link joins)
-  useEffect(x.consumePendingCall, [x.pendingCall, activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { // Hide navbar & bottom tab bar on mobile when a chat conversation is active
     const isMobileChat = isChatPage && mobileView === "chat" && activeConv;
     if (isMobileChat) {
@@ -507,6 +507,7 @@ export default function Chat() {
         />
       )}
 
+      <CallConfirmation {...actions} />
       <ConfirmDialog
         isOpen={!!deleteConfirm}
         title="Delete chat for you?"

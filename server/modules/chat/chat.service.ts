@@ -72,19 +72,27 @@ export function createChatService() {
 
             const existing = await repository.findExistingReaction(db, messageId, userId, emoji);
             let action: "added" | "removed";
+            let addition: { id: number; created_at: string | Date } | undefined;
             if (existing) {
                 await repository.deleteReaction(db, existing.id);
                 action = "removed";
             } else {
-                await repository.insertReaction(db, messageId, userId, emoji);
+                addition = await repository.insertReaction(db, messageId, userId, emoji);
                 action = "added";
             }
 
             const senderName = await repository.getUserDisplayName(db, userId);
             const participantIds = await repository.getConversationParticipantIds(db, msg.conversation_id);
 
-            return { action, conversationId: msg.conversation_id, senderName, participantIds };
+            return {
+                action, conversationId: msg.conversation_id, senderName, participantIds,
+                messageOwnerId: msg.sender_id ?? null,
+                reactionId: addition?.id ?? null,
+                sentAt: addition ? Math.floor(new Date(addition.created_at).getTime() / 1000) : null,
+            };
         },
+
+        getReactionPushRecipient: repository.getReactionPushRecipient,
 
         async togglePin(db: ChatDb, userId: number, messageId: number): Promise<TogglePinResult> {
             const msg = await repository.getMessage(db, messageId);

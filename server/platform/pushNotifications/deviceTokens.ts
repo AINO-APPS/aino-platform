@@ -116,6 +116,27 @@ export async function getDeviceTokens(
         } else {
             logger.error({ err: message, userId, tenantId }, "Failed to get device tokens");
         }
+
+        return [];
+    }
+}
+
+export async function getReactionDeviceTokens(
+    query: QueryFn, userId: number, tenantId: number | null, logger: DeviceTokenLogger,
+): Promise<string[]> {
+    try {
+        const result = await query(
+            `SELECT device_token, platform, push_version FROM device_tokens
+             WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+             AND platform = 'android' AND push_version >= 3
+             AND created_at > NOW() - INTERVAL '1 year'`,
+            [userId, tenantId || null],
+        );
+        return result.rows
+            .filter((row: any) => row.platform === "android" && Number(row.push_version) >= 3)
+            .map((row: any) => row.device_token);
+    } catch (err) {
+        logger.error({ err: (err as Error).message, userId, tenantId }, "Failed to get Android reaction device tokens");
         return [];
     }
 }
