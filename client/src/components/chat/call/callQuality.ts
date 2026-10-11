@@ -2,49 +2,11 @@
  * ADAPTIVE VIDEO QUALITY CONTROLLER (1:1 calls)
  * =============================================
  *
- * This module replaces the previous 3-state (good/fair/poor) classifier that
- * jumped the encoder between 1.2 Mbps ↔ 500 kbps ↔ 200 kbps (and flipped
- * `scaleResolutionDownBy` 1 ↔ 2) every 3 seconds. That design was the direct
- * cause of the "lag / freeze / jitter here and there" reports:
- *
- *   1. CUMULATIVE LOSS — loss was computed as
- *      `packetsLost / (packetsLost + packetsReceived)` over the counters
- *      SINCE CALL START. `packetsLost` is monotonic, so a single 2-second
- *      burst at second 10 poisoned the average for the rest of the call and
- *      pinned the encoder at a low tier long after the network recovered.
- *      → Fixed here by differencing consecutive samples (interval loss).
- *
- *   2. ABSOLUTE RTT THRESHOLDS — `rtt < 0.15 → good` is wrong the moment the
- *      call is TURN-relayed (Cloudflare Calls), where a perfectly healthy
- *      path sits at 60-150 ms. The classifier then oscillated across the
- *      boundary every sample, and each oscillation re-configured the encoder.
- *      → Fixed here by learning the path's RTT BASELINE (p25 over the first
- *      ~10 s) and grading on the EXCESS above it.
- *
- *   3. NO HYSTERESIS ON THE WAY DOWN + RESOLUTION FLAPPING — every
- *      `scaleResolutionDownBy` change forces the encoder to reinitialise and
- *      emit a keyframe, i.e. a visible freeze pulse.
- *      → Fixed by a 5-rung ladder walked ONE rung at a time, with asymmetric
- *      hysteresis (fast down, slow up) and extra damping on rungs that change
- *      resolution.
- *
- *   4. RACING setParameters() — `getParameters()` hands back a snapshot
- *      stamped with a `transactionId`; if another `setParameters()` lands in
- *      between, the first throws InvalidStateError. Three writers used to race
- *      on the same sender during the first 3 s of a call (bitrate ramp timers,
- *      the keyframe hack, and the stats loop) and every failure was swallowed
- *      by an empty catch — so ramp steps were silently dropped and the encoder
- *      could stay pinned at the 300-400 kbps start cap for the whole call.
- *      → Fixed by serialising every write through a per-PeerConnection queue
- *      that always re-reads parameters immediately before mutating.
- *
- *   5. FREEZE / JITTER SIGNALS IGNORED — `freezeCount`, `jitterBufferDelay`
- *      and `qualityLimitationReason` were collected and only painted in a
- *      debug panel. They are the metrics that actually predict a freeze.
- *      → They now force a downshift regardless of RTT.
- *
- * The mobile client mirrors this file at `mobile/src/calls/shared/callQuality.ts`
- * (the repo has no shared web/native package; parity is by duplication).
+ * Received-media loss, freezes and jitter grade the badge, not our encoder.
+ * Only uplink feedback and excess RTT move the sender cap. Otherwise a frozen
+ * remote stream needlessly reconfigures our healthy encoder too.
+ * Interval loss, a learned RTT baseline, slow recovery and serialized writes
+ * keep transient problems from pinning quality or causing resolution flapping.
  */
 
 export type ConnectionQuality = "good" | "fair" | "poor" | "unknown";
@@ -116,6 +78,8 @@ export interface RawStatsSample {
   jitterBufferEmittedCount: number;
   /** `outbound-rtp.qualityLimitationReason` for the video sender. */
   qualityLimitationReason: string | null;
+  /** Loss reported by the peer for our video, not loss on received media. */
+  outboundFractionLost?: number | null;
 }
 
 export interface QualityDecision {
@@ -196,6 +160,7 @@ export function createQualityController(
   let prev: RawStatsSample | null = null;
   let rttEwma: number | null = null;
   let lossEwma = 0;
+  let outboundLossEwma = 0;
   let goodStreak = 0;
   let baselineRtt: number | null = null;
   let baselineSamples: number[] = [];
@@ -206,6 +171,7 @@ export function createQualityController(
     prev = null;
     rttEwma = null;
     lossEwma = 0;
+    outboundLossEwma = 0;
     goodStreak = 0;
     baselineRtt = null;
     baselineSamples = [];
@@ -243,6 +209,11 @@ export function createQualityController(
           ? sample.rttSeconds
           : EWMA_ALPHA * sample.rttSeconds + (1 - EWMA_ALPHA) * rttEwma;
       updateBaseline(rttEwma, sample.timestampMs);
+    }
+    if (sample.outboundFractionLost != null && Number.isFinite(sample.outboundFractionLost)) {
+      outboundLossEwma =
+        EWMA_ALPHA * Math.min(1, Math.max(0, sample.outboundFractionLost)) +
+        (1 - EWMA_ALPHA) * outboundLossEwma;
     }
 
     // ── Loss: INTERVAL rate, from deltas (never the cumulative average) ──
@@ -296,25 +267,15 @@ export function createQualityController(
       };
     }
 
-    if (freezeDelta > 0) {
+    if (outboundLossEwma >= LOSS_BAD) {
       grade = "bad";
-      reason = `${freezeDelta} freeze(s) observed`;
-    } else if (sample.qualityLimitationReason === "bandwidth") {
-      grade = "bad";
-      reason = "encoder bandwidth-limited";
-    } else if (lossEwma >= LOSS_BAD) {
-      grade = "bad";
-      reason = `loss ${(lossEwma * 100).toFixed(1)}%`;
+      reason = `uplink loss ${(outboundLossEwma * 100).toFixed(1)}%`;
     } else if (rttExcess >= RTT_EXCESS_BAD) {
       grade = "bad";
       reason = `rtt +${Math.round(rttExcess * 1000)}ms over baseline`;
-    } else if (jitterBufferSeconds >= JITTER_BUFFER_BAD) {
-      grade = "bad";
-      reason = `jitter buffer ${Math.round(jitterBufferSeconds * 1000)}ms`;
     } else if (
-      lossEwma >= LOSS_WARN ||
+      outboundLossEwma >= LOSS_WARN ||
       rttExcess >= RTT_EXCESS_WARN ||
-      jitterBufferSeconds >= JITTER_BUFFER_WARN ||
       sample.qualityLimitationReason === "cpu"
     ) {
       grade = "warn";
@@ -347,8 +308,21 @@ export function createQualityController(
       }
     }
 
-    const quality: ConnectionQuality =
+    let quality: ConnectionQuality =
       grade === "good" ? "good" : grade === "warn" ? "fair" : "poor";
+    if (freezeDelta > 0) {
+      quality = "poor";
+      reason = `${freezeDelta} inbound freeze(s)`;
+    } else if (lossEwma >= LOSS_BAD) {
+      quality = "poor";
+      reason = `inbound loss ${(lossEwma * 100).toFixed(1)}%`;
+    } else if (jitterBufferSeconds >= JITTER_BUFFER_BAD) {
+      quality = "poor";
+      reason = `jitter buffer ${Math.round(jitterBufferSeconds * 1000)}ms`;
+    } else if (quality === "good" && (lossEwma >= LOSS_WARN || jitterBufferSeconds >= JITTER_BUFFER_WARN)) {
+      quality = "fair";
+      reason = "inbound degrading";
+    }
 
     return {
       quality,
@@ -407,7 +381,7 @@ async function writeVideoTier(
   pc: RTCPeerConnection,
   tier: VideoEncodingTier,
 ): Promise<boolean> {
-  let applied = false;
+  let applied = true;
   for (const sender of pc.getSenders()) {
     if (sender.track?.kind !== "video") continue;
     try {
@@ -423,8 +397,8 @@ async function writeVideoTier(
       // the link degrades, softening gracefully instead of freezing.
       params.degradationPreference = "balanced";
       await sender.setParameters(params);
-      applied = true;
     } catch (err: any) {
+      applied = false;
       // Never silent: a swallowed InvalidStateError here is exactly how the
       // encoder used to get stuck at the connect-time start cap.
       console.warn(

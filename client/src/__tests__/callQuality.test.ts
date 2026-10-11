@@ -170,7 +170,7 @@ describe("quality controller", () => {
       }),
     );
     expect(decision.quality).toBe("poor");
-    expect(decision.changed).toBe(true);
+    expect(decision.changed).toBe(false);
 
     // Network recovers: no further loss, traffic keeps flowing.
     let received = 200;
@@ -199,11 +199,9 @@ describe("quality controller", () => {
     controller.observe(makeSample({ timestampMs: 0 }));
 
     const observed: Array<{ tierIndex: number; changed: boolean }> = [];
-    let freezeCount = 0;
     for (let i = 1; i <= 5; i++) {
-      freezeCount += 1;
       const decision = controller.observe(
-        makeSample({ timestampMs: i * 2000, freezeCount }),
+        makeSample({ timestampMs: i * 2000, outboundFractionLost: 0.3 }),
       );
       observed.push({
         tierIndex: decision.tierIndex,
@@ -221,39 +219,63 @@ describe("quality controller", () => {
     ]);
   });
 
-  it("treats an encoder bandwidth limitation as a downshift trigger", () => {
+  it("does not downshift for bandwidth limitation alone", () => {
     const controller = createQualityController();
     controller.setTierIndex(1);
     controller.observe(makeSample({ timestampMs: 0 }));
     const decision = controller.observe(
       makeSample({ timestampMs: 2000, qualityLimitationReason: "bandwidth" }),
     );
-    expect(decision.changed).toBe(true);
-    expect(decision.tierIndex).toBe(2);
+    expect(decision.changed).toBe(false);
+    expect(decision.tierIndex).toBe(1);
+  });
+
+  it("keeps inbound freezes visible without reconfiguring a healthy sender", () => {
+    const controller = createQualityController();
+    controller.setTierIndex(0);
+    controller.observe(makeSample({ timestampMs: 0 }));
+    for (let i = 1; i <= 10; i++) {
+      const decision = controller.observe(makeSample({
+        timestampMs: i * 2000,
+        freezeCount: i,
+        packetsLost: i * 100,
+        packetsReceived: i * 100,
+        jitterBufferDelay: i * 10,
+        jitterBufferEmittedCount: i * 10,
+      }));
+      expect(decision.quality).toBe("poor");
+      expect(decision.tierIndex).toBe(0);
+      expect(decision.changed).toBe(false);
+    }
   });
 
   it("recovers slowly, and even slower when the step changes resolution", () => {
     const controller = createQualityController();
     controller.observe(makeSample({ timestampMs: 0 }));
-    // One freeze drops us from tier 3 to the bottom rung (scale 2).
+    // Uplink loss drops us from tier 3 to the bottom rung (scale 2).
     const dropped = controller.observe(
-      makeSample({ timestampMs: 2000, freezeCount: 1 }),
+      makeSample({ timestampMs: 2000, outboundFractionLost: 0.3 }),
     );
     expect(dropped.tierIndex).toBe(BOTTOM_TIER_INDEX);
+    // Let the loss EWMA recover before counting clean upshift samples.
+    for (let i = 0; i < 4; i++) {
+      controller.observe(makeSample({ timestampMs: 4000 + i * 2000, outboundFractionLost: 0 }));
+    }
+    controller.setTierIndex(BOTTOM_TIER_INDEX);
 
     // Tier 4 -> tier 3 changes scaleResolutionDownBy (2 -> 1.5), which costs
     // a keyframe, so it needs the extra damping: 4 + 2 = 6 clean samples.
     let decision = dropped;
     for (let i = 0; i < 5; i++) {
       decision = controller.observe(
-        makeSample({ timestampMs: 4000 + i * 2000, freezeCount: 1 }),
+        makeSample({ timestampMs: 12_000 + i * 2000, outboundFractionLost: 0 }),
       );
       expect(decision.quality).toBe("good");
       expect(decision.changed).toBe(false);
       expect(decision.tierIndex).toBe(BOTTOM_TIER_INDEX);
     }
     decision = controller.observe(
-      makeSample({ timestampMs: 14_000, freezeCount: 1 }),
+      makeSample({ timestampMs: 22_000, outboundFractionLost: 0 }),
     );
     expect(decision.changed).toBe(true);
     expect(decision.tierIndex).toBe(BOTTOM_TIER_INDEX - 1);
@@ -307,7 +329,7 @@ describe("quality controller", () => {
   it("clears learned state on reset", () => {
     const controller = createQualityController();
     controller.observe(makeSample({ timestampMs: 0 }));
-    controller.observe(makeSample({ timestampMs: 2000, freezeCount: 4 }));
+    controller.observe(makeSample({ timestampMs: 2000, outboundFractionLost: 0.3 }));
     expect(controller.getTierIndex()).toBe(BOTTOM_TIER_INDEX);
     controller.reset();
     expect(controller.getTierIndex()).toBe(RAMP_START_TIER_INDEX);
@@ -406,6 +428,26 @@ describe("encoder parameter writes", () => {
     const receiver: Record<string, unknown> = {};
     applyLowLatencyPlayout(createPc([], [receiver]), 0.05);
     expect(receiver.playoutDelayHint).toBe(0.05);
+  });
+
+  it("does not hide one rejected video sender behind another successful sender", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const failing = createSender("video", {
+      onSet: () => Promise.reject(new Error("InvalidStateError")),
+    });
+    const succeeding = createSender("video");
+    await expect(
+      applyVideoEncodingTier(createPc([failing, succeeding]), VIDEO_TIERS[0]),
+    ).resolves.toBe(false);
+    expect(succeeding.setParameters).toHaveBeenCalledOnce();
+  });
+
+  it("treats a voice call with no video sender as an applied no-op", async () => {
+    const audio = createSender("audio");
+    await expect(
+      applyVideoEncodingTier(createPc([audio]), VIDEO_TIERS[0]),
+    ).resolves.toBe(true);
+    expect(audio.setParameters).not.toHaveBeenCalled();
   });
 });
 
