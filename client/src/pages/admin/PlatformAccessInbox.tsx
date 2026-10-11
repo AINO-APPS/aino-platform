@@ -13,7 +13,7 @@ import {
   Pencil,
   History,
   BadgeAlert,
-} from "lucide-react";
+} from "../../constants/icons";
 import { listIncomingAccessRequests, approveAccessRequest, denyAccessRequest, revokeAccessSession } from "../../api/organization";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 

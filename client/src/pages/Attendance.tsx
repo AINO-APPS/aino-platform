@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { CalendarDays, Palmtree, FileEdit, BarChart3 } from "lucide-react";
+import { CalendarDays, Palmtree, FileEdit, BarChart3 } from "../constants/icons";
 import AttendanceCalendar from "./attendance/AttendanceCalendar";
 import PageSkeleton from "../components/common/PageSkeleton";
 import s from "./Attendance.module.css";

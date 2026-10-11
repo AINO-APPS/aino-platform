@@ -2390,12 +2390,12 @@ export function useMeetingState({
                     enqueueChatSend(
                         {
                             clientMsgId,
-                            text: `📎 ${file.name}`,
+                            text: file.name,
                             file_name: file.name,
                             file_size: file.size,
                         },
                         {
-                            text: `📎 ${file.name}`,
+                            text: file.name,
                             file_name: file.name,
                             file_size: file.size,
                             _uploading: false,

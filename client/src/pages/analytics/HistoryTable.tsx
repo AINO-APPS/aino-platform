@@ -1,6 +1,6 @@
 import React from "react";
 import { formatTime } from "../../utils/time";
-import { ClipboardList, Building2, House, Check, X } from "lucide-react";
+import { ClipboardList, Building2, House, Check, X } from "../../constants/icons";
 import s from "./Analytics.module.css";
 
 interface HistoryDay {

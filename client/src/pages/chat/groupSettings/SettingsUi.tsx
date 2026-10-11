@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check } from "../../../constants/icons";
 import { ChatAvatar } from "../../../components/chat";
 import { roleBadge, type GroupMember } from "./groupPermissions";
 import s from "./GroupSettings.module.css";

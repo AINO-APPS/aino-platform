@@ -29,7 +29,7 @@ import {
     LineChart as LineIcon,
     BarChart3,
     Link as LinkIcon,
-} from "lucide-react";
+} from "../../constants/icons";
 import { setTaskBlocker, getTaskDependencies, addTaskDependency, removeTaskDependency, quicksearchTasks, getSprintBurndown, getRecentVelocity, startSprint, completeSprint, getSprints, getTaskChildren, getTaskParent, setTaskParent } from "../../api/tasks";
 import { useAgileConfig } from "../../AgileConfigContext";
 import s from "./AgileWorkflowPanels.module.css";

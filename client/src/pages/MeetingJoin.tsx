@@ -1,5 +1,8 @@
+import { RefreshCw as NetworkRefresh } from "../constants/icons";
+import { AlertTriangle as InlineAlertTriangle, Info as InlineInfo } from "../constants/icons";
+import { AlertTriangle as GlyphAlertTriangle } from "../constants/icons";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MicOff, Mic, CameraOff, Camera, Check, ClipboardList, Volume2, Play } from "lucide-react";
+import { MicOff, Mic, CameraOff, Camera, Check, ClipboardList, Volume2, Play } from "../constants/icons";
 import { useParams, useNavigate } from "react-router-dom";
 import { getMeeting } from "../api/meetings";
 import { getIceConfig } from "../api/chat";
@@ -320,11 +323,11 @@ export default function MeetingJoin() {
                                 <span className="mj-net-text">{networkStats.rtt}ms</span>
                             </>
                         ) : networkError ? (
-                            <span className="mj-net-text mj-net-err">⚠ Offline</span>
+                            <span className="mj-net-text mj-net-err"><GlyphAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /> Offline</span>
                         ) : (
                             <span className="mj-net-text">Checking…</span>
                         )}
-                        <button className="mj-net-refresh" onClick={checkNetworkSpeed} title="Recheck network">↻</button>
+                        <button className="mj-net-refresh" onClick={checkNetworkSpeed} title="Recheck network"><NetworkRefresh size={14} /></button>
                     </div>
 
                     {videoOff ? (
@@ -395,7 +398,7 @@ export default function MeetingJoin() {
                                     lineHeight: 1.4,
                                 }}
                             >
-                                <strong>{s.severity === "error" ? "⚠ " : "ⓘ "}</strong>
+                                <strong>{s.severity === "error" ? <><InlineAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /></> : <><InlineInfo size="1em" style={{ verticalAlign: "middle" }} /></>}</strong>
                                 {s.label}
                             </div>
                         );

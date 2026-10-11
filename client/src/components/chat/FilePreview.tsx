@@ -1,3 +1,5 @@
+import { Download as FileDownload } from "../../constants/icons";
+import { Pause as MaterialPause, Play as MaterialPlay } from "../../constants/icons";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -13,7 +15,7 @@ import {
   Eye,
   EyeOff,
   Timer,
-} from "lucide-react";
+} from "../../constants/icons";
 import { markMessageViewed } from "../../api/chat";
 import VideoThumb from "./video/VideoThumb";
 import type { ViewerMeta } from "./video/VideoViewer";
@@ -146,14 +148,9 @@ function AudioPlayer({ fileUrl, fileType }: AudioPlayerProps) {
         title={playing ? "Pause" : "Play"}
       >
         {playing ? (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <rect x="3" y="2" width="4" height="12" rx="1" />
-            <rect x="9" y="2" width="4" height="12" rx="1" />
-          </svg>
+          <MaterialPause size="16" width="16" height="16" />
         ) : (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4 2.5v11l9-5.5L4 2.5z" />
-          </svg>
+          <MaterialPlay size="16" width="16" height="16" />
         )}
       </button>
 
@@ -464,7 +461,7 @@ function FullScreenImage({
           className={s.lbDownload}
           onClick={(e) => e.stopPropagation()}
         >
-          ⬇ Download
+          <FileDownload size="1em" /> Download
         </a>
       )}
     </div>

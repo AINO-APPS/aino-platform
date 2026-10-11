@@ -9,7 +9,7 @@ import {
     MessageSquare,
     Package,
     Folder,
-} from "lucide-react";
+} from "../../constants/icons";
 import SprintSelector from "../../components/common/SprintSelector";
 import Pagination from "../../components/common/Pagination";
 import LabelSelector from "./LabelSelector";

@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* ─────────────────────────────────────────────────────────
    PageSwitcherPopover — the single, simple place to navigate
@@ -97,7 +98,7 @@ export default function PageSwitcherPopover({ store, onClose }: PageSwitcherPopo
                             aria-label="Search notes"
                         />
                         {searchQuery && (
-                            <button className={s.searchClear} onClick={() => setSearchQuery("")} aria-label="Clear">×</button>
+                            <button className={s.searchClear} onClick={() => setSearchQuery("")} aria-label="Clear"><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                         )}
                     </div>
                     <button className={s.closeBtn} onClick={onClose} title="Close (Esc)" aria-label="Close">

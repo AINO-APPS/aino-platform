@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Film, Play } from "lucide-react";
+import { Film, Play } from "../../../constants/icons";
 import VideoViewer, { type ViewerMeta } from "./VideoViewer";
 import { fillTargetDimensions, formatVideoTime, useVideoMeta } from "./useVideoMeta";
 import s from "./Video.module.css";

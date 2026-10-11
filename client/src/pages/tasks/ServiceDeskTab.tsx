@@ -1,3 +1,4 @@
+import { Ticket as GlyphTicket } from "../../constants/icons";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactQuill from "react-quill-new";
@@ -13,7 +14,7 @@ import {
   ChevronUp,
   Trash2,
   Tag,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getServiceDeskTickets, createServiceDeskTicket, getServiceDeskStats, deleteServiceDeskTicket } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import s from "./ServiceDeskTab.module.css";
@@ -339,7 +340,7 @@ export default function ServiceDeskTab() {
         </div>
       ) : tickets.length === 0 ? (
         <div className={s["empty-state"]}>
-          <div className={s["empty-icon"]}>🎫</div>
+          <div className={s["empty-icon"]}><GlyphTicket size="1em" style={{ verticalAlign: "middle" }} /></div>
           <p>No tickets found</p>
           <span>
             Submit a ticket to report bugs, request features, or get help with

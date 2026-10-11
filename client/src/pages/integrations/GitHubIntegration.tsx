@@ -16,8 +16,7 @@ import { useAuth } from "../../AuthContext";
 import { getGithubStatus, startGithubOAuth, listGithubRepos, connectGithubRepos, disconnectGithubRepo, disconnectGithub } from "../../api/tasks";
 import { useToast } from "../../components/common/Toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-// lucide-react doesn't ship a "Github" mark; GitBranch is the closest
-// rendering of the brand at small sizes.
+// Use the shared branch icon for the source-control integration.
 import {
   GitBranch as Github,
   Link as LinkIcon,
@@ -26,7 +25,7 @@ import {
   X,
   ExternalLink,
   Loader2,
-} from "lucide-react";
+} from "../../constants/icons";
 
 const EMPTY_REPOS: any[] = [];
 

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, memo } from "react";
-import { MicOff, Hand, Loader2, WifiOff, RefreshCw } from "lucide-react";
+import { MicOff, Hand, Loader2, WifiOff, RefreshCw } from "../../constants/icons";
 
 // A single shared AudioContext for all participant tiles. Browsers cap the
 // number of concurrent contexts, and creating one per tile (especially with

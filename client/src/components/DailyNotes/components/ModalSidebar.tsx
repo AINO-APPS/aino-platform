@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* ModalSidebar — left panel of the maximized modal */
 import React from "react";
@@ -105,7 +106,7 @@ export default function ModalSidebar({
                     onChange={e => setSearchQuery(e.target.value)}
                 />
                 {searchQuery && (
-                    <button className={s.searchClear} onClick={() => setSearchQuery("")}>×</button>
+                    <button className={s.searchClear} onClick={() => setSearchQuery("")}><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                 )}
             </div>
 

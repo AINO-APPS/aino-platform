@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getLeaveBalances } from "../../api/organization";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "../../constants/icons";
 import s from "../LeavePolicy.module.css";
 import { LEAVE_TYPE_MAP } from "../../constants/leaves";
 

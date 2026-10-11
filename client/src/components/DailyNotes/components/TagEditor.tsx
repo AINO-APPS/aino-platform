@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* TagEditor — pill list + add-tag input shown in the modal editor meta row */
 import React from "react";
@@ -32,7 +33,7 @@ export default function TagEditor({
             {tags.map(tag => (
                 <span key={tag} className={s.tagPill} style={{ "--tag-color": tagColor(tag) } as React.CSSProperties}>
                     {tag}
-                    <button className={s.tagRemove} onClick={() => onRemoveTag(pageId, tag)}>×</button>
+                    <button className={s.tagRemove} onClick={() => onRemoveTag(pageId, tag)}><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                 </span>
             ))}
 

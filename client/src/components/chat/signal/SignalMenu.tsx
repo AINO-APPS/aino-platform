@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, BellOff } from "lucide-react";
+import { ArrowLeft, BellOff } from "../../../constants/icons";
 import s from "./SignalMenu.module.css";
 
 export type MuteDuration = "1h" | "8h" | "1d" | "1w" | "always";

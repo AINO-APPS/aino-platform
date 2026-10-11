@@ -12,7 +12,7 @@ import {
     RotateCcw,
     RotateCw,
     Gauge,
-} from "lucide-react";
+} from "../../../constants/icons";
 import { formatVideoTime } from "./useVideoMeta";
 import { PLAYBACK_SPEEDS, type VideoPlayerApi } from "./useVideoPlayer";
 import s from "./Video.module.css";

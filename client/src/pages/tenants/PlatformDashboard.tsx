@@ -3,7 +3,7 @@ import { getTenantOverview, getTenantAlerts } from "../../api/organization";
 import {
     Loader2, Building2, Users, AlertTriangle, TrendingUp,
     Database, Activity, ShieldAlert,
-} from "lucide-react";
+} from "../../constants/icons";
 import s from "./Tenants.module.css";
 
 export default function PlatformDashboard() {

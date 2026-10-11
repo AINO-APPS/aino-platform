@@ -1,6 +1,6 @@
 import React from "react";
 import { formatTime } from "../../utils/time";
-import { Building2, House } from "lucide-react";
+import { Building2, House } from "../../constants/icons";
 import s from "./Analytics.module.css";
 
 interface AnalyticsDay {

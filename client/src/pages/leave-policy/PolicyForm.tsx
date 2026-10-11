@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X } from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { saveLeavePolicyAPI } from "../../api/organization";
 import s from "../LeavePolicy.module.css";

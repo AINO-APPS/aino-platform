@@ -12,7 +12,7 @@ import {
     Play,
     CirclePause,
     LogOut,
-} from "lucide-react";
+} from "../../constants/icons";
 import WeeklyChart from "../../components/dashboard/WeeklyChart";
 import { formatTime, formatTimeSec } from "../../utils/time";
 import s from "../Dashboard.module.css";

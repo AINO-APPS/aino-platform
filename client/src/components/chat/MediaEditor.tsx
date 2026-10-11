@@ -22,7 +22,7 @@ import {
     Check,
     Trash2,
     Timer,
-} from "lucide-react";
+} from "../../constants/icons";
 import s from "./MediaEditor.module.css";
 
 export interface MediaEditorResult {

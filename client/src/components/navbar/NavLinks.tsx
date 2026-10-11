@@ -1,3 +1,4 @@
+import { Home as MaterialHome, Calendar as MaterialCalendar, ClipboardList as MaterialClipboardList, FileText as MaterialFileText, MessageSquare as MaterialMessageSquare, CalendarCheck as MaterialCalendarCheck, Menu as MaterialMenu } from "../../constants/icons";
 import { useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
@@ -5,8 +6,8 @@ import { useFeatures } from "../../FeaturesContext";
 import { useChatUnread } from "../../ChatContext";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import { prefetchPage } from "../common/KeepAlive";
-import { Building2, Users, Settings, Server } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Building2, Users, Settings, Server } from "../../constants/icons";
+import type { IconComponent } from "../../constants/icons";
 import s from "./Navbar.module.css";
 
 const ROLE_LEVELS: Record<string, number> = {
@@ -21,7 +22,7 @@ const ROLE_LEVELS: Record<string, number> = {
 interface MoreItem {
     to: string;
     label: string;
-    icon: LucideIcon;
+    icon: IconComponent;
 }
 
 export default function NavLinks() {
@@ -56,21 +57,7 @@ export default function NavLinks() {
                 className={p === "/" ? s.active : ""}
                 onMouseEnter={() => prefetchPage("/")}
             >
-                <svg
-                    className={s["nav-link-icon"]}
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                >
-                    <path
-                        d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                </svg>
+                <MaterialHome size="15" className={s["nav-link-icon"]} width="15" height="15" />
                 Dashboard
             </NavLink>
             {hasFeature("calendar") && (
@@ -79,16 +66,7 @@ export default function NavLinks() {
                     className={p === "/calendar" ? s.active : ""}
                     onMouseEnter={() => prefetchPage("/calendar")}
                 >
-                    <svg
-                        className={s["nav-link-icon"]}
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-                        <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    <MaterialCalendar size="15" className={s["nav-link-icon"]} width="15" height="15" />
                     Calendar
                 </NavLink>
             )}
@@ -98,28 +76,7 @@ export default function NavLinks() {
                     className={p === "/tasks" ? s.active : ""}
                     onMouseEnter={() => prefetchPage("/tasks")}
                 >
-                    <svg
-                        className={s["nav-link-icon"]}
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <path
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <path
-                            d="M9 14l2 2 4-4"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <MaterialClipboardList size="15" className={s["nav-link-icon"]} width="15" height="15" />
                     Tasks
                 </NavLink>
             )}
@@ -129,28 +86,7 @@ export default function NavLinks() {
                     className={p === "/notes" ? s.active : ""}
                     onMouseEnter={() => prefetchPage("/notes")}
                 >
-                    <svg
-                        className={s["nav-link-icon"]}
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <path
-                            d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                        <path
-                            d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <MaterialFileText size="15" className={s["nav-link-icon"]} width="15" height="15" />
                     Notes
                 </NavLink>
             )}
@@ -160,21 +96,7 @@ export default function NavLinks() {
                     className={`${p === "/chat" ? s.active : ""} ${s.chatLink}`}
                     onMouseEnter={() => prefetchPage("/chat")}
                 >
-                    <svg
-                        className={s["nav-link-icon"]}
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <path
-                            d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <MaterialMessageSquare size="15" className={s["nav-link-icon"]} width="15" height="15" />
                     Chat
                     {chatUnread > 0 && (
                         <span className={s.chatBadge}>{chatUnread > 99 ? "99+" : chatUnread}</span>
@@ -187,23 +109,7 @@ export default function NavLinks() {
                     className={p.startsWith("/attendance") ? s.active : ""}
                     onMouseEnter={() => prefetchPage("/attendance")}
                 >
-                    <svg
-                        className={s["nav-link-icon"]}
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                    >
-                        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-                        <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        <path
-                            d="M8 14l2 2 4-4"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
+                    <MaterialCalendarCheck size="15" className={s["nav-link-icon"]} width="15" height="15" />
                     Attendance
                 </NavLink>
             )}
@@ -217,14 +123,7 @@ export default function NavLinks() {
                         aria-expanded={moreOpen}
                         aria-haspopup="menu"
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M4 6h16M4 12h16M4 18h16"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <MaterialMenu size="18" width="18" height="18" />
                     </button>
                     {moreOpen && (
                         <div className={s["more-dropdown"]} role="menu">

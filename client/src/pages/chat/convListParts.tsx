@@ -1,8 +1,9 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { Paperclip, Mic, Film, Image, Video, Music, FileText, FileSpreadsheet, Archive } from "../../constants/icons";
 import { RippleTickGlyph, type TickState } from "../../components/chat/DeliveryStatus";
 
 /**
- * Signal-style last-message attachment label. Shows a type-aware emoji + word
+ * Signal-style last-message attachment label. Shows a type-aware Material icon + word
  * (Photo / Video / GIF / Voice message / Audio / Document) instead of a plain
  * "Attachment". Falls back gracefully when type metadata is missing.
  */
@@ -10,24 +11,24 @@ export function attachmentPreview(
   fileType?: string | null,
   fileName?: string | null,
   fileUrl?: string | null,
-): string {
+): ReactNode {
   const type = (fileType || "").toLowerCase();
   const name = (fileName || "").toLowerCase();
   const url = (fileUrl || "").toLowerCase();
 
   if (url.includes("voice") || name.startsWith("voice."))
-    return "🎤 Voice message";
-  if (type === "image/gif" || name.endsWith(".gif")) return "🎞️ GIF";
-  if (type.startsWith("image/")) return "📷 Photo";
-  if (type.startsWith("video/")) return "🎥 Video";
-  if (type.startsWith("audio/")) return "🎵 Audio";
-  if (type.includes("pdf")) return "📄 PDF";
+    return <><Mic size={14} style={{ verticalAlign: "middle" }} /> Voice message</>;
+  if (type === "image/gif" || name.endsWith(".gif")) return <><Film size={14} style={{ verticalAlign: "middle" }} /> GIF</>;
+  if (type.startsWith("image/")) return <><Image size={14} style={{ verticalAlign: "middle" }} /> Photo</>;
+  if (type.startsWith("video/")) return <><Video size={14} style={{ verticalAlign: "middle" }} /> Video</>;
+  if (type.startsWith("audio/")) return <><Music size={14} style={{ verticalAlign: "middle" }} /> Audio</>;
+  if (type.includes("pdf")) return <><FileText size={14} style={{ verticalAlign: "middle" }} /> PDF</>;
   if (type.includes("spreadsheet") || type.includes("excel"))
-    return "📊 Spreadsheet";
-  if (type.includes("word") || type.includes("document")) return "📝 Document";
-  if (type.includes("zip") || type.includes("compressed")) return "🗜️ Archive";
-  if (fileName) return `📎 ${fileName}`;
-  return "📎 Attachment";
+    return <><FileSpreadsheet size={14} style={{ verticalAlign: "middle" }} /> Spreadsheet</>;
+  if (type.includes("word") || type.includes("document")) return <><FileText size={14} style={{ verticalAlign: "middle" }} /> Document</>;
+  if (type.includes("zip") || type.includes("compressed")) return <><Archive size={14} style={{ verticalAlign: "middle" }} /> Archive</>;
+  if (fileName) return <><Paperclip size={14} style={{ verticalAlign: "middle" }} /> {fileName}</>;
+  return <><Paperclip size={14} style={{ verticalAlign: "middle" }} /> Attachment</>;
 }
 
 /**

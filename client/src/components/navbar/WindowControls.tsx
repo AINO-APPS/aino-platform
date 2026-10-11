@@ -1,3 +1,4 @@
+import { Minus as MaterialMinus, WindowRestore as MaterialWindowRestore, WindowMaximize as MaterialWindowMaximize, X as MaterialX } from "../../constants/icons";
 import { useState, useEffect } from "react";
 import s from "./WindowControls.module.css";
 
@@ -18,9 +19,7 @@ export default function WindowControls() {
                 onClick={() => (window.electronAPI as any)?.minimize()}
                 title="Minimize"
             >
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                    <rect x="1" y="5.5" width="10" height="1" fill="currentColor" />
-                </svg>
+                <MaterialMinus size="12" width="12" height="12" />
             </button>
             <button
                 className={s.btn}
@@ -28,41 +27,9 @@ export default function WindowControls() {
                 title={maximized ? "Restore" : "Maximize"}
             >
                 {maximized ? (
-                    <svg width="12" height="12" viewBox="0 0 12 12">
-                        <rect
-                            x="2.5"
-                            y="0"
-                            width="9"
-                            height="9"
-                            rx="1"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1"
-                        />
-                        <rect
-                            x="0.5"
-                            y="2.5"
-                            width="9"
-                            height="9"
-                            rx="1"
-                            fill="var(--bg, #1a1a2e)"
-                            stroke="currentColor"
-                            strokeWidth="1"
-                        />
-                    </svg>
+                    <MaterialWindowRestore size="12" width="12" height="12" />
                 ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12">
-                        <rect
-                            x="0.5"
-                            y="0.5"
-                            width="11"
-                            height="11"
-                            rx="1.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1"
-                        />
-                    </svg>
+                    <MaterialWindowMaximize size="12" width="12" height="12" />
                 )}
             </button>
             <button
@@ -70,14 +37,7 @@ export default function WindowControls() {
                 onClick={() => (window.electronAPI as any)?.close()}
                 title="Close"
             >
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                    <path
-                        d="M1 1l10 10M11 1L1 11"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                    />
-                </svg>
+                <MaterialX size="12" width="12" height="12" />
             </button>
         </div>
     );

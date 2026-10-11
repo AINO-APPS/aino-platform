@@ -1,3 +1,5 @@
+import { Download as UpdateDownload } from "../../constants/icons";
+import { CheckCircle2 as GlyphCheckCircle2, Check as GlyphCheck, AlertTriangle as GlyphAlertTriangle } from "../../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import s from "./UpdateNotification.module.css";
 
@@ -170,7 +172,7 @@ export default function UpdateNotification() {
 
                 {state === "downloading" && (
                     <>
-                        <span className={s.icon}>⏬</span>
+                        <span className={s.icon}><UpdateDownload size="1em" /></span>
                         <span>Downloading <strong>v{version}</strong>… {progress}%</span>
                         <div className={s.progressBar}>
                             <div className={s.progressFill} style={{ width: `${progress}%` }} />
@@ -180,7 +182,7 @@ export default function UpdateNotification() {
 
                 {state === "ready" && (
                     <>
-                        <span className={s.icon}>✅</span>
+                        <span className={s.icon}><GlyphCheckCircle2 size="1em" style={{ verticalAlign: "middle" }} /></span>
                         <span>Update <strong>v{version}</strong> ready — restart to apply</span>
                         <div className={s.actions}>
                             <button className={s.actionBtn} onClick={() => api?.installUpdate()}>
@@ -228,14 +230,14 @@ export default function UpdateNotification() {
 
                 {state === "upToDate" && (
                     <>
-                        <span className={s.icon}>✓</span>
+                        <span className={s.icon}><GlyphCheck size="1em" style={{ verticalAlign: "middle" }} /></span>
                         <span>You're on the latest version <strong>v{appVersion}</strong></span>
                     </>
                 )}
 
                 {state === "error" && (
                     <>
-                        <span className={s.icon}>⚠️</span>
+                        <span className={s.icon}><GlyphAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /></span>
                         <span>{errorMsg || "Couldn't check for updates"}</span>
                         <button className={s.dismissBtn} onClick={dismiss}>Dismiss</button>
                     </>

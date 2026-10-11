@@ -722,11 +722,6 @@
     font-weight: 600;
 }
 
-.deviceOptionActive::before {
-    content: '✓ ';
-    color: #3b82f6;
-    font-weight: 700;
-}
 
 /* ── Mobile ── */
 @media (max-width: 768px) {

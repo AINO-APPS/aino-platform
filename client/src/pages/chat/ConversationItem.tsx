@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BellOff, CheckSquare2, MoreVertical, Pin, Square } from "lucide-react";
+import { BellOff, CheckSquare2, MoreVertical, Pin, Square } from "../../constants/icons";
 import ConversationAvatar from "../../components/chat/ConversationAvatar";
 import SignalMenu, { type MuteDuration } from "../../components/chat/signal/SignalMenu";
 import { fmtTime, getConvName, isUserOnline } from "./chatUtils";

@@ -10,7 +10,7 @@ import {
   Trash2,
   Video,
   X,
-} from "lucide-react";
+} from "../../constants/icons";
 import { ChatAvatar, GroupAvatar } from "../../components/chat";
 import { callLabel } from "./callLabels";
 import ConfirmDialog from "../../components/common/ConfirmDialog";

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import {
     X, KeyRound, Ban, CheckCircle2, Trash2, Save, AlertTriangle,
-} from "lucide-react";
+} from "../../constants/icons";
 import { updateUserRole, updateUserAssignment, toggleUserActive, deleteAdminUser, adminResetPassword, cancelRoleChange } from "../../api/organization";
 import { ROLES } from "./constants";
 import { useRoleLabels } from "../../RoleLabelsContext";

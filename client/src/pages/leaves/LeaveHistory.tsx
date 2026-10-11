@@ -1,3 +1,4 @@
+import { Inbox as GlyphInbox } from "../../constants/icons";
 import React, { useState, useMemo, useEffect } from "react";
 import {
     LEAVE_TYPES,
@@ -182,7 +183,7 @@ export default function LeaveHistory({ leaves, loading, onWithdraw }: LeaveHisto
                     </div>
                 ) : filteredLeaves.length === 0 ? (
                     <div className={s.emptyState}>
-                        <div className={s.emptyIcon}>📭</div>
+                        <div className={s.emptyIcon}><GlyphInbox size="1em" style={{ verticalAlign: "middle" }} /></div>
                         <p className={s.emptyText}>No leave requests found for this period</p>
                     </div>
                 ) : (

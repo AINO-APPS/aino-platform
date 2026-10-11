@@ -7,6 +7,9 @@
      • Bulk Markdown — every page concatenated into one .md file
    ───────────────────────────────────────────────────────── */
 import html2pdf from "html2pdf.js";
+import { Info, Lightbulb, AlertTriangle, Check, CheckSquare, Square } from "../../constants/icons";
+import { materialIconMarkup } from "./quillMaterialIcons";
+const iconMask = (Icon: typeof Info) => `url("data:image/svg+xml,${encodeURIComponent(materialIconMarkup(Icon))}")`;
 import { htmlToMarkdown, safeFileName as safeName } from "./notesMarkdown";
 import type { NotePage, NoteFolder } from "./notesUtils";
 
@@ -68,12 +71,12 @@ a { color: #0ea5e9; text-decoration: underline; word-break: break-word; }
 }
 [data-callout]::before {
   position: absolute; left: 0.85em; top: 0.65em; font-size: 1em; line-height: 1.2;
-  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+  content: ""; display: inline-block; width: 1em; height: 1em; background: currentColor;
 }
-[data-callout="info"]::before { content: 'i'; font-weight: 700; color: #0ea5e9; }
-[data-callout="tip"]::before { content: '✱'; color: #a855f7; }
-[data-callout="warn"]::before { content: '!'; font-weight: 700; color: #f59e0b; }
-[data-callout="success"]::before { content: '✓'; font-weight: 700; color: #22c55e; }
+[data-callout="info"]::before { mask: ${iconMask(Info)} center / contain no-repeat; font-weight: 700; color: #0ea5e9; }
+[data-callout="tip"]::before { mask: ${iconMask(Lightbulb)} center / contain no-repeat; color: #a855f7; }
+[data-callout="warn"]::before { mask: ${iconMask(AlertTriangle)} center / contain no-repeat; font-weight: 700; color: #f59e0b; }
+[data-callout="success"]::before { mask: ${iconMask(Check)} center / contain no-repeat; font-weight: 700; color: #22c55e; }
 table { border-collapse: collapse; width: 100%; margin: 0.6em 0;
   page-break-inside: avoid; }
 th, td { border: 1px solid #e5e7eb; padding: 4px 8px; text-align: left; }
@@ -82,14 +85,14 @@ th { background: #f9fafb; font-weight: 600; }
 /* Quill checkbox lists in print */
 ul[data-checked] { list-style: none; padding-left: 0; }
 ul[data-checked] > li::before {
-  content: '☐ '; margin-right: 4px;
+  content: ""; display: inline-block; width: 1em; height: 1em; background: currentColor; mask: ${iconMask(Square)} center / contain no-repeat; margin-right: 4px;
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
 }
-ul[data-checked="true"] > li::before { content: '☑ '; }
+ul[data-checked="true"] > li::before { content: ""; display: inline-block; width: 1em; height: 1em; background: currentColor; mask: ${iconMask(CheckSquare)} center / contain no-repeat; }
 li[data-list="unchecked"] { list-style: none; }
 li[data-list="checked"] { list-style: none; text-decoration: line-through; color: #6b7280; }
-li[data-list="unchecked"]::before { content: '☐ '; margin-right: 4px; }
-li[data-list="checked"]::before { content: '☑ '; margin-right: 4px; }
+li[data-list="unchecked"]::before { content: ""; display: inline-block; width: 1em; height: 1em; background: currentColor; mask: ${iconMask(Square)} center / contain no-repeat; margin-right: 4px; }
+li[data-list="checked"]::before { content: ""; display: inline-block; width: 1em; height: 1em; background: currentColor; mask: ${iconMask(CheckSquare)} center / contain no-repeat; margin-right: 4px; }
 `;
 
 const escapeMap: Record<string, string> = { "<": "&lt;", ">": "&gt;", "&": "&amp;" };

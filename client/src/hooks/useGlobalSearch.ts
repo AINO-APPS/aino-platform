@@ -8,11 +8,11 @@ import {
     BarChart3, FileEdit, Building2, ClipboardList, Wallet, Rocket,
     Users, Settings, User, UserPlus, Download, ScrollText, RefreshCw, Building,
     CalendarCheck,
-    type LucideIcon,
-} from "lucide-react";
+    type IconComponent,
+} from "../constants/icons";
 
 export interface NavItem {
-    icon: LucideIcon;
+    icon: IconComponent;
     title: string;
     sub: string;
     path: string;

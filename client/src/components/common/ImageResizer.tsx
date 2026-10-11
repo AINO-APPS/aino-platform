@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -216,7 +217,7 @@ export default function ImageResizer({ quillRef }: { quillRef: any }) {
         >
             <div className={s.border} />
             <div className={s.sizeBadge}>
-                {Math.round(rect.width)} × {Math.round(rect.height)} px
+                {Math.round(rect.width)} <GlyphX size="1em" style={{ verticalAlign: "middle" }} /> {Math.round(rect.height)} px
             </div>
             <button
                 className={s.removeBtn}
@@ -228,7 +229,7 @@ export default function ImageResizer({ quillRef }: { quillRef: any }) {
                 title="Remove image"
                 aria-label="Remove image"
             >
-                ×
+                <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
             </button>
             {HANDLES.map((h) => (
                 <div

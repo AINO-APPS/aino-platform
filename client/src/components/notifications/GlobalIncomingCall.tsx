@@ -1,3 +1,4 @@
+import { Phone as MaterialPhone, Video as MaterialVideo } from "../../constants/icons";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGlobalCall } from "../../CallContext";
@@ -5,35 +6,11 @@ import { useNotificationPrefs } from "../../NotificationPrefsContext";
 import s from "./GlobalIncomingCall.module.css";
 
 const PhoneIcon = ({ size = 18 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path
-      d="M3.51 5.47a2.5 2.5 0 0 1 3.53 0l1.06 1.06a2.5 2.5 0 0 1 0 3.54l-.53.53a9 9 0 0 0 5.83 5.83l.53-.53a2.5 2.5 0 0 1 3.54 0l1.06 1.06a2.5 2.5 0 0 1 0 3.53l-.87.87a3 3 0 0 1-3.15.73C9.42 20.45 3.55 14.58 1.91 9.49a3 3 0 0 1 .73-3.15l.87-.87z"
-      stroke="currentColor"
-      strokeWidth="2"
-      fill="none"
-    />
-  </svg>
+  <MaterialPhone size={size} width={size} height={size} />
 );
 
 const VideoIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <rect
-      x="2"
-      y="7"
-      width="14"
-      height="10"
-      rx="2"
-      stroke="currentColor"
-      strokeWidth="2"
-    />
-    <path
-      d="M16 11l6-4v10l-6-4"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
+  <MaterialVideo size="18" width="18" height="18" />
 );
 
 interface DragState {

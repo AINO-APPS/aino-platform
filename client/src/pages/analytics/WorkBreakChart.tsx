@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Bar } from "react-chartjs-2";
-import { BarChart3 } from "lucide-react";
+import { BarChart3 } from "../../constants/icons";
 import { tooltipStyle, legendStyle, axisStyle } from "./chartConfig";
 import s from "./Analytics.module.css";
 

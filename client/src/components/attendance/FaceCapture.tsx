@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Camera, RotateCcw, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { Camera, RotateCcw, CheckCircle2, AlertTriangle, Loader2 } from "../../constants/icons";
 import { loadFaceModels, extractDescriptor, detectFaceScore, getWebcamStream, stopStream } from "../../utils/faceApi";
 import s from "./FaceCapture.module.css";
 

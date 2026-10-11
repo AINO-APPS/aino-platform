@@ -1,3 +1,4 @@
+import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as GlyphBan, ArrowDownCircle, ClipboardList } from "../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -7,7 +8,6 @@ import { getTeamSprintConfig } from "../api/organization";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
 import { SprintLifecycleControls } from "../components/agile/AgileWorkflowPanels";
-import { ArrowDownCircle, ClipboardList } from "lucide-react";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import { useAuth } from "../AuthContext";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
@@ -416,18 +416,18 @@ export default function Tasks() {
                     style={{ marginTop: 6, fontWeight: 600 }}
                   >
                     <span title="Story points: done / total">
-                      📊 {sprintStats.totals.donePoints} /{" "}
+                      <StatsIcon size="1em" /> {sprintStats.totals.donePoints} /{" "}
                       {sprintStats.totals.points} {unitLabel} (
                       {sprintStats.totals.percentByPoints}%)
                     </span>
                     {sprintStats.totals.unestimatedTasks > 0 && (
                       <span style={{ color: "var(--warning, #f59e0b)" }}>
-                        ⚠ {sprintStats.totals.unestimatedTasks} unestimated
+                        <GlyphAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /> {sprintStats.totals.unestimatedTasks} unestimated
                       </span>
                     )}
                     {sprintStats.totals.blockedTasks > 0 && (
                       <span style={{ color: "var(--danger, #ef4444)" }}>
-                        ⛔ {sprintStats.totals.blockedTasks} blocked
+                        <GlyphBan size="1em" style={{ verticalAlign: "middle" }} /> {sprintStats.totals.blockedTasks} blocked
                       </span>
                     )}
                   </div>

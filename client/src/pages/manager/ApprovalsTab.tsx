@@ -1,3 +1,5 @@
+import { Check as InlineCheck } from "../../constants/icons";
+import { X as GlyphX } from "../../constants/icons";
 import React, { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getApprovals, approveRequest, rejectRequest, bulkApproval } from "../../api/organization";
@@ -251,14 +253,14 @@ export default function ApprovalsTab({ highlightId = null }: ApprovalsTabProps) 
                         onClick={() => handleApprove(a.id)}
                         disabled={!!processing}
                       >
-                        {processing === a.id ? "…" : "✓"}
+                        {processing === a.id ? "…" : <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /></>}
                       </button>
                       <button
                         className={`${s.btnSmall} ${s.btnDanger}`}
                         onClick={() => setRejectId(a.id)}
                         disabled={!!processing}
                       >
-                        ✗
+                        <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
                       </button>
                     </div>
                   </td>

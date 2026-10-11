@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Send, Timer, X } from "lucide-react";
+import { Send, Timer, X } from "../../constants/icons";
 import VideoSurface from "./video/VideoSurface";
 import s from "./VideoPreview.module.css";
 

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, ClipboardList, Users, Send } from "lucide-react";
+import { BarChart3, ClipboardList, Users, Send } from "../constants/icons";
 import { useAuth } from "../AuthContext";
 import useRealtimeEvent from "../hooks/useRealtimeEvent";
 import { getLeaves, withdrawLeave } from "../api/workforce";

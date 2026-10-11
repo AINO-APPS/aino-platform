@@ -1,7 +1,8 @@
+import { X as GlyphX } from "../../constants/icons";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getLeaveBalances, updateLeaveBalance } from "../../api/organization";
-import { Users, Search } from "lucide-react";
+import { Users, Search } from "../../constants/icons";
 import s from "../LeavePolicy.module.css";
 import { LEAVE_TYPE_MAP } from "../../constants/leaves";
 
@@ -202,7 +203,7 @@ export default function AllBalances() {
                 className={s.modalClose}
                 onClick={() => setEditItem(null)}
               >
-                ×
+                <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
               </button>
             </div>
             <div className={s.modalForm}>

@@ -4,7 +4,7 @@
    clock-in/out times, and work mode. Auto-refreshes. */
 import React, { useState, useEffect, useCallback } from "react";
 import { getTimeSummary } from "../../../api/notes";
-import { Clock, Coffee, MapPin, RefreshCw, Play, Square, Trash2, X } from "lucide-react";
+import { Clock, Coffee, MapPin, RefreshCw, Play, Square, Trash2, X } from "../../../constants/icons";
 import s from "./TimeTrackingBlock.module.css";
 
 function formatTime(iso?: string): string {
@@ -55,7 +55,7 @@ export default function TimeTrackingBlock({ onRemove }: TimeTrackingBlockProps) 
         return <div className={s.card}><div className={s.empty}><Clock size={14} /> No time data for today</div></div>;
     }
 
-    const modeLabels: Record<string, string> = { office: "🏢 Office", remote: "🏠 Remote", hybrid: "🔄 Hybrid" };
+    const modeLabels: Record<string, string> = { office: "Office", remote: "Remote", hybrid: "Hybrid" };
 
     return (
         <div className={s.card} contentEditable={false} onContextMenu={handleContextMenu}>

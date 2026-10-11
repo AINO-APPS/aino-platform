@@ -1,3 +1,4 @@
+import { X as MaterialX } from "../../constants/icons";
 import { useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -11,7 +12,7 @@ import {
     PhoneOutgoing,
     PhoneCall,
     RotateCcw,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useNotificationPrefs } from "../../NotificationPrefsContext";
 import {
     RINGTONES,
@@ -144,14 +145,7 @@ export default function NotificationSoundsModal({ onClose }: NotificationSoundsM
                         </h2>
                     </div>
                     <button className={s.closeBtn} onClick={onClose} aria-label="Close">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path
-                                d="M2 2l10 10M12 2L2 12"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <MaterialX size="14" width="14" height="14" />
                     </button>
                 </div>
 

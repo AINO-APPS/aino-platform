@@ -1,3 +1,4 @@
+import { Plus as ActionPlus } from "../../constants/icons";
 import React, { useState, useMemo } from "react";
 import {
   Pencil,
@@ -5,7 +6,7 @@ import {
   ClipboardList,
   Palmtree,
   ArrowLeft,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getLeavePolicies, deleteLeavePolicyAPI } from "../../api/organization";
 import PolicyForm from "./PolicyForm";
@@ -117,7 +118,7 @@ export default function PoliciesTab() {
           </p>
         </div>
         <button className={s.primaryBtn} onClick={openAdd}>
-          + Add Policy
+          <ActionPlus size="1em" /> Add Policy
         </button>
       </div>
 

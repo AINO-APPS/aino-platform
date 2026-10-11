@@ -10,7 +10,7 @@ import {
   UsersRound,
   GitBranch,
   X,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { getAdminOrganizations, createAdminOrganization, updateAdminOrganization, deleteAdminOrganization } from "../../api/organization";
 import OrgModal from "./OrgModal";

@@ -4,7 +4,7 @@
    Stores `page.reactions = { '👍': [userId, ...] }`.
    ───────────────────────────────────────────────────────── */
 import React, { useState, useRef } from "react";
-import { Heart } from "lucide-react";
+import { Heart } from "../../../constants/icons";
 import { useClickOutside } from "../../../hooks/useClickOutside";
 import s from "./ReactionsBar.module.css";
 

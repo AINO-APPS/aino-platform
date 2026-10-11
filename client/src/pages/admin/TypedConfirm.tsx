@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "../../constants/icons";
 import s from "./UserManagement.module.css";
 
 interface TypedConfirmProps {

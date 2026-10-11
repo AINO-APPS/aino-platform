@@ -4,7 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getHistory, getLeaves, getStatus } from "../../api/workforce";
 import { getHolidays, getCurrentOrg } from "../../api/organization";
 import { getLocalToday } from "../../api/client";

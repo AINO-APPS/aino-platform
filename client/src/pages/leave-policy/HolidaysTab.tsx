@@ -1,3 +1,5 @@
+import { Plus as ActionPlus } from "../../constants/icons";
+import { Calendar as GlyphCalendar, X as GlyphX } from "../../constants/icons";
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getHolidays, addHoliday, deleteHoliday } from "../../api/organization";
@@ -95,7 +97,7 @@ export default function HolidaysTab({ isHR }: HolidaysTabProps) {
           </select>
           {isHR && (
             <button className={s.primaryBtn} onClick={() => setShowForm(true)}>
-              + Add Holiday
+              <ActionPlus size="1em" /> Add Holiday
             </button>
           )}
         </div>
@@ -103,7 +105,7 @@ export default function HolidaysTab({ isHR }: HolidaysTabProps) {
 
       {holidays.length === 0 ? (
         <div className={s.emptyState}>
-          <div className={s.emptyIcon}>🗓️</div>
+          <div className={s.emptyIcon}><GlyphCalendar size="1em" style={{ verticalAlign: "middle" }} /></div>
           <p className={s.emptyTitle}>No holidays defined for {year}</p>
           {isHR && (
             <button className={s.primaryBtn} onClick={() => setShowForm(true)}>
@@ -159,7 +161,7 @@ export default function HolidaysTab({ isHR }: HolidaysTabProps) {
                 className={s.modalClose}
                 onClick={() => setShowForm(false)}
               >
-                ×
+                <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
               </button>
             </div>
             <form onSubmit={handleAdd} className={s.modalForm}>

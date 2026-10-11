@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import {
     Building2, Plus, Shield, Settings2, ScrollText, Activity,
     LayoutDashboard, Menu, X, ChevronDown, ArrowLeft, CreditCard,
-} from "lucide-react";
+} from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import PlatformDashboard from "./PlatformDashboard";
 import TenantList from "./TenantList";

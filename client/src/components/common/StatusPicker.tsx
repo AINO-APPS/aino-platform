@@ -1,3 +1,4 @@
+import { ChevronDown as MaterialChevronDown } from "../../constants/icons";
 /**
  * StatusPicker — the v2 user-status menu in the navbar/profile dropdown.
  *
@@ -14,7 +15,7 @@
  */
 
 import { useState, useRef } from "react";
-import { Check, Minus, Clock3, Phone, Video } from "lucide-react";
+import { Check, Minus, Clock3, Phone, Video } from "../../constants/icons";
 import { useStatus } from "../../status/useStatus";
 import { PICKABLE_STATUSES, STATUS_META } from "../../status/constants";
 import type { ManualStatus } from "../../status/constants";
@@ -82,9 +83,7 @@ export default function StatusPicker() {
                 </span>
                 <span className={s.statusLabel}>{currentMeta.label}</span>
                 {isAutoStatus && <span className={s.autoBadge}>auto</span>}
-                <svg className={s.chevron} width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <MaterialChevronDown size="10" className={s.chevron} width="10" height="10" />
             </button>
 
             {open && (

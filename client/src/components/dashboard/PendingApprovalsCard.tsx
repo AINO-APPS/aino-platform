@@ -1,7 +1,7 @@
 import React, { memo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ClipboardCheck, Check, X } from "lucide-react";
+import { ClipboardCheck, Check, X } from "../../constants/icons";
 import { getApprovals, approveRequest, rejectRequest } from "../../api/organization";
 import { refreshApprovalQueries } from "../../hooks/useApprovalSync";
 import { useToast } from "../common/Toast";

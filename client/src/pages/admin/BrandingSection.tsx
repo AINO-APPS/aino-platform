@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload, Trash2, Loader2, Check } from "lucide-react";
+import { Upload, Trash2, Loader2, Check } from "../../constants/icons";
 import { getBranding, updateBrandingAccent, uploadBrandingLogo, deleteBrandingLogo } from "../../api/meetings";
 import { useBranding } from "../../BrandingContext";
 import { serverURL } from "../../api/client";

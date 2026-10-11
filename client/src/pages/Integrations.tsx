@@ -21,7 +21,7 @@ import { useBranding } from "../BrandingContext";
 import {
     GitBranch as Github, GitMerge, GitPullRequest,
     ChevronRight, ArrowLeft, CheckCircle2, Clock,
-} from "lucide-react";
+} from "../constants/icons";
 import GitHubIntegration from "./integrations/GitHubIntegration";
 
 interface Provider {

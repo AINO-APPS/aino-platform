@@ -14,7 +14,7 @@
  *   - onProgress?     : ({ done, total }) => void   optional rollup hook
  */
 import React, { useEffect, useState, useCallback } from "react";
-import { Plus, X, CheckSquare, Square } from "lucide-react";
+import { Plus, X, CheckSquare, Square } from "../../constants/icons";
 import { getAcceptanceCriteria, updateAcceptanceCriteria } from "../../api/tasks";
 import { useAgileConfig } from "../../AgileConfigContext";
 import s from "./AcceptanceCriteria.module.css";

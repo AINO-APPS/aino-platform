@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, AlertCircle, Package, X } from "lucide-react";
+import { CalendarDays, AlertCircle, Package, X } from "../../constants/icons";
 import { getTasks, scheduleTask, unscheduleTask } from "../../api/tasks";
 import { getLocalToday } from "../../api/client";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";

@@ -134,7 +134,7 @@
     font-weight: 500;
     border: 1px solid color-mix(in srgb, var(--notes-accent) 30%, transparent);
 }
-.notesScope span.ql-datechip::before { content: "📅"; font-size: 0.85em; }
+.notesScope span.ql-datechip::before { content: ""; width: 0.85em; height: 0.85em; background: currentColor; mask: var(--mui-calendar-icon) center / contain no-repeat; }
 
 /* @mention chip */
 .notesScope span.ql-mention {
@@ -164,7 +164,12 @@
     cursor: pointer;
 }
 .notesScope div.ql-toggle::before {
-    content: "▸";
+    content: "";
+    width: 1em;
+    height: 1em;
+    background: currentColor;
+    mask: var(--mui-chevron-icon) center / contain no-repeat;
+    transform: rotate(-90deg);
     position: absolute;
     left: 10px;
     top: 8px;
@@ -172,7 +177,7 @@
     transition: transform 0.15s ease;
     cursor: pointer;
 }
-.notesScope div.ql-toggle[data-open="true"]::before { transform: rotate(90deg); }
+.notesScope div.ql-toggle[data-open="true"]::before { transform: rotate(0deg); }
 .notesScope div.ql-toggle[data-open="false"] > *:not(:first-child) { display: none; }
 
 .notesScope div.ql-math {

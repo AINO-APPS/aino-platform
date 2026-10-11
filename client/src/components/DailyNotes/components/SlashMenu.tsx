@@ -44,7 +44,7 @@ import {
     Timer,
     ClipboardCheck,
     Users,
-} from "lucide-react";
+} from "../../../constants/icons";
 import { CODE_LANGUAGES } from "../quillConfig";
 import { extractHeadings } from "../notesUtils";
 import s from "./SlashMenu.module.css";
@@ -301,7 +301,7 @@ function makeCommands(opts: MakeCommandsOpts = {}): SlashCommand[] {
                     onInsertSprintEmbed(q);
                 } else {
                     const range = q.getSelection(true);
-                    q.insertText(range.index, "\n📊 [Sprint Board — use the full editor to render live]\n", "user");
+                    q.insertText(range.index, "\n[Sprint Board — use the full editor to render live]\n", "user");
                 }
             },
         },
@@ -313,7 +313,7 @@ function makeCommands(opts: MakeCommandsOpts = {}): SlashCommand[] {
                     onInsertTimeBlock(q);
                 } else {
                     const range = q.getSelection(true);
-                    q.insertText(range.index, "\n⏱ [Time Tracking — use the full editor to render live]\n", "user");
+                    q.insertText(range.index, "\n[Time Tracking — use the full editor to render live]\n", "user");
                 }
             },
         },

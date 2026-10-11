@@ -38,7 +38,7 @@ const liveValue = (anchor: Anchor, now: number) =>
 
 function sendNotification(title: string, body: string): void {
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(title, { body, icon: "⏱" });
+        new Notification(title, { body, icon: "/icon-192.png" });
     }
 }
 
@@ -119,7 +119,7 @@ export function useLiveTimer(status: LiveTimerStatus | null) {
                 if (!notified8hr.current && next >= TARGET_HOURS * 60) {
                     notified8hr.current = true;
                     sendNotification(
-                        "🎉 9 Hours Complete!",
+                        "9 Hours Complete!",
                         "You've completed your 9-hour target. Great job!",
                     );
                     if (!confettiTriggered.current) {

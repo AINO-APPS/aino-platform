@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../../constants/icons";
 import { useState, useRef } from "react";
 import { searchChatUsers } from "../../../api/chat";
 import s from "../CallOverlay.module.css";
@@ -45,7 +46,7 @@ export function AddParticipantPopup({ callId, conversationId, wsSend, onClose }:
             <div className={s.addPartHeader}>
                 <span>Add to call</span>
                 <button className={s.addPartClose} onClick={onClose}>
-                    ×
+                    <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
                 </button>
             </div>
             <input

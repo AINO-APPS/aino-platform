@@ -1,3 +1,4 @@
+import { X as GlyphX } from "../../constants/icons";
 import React from "react";
 import s from "../LeavePolicy.module.css";
 
@@ -52,7 +53,7 @@ export default function HolidayCard({ holiday: h, isHR, onDelete }: HolidayCardP
                     onClick={() => onDelete(h.id)}
                     title="Delete holiday"
                 >
-                    ×
+                    <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
                 </button>
             )}
         </div>

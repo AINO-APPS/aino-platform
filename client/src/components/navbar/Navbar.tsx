@@ -1,3 +1,4 @@
+import { Search as MaterialSearch } from "../../constants/icons";
 import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { isTenantlessPlatformAdmin, useAuth } from "../../AuthContext";
@@ -66,10 +67,7 @@ export default function Navbar() {
               title="Search (Ctrl+K)"
               aria-label="Open global search"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
-                <path d="M21 21l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+              <MaterialSearch size="16" width="16" height="16" />
             </button>
           )}
           <ProfileMenu />

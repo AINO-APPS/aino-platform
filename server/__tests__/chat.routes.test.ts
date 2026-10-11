@@ -1021,6 +1021,59 @@ describe("POST /api/chat/calls/delete", () => {
     });
 });
 
+describe("GET /api/chat/polls/:id voter identities", () => {
+    const poll = { id: 42, conversation_id: 10, question: "Lunch?", options: ["Soup", "Salad"] };
+    const voterRows = [
+        { option_idx: 0, user_id: 1, full_name: "Ann Lee", avatar: "/uploads/ann.jpg" },
+        { option_idx: 0, user_id: 2, full_name: "Ben", avatar: null },
+        { option_idx: 1, user_id: 3, full_name: "Cam" },
+    ];
+
+    function mockPollQueries(participant = true) {
+        mockQuery.mockImplementation(async (sql: string) => {
+            if (sql.includes("token_version")) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (sql.startsWith("SELECT * FROM polls")) return { rows: [poll], rowCount: 1 };
+            if (sql.startsWith("SELECT 1 FROM conversation_participants")) {
+                return { rows: participant ? [{ "?column?": 1 }] : [], rowCount: participant ? 1 : 0 };
+            }
+            if (sql.includes("FROM poll_votes pv")) return { rows: voterRows, rowCount: voterRows.length };
+            return { rows: [], rowCount: 0 };
+        });
+    }
+
+    beforeEach(() => mockQuery.mockReset());
+
+    test("returns profile photos and nullable fallbacks grouped by option", async () => {
+        mockPollQueries();
+        const res = await request(app).get("/api/chat/polls/42").set("Cookie", authCookie());
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ...poll, votes: {
+            0: [
+                { userId: 1, fullName: "Ann Lee", avatar: "/uploads/ann.jpg" },
+                { userId: 2, fullName: "Ben", avatar: null },
+            ],
+            1: [{ userId: 3, fullName: "Cam", avatar: null }],
+        } });
+        const query = mockQuery.mock.calls.find(([sql]: [string]) => sql.includes("FROM poll_votes pv"));
+        expect(query[0]).toContain("u.avatar");
+        expect(query[1]).toEqual([42]);
+    });
+
+    test("does not query voter identities for a non-participant", async () => {
+        mockPollQueries(false);
+        const res = await request(app).get("/api/chat/polls/42").set("Cookie", authCookie(4));
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe("Not a participant");
+        expect(mockQuery.mock.calls.some(([sql]: [string]) => sql.includes("FROM poll_votes pv"))).toBe(false);
+    });
+
+    test("requires authentication before returning poll identities", async () => {
+        const res = await request(app).get("/api/chat/polls/42");
+        expect(res.status).toBe(401);
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+});
+
 // ─── Per-user clear / delete (Signal parity) ───────────────────────────────
 
 /** Route by SQL text: auth, participant check, then the statement under test. */

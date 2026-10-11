@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X } from "../../constants/icons";
 import { forwardMessage } from "../../api/chat";
 import ChatAvatar from "./ChatAvatar";
 import s from "./ForwardModal.module.css";

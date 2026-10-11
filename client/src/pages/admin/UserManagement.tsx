@@ -6,7 +6,7 @@ import {
   Ban,
   CheckCircle2,
   X as XIcon,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getAdminUsers, toggleUserActive, updateUserAssignment, getOrgDepartments, getOrgTeams, getAdminOrganizations, getRoleChangeRequests } from "../../api/organization";
 import { useAuth } from "../../AuthContext";
 import { useRoleLabels } from "../../RoleLabelsContext";

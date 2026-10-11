@@ -1,3 +1,4 @@
+import { X as MaterialX } from "../../constants/icons";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import useWebSocket from "../../hooks/useWebSocket";
@@ -145,14 +146,7 @@ export default function GlobalMeetingNotification() {
           onClick={handleDismiss}
           title="Dismiss"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M18 6L6 18M6 6l12 12"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+          <MaterialX size="14" width="14" height="14" />
         </button>
       </div>
       <div className={s.meetInfo}>

@@ -1,4 +1,4 @@
-import { systemPreferences, type Session } from "electron";
+import type { Session } from "electron";
 
 const ALLOWED_PERMISSIONS = new Set(["media", "display-capture", "mediaKeySystem", "geolocation"]);
 
@@ -43,9 +43,5 @@ electronSession.setPermissionCheckHandler(
   },
 );
 
-// macOS: request camera/mic access at OS level
-if (process.platform === "darwin") {
-  systemPreferences.askForMediaAccess("camera").catch(() => {});
-  systemPreferences.askForMediaAccess("microphone").catch(() => {});
-}
+// getUserMedia requests OS consent only when a camera or microphone feature is used.
 }

@@ -1,6 +1,7 @@
+import { Download as InlineDownload } from "../../constants/icons";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Lock, Unlock } from "lucide-react";
+import { Lock, Unlock } from "../../constants/icons";
 import { getPayPeriods, createPayPeriod, deletePayPeriod, exportPayrollHours } from "../../api/notes";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./AdminPages.module.css";
@@ -155,14 +156,14 @@ export default function PayPeriods() {
                 onClick={() => handleExport("csv")}
                 disabled={exporting}
               >
-                {exporting ? "Exporting…" : "⬇ CSV"}
+                {exporting ? "Exporting…" : <><InlineDownload size="1em" style={{ verticalAlign: "middle" }} /> CSV</>}
               </button>
               <button
                 className={s.secondaryBtn}
                 onClick={() => handleExport("pdf")}
                 disabled={exporting}
               >
-                {exporting ? "…" : "⬇ PDF"}
+                {exporting ? "…" : <><InlineDownload size="1em" style={{ verticalAlign: "middle" }} /> PDF</>}
               </button>
             </div>
           </div>

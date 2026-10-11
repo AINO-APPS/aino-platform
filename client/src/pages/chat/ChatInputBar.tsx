@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { X, Camera, Mic, Keyboard, Smile, Send, Plus, BarChart3, Paperclip } from "../../constants/icons";
 import {
   VoiceRecorder,
   ReplyPreview,
@@ -35,7 +35,7 @@ interface ChatInputBarProps {
   showEmojiPicker: boolean;
   convMembers: any;
   mentionInputRef: any;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   isGroup: boolean;
   onSend: (e?: any, extras?: { linkPreview?: LinkPreviewData | null }) => void;
   onFileUpload: (
@@ -88,7 +88,19 @@ export default function ChatInputBar({
   const [editorFiles, setEditorFiles] = useState<File[] | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const plusMenuRef = useRef<HTMLDivElement | null>(null);
+  const inputAreaRef = useRef<HTMLDivElement | null>(null);
   const hasText = !!input.trim();
+
+  const openCamera = () => {
+    inputAreaRef.current?.querySelector("textarea")?.blur();
+    setPlusOpen(false);
+    if (showEmojiPicker) onToggleEmoji();
+    setCameraOpen(true);
+  };
+  const openGallery = () => {
+    setPlusOpen(false);
+    fileInputRef.current?.click();
+  };
 
   // ── Link previews (Signal parity — SENDER-generated) ──
   // Detect the first URL while composing, fetch OpenGraph metadata via the
@@ -282,7 +294,7 @@ export default function ChatInputBar({
       )}
 
       {!recording && (
-        <div className={s.inputArea}>
+        <div ref={inputAreaRef} className={s.inputArea}>
           <form className={s.inputBar} onSubmit={handleFormSubmit}>
             <input
               type="file"
@@ -302,45 +314,7 @@ export default function ChatInputBar({
                 title={showEmojiPicker ? "Keyboard" : "Emoji"}
                 aria-label={showEmojiPicker ? "Show keyboard" : "Show emoji"}
               >
-                {showEmojiPicker ? (
-                  /* keyboard icon */
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <rect
-                      x="2"
-                      y="5"
-                      width="20"
-                      height="14"
-                      rx="2"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                    />
-                    <path
-                      d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                ) : (
-                  /* smiley icon */
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="8"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    />
-                    <circle cx="7" cy="8" r="1" fill="currentColor" />
-                    <circle cx="13" cy="8" r="1" fill="currentColor" />
-                    <path
-                      d="M6.5 12.5a4 4 0 007 0"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
+                {showEmojiPicker ? <Keyboard size={20} /> : <Smile size={20} />}
               </button>
 
               <MentionInput
@@ -367,34 +341,11 @@ export default function ChatInputBar({
                   <button
                     type="button"
                     className={s.cameraBtn}
-                    onClick={() => setCameraOpen(true)}
+                    onClick={openCamera}
                     title="Camera"
                     aria-label="Open camera"
                   >
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <rect
-                        x="2.5"
-                        y="5"
-                        width="13"
-                        height="10"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                      <path
-                        d="M6 5l1.2-2h3.6L12 5"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                      />
-                      <circle
-                        cx="9"
-                        cy="10"
-                        r="2.6"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                      />
-                    </svg>
+                    <Camera size={18} />
                   </button>
                   <button
                     type="button"
@@ -403,29 +354,7 @@ export default function ChatInputBar({
                     title="Voice message"
                     aria-label="Record voice message"
                   >
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <rect
-                        x="6.5"
-                        y="2"
-                        width="5"
-                        height="9"
-                        rx="2.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M4 9a5 5 0 0010 0"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                      <path
-                        d="M9 14v2.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <Mic size={18} />
                   </button>
                 </>
               )}
@@ -441,41 +370,34 @@ export default function ChatInputBar({
               )}
             </div>
 
-            {/* Right-outside slot: send button when typing, otherwise the
-                            "+" attach menu (Signal places "+" outside, on the right). */}
+            {/* Keep attachments accessible while a text draft is present. */}
             {hasText || editingMsg ? (
               <button
                 type="submit"
                 className={`${s.sendBtn} ${s.sendBtnVisible}`}
                 disabled={!input.trim()}
+                aria-label="Send message"
               >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path
-                    d="M2 3l14 6-14 6V10l10-1-10-1V3z"
-                    fill="currentColor"
-                  />
-                </svg>
+                <Send size={18} />
               </button>
-            ) : (
+            ) : null}
               <div ref={plusMenuRef} className={s.plusWrap}>
                 <button
                   type="button"
                   className={`${s.plusBtn} ${plusOpen ? s.plusBtnOpen : ""}`}
                   onClick={() => setPlusOpen((v) => !v)}
                   title="More options"
+                  aria-label="More options"
+                  aria-expanded={plusOpen}
                 >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M10 4v12M4 10h12"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  <Plus size={20} />
                 </button>
 
                 {plusOpen && (
                   <div className={s.plusMenu}>
+                    <button type="button" className={s.plusMenuItem} onClick={openCamera}>
+                      <Camera size={18} /> Camera
+                    </button>
                     {isGroup && (
                       <button
                         type="button"
@@ -485,71 +407,21 @@ export default function ChatInputBar({
                           setPlusOpen(false);
                         }}
                       >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 18 18"
-                          fill="none"
-                        >
-                          <rect
-                            x="2"
-                            y="3"
-                            width="5"
-                            height="3"
-                            rx="1"
-                            stroke="currentColor"
-                            strokeWidth="1.3"
-                          />
-                          <rect
-                            x="2"
-                            y="7.5"
-                            width="10"
-                            height="3"
-                            rx="1"
-                            stroke="currentColor"
-                            strokeWidth="1.3"
-                          />
-                          <rect
-                            x="2"
-                            y="12"
-                            width="7"
-                            height="3"
-                            rx="1"
-                            stroke="currentColor"
-                            strokeWidth="1.3"
-                          />
-                        </svg>
+                        <BarChart3 size={18} />
                         Poll
                       </button>
                     )}
                     <button
                       type="button"
                       className={s.plusMenuItem}
-                      onClick={() => {
-                        fileInputRef.current?.click();
-                        setPlusOpen(false);
-                      }}
+                      onClick={openGallery}
                     >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 18 18"
-                        fill="none"
-                      >
-                        <path
-                          d="M15.75 8.62l-6.79 6.79a3.83 3.83 0 01-5.41-5.41l6.79-6.79a2.55 2.55 0 013.61 3.61l-6.8 6.79a1.28 1.28 0 01-1.8-1.8l6.26-6.27"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <Paperclip size={18} />
                       Attach file
                     </button>
                   </div>
                 )}
               </div>
-            )}
           </form>
         </div>
       )}
@@ -559,9 +431,10 @@ export default function ChatInputBar({
           <CameraCapture
             onCapture={(file) => {
               setCameraOpen(false);
-              setEditorFiles([file]);
+              routeFile(file);
             }}
             onClose={() => setCameraOpen(false)}
+            onGallery={openGallery}
           />,
           document.body,
         )}

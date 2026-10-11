@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Zap, Inbox } from "lucide-react";
+import { Zap, Inbox } from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import useWebSocket from "../../hooks/useWebSocket";

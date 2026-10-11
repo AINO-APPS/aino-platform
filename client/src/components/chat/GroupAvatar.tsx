@@ -1,4 +1,4 @@
-import { Users } from "lucide-react";
+import { Users } from "../../constants/icons";
 import s from "./GroupAvatar.module.css";
 
 export interface GroupAvatarMember {

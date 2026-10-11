@@ -1,6 +1,8 @@
+import { ChevronDown as TreeOpen, ChevronRight as TreeClosed } from "../../constants/icons";
+import { X as GlyphX, HelpCircle as GlyphHelpCircle } from "../../constants/icons";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Users, Search } from "lucide-react";
+import { Building2, Users, Search } from "../../constants/icons";
 import DOMPurify from "dompurify";
 import { getOrgChart } from "../../api/organization";
 import { ROLE_LABELS } from "../../pages/admin/constants";
@@ -155,7 +157,7 @@ function TreeNode({
             onClick={() => setOpen((o) => !o)}
             aria-label={open ? "Collapse" : "Expand"}
           >
-            {open ? "▾" : "▸"}
+            {open ? <TreeOpen size={14} /> : <TreeClosed size={14} />}
           </button>
         ) : (
           <span className={oc["tree-leaf-dot"]} />
@@ -224,7 +226,7 @@ function DeptCard({
         </span>
         <div style={{ flex: 1 }}>
           <div className={oc["dept-name"]}>
-            {open ? "▾" : "▸"} {dept.name}
+            {open ? <TreeOpen size={14} /> : <TreeClosed size={14} />} {dept.name}
             <span className={oc["headcount-badge"]}>{totalCount}</span>
           </div>
           {dept.head_name && (
@@ -383,7 +385,7 @@ export default function OrgChartView({ orgId }: { orgId?: number | string }) {
               className={oc["search-clear"]}
               onClick={() => setSearch("")}
             >
-              ✕
+              <GlyphX size="1em" style={{ verticalAlign: "middle" }} />
             </button>
           )}
         </div>
@@ -414,7 +416,7 @@ export default function OrgChartView({ orgId }: { orgId?: number | string }) {
           {filteredUnassigned.length > 0 && (
             <div className={oc["card-panel"]}>
               <div className={oc["dept-header"]}>
-                <span className={oc["dept-icon"]}>❓</span>
+                <span className={oc["dept-icon"]}><GlyphHelpCircle size="1em" style={{ verticalAlign: "middle" }} /></span>
                 <div className={oc["dept-name"]}>
                   Unassigned
                   <span className={oc["headcount-badge"]}>

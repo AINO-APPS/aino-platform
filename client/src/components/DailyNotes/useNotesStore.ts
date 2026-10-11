@@ -706,7 +706,7 @@ export function useNotesStore(userId: number | string | undefined) {
                 svg + '<div class="ql-drawio-overlay">Click to edit</div>';
         } else if (xml) {
             node.innerHTML =
-                '<div class="ql-drawio-empty">📐 Draw.io diagram — click to edit</div>';
+                '<div class="ql-drawio-empty">Draw.io diagram — click to edit</div>';
         }
         const q = modalQuillRef?.current?.getEditor
             ? modalQuillRef.current.getEditor()

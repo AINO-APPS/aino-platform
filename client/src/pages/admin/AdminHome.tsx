@@ -17,7 +17,7 @@ import {
   ScrollText,
   Settings as SettingsIcon,
   AlarmClock,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getAdminStats, getRoleChangeRequests, getApprovals, getCurrentOrg, getOrgDepartments, getOrgTeams, getLeavePolicies } from "../../api/organization";
 import s from "./AdminLayout.module.css";
 

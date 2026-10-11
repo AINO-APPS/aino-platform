@@ -1,4 +1,4 @@
-import { Thermometer, Palmtree, CalendarDays, User, FileEdit } from "lucide-react";
+import { Thermometer, Palmtree, CalendarDays, User, FileEdit } from "../../constants/icons";
 import type { ComponentType } from "react";
 
 export const ROLE_LABELS: Record<string, string> = {

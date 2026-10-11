@@ -11,7 +11,7 @@ import {
     Star,
     Trash2,
     Eraser,
-} from "lucide-react";
+} from "../../constants/icons";
 import { muteEntry, type MuteDuration, type SignalMenuEntry } from "../../components/chat/signal/SignalMenu";
 
 export interface HeaderMenuHandlers {

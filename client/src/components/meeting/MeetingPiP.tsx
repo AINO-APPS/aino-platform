@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { MicOff, Mic, CameraOff, Camera, PhoneOff } from "lucide-react";
+import { MicOff, Mic, CameraOff, Camera, PhoneOff } from "../../constants/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMeeting } from "../../MeetingContext";
 import { useAuth } from "../../AuthContext";

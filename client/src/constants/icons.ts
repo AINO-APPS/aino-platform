@@ -1,161 +1,557 @@
-/**
- * Central icon registry — re-exports Lucide React components used across the app.
- * Import icons from here to keep choices consistent.
- *
- * Usage:
- *   import { Home, Bell, X } from '../constants/icons';
- *   <Home size={20} />
- */
+/** Shared genuine Material icons. Keep application icon choices and size-compatible contracts here. */
+import { createElement, forwardRef, type ComponentType, type Ref } from "react";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
+import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import AddReactionOutlinedIcon from "@mui/icons-material/AddReactionOutlined";
+import AlarmOutlinedIcon from "@mui/icons-material/AlarmOutlined";
+import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
+import ArchitectureOutlinedIcon from "@mui/icons-material/ArchitectureOutlined";
+import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ArrowCircleDownOutlinedIcon from "@mui/icons-material/ArrowCircleDownOutlined";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import AutoFixHighOutlinedIcon from "@mui/icons-material/AutoFixHighOutlined";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
+import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
+import BeachAccessOutlinedIcon from "@mui/icons-material/BeachAccessOutlined";
+import BlockIcon from "@mui/icons-material/Block";
+import BoltOutlinedIcon from "@mui/icons-material/BoltOutlined";
+import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
+import BookmarksOutlinedIcon from "@mui/icons-material/BookmarksOutlined";
+import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
+import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
+import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import CallEndOutlinedIcon from "@mui/icons-material/CallEndOutlined";
+import CallMadeIcon from "@mui/icons-material/CallMade";
+import CallMergeIcon from "@mui/icons-material/CallMerge";
+import CallReceivedIcon from "@mui/icons-material/CallReceived";
+import CameraswitchOutlinedIcon from "@mui/icons-material/CameraswitchOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
+import CelebrationOutlinedIcon from "@mui/icons-material/CelebrationOutlined";
+import ChatBubbleOutlinedIcon from "@mui/icons-material/ChatBubbleOutlined";
+import ChatOutlinedIcon from "@mui/icons-material/ChatOutlined";
+import CheckIcon from "@mui/icons-material/Check";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
+import CheckBoxOutlinedIcon from "@mui/icons-material/CheckBoxOutlined";
+import CheckCircleOutlinedIcon from "@mui/icons-material/CheckCircleOutlined";
+import ChecklistIcon from "@mui/icons-material/Checklist";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CircleIcon from "@mui/icons-material/Circle";
+import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
+import CodeIcon from "@mui/icons-material/Code";
+import CoffeeOutlinedIcon from "@mui/icons-material/CoffeeOutlined";
+import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ContentCutIcon from "@mui/icons-material/ContentCut";
+import ContentPasteIcon from "@mui/icons-material/ContentPaste";
+import CreateNewFolderOutlinedIcon from "@mui/icons-material/CreateNewFolderOutlined";
+import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
+import CropIcon from "@mui/icons-material/Crop";
+import CropSquareIcon from "@mui/icons-material/CropSquare";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import DateRangeOutlinedIcon from "@mui/icons-material/DateRangeOutlined";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import DesktopWindowsOutlinedIcon from "@mui/icons-material/DesktopWindowsOutlined";
+import DirectionsRunIcon from "@mui/icons-material/DirectionsRun";
+import DnsOutlinedIcon from "@mui/icons-material/DnsOutlined";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
+import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
+import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
+import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FaceOutlinedIcon from "@mui/icons-material/FaceOutlined";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
+import FilterAltOutlinedIcon from "@mui/icons-material/FilterAltOutlined";
+import FilterNoneIcon from "@mui/icons-material/FilterNone";
+import FingerprintIcon from "@mui/icons-material/Fingerprint";
+import FlashOffOutlinedIcon from "@mui/icons-material/FlashOffOutlined";
+import FlashOnOutlinedIcon from "@mui/icons-material/FlashOnOutlined";
+import FlipIcon from "@mui/icons-material/Flip";
+import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
+import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
+import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
+import FormatAlignJustifyIcon from "@mui/icons-material/FormatAlignJustify";
+import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
+import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
+import FormatBoldIcon from "@mui/icons-material/FormatBold";
+import FormatClearIcon from "@mui/icons-material/FormatClear";
+import FormatIndentDecreaseIcon from "@mui/icons-material/FormatIndentDecrease";
+import FormatIndentIncreaseIcon from "@mui/icons-material/FormatIndentIncrease";
+import FormatItalicIcon from "@mui/icons-material/FormatItalic";
+import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
+import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import FormatQuoteOutlinedIcon from "@mui/icons-material/FormatQuoteOutlined";
+import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
+import ForwardOutlinedIcon from "@mui/icons-material/ForwardOutlined";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import FunctionsIcon from "@mui/icons-material/Functions";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
+import GppBadOutlinedIcon from "@mui/icons-material/GppBadOutlined";
+import GppMaybeOutlinedIcon from "@mui/icons-material/GppMaybeOutlined";
+import GpsFixedIcon from "@mui/icons-material/GpsFixed";
+import GraphicEqIcon from "@mui/icons-material/GraphicEq";
+import GrassOutlinedIcon from "@mui/icons-material/GrassOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import HandshakeOutlinedIcon from "@mui/icons-material/HandshakeOutlined";
+import HeadsetOutlinedIcon from "@mui/icons-material/HeadsetOutlined";
+import HelpOutlinedIcon from "@mui/icons-material/HelpOutlined";
+import HighlightOffIcon from "@mui/icons-material/HighlightOff";
+import HistoryIcon from "@mui/icons-material/History";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import HorizontalRuleIcon from "@mui/icons-material/HorizontalRule";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import HowToRegOutlinedIcon from "@mui/icons-material/HowToRegOutlined";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
+import KeyboardCommandKeyIcon from "@mui/icons-material/KeyboardCommandKey";
+import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
+import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
+import KeyboardOutlinedIcon from "@mui/icons-material/KeyboardOutlined";
+import LanguageIcon from "@mui/icons-material/Language";
+import LayersOutlinedIcon from "@mui/icons-material/LayersOutlined";
+import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import LinkIcon from "@mui/icons-material/Link";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import LocalFireDepartmentOutlinedIcon from "@mui/icons-material/LocalFireDepartmentOutlined";
+import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
+import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import LogoutIcon from "@mui/icons-material/Logout";
+import Looks3OutlinedIcon from "@mui/icons-material/Looks3Outlined";
+import LooksOneOutlinedIcon from "@mui/icons-material/LooksOneOutlined";
+import LooksTwoOutlinedIcon from "@mui/icons-material/LooksTwoOutlined";
+import MailOutlinedIcon from "@mui/icons-material/MailOutlined";
+import ManageAccountsOutlinedIcon from "@mui/icons-material/ManageAccountsOutlined";
+import MenuIcon from "@mui/icons-material/Menu";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
+import MergeIcon from "@mui/icons-material/Merge";
+import MicNoneOutlinedIcon from "@mui/icons-material/MicNoneOutlined";
+import MicOffOutlinedIcon from "@mui/icons-material/MicOffOutlined";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import MovieOutlinedIcon from "@mui/icons-material/MovieOutlined";
+import MusicNoteOutlinedIcon from "@mui/icons-material/MusicNoteOutlined";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
+import NightsStayOutlinedIcon from "@mui/icons-material/NightsStayOutlined";
+import NoPhotographyOutlinedIcon from "@mui/icons-material/NoPhotographyOutlined";
+import NorthEastIcon from "@mui/icons-material/NorthEast";
+import NoteAddOutlinedIcon from "@mui/icons-material/NoteAddOutlined";
+import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
+import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import NotificationsOffOutlinedIcon from "@mui/icons-material/NotificationsOffOutlined";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import PaletteOutlinedIcon from "@mui/icons-material/PaletteOutlined";
+import PanToolOutlinedIcon from "@mui/icons-material/PanToolOutlined";
+import PauseIcon from "@mui/icons-material/Pause";
+import PauseCircleOutlinedIcon from "@mui/icons-material/PauseCircleOutlined";
+import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
+import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
+import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
+import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
+import PersonRemoveOutlinedIcon from "@mui/icons-material/PersonRemoveOutlined";
+import PhoneInTalkOutlinedIcon from "@mui/icons-material/PhoneInTalkOutlined";
+import PhoneMissedOutlinedIcon from "@mui/icons-material/PhoneMissedOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
+import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
+import PictureInPictureAltOutlinedIcon from "@mui/icons-material/PictureInPictureAltOutlined";
+import PieChartOutlinedIcon from "@mui/icons-material/PieChartOutlined";
+import PlayArrowOutlinedIcon from "@mui/icons-material/PlayArrowOutlined";
+import PlayCircleOutlinedIcon from "@mui/icons-material/PlayCircleOutlined";
+import PollOutlinedIcon from "@mui/icons-material/PollOutlined";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import PublicIcon from "@mui/icons-material/Public";
+import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
+import RadioButtonCheckedIcon from "@mui/icons-material/RadioButtonChecked";
+import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import RedoIcon from "@mui/icons-material/Redo";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import RemoveIcon from "@mui/icons-material/Remove";
+import RepeatIcon from "@mui/icons-material/Repeat";
+import ReplyIcon from "@mui/icons-material/Reply";
+import ReportOutlinedIcon from "@mui/icons-material/ReportOutlined";
+import RocketLaunchOutlinedIcon from "@mui/icons-material/RocketLaunchOutlined";
+import RotateLeftIcon from "@mui/icons-material/RotateLeft";
+import RotateRightIcon from "@mui/icons-material/RotateRight";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
+import ScreenShareOutlinedIcon from "@mui/icons-material/ScreenShareOutlined";
+import SearchIcon from "@mui/icons-material/Search";
+import SellOutlinedIcon from "@mui/icons-material/SellOutlined";
+import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
+import SentimentSatisfiedOutlinedIcon from "@mui/icons-material/SentimentSatisfiedOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
+import SmartphoneOutlinedIcon from "@mui/icons-material/SmartphoneOutlined";
+import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
+import SplitscreenOutlinedIcon from "@mui/icons-material/SplitscreenOutlined";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
+import StarOutlinedIcon from "@mui/icons-material/StarOutlined";
+import StickyNote2OutlinedIcon from "@mui/icons-material/StickyNote2Outlined";
+import StopIcon from "@mui/icons-material/Stop";
+import StopCircleOutlinedIcon from "@mui/icons-material/StopCircleOutlined";
+import StopScreenShareOutlinedIcon from "@mui/icons-material/StopScreenShareOutlined";
+import StorageOutlinedIcon from "@mui/icons-material/StorageOutlined";
+import StrikethroughSIcon from "@mui/icons-material/StrikethroughS";
+import SubscriptIcon from "@mui/icons-material/Subscript";
+import SuperscriptIcon from "@mui/icons-material/Superscript";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import TableChartOutlinedIcon from "@mui/icons-material/TableChartOutlined";
+import TagIcon from "@mui/icons-material/Tag";
+import TextFieldsIcon from "@mui/icons-material/TextFields";
+import ThermostatOutlinedIcon from "@mui/icons-material/ThermostatOutlined";
+import TimerOutlinedIcon from "@mui/icons-material/TimerOutlined";
+import ToggleOffOutlinedIcon from "@mui/icons-material/ToggleOffOutlined";
+import ToggleOnOutlinedIcon from "@mui/icons-material/ToggleOnOutlined";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TuneIcon from "@mui/icons-material/Tune";
+import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
+import UndoIcon from "@mui/icons-material/Undo";
+import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
+import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
+import VideocamOffOutlinedIcon from "@mui/icons-material/VideocamOffOutlined";
+import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import ViewQuiltOutlinedIcon from "@mui/icons-material/ViewQuiltOutlined";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import VolumeDownOutlinedIcon from "@mui/icons-material/VolumeDownOutlined";
+import VolumeOffOutlinedIcon from "@mui/icons-material/VolumeOffOutlined";
+import VolumeUpOutlinedIcon from "@mui/icons-material/VolumeUpOutlined";
+import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
+import WifiIcon from "@mui/icons-material/Wifi";
+import WifiOffIcon from "@mui/icons-material/WifiOff";
+import WorkOutlinedIcon from "@mui/icons-material/WorkOutlined";
+import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 
-export {
-    // Navigation
-    Home,
-    Calendar,
-    CalendarDays,
-    CheckSquare,
-    FileText,
-    MessageSquare,
-    BarChart3,
-    TrendingUp,
-    Building2,
-    ClipboardList,
-    ScrollText,
-    BookOpen,
-    Inbox,
+export type IconProps = Omit<SvgIconProps, "ref" | "color"> & {
+    color?: string;
+    size?: number | string;
+    ref?: Ref<SVGSVGElement>;
+    titleAccess?: string;
+};
+export type IconComponent = ComponentType<IconProps>;
 
-    // Auth / Security
-    ShieldCheck,
-    Lock,
-    Unlock,
-    KeyRound,
-    Eye,
-    EyeOff,
+function icon(MaterialIcon: typeof AccessTimeIcon): IconComponent {
+    return forwardRef<SVGSVGElement, IconProps>(({ size = 24, color, style, ...props }, ref) =>
+        createElement(MaterialIcon, {
+            ...props,
+            ref,
+            htmlColor: color,
+            style: { width: props.width ?? size, height: props.height ?? size, ...style },
+            "aria-hidden": props["aria-hidden"] ?? (props["aria-label"] || props["aria-labelledby"] || props.titleAccess || props.role === "img" ? undefined : true),
+        })
+    );
+}
 
-    // Actions
-    Search,
-    Plus,
-    Trash2,
-    Edit,
-    Download,
-    Upload,
-    Printer,
-    Zap,
-    RefreshCw,
-    ArrowLeft,
-    ArrowRight,
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    ChevronUp,
-    X,
-    Check,
-    Ban,
-    Filter,
-    ExternalLink,
-    Copy,
-    Pin,
-    Star,
-
-    // Status / Indicators
-    AlertTriangle,
-    AlertCircle,
-    Bell,
-    Clock,
-    Timer,
-    Circle,
-    CheckCircle2,
-    XCircle,
-    Info,
-    Flame,
-    Loader2,
-    Target,
-
-    // People / Org
-    User,
-    Users,
-    UserPlus,
-    UserCheck,
-    Briefcase,
-    Building,
-
-    // Work Mode
-    House,
-    Monitor,
-    Palmtree,
-
-    // Leave Types
-    Thermometer,
-    PartyPopper,
-    UserCircle,
-    FileEdit,
-
-    // Files / Export
-    FileSpreadsheet,
-    Folder,
-    FolderOpen,
-    FolderPlus,
-    Package,
-    Paperclip,
-    Image,
-    Music,
-    Film,
-    Table2,
-    StickyNote,
-    Archive,
-    ArchiveRestore,
-    History,
-    Pencil,
-    MoreHorizontal,
-    Command,
-    LayoutTemplate,
-    ArrowUpRight,
-    Sparkles,
-    BookMarked,
-    Handshake,
-    ClipboardCheck,
-    CalendarRange,
-    MessageSquareText,
-    Repeat,
-    FilePlus,
-    Sigma,
-    Link2,
-    ListTree,
-    ChevronsRight,
-    Smile,
-    Heart,
-
-    // Chat / Communication
-    Phone,
-    PhoneOff,
-    PhoneCall,
-    PhoneMissed,
-    Video,
-    VideoOff,
-    Camera,
-    CameraOff,
-    Mic,
-    MicOff,
-    MonitorUp,
-    MessageCircle,
-    Hash,
-
-    // Meetings / Video
-    Maximize,
-    Minimize,
-    Hand,
-    PictureInPicture2,
-    PauseCircle,
-    PlayCircle,
-    FlipHorizontal2,
-
-    // Admin / Settings
-    Settings,
-    Shield,
-    Tag,
-    Wallet,
-    Lightbulb,
-    GitBranch,
-    RotateCcw,
-    Hammer,
-
-} from "lucide-react";
+export const Activity = /*#__PURE__*/ icon(ShowChartIcon);
+export const AlarmClock = /*#__PURE__*/ icon(AlarmOutlinedIcon);
+export const AlertCircle = /*#__PURE__*/ icon(ErrorOutlinedIcon);
+export const AlertTriangle = /*#__PURE__*/ icon(WarningAmberOutlinedIcon);
+export const AlignCenter = /*#__PURE__*/ icon(FormatAlignCenterIcon);
+export const AlignJustify = /*#__PURE__*/ icon(FormatAlignJustifyIcon);
+export const AlignLeft = /*#__PURE__*/ icon(FormatAlignLeftIcon);
+export const AlignRight = /*#__PURE__*/ icon(FormatAlignRightIcon);
+export const Archive = /*#__PURE__*/ icon(ArchiveOutlinedIcon);
+export const ArchiveRestore = /*#__PURE__*/ icon(UnarchiveOutlinedIcon);
+export const ArrowDownCircle = /*#__PURE__*/ icon(ArrowCircleDownOutlinedIcon);
+export const ArrowLeft = /*#__PURE__*/ icon(ArrowBackIcon);
+export const ArrowLeftRight = /*#__PURE__*/ icon(SwapHorizIcon);
+export const ArrowRight = /*#__PURE__*/ icon(ArrowForwardIcon);
+export const ArrowUpRight = /*#__PURE__*/ icon(NorthEastIcon);
+export const AtSign = /*#__PURE__*/ icon(AlternateEmailIcon);
+export const BadgeAlert = /*#__PURE__*/ icon(ReportOutlinedIcon);
+export const Ban = /*#__PURE__*/ icon(BlockIcon);
+export const BarChart2 = /*#__PURE__*/ icon(BarChartOutlinedIcon);
+export const BarChart3 = /*#__PURE__*/ icon(BarChartOutlinedIcon);
+export const Bell = /*#__PURE__*/ icon(NotificationsNoneOutlinedIcon);
+export const BellOff = /*#__PURE__*/ icon(NotificationsOffOutlinedIcon);
+export const BellRing = /*#__PURE__*/ icon(NotificationsActiveOutlinedIcon);
+export const BookMarked = /*#__PURE__*/ icon(BookmarksOutlinedIcon);
+export const BookOpen = /*#__PURE__*/ icon(MenuBookOutlinedIcon);
+export const Bookmark = /*#__PURE__*/ icon(BookmarkBorderIcon);
+export const Briefcase = /*#__PURE__*/ icon(WorkOutlinedIcon);
+export const Bug = /*#__PURE__*/ icon(BugReportOutlinedIcon);
+export const Building = /*#__PURE__*/ icon(BusinessOutlinedIcon);
+export const Building2 = /*#__PURE__*/ icon(BusinessOutlinedIcon);
+export const Busy = /*#__PURE__*/ icon(CircleIcon);
+export const Calendar = /*#__PURE__*/ icon(CalendarTodayOutlinedIcon);
+export const CalendarCheck = /*#__PURE__*/ icon(EventAvailableOutlinedIcon);
+export const CalendarDays = /*#__PURE__*/ icon(CalendarMonthOutlinedIcon);
+export const CalendarRange = /*#__PURE__*/ icon(DateRangeOutlinedIcon);
+export const Camera = /*#__PURE__*/ icon(PhotoCameraOutlinedIcon);
+export const CameraOff = /*#__PURE__*/ icon(NoPhotographyOutlinedIcon);
+export const Check = /*#__PURE__*/ icon(CheckIcon);
+export const CheckCircle = /*#__PURE__*/ icon(CheckCircleOutlinedIcon);
+export const CheckCircle2 = /*#__PURE__*/ icon(CheckCircleOutlinedIcon);
+export const CheckDone = /*#__PURE__*/ icon(DoneAllIcon);
+export const CheckSquare = /*#__PURE__*/ icon(CheckBoxOutlinedIcon);
+export const CheckSquare2 = /*#__PURE__*/ icon(CheckBoxOutlinedIcon);
+export const ChevronDown = /*#__PURE__*/ icon(ExpandMoreIcon);
+export const ChevronLeft = /*#__PURE__*/ icon(ChevronLeftIcon);
+export const ChevronRight = /*#__PURE__*/ icon(ChevronRightIcon);
+export const ChevronUp = /*#__PURE__*/ icon(ExpandLessIcon);
+export const ChevronsLeft = /*#__PURE__*/ icon(KeyboardDoubleArrowLeftIcon);
+export const ChevronsRight = /*#__PURE__*/ icon(KeyboardDoubleArrowRightIcon);
+export const Circle = /*#__PURE__*/ icon(RadioButtonUncheckedIcon);
+export const CircleFilled = /*#__PURE__*/ icon(CircleIcon);
+export const CircleOutlined = /*#__PURE__*/ icon(CircleOutlinedIcon);
+export const CirclePause = /*#__PURE__*/ icon(PauseCircleOutlinedIcon);
+export const ClipboardCheck = /*#__PURE__*/ icon(AssignmentTurnedInOutlinedIcon);
+export const ClipboardList = /*#__PURE__*/ icon(AssignmentOutlinedIcon);
+export const ClipboardPaste = /*#__PURE__*/ icon(ContentPasteIcon);
+export const Clock = /*#__PURE__*/ icon(AccessTimeIcon);
+export const Clock3 = /*#__PURE__*/ icon(AccessTimeIcon);
+export const Code2 = /*#__PURE__*/ icon(CodeIcon);
+export const Coffee = /*#__PURE__*/ icon(CoffeeOutlinedIcon);
+export const Command = /*#__PURE__*/ icon(KeyboardCommandKeyIcon);
+export const Copy = /*#__PURE__*/ icon(ContentCopyIcon);
+export const CreditCard = /*#__PURE__*/ icon(CreditCardOutlinedIcon);
+export const Crop = /*#__PURE__*/ icon(CropIcon);
+export const Crosshair = /*#__PURE__*/ icon(MyLocationIcon);
+export const Crown = /*#__PURE__*/ icon(WorkspacePremiumOutlinedIcon);
+export const Database = /*#__PURE__*/ icon(StorageOutlinedIcon);
+export const DollarSign = /*#__PURE__*/ icon(AttachMoneyIcon);
+export const Download = /*#__PURE__*/ icon(FileDownloadOutlinedIcon);
+export const Edit = /*#__PURE__*/ icon(EditOutlinedIcon);
+export const Edit2 = /*#__PURE__*/ icon(EditOutlinedIcon);
+export const Edit3 = /*#__PURE__*/ icon(EditNoteOutlinedIcon);
+export const Eraser = /*#__PURE__*/ icon(AutoFixHighOutlinedIcon);
+export const ExternalLink = /*#__PURE__*/ icon(OpenInNewIcon);
+export const Eye = /*#__PURE__*/ icon(VisibilityOutlinedIcon);
+export const EyeOff = /*#__PURE__*/ icon(VisibilityOffOutlinedIcon);
+export const FileEdit = /*#__PURE__*/ icon(EditNoteOutlinedIcon);
+export const FilePlus = /*#__PURE__*/ icon(NoteAddOutlinedIcon);
+export const FileSpreadsheet = /*#__PURE__*/ icon(TableChartOutlinedIcon);
+export const FileText = /*#__PURE__*/ icon(DescriptionOutlinedIcon);
+export const Film = /*#__PURE__*/ icon(MovieOutlinedIcon);
+export const Filter = /*#__PURE__*/ icon(FilterAltOutlinedIcon);
+export const Fingerprint = /*#__PURE__*/ icon(FingerprintIcon);
+export const Flame = /*#__PURE__*/ icon(LocalFireDepartmentOutlinedIcon);
+export const FlashOff = /*#__PURE__*/ icon(FlashOffOutlinedIcon);
+export const FlashOn = /*#__PURE__*/ icon(FlashOnOutlinedIcon);
+export const FlipHorizontal2 = /*#__PURE__*/ icon(FlipIcon);
+export const Folder = /*#__PURE__*/ icon(FolderOutlinedIcon);
+export const FolderOpen = /*#__PURE__*/ icon(FolderOpenOutlinedIcon);
+export const FolderPlus = /*#__PURE__*/ icon(CreateNewFolderOutlinedIcon);
+export const FormatBold = /*#__PURE__*/ icon(FormatBoldIcon);
+export const FormatClear = /*#__PURE__*/ icon(FormatClearIcon);
+export const FormatIndentDecrease = /*#__PURE__*/ icon(FormatIndentDecreaseIcon);
+export const FormatIndentIncrease = /*#__PURE__*/ icon(FormatIndentIncreaseIcon);
+export const FormatItalic = /*#__PURE__*/ icon(FormatItalicIcon);
+export const FormatStrikethrough = /*#__PURE__*/ icon(StrikethroughSIcon);
+export const FormatUnderlined = /*#__PURE__*/ icon(FormatUnderlinedIcon);
+export const Forward = /*#__PURE__*/ icon(ForwardOutlinedIcon);
+export const Gauge = /*#__PURE__*/ icon(SpeedOutlinedIcon);
+export const GitBranch = /*#__PURE__*/ icon(AccountTreeOutlinedIcon);
+export const GitMerge = /*#__PURE__*/ icon(MergeIcon);
+export const GitPullRequest = /*#__PURE__*/ icon(CallMergeIcon);
+export const Globe = /*#__PURE__*/ icon(PublicIcon);
+export const Hammer = /*#__PURE__*/ icon(GavelOutlinedIcon);
+export const Hand = /*#__PURE__*/ icon(PanToolOutlinedIcon);
+export const Handshake = /*#__PURE__*/ icon(HandshakeOutlinedIcon);
+export const HardDrive = /*#__PURE__*/ icon(StorageOutlinedIcon);
+export const Hash = /*#__PURE__*/ icon(TagIcon);
+export const Heading1 = /*#__PURE__*/ icon(LooksOneOutlinedIcon);
+export const Heading2 = /*#__PURE__*/ icon(LooksTwoOutlinedIcon);
+export const Heading3 = /*#__PURE__*/ icon(Looks3OutlinedIcon);
+export const Headset = /*#__PURE__*/ icon(HeadsetOutlinedIcon);
+export const Heart = /*#__PURE__*/ icon(FavoriteBorderIcon);
+export const HelpCircle = /*#__PURE__*/ icon(HelpOutlinedIcon);
+export const History = /*#__PURE__*/ icon(HistoryIcon);
+export const Home = /*#__PURE__*/ icon(HomeOutlinedIcon);
+export const HorizontalRule = /*#__PURE__*/ icon(HorizontalRuleIcon);
+export const Hourglass = /*#__PURE__*/ icon(HourglassEmptyIcon);
+export const House = /*#__PURE__*/ icon(HomeOutlinedIcon);
+export const Image = /*#__PURE__*/ icon(ImageOutlinedIcon);
+export const Inbox = /*#__PURE__*/ icon(InboxOutlinedIcon);
+export const Info = /*#__PURE__*/ icon(InfoOutlinedIcon);
+export const Key = /*#__PURE__*/ icon(KeyOutlinedIcon);
+export const KeyRound = /*#__PURE__*/ icon(KeyOutlinedIcon);
+export const Keyboard = /*#__PURE__*/ icon(KeyboardOutlinedIcon);
+export const Language = /*#__PURE__*/ icon(LanguageIcon);
+export const Layers = /*#__PURE__*/ icon(LayersOutlinedIcon);
+export const LayoutDashboard = /*#__PURE__*/ icon(DashboardOutlinedIcon);
+export const LayoutTemplate = /*#__PURE__*/ icon(ViewQuiltOutlinedIcon);
+export const Lightbulb = /*#__PURE__*/ icon(LightbulbOutlinedIcon);
+export const LineChart = /*#__PURE__*/ icon(ShowChartIcon);
+export const Link = /*#__PURE__*/ icon(LinkIcon);
+export const Link2 = /*#__PURE__*/ icon(LinkIcon);
+export const List = /*#__PURE__*/ icon(FormatListBulletedIcon);
+export const ListChecks = /*#__PURE__*/ icon(ChecklistIcon);
+export const ListOrdered = /*#__PURE__*/ icon(FormatListNumberedIcon);
+export const ListTree = /*#__PURE__*/ icon(AccountTreeOutlinedIcon);
+export const Loader2 = /*#__PURE__*/ icon(AutorenewIcon);
+export const Lock = /*#__PURE__*/ icon(LockOutlinedIcon);
+export const LogOut = /*#__PURE__*/ icon(LogoutIcon);
+export const Mail = /*#__PURE__*/ icon(MailOutlinedIcon);
+export const MailOpen = /*#__PURE__*/ icon(DraftsOutlinedIcon);
+export const MapPin = /*#__PURE__*/ icon(LocationOnOutlinedIcon);
+export const Maximize = /*#__PURE__*/ icon(FullscreenIcon);
+export const Megaphone = /*#__PURE__*/ icon(CampaignOutlinedIcon);
+export const Menu = /*#__PURE__*/ icon(MenuIcon);
+export const MessageCircle = /*#__PURE__*/ icon(ChatBubbleOutlinedIcon);
+export const MessageSquare = /*#__PURE__*/ icon(ChatBubbleOutlinedIcon);
+export const MessageSquareQuote = /*#__PURE__*/ icon(FormatQuoteOutlinedIcon);
+export const MessageSquareText = /*#__PURE__*/ icon(ChatOutlinedIcon);
+export const Mic = /*#__PURE__*/ icon(MicNoneOutlinedIcon);
+export const MicOff = /*#__PURE__*/ icon(MicOffOutlinedIcon);
+export const MicOffIcon = /*#__PURE__*/ icon(MicOffOutlinedIcon);
+export const Minimize = /*#__PURE__*/ icon(FullscreenExitIcon);
+export const Minimize2 = /*#__PURE__*/ icon(CloseFullscreenIcon);
+export const Minus = /*#__PURE__*/ icon(RemoveIcon);
+export const Monitor = /*#__PURE__*/ icon(DesktopWindowsOutlinedIcon);
+export const MonitorUp = /*#__PURE__*/ icon(ScreenShareOutlinedIcon);
+export const Moon = /*#__PURE__*/ icon(NightsStayOutlinedIcon);
+export const MoreHorizontal = /*#__PURE__*/ icon(MoreHorizIcon);
+export const MoreVertical = /*#__PURE__*/ icon(MoreVertIcon);
+export const Music = /*#__PURE__*/ icon(MusicNoteOutlinedIcon);
+export const Network = /*#__PURE__*/ icon(HubOutlinedIcon);
+export const NoiseSuppression = /*#__PURE__*/ icon(GraphicEqIcon);
+export const Package = /*#__PURE__*/ icon(Inventory2OutlinedIcon);
+export const Palette = /*#__PURE__*/ icon(PaletteOutlinedIcon);
+export const Palmtree = /*#__PURE__*/ icon(BeachAccessOutlinedIcon);
+export const Paperclip = /*#__PURE__*/ icon(AttachFileIcon);
+export const PartyPopper = /*#__PURE__*/ icon(CelebrationOutlinedIcon);
+export const Pause = /*#__PURE__*/ icon(PauseIcon);
+export const PauseCircle = /*#__PURE__*/ icon(PauseCircleOutlinedIcon);
+export const PenLine = /*#__PURE__*/ icon(EditOutlinedIcon);
+export const Pencil = /*#__PURE__*/ icon(EditOutlinedIcon);
+export const PencilLine = /*#__PURE__*/ icon(EditOutlinedIcon);
+export const Phone = /*#__PURE__*/ icon(PhoneOutlinedIcon);
+export const PhoneCall = /*#__PURE__*/ icon(PhoneInTalkOutlinedIcon);
+export const PhoneIncoming = /*#__PURE__*/ icon(CallReceivedIcon);
+export const PhoneMissed = /*#__PURE__*/ icon(PhoneMissedOutlinedIcon);
+export const PhoneOff = /*#__PURE__*/ icon(CallEndOutlinedIcon);
+export const PhoneOutgoing = /*#__PURE__*/ icon(CallMadeIcon);
+export const PictureInPicture2 = /*#__PURE__*/ icon(PictureInPictureAltOutlinedIcon);
+export const PieChart = /*#__PURE__*/ icon(PieChartOutlinedIcon);
+export const Pin = /*#__PURE__*/ icon(PushPinOutlinedIcon);
+export const PinOff = /*#__PURE__*/ icon(PushPinOutlinedIcon);
+export const Play = /*#__PURE__*/ icon(PlayArrowOutlinedIcon);
+export const PlayCircle = /*#__PURE__*/ icon(PlayCircleOutlinedIcon);
+export const Plus = /*#__PURE__*/ icon(AddIcon);
+export const Poll = /*#__PURE__*/ icon(PollOutlinedIcon);
+export const Printer = /*#__PURE__*/ icon(PrintOutlinedIcon);
+export const Quote = /*#__PURE__*/ icon(FormatQuoteOutlinedIcon);
+export const Receipt = /*#__PURE__*/ icon(ReceiptLongOutlinedIcon);
+export const Record = /*#__PURE__*/ icon(RadioButtonCheckedIcon);
+export const Redo = /*#__PURE__*/ icon(RedoIcon);
+export const RefreshCcw = /*#__PURE__*/ icon(RefreshIcon);
+export const RefreshCw = /*#__PURE__*/ icon(RefreshIcon);
+export const Repeat = /*#__PURE__*/ icon(RepeatIcon);
+export const Repeat2 = /*#__PURE__*/ icon(RepeatIcon);
+export const Reply = /*#__PURE__*/ icon(ReplyIcon);
+export const Rocket = /*#__PURE__*/ icon(RocketLaunchOutlinedIcon);
+export const RotateCcw = /*#__PURE__*/ icon(RotateLeftIcon);
+export const RotateCw = /*#__PURE__*/ icon(RotateRightIcon);
+export const Ruler = /*#__PURE__*/ icon(ArchitectureOutlinedIcon);
+export const Run = /*#__PURE__*/ icon(DirectionsRunIcon);
+export const Save = /*#__PURE__*/ icon(SaveOutlinedIcon);
+export const ScanFace = /*#__PURE__*/ icon(FaceOutlinedIcon);
+export const Scissors = /*#__PURE__*/ icon(ContentCutIcon);
+export const ScreenShareOff = /*#__PURE__*/ icon(StopScreenShareOutlinedIcon);
+export const ScrollText = /*#__PURE__*/ icon(ArticleOutlinedIcon);
+export const Search = /*#__PURE__*/ icon(SearchIcon);
+export const Send = /*#__PURE__*/ icon(SendOutlinedIcon);
+export const Server = /*#__PURE__*/ icon(DnsOutlinedIcon);
+export const Settings = /*#__PURE__*/ icon(SettingsOutlinedIcon);
+export const Settings2 = /*#__PURE__*/ icon(TuneIcon);
+export const Share2 = /*#__PURE__*/ icon(ShareOutlinedIcon);
+export const Shield = /*#__PURE__*/ icon(ShieldOutlinedIcon);
+export const ShieldAlert = /*#__PURE__*/ icon(GppMaybeOutlinedIcon);
+export const ShieldCheck = /*#__PURE__*/ icon(VerifiedUserOutlinedIcon);
+export const ShieldOff = /*#__PURE__*/ icon(GppBadOutlinedIcon);
+export const Sigma = /*#__PURE__*/ icon(FunctionsIcon);
+export const Smartphone = /*#__PURE__*/ icon(SmartphoneOutlinedIcon);
+export const Smile = /*#__PURE__*/ icon(SentimentSatisfiedOutlinedIcon);
+export const SmilePlus = /*#__PURE__*/ icon(AddReactionOutlinedIcon);
+export const Sparkles = /*#__PURE__*/ icon(AutoAwesomeOutlinedIcon);
+export const SplitSquareHorizontal = /*#__PURE__*/ icon(SplitscreenOutlinedIcon);
+export const Sprout = /*#__PURE__*/ icon(GrassOutlinedIcon);
+export const Square = /*#__PURE__*/ icon(CheckBoxOutlineBlankIcon);
+export const Star = /*#__PURE__*/ icon(StarBorderIcon);
+export const StarOff = /*#__PURE__*/ icon(StarOutlinedIcon);
+export const StickyNote = /*#__PURE__*/ icon(StickyNote2OutlinedIcon);
+export const Stop = /*#__PURE__*/ icon(StopIcon);
+export const StopCircle = /*#__PURE__*/ icon(StopCircleOutlinedIcon);
+export const Subscript = /*#__PURE__*/ icon(SubscriptIcon);
+export const Sun = /*#__PURE__*/ icon(LightModeOutlinedIcon);
+export const Superscript = /*#__PURE__*/ icon(SuperscriptIcon);
+export const SwitchCamera = /*#__PURE__*/ icon(CameraswitchOutlinedIcon);
+export const Table2 = /*#__PURE__*/ icon(TableChartOutlinedIcon);
+export const Tag = /*#__PURE__*/ icon(SellOutlinedIcon);
+export const Target = /*#__PURE__*/ icon(GpsFixedIcon);
+export const TestTube2 = /*#__PURE__*/ icon(ScienceOutlinedIcon);
+export const Thermometer = /*#__PURE__*/ icon(ThermostatOutlinedIcon);
+export const Ticket = /*#__PURE__*/ icon(ConfirmationNumberOutlinedIcon);
+export const Timer = /*#__PURE__*/ icon(TimerOutlinedIcon);
+export const ToggleLeft = /*#__PURE__*/ icon(ToggleOffOutlinedIcon);
+export const ToggleRight = /*#__PURE__*/ icon(ToggleOnOutlinedIcon);
+export const Trash2 = /*#__PURE__*/ icon(DeleteOutlinedIcon);
+export const TrendingUp = /*#__PURE__*/ icon(TrendingUpIcon);
+export const Trophy = /*#__PURE__*/ icon(EmojiEventsOutlinedIcon);
+export const Type = /*#__PURE__*/ icon(TextFieldsIcon);
+export const Undo = /*#__PURE__*/ icon(UndoIcon);
+export const Unlink = /*#__PURE__*/ icon(LinkOffIcon);
+export const Unlock = /*#__PURE__*/ icon(LockOpenOutlinedIcon);
+export const Upload = /*#__PURE__*/ icon(FileUploadOutlinedIcon);
+export const User = /*#__PURE__*/ icon(PersonOutlinedIcon);
+export const UserCheck = /*#__PURE__*/ icon(HowToRegOutlinedIcon);
+export const UserCircle = /*#__PURE__*/ icon(AccountCircleOutlinedIcon);
+export const UserCog = /*#__PURE__*/ icon(ManageAccountsOutlinedIcon);
+export const UserMinus = /*#__PURE__*/ icon(PersonRemoveOutlinedIcon);
+export const UserPlus = /*#__PURE__*/ icon(PersonAddAltIcon);
+export const UserX = /*#__PURE__*/ icon(PersonOffOutlinedIcon);
+export const Users = /*#__PURE__*/ icon(PeopleOutlinedIcon);
+export const UsersRound = /*#__PURE__*/ icon(GroupsOutlinedIcon);
+export const Verified = /*#__PURE__*/ icon(VerifiedOutlinedIcon);
+export const Video = /*#__PURE__*/ icon(VideocamOutlinedIcon);
+export const VideoOff = /*#__PURE__*/ icon(VideocamOffOutlinedIcon);
+export const Volume1 = /*#__PURE__*/ icon(VolumeDownOutlinedIcon);
+export const Volume2 = /*#__PURE__*/ icon(VolumeUpOutlinedIcon);
+export const VolumeX = /*#__PURE__*/ icon(VolumeOffOutlinedIcon);
+export const Wallet = /*#__PURE__*/ icon(AccountBalanceWalletOutlinedIcon);
+export const Wifi = /*#__PURE__*/ icon(WifiIcon);
+export const WifiOff = /*#__PURE__*/ icon(WifiOffIcon);
+export const WindowMaximize = /*#__PURE__*/ icon(CropSquareIcon);
+export const WindowRestore = /*#__PURE__*/ icon(FilterNoneIcon);
+export const Workflow = /*#__PURE__*/ icon(AccountTreeOutlinedIcon);
+export const Wrench = /*#__PURE__*/ icon(BuildOutlinedIcon);
+export const X = /*#__PURE__*/ icon(CloseIcon);
+export const XCircle = /*#__PURE__*/ icon(HighlightOffIcon);
+export const Zap = /*#__PURE__*/ icon(BoltOutlinedIcon);
+export const ZapOff = /*#__PURE__*/ icon(FlashOffOutlinedIcon);
+export const ZoomIn = /*#__PURE__*/ icon(ZoomInIcon);
+export const ZoomOut = /*#__PURE__*/ icon(ZoomOutIcon);

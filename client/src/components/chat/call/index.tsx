@@ -1,3 +1,4 @@
+import { Maximize as MaterialMaximize, Minus as MaterialMinus, WindowMaximize as MaterialWindowMaximize, X as MaterialX } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -53,15 +54,7 @@ const CONNECT_TIMEOUT_MS = 30000; // connecting/reconnecting → "Couldn't conne
 const END_MESSAGE_LINGER_MS = 1800;
 
 const MaximizeIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path
-      d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
+  <MaterialMaximize size="14" width="14" height="14" />
 );
 
 interface ChatMessageLike {
@@ -1021,41 +1014,21 @@ export default function CallOverlay({
             onClick={() => window.electronAPI!.minimize()}
             title="Minimize"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <rect x="1" y="5.5" width="10" height="1" fill="currentColor" />
-            </svg>
+            <MaterialMinus size="12" width="12" height="12" />
           </button>
           <button
             className={s.winBtn}
             onClick={() => window.electronAPI!.maximize()}
             title="Maximize"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <rect
-                x="0.5"
-                y="0.5"
-                width="11"
-                height="11"
-                rx="1.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-              />
-            </svg>
+            <MaterialWindowMaximize size="12" width="12" height="12" />
           </button>
           <button
             className={`${s.winBtn} ${s.winCloseBtn}`}
             onClick={() => window.electronAPI!.close()}
             title="Close"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12">
-              <path
-                d="M1 1l10 10M11 1L1 11"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-            </svg>
+            <MaterialX size="12" width="12" height="12" />
           </button>
         </div>
       )}

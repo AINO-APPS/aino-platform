@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList } from "../../constants/icons";
 import s from "./TasksSummary.module.css";
 
 interface TaskItem {

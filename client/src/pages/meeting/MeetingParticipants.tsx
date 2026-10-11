@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Hand, MicOff, Mic } from "lucide-react";
+import { Hand, MicOff, Mic } from "../../constants/icons";
 import { searchChatUsers } from "../../api/chat";
 import { MESH_PARTICIPANT_CAP } from "../../constants";
 import "./MeetingRoom.css";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Crown, MessageCircle, ShieldCheck, ShieldOff, UserMinus } from "lucide-react";
+import { Crown, MessageCircle, ShieldCheck, ShieldOff, UserMinus } from "../../../constants/icons";
 import { ChatAvatar } from "../../../components/chat";
 import SignalDialog from "../../../components/chat/signal/SignalDialog";
 import { SettingsRow } from "./SettingsUi";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapPin, ScanFace, AlertTriangle, Clock, Loader2 } from "lucide-react";
+import { MapPin, ScanFace, AlertTriangle, Clock, Loader2 } from "../../constants/icons";
 import s from "./VerifyError.module.css";
 
 export type VerifyErrKind = "location" | "face" | "generic";

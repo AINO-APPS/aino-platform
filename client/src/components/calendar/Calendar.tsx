@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Video } from "lucide-react";
+import { Video } from "../../constants/icons";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "../../api/notes";
 import { createMeeting } from "../../api/meetings";
 import { useAuth } from "../../AuthContext";

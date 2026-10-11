@@ -6,7 +6,7 @@ import { getNoteLinks, addNoteLink, removeNoteLink, searchNoteTasks, searchNoteM
 import {
     CheckSquare, Calendar, Video, Plus, X, Search, Link2, Unlink,
     ChevronDown, ChevronRight,
-} from "lucide-react";
+} from "../../../constants/icons";
 import s from "./LinkedEntitiesPanel.module.css";
 
 const STATUS_COLORS: Record<string, string> = {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Loader2, Play, RotateCcw } from "lucide-react";
+import { Loader2, Play, RotateCcw } from "../../../constants/icons";
 import VideoControls from "./VideoControls";
 import { useVideoPlayer } from "./useVideoPlayer";
 import s from "./Video.module.css";

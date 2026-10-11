@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, Coffee, ClipboardList, Calendar, House, Building2 } from "lucide-react";
+import { Clock, Coffee, ClipboardList, Calendar, House, Building2 } from "../../constants/icons";
 import { LEAVE_ICONS, formatMin } from "./constants";
 import ApprovalBadge from "./ApprovalBadge";
 import PriorityBadge from "./PriorityBadge";

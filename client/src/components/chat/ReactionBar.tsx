@@ -1,3 +1,4 @@
+import { Plus as MaterialPlus } from "../../constants/icons";
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import ReactionPicker from "./ReactionPicker";
@@ -58,7 +59,7 @@ export default function ReactionBar({ msg, userId, onReact }: ReactionBarProps) 
                         onClick={() => setShowFullPicker(p => !p)}
                         title="Add reaction"
                     >
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                        <MaterialPlus size="14" width="14" height="14" />
                     </button>
                 </div>
             )}

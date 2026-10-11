@@ -12,7 +12,7 @@ import {
   UserCog,
   Mail,
   MapPin,
-} from "lucide-react";
+} from "../../constants/icons";
 import { getCurrentOrg } from "../../api/organization";
 import OrgGeneralSettings from "../../components/organization/OrgSettings";
 import OfficeLocationSettings from "../../components/organization/OfficeLocationSettings";
@@ -20,12 +20,12 @@ import OrgRoleLabels from "./OrgRoleLabels";
 import BrandingSection from "./BrandingSection";
 import EmailTemplatesSection from "./EmailTemplatesSection";
 import s from "./OrgSettingsPage.module.css";
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "../../constants/icons";
 
 interface SectionDef {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: IconComponent;
 }
 
 interface OrgSettingsPageProps {

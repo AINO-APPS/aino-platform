@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Megaphone } from "lucide-react";
+import { Megaphone } from "../../constants/icons";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { getAdminAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from "../../api/organization";

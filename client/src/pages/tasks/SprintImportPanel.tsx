@@ -1,6 +1,6 @@
 import React from "react";
 import { PRIORITIES, type PriorityOption } from "./constants";
-import { User, CalendarDays, Check, X, Package } from "lucide-react";
+import { User, CalendarDays, Check, X, Package } from "../../constants/icons";
 import s from "./SprintImportPanel.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {

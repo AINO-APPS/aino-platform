@@ -35,7 +35,7 @@ import {
   Folder,
   ExternalLink,
   X,
-} from "lucide-react";
+} from "../constants/icons";
 
 const ROLE_LEVELS: Record<string, number> = {
   employee: 1,

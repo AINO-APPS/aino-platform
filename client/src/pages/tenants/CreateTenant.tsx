@@ -1,6 +1,7 @@
+import { X as GlyphX } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
 import { createTenant, createTenantUser, seedTenant, getPlanCatalog } from "../../api/organization";
-import { Building2, Users, UserPlus, Sprout, Check, ChevronRight, Loader2, CreditCard } from "lucide-react";
+import { Building2, Users, UserPlus, Sprout, Check, ChevronRight, Loader2, CreditCard } from "../../constants/icons";
 import s from "./Tenants.module.css";
 
 const STEPS = [
@@ -159,7 +160,7 @@ export default function CreateTenant({ onCreated }: CreateTenantProps) {
             {error && (
                 <div className={s.errorBanner} style={{ marginBottom: 16 }}>
                     <span className={s.errorText}>{error}</span>
-                    <button onClick={() => setError("")} className={s.errorClose}>×</button>
+                    <button onClick={() => setError("")} className={s.errorClose}><GlyphX size="1em" style={{ verticalAlign: "middle" }} /></button>
                 </div>
             )}
 

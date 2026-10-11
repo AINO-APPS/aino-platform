@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getPlanCatalog, updatePlanCatalog, resetPlanCatalog } from "../../api/organization";
 import {
     Loader2, Save, RotateCcw, Plus, Trash2, X, ChevronDown, ChevronUp,
-} from "lucide-react";
+} from "../../constants/icons";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./Tenants.module.css";
 

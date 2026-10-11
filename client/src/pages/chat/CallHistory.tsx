@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Video, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, X, Clock } from "lucide-react";
+import { Video, Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, X, Clock } from "../../constants/icons";
 import { getCallHistory } from "../../api/chat";
 import s from "./CallHistory.module.css";
 

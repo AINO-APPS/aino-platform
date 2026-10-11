@@ -77,7 +77,7 @@ export const sql = {
     q060: "DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2",
     q061: "INSERT INTO poll_votes (poll_id, user_id, option_idx) VALUES ($1, $2, $3)",
     q062: "SELECT option_idx, array_agg(user_id) AS user_ids FROM poll_votes WHERE poll_id = $1 GROUP BY option_idx",
-    q063: "SELECT pv.option_idx, pv.user_id, u.full_name FROM poll_votes pv JOIN users u ON u.id = pv.user_id WHERE pv.poll_id = $1",
+    q063: "SELECT pv.option_idx, pv.user_id, u.full_name, u.avatar FROM poll_votes pv JOIN users u ON u.id = pv.user_id WHERE pv.poll_id = $1",
     q064: "SELECT m.id, m.file_url, m.file_name, m.file_type, m.file_size, m.created_at, m.sender_id, u.full_name AS sender_name, u.avatar AS sender_avatar FROM messages m JOIN users u ON u.id = m.sender_id JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $2 WHERE m.conversation_id = $1 AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) AND m.file_url IS NOT NULL AND m.deleted_at IS NULL AND COALESCE((m.metadata->>'viewOnce')::boolean, false) = false ORDER BY m.created_at DESC LIMIT 100",
     q065: "SELECT m.created_at FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $2 WHERE m.conversation_id = $1 AND m.sender_id != $2 AND m.deleted_at IS NULL AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) ORDER BY m.created_at DESC LIMIT 1",
     q066: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, $3::timestamptz - INTERVAL '1 second') ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = $3::timestamptz - INTERVAL '1 second'",

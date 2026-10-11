@@ -1,5 +1,6 @@
+import { Paperclip as AttachmentIcon, Mic as VoiceIcon } from "../../constants/icons";
 import { useState, useEffect } from "react";
-import { Pin, X, Search } from "lucide-react";
+import { Pin, X, Search } from "../../constants/icons";
 import { getPinnedMessages } from "../../api/chat";
 import ChatAvatar from "./ChatAvatar";
 import s from "./PinnedMessages.module.css";
@@ -78,7 +79,7 @@ export default function PinnedMessages({ convId, currentUserId, onClose, onJumpT
                                 <span className={s.sender}>{p.sender_name}</span>
                                 <span className={s.date}>{new Date(p.pinned_at as string).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
                             </div>
-                            <span className={s.text}>{p.content || (p.file_name ? `📎 ${p.file_name}` : "🎤 Voice message")}</span>
+                            <span className={s.text}>{p.content || (p.file_name ? <><AttachmentIcon size={14} /> {p.file_name}</> : <><VoiceIcon size={14} /> Voice message</>)}</span>
                         </div>
                         {onUnpin && (
                             <button className={s.unpinBtn} onClick={e => { e.stopPropagation(); onUnpin(p.id); }} title="Unpin">

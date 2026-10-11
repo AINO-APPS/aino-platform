@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Forward, Pin, Star, Trash2, X } from "lucide-react";
+import { Copy, Forward, Pin, Star, Trash2, X } from "../../constants/icons";
 import SignalDialog from "../../components/chat/signal/SignalDialog";
 import s from "../Chat.module.css";
 

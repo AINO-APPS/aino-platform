@@ -1,10 +1,12 @@
+import { ChevronDown as TasksOpen, ChevronRight as TasksClosed } from "../../../constants/icons";
+import { Target as GlyphTarget } from "../../../constants/icons";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* SprintEmbedBlock — live sprint board/burndown embedded inside a note.
    Inserted via slash menu /sprint. Renders as a self-contained card that
    auto-refreshes sprint data from the server. */
 import React, { useState, useEffect, useCallback } from "react";
 import { getSprintEmbed } from "../../../api/notes";
-import { Rocket, Clock, AlertCircle, CheckCircle2, RefreshCw, Trash2, X } from "lucide-react";
+import { Rocket, Clock, AlertCircle, CheckCircle2, RefreshCw, Trash2, X } from "../../../constants/icons";
 import s from "./SprintEmbedBlock.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -113,7 +115,7 @@ export default function SprintEmbedBlock({ onRemove }: SprintEmbedBlockProps) {
                         <RefreshCw size={12} /> Refresh
                     </button>
                     <button className={s.ctxItem} onClick={() => { setCollapsed(c => !c); setCtxMenu(null); }}>
-                        {collapsed ? "▸ Expand tasks" : "▾ Collapse tasks"}
+                        {collapsed ? <><TasksClosed size={12} /> Expand tasks</> : <><TasksOpen size={12} /> Collapse tasks</>}
                     </button>
                     {onRemove && (
                         <button className={`${s.ctxItem} ${s.ctxDanger}`} onClick={() => { setCtxMenu(null); onRemove(); }}>
@@ -123,7 +125,7 @@ export default function SprintEmbedBlock({ onRemove }: SprintEmbedBlockProps) {
                 </div>
             )}
 
-            {sprint.goal && <div className={s.goal}>🎯 {sprint.goal}</div>}
+            {sprint.goal && <div className={s.goal}><GlyphTarget size="1em" style={{ verticalAlign: "middle" }} /> {sprint.goal}</div>}
 
             <ProgressBar stats={stats} />
 
@@ -138,7 +140,7 @@ export default function SprintEmbedBlock({ onRemove }: SprintEmbedBlockProps) {
             </div>
 
             <button className={s.toggleBtn} onClick={() => setCollapsed(c => !c)}>
-                {collapsed ? "Show tasks ▸" : "Hide tasks ▾"}
+                {collapsed ? <>Show tasks <TasksClosed size={12} /></> : <>Hide tasks <TasksOpen size={12} /></>}
             </button>
 
             {!collapsed && (

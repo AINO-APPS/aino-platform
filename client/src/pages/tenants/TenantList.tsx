@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { getTenants, getTenantOverview, suspendTenant, reactivateTenant, deleteTenantApi } from "../../api/organization";
 import {
     Building2, Pause, Play, Trash2, Users, Shield, X, Search, Calendar, Loader2,
-} from "lucide-react";
+} from "../../constants/icons";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import RequestAccessModal from "./RequestAccessModal";
 import s from "./Tenants.module.css";

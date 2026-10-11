@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, House, Building2 } from "lucide-react";
+import { Clock, House, Building2 } from "../../constants/icons";
 import { ROLE_LABELS, LEAVE_ICONS } from "./constants";
 import s from "../Admin.module.css";
 import m from "../ManagerDashboard.module.css";

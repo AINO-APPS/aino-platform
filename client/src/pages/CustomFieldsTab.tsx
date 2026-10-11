@@ -1,3 +1,4 @@
+import { Check as InlineCheck } from "../constants/icons";
 /**
  * CustomFieldsSection — admin UI to manage tenant-customisable task fields.
  *
@@ -10,7 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomFieldsAll, createCustomField, updateCustomField, deleteCustomField } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useCustomFields } from "../CustomFieldsContext";
-import { Plus, Pencil, Trash2, X, Save, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Save, Loader2 } from "../constants/icons";
 import s from "../components/customFields/CustomFields.module.css";
 
 interface FieldTypeDef {
@@ -426,9 +427,9 @@ export default function CustomFieldsSection({
                 <td>
                   <span className={s.typeBadge}>{r.field_type}</span>
                 </td>
-                <td>{r.is_required ? "✓" : "—"}</td>
-                <td>{r.show_on_card ? "✓" : "—"}</td>
-                <td>{r.is_active ? "✓" : "—"}</td>
+                <td>{r.is_required ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /></> : "—"}</td>
+                <td>{r.show_on_card ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /></> : "—"}</td>
+                <td>{r.is_active ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /></> : "—"}</td>
                 <td>
                   <div className={s.rowActions}>
                     {canEdit && (

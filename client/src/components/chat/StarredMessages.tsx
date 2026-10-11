@@ -1,5 +1,6 @@
+import { Paperclip as AttachmentIcon, Mic as VoiceIcon } from "../../constants/icons";
 import { useState, useEffect } from "react";
-import { Bookmark, X, Search, ArrowUpRight } from "lucide-react";
+import { Bookmark, X, Search, ArrowUpRight } from "../../constants/icons";
 import s from "./StarredMessages.module.css";
 import { getStarredMessages, toggleStar } from "../../api/chat";
 
@@ -86,7 +87,7 @@ export default function StarredMessages({ onJumpTo, onClose }: StarredMessagesPr
                             <span className={s.convName}>in {m.conversation_name}</span>
                         )}
                         <div className={s.content}>
-                            {m.content || (m.file_name ? `📎 ${m.file_name}` : "Attachment")}
+                            {m.content || (m.file_name ? <><AttachmentIcon size={14} /> {m.file_name}</> : "Attachment")}
                         </div>
                         <div className={s.actions}>
                             <button

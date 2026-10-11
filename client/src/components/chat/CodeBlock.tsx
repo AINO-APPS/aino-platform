@@ -1,3 +1,4 @@
+import { Check as InlineCheck } from "../../constants/icons";
 import { useEffect, useRef, useState } from "react";
 import s from "./CodeBlock.module.css";
 
@@ -35,7 +36,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
             <div className={s.header}>
                 <span className={s.lang}>{language || "code"}</span>
                 <button className={s.copyBtn} onClick={handleCopy}>
-                    {copied ? "✓ Copied" : "Copy"}
+                    {copied ? <><InlineCheck size="1em" style={{ verticalAlign: "middle" }} /> Copied</> : "Copy"}
                 </button>
             </div>
             <pre className={s.pre}>

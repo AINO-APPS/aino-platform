@@ -12,7 +12,7 @@ import {
     Crown,
     Shield,
     Info,
-} from "lucide-react";
+} from "../../constants/icons";
 import s from "./SystemMessage.module.css";
 
 const ICON_MAP: Record<string, React.ReactElement> = {

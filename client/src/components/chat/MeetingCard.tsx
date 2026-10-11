@@ -1,4 +1,4 @@
-import { Video } from "lucide-react";
+import { Video } from "../../constants/icons";
 import { useNavigate } from "react-router-dom";
 import s from "./MeetingCard.module.css";
 

@@ -1,3 +1,4 @@
+import { Tag as GlyphTag } from "../../constants/icons";
 import React, { useRef, useEffect } from "react";
 import s from "./LabelSelector.module.css";
 import type { TaskLabel } from "../../types";
@@ -34,7 +35,7 @@ export default function LabelSelector({
                 className={s["label-selector-btn"]}
                 onClick={() => setOpen((o) => !o)}
             >
-                🏷️ Labels{" "}
+                <GlyphTag size="1em" style={{ verticalAlign: "middle" }} /> Labels{" "}
                 {selected.length > 0 && (
                     <span className={s["label-count"]}>{selected.length}</span>
                 )}

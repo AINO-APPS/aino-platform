@@ -3,7 +3,7 @@ import { getPlatformAnnouncements, createPlatformAnnouncement, updatePlatformAnn
 import {
     Loader2, X, Megaphone, Trash2, ToggleLeft, ToggleRight, Shield, Save,
     Wrench, Lock, Database,
-} from "lucide-react";
+} from "../../constants/icons";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import s from "./Tenants.module.css";
 
