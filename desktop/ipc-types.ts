@@ -27,8 +27,8 @@ export type MessageAlert = {
 export type MessageAlertState = { session: string; cards: MessageAlert[]; dark: boolean; primary: string };
 export type MessageAlertAction = {
   session: string; conversationId: string; messageId: string;
-  action: "open" | "dismiss" | "read" | "mute" | "reply" | "expand";
-  text?: string; duration?: "1h" | "always";
+  action: "open" | "dismiss" | "read" | "reply" | "expand";
+  text?: string;
 };
 
 export interface ElectronAPI {

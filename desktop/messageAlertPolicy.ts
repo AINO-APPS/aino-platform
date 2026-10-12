@@ -31,9 +31,8 @@ export function isMessageAlertAction(value: unknown, state: MessageAlertState | 
     && id(value.conversationId) && id(value.messageId)
     // A newer message may replace the card between render and click; act on what the user saw.
     && state.cards.some((item) => item.conversationId === value.conversationId && Number(value.messageId) <= Number(item.messageId))
-    && ["open", "dismiss", "read", "mute", "reply", "expand"].includes(String(value.action))
-    && (value.text === undefined || text(value.text, 5000))
-    && (value.duration === undefined || value.duration === "1h" || value.duration === "always");
+    && ["open", "dismiss", "read", "reply", "expand"].includes(String(value.action))
+    && (value.text === undefined || text(value.text, 5000));
 }
 export function messagePopupBounds(area: { x: number; y: number; width: number; height: number }, cards: number) {
   const margin = Math.min(16, Math.floor(Math.min(area.width, area.height) / 4));

@@ -5,7 +5,7 @@ import { useChatUnread } from "../../ChatContext";
 import { useNotificationPrefs } from "../../NotificationPrefsContext";
 import { useTheme } from "../../ThemeContext";
 import { useStatus } from "../../status/useStatus";
-import { getConversations, markConversationRead, muteConversation, sendQuickReply } from "../../api/chat";
+import { getConversations, markConversationRead, sendQuickReply } from "../../api/chat";
 import { REALTIME_CONNECTED_EVENT, REALTIME_EVENT, type WebSocketMessage } from "../../hooks/useWebSocket";
 import { createPendingMessageId } from "../../pages/chat/messageDelivery";
 import MessagePopup from "./MessagePopup";
@@ -92,19 +92,10 @@ export default function GlobalMessageNotifications() {
                 if (!positiveId(response.data.id)) throw new Error("The message was not confirmed by the server.");
             } else if (action.action === "read") {
                 await markConversationRead(card.conversationId, action.messageId);
-            } else if (action.action === "mute") {
-                await muteConversation(card.conversationId, action.duration ?? "1h");
-                if (session.current === generation) conversations.current.set(card.conversationId, {
-                    ...conversations.current.get(card.conversationId), is_muted: true,
-                    muted_until: action.duration === "always" ? null : new Date(Date.now() + 3_600_000).toISOString(),
-                });
             }
             if (session.current !== generation) return;
             update({ busy: false, replyText: "", draftId: createPendingMessageId(), replyOpen: false, error: "" });
-            if (action.action === "mute") {
-                replace((current) => current.filter((item) => item.conversationId !== card.conversationId));
-                closeBrowser(card.conversationId);
-            } else dismissSnapshot();
+            dismissSnapshot();
             window.dispatchEvent(new Event(MESSAGE_ALERT_EVENT));
             void latest.current.refreshUnread();
         } catch (error: unknown) {
@@ -261,8 +252,8 @@ export default function GlobalMessageNotifications() {
     useEffect(() => {
         if (prefsLoaded) window.dispatchEvent(new Event("aino-notification-prefs-ready"));
     }, [prefsLoaded]);
-    const act = useCallback((action: MessageAlertAction["action"], card: MessageAlert, text?: string, duration?: "1h" | "always") => {
-        void handleAction({ session: session.current, conversationId: card.conversationId, messageId: card.messageId, action, text, duration });
+    const act = useCallback((action: MessageAlertAction["action"], card: MessageAlert, text?: string) => {
+        void handleAction({ session: session.current, conversationId: card.conversationId, messageId: card.messageId, action, text });
     }, [handleAction]);
     const visible = prefs.hideSensitiveContent ? alerts.map(privateAlert) : alerts;
     useEffect(() => {

@@ -47,13 +47,15 @@ describe("Material icon compatibility", () => {
     it("keeps avatar status icons within their CSS dot and delivery states distinguishable", () => {
         const { container, rerender } = render(<ChatAvatar name="Test" userStatus="available" />);
         expect(container.querySelector("svg")).toHaveStyle({ width: "100%", height: "100%" });
-        const paths: string[] = [];
+        const shapes: string[] = [];
         for (const state of ["sent", "delivered", "read"] as const) {
             rerender(<RippleTickGlyph state={state} size={14} />);
-            expect(container.querySelector("svg")).toHaveStyle({ width: "14px", height: "14px" });
-            paths.push(container.querySelector("path")!.getAttribute("d")!);
+            const svg = container.querySelector("svg")!;
+            expect(svg).toHaveAttribute("width", "14");
+            expect(svg).toHaveAttribute("viewBox", "0 0 16 16");
+            shapes.push(svg.innerHTML);
         }
-        expect(new Set(paths).size).toBe(3);
+        expect(new Set(shapes).size).toBe(3);
     });
 
     it("uses icons in typed attachment fallbacks without altering filenames", () => {

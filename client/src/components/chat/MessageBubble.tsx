@@ -273,6 +273,29 @@ function MessageBubble({
     onDelete,
   });
 
+  // Android footer order: Edited · time · receipt, in one row.
+  const footer = (
+    <div className={s.meta}>
+      {isFailed && !isPendingMedia && (
+        <button type="button" className={s.retryBtn} onClick={() => onRetry?.(msg)}
+          title={msg._failureReason ? `Failed: ${msg._failureReason}. Click to retry.` : "Failed to send. Click to retry."}>
+          Failed — Retry
+        </button>
+      )}
+      {msg.edited_at && <span className={s.edited}>Edited</span>}
+      <span className={s.time}>
+        {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </span>
+      <DeliveryStatus
+        isMine={isMine}
+        msg={msg}
+        participantCount={participantCount}
+        readReceipts={readReceipts}
+        userId={userId as number | string}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={rowRef}
@@ -413,7 +436,8 @@ function MessageBubble({
           )}
 
           {msg.content && !isPoll && (
-            <MessageContent text={msg.content} isMine={isMine} />
+            <MessageContent text={msg.content} isMine={isMine}
+              meta={!msg.link_preview && !msg.file_url ? footer : undefined} />
           )}
 
           {/* Link preview card (Signal parity — sender-generated) */}
@@ -485,36 +509,7 @@ function MessageBubble({
             </a>
           )}
 
-          <div className={s.meta}>
-            {isFailed && !isPendingMedia && (
-              <button
-                type="button"
-                className={s.retryBtn}
-                onClick={() => onRetry?.(msg)}
-                title={
-                  msg._failureReason
-                    ? `Failed: ${msg._failureReason}. Click to retry.`
-                    : "Failed to send. Click to retry."
-                }
-              >
-                Failed — Retry
-              </button>
-            )}
-            <span className={s.time}>
-              {new Date(msg.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-            {msg.edited_at && <span className={s.edited}>(edited)</span>}
-            <DeliveryStatus
-              isMine={isMine}
-              msg={msg}
-              participantCount={participantCount}
-              readReceipts={readReceipts}
-              userId={userId as number | string}
-            />
-          </div>
+          {!(msg.content && !isPoll && !msg.link_preview && !msg.file_url) && footer}
 
           {!isPending && (
             <MessageToolbar

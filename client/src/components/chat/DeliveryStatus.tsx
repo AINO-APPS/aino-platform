@@ -1,4 +1,5 @@
-import { CheckCircle2, CheckDone, Verified, Loader2, AlertCircle } from "../../constants/icons";
+import { useId } from "react";
+import { AlertCircle } from "../../constants/icons";
 import s from "./MessageBubble.module.css";
 
 interface ChatMsg {
@@ -16,19 +17,51 @@ interface DeliveryStatusProps {
     userId: number | string;
 }
 
-// The shared delivery glyph API is also used by conversation-list receipts.
-
+// Exact Android `SignalReceiptIcon` geometry (16-unit grid, drawn at 15px); also used by list receipts.
 export type TickState = "sent" | "delivered" | "read";
 
+const OUTER_CHECK = "M4.9 8.2L7 10.3L11.1 5.8";
+const INNER_CHECK = "M5.6 8.1L7.2 9.7L10.4 6.3";
+const stroke = { strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } as const;
+
 export function RippleTickGlyph({ state, size = 15 }: { state: TickState; size?: number }) {
-    const Icon = state === "sent" ? CheckCircle2 : state === "delivered" ? CheckDone : Verified;
-    return <Icon size={size} aria-hidden="true" />;
+    // Delivered punches the check out of the disc (true transparency, like Android over any bubble).
+    const maskId = `tick-punch-${useId().replace(/:/g, "")}`;
+    return (
+        <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" data-tick={state}>
+            {state === "sent" && (
+                <>
+                    <circle cx="8" cy="8" r="6.6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    <path d={OUTER_CHECK} stroke="currentColor" strokeWidth="1.5" {...stroke} />
+                </>
+            )}
+            {state === "delivered" && (
+                <>
+                    <mask id={maskId}>
+                        <rect width="16" height="16" fill="#fff" />
+                        <path d={OUTER_CHECK} stroke="#000" strokeWidth="1.5" {...stroke} />
+                    </mask>
+                    <circle cx="8" cy="8" r="7" fill="currentColor" mask={`url(#${maskId})`} />
+                </>
+            )}
+            {state === "read" && (
+                <>
+                    <circle cx="8" cy="8" r="7.2" stroke="currentColor" strokeWidth="1.3" strokeOpacity="0.45" fill="none" />
+                    <circle cx="8" cy="8" r="5.2" fill="currentColor" />
+                    <path d={INNER_CHECK} stroke="var(--tick-read-check, #fff)" strokeWidth="1.4" {...stroke} />
+                </>
+            )}
+        </svg>
+    );
 }
 
 function SendingTick() {
     return (
         <span className={`${s.tick} ${s.tickSending}`} title="Sending…" aria-label="Sending">
-            <Loader2 size={14} />
+            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.35" fill="none" />
+                <path d="M8 2A6 6 0 0 1 14 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+            </svg>
         </span>
     );
 }
