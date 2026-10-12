@@ -15,6 +15,20 @@
     "isGroup": { "enum": ["true", "false"] },
     "groupName": { "type": "string" },
     "senderAvatar": { "type": "string" },
+    "groupAvatar": { "type": "string", "maxLength": 2048 },
+    "groupMemberPreviews": {
+      "type": "string", "maxLength": 2048, "contentMediaType": "application/json",
+      "contentSchema": {
+        "type": "array", "maxItems": 4,
+        "items": {
+          "type": "object", "required": ["name", "avatar"], "additionalProperties": false,
+          "properties": {
+            "name": { "type": ["string", "null"], "maxLength": 200 },
+            "avatar": { "type": ["string", "null"], "maxLength": 2048 }
+          }
+        }
+      }
+    },
     "unreadCount": { "$ref": "#/$defs/positiveIntegerString" },
     "badgeCount": { "$ref": "#/$defs/positiveIntegerString" },
     "dedupeKey": { "type": "string", "pattern": "^msg:[1-9][0-9]*$" },
@@ -23,5 +37,11 @@
     "sentAt": { "type": "string", "format": "date-time" }
   },
   "additionalProperties": false,
+  "allOf": [{
+    "anyOf": [
+      { "not": { "anyOf": [{ "required": ["groupAvatar"] }, { "required": ["groupMemberPreviews"] }] } },
+      { "properties": { "isGroup": { "const": "true" } } }
+    ]
+  }],
   "$defs": { "positiveIntegerString": { "type": "string", "pattern": "^[1-9][0-9]*$" } }
 }

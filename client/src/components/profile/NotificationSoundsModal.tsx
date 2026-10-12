@@ -269,6 +269,20 @@ export default function NotificationSoundsModal({ onClose }: NotificationSoundsM
                         <div className={s.sectionTitle}>Behavior</div>
 
                         <label className={s.checkboxRow}>
+                            <input type="checkbox" checked={prefs.messagePopups !== false}
+                                onChange={(e) => updatePrefs({ messagePopups: e.target.checked })} />
+                            <span>
+                                <span className={s.checkboxTitle}>Message popups</span>
+                                <span className={s.checkboxHint}>Preview and reply to messages outside the focused chat. Muted chats and Do Not Disturb stay quiet.</span>
+                            </span>
+                        </label>
+                        {!window.electronAPI && typeof Notification !== "undefined" && Notification.permission === "default" && (
+                            <button type="button" className={s.previewBtn} onClick={() => {
+                                void Notification.requestPermission().catch((error: unknown) => console.error("Browser notification permission failed", error));
+                            }}>Enable background browser alerts</button>
+                        )}
+
+                        <label className={s.checkboxRow}>
                             <input
                                 type="checkbox"
                                 checked={!!prefs.playWhenFocused}
@@ -305,6 +319,15 @@ export default function NotificationSoundsModal({ onClose }: NotificationSoundsM
                     {/* Privacy */}
                     <div className={s.section}>
                         <div className={s.sectionTitle}>Privacy</div>
+
+                        <label className={s.checkboxRow}>
+                            <input type="checkbox" checked={!!prefs.hideSensitiveContent}
+                                onChange={(e) => updatePrefs({ hideSensitiveContent: e.target.checked })} />
+                            <span>
+                                <span className={s.checkboxTitle}>Hide notification previews</span>
+                                <span className={s.checkboxHint}>Hide sender names, photos and message text in message alerts. Also hides caller details in mobile call alerts.</span>
+                            </span>
+                        </label>
 
                         <label className={s.checkboxRow}>
                             <input

@@ -64,8 +64,10 @@ export const getGroupActiveCall = (convId: number | string) =>
     API.get(`/chat/conversations/${convId}/active-call`);
 export const getMessages = (convId: number | string, before?: string) =>
     API.get(`/chat/conversations/${convId}/messages`, { params: { before } });
-export const markConversationRead = (convId: number | string) =>
-    API.post(`/chat/conversations/${convId}/read`);
+export const markConversationRead = (convId: number | string, throughMessageId?: number | string) =>
+    API.post(`/chat/conversations/${convId}/read`, throughMessageId == null ? undefined : { throughMessageId });
+export const sendQuickReply = (convId: string, content: string, clientMsgId: string) =>
+    API.post<{ id: number | string }>(`/chat/conversations/${convId}/messages`, { content, clientMsgId });
 export const getReadStatus = (convId: number | string) =>
     API.get(`/chat/conversations/${convId}/read-status`);
 export const uploadChatFile = (
@@ -144,9 +146,12 @@ export const muteConversation = (
     convId: number | string,
     duration?: "1h" | "8h" | "1d" | "1w" | "always" | null,
 ) =>
-    duration === undefined
+    (duration === undefined
         ? API.post(`/chat/conversations/${convId}/mute`)
-        : API.post(`/chat/conversations/${convId}/mute`, { duration });
+        : API.post(`/chat/conversations/${convId}/mute`, { duration })).then((response) => {
+            window.dispatchEvent(new Event("aino-message-alert-refresh"));
+            return response;
+        });
 export const toggleArchiveConversation = (convId: number | string) =>
     API.post(`/chat/conversations/${convId}/archive`);
 export const markConversationUnread = (convId: number | string) =>

@@ -370,7 +370,7 @@ function validateNotificationPrefs(input: any): NotificationPrefsResult {
         }
     }
 
-    const boolFields = ["muteAll", "playWhenFocused", "playOnSend", "hideSensitiveContent", "readReceipts"];
+    const boolFields = ["muteAll", "messagePopups", "playWhenFocused", "playOnSend", "hideSensitiveContent", "readReceipts"];
     for (const f of boolFields) {
         if (input[f] !== undefined) {
             if (typeof input[f] !== "boolean") return { error: `Invalid value for ${f}` };

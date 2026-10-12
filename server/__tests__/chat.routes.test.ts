@@ -78,7 +78,6 @@ jest.mock("../db", () => ({
 }));
 
 const { app } = require("../index");
-const redis = require("../redis");
 
 const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
@@ -317,15 +316,8 @@ describe("GET /api/chat/presence", () => {
 // ─── GET /api/chat/conversations ───────────────────────────────────────────
 
 describe("GET /api/chat/conversations", () => {
-    let unreadCountsSpy: jest.SpyInstance;
-
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        unreadCountsSpy = jest.spyOn(redis, "getUnreadCounts").mockResolvedValue(null);
-    });
-
-    afterEach(() => {
-        unreadCountsSpy.mockRestore();
     });
 
     test("returns group_member_avatars for group conversations", async () => {
@@ -360,7 +352,7 @@ describe("GET /api/chat/conversations", () => {
         expect(sqls.some((q: string) => q.includes("ORDER BY cp3.id ASC"))).toBe(false);
     });
 
-    test("overlays redis unread counts without altering group avatars", async () => {
+    test("returns the authoritative SQL unread count", async () => {
         setupAuth();
         mockQuery.mockResolvedValueOnce({
             rows: [
@@ -375,12 +367,11 @@ describe("GET /api/chat/conversations", () => {
             ],
             rowCount: 1,
         });
-        unreadCountsSpy.mockResolvedValueOnce({ 11: 7 });
 
         const res = await request(app).get("/api/chat/conversations").set("Cookie", authCookie());
 
         expect(res.status).toBe(200);
-        expect(res.body[0].unread_count).toBe(7);
+        expect(res.body[0].unread_count).toBe(1);
         expect(res.body[0].group_member_avatars).toEqual([
             "/uploads/o1.png",
             "/uploads/o2.png",
@@ -703,6 +694,9 @@ describe("POST /api/chat/conversations/:id/messages", () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ ok: 1 }], rowCount: 1 }) // participant
             .mockResolvedValueOnce({ rows: [{ is_group: true, group_name: "Team" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ role: "employee", is_active: true }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ is_group: true, post_policy: "all", add_policy: "admins" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ role: "member" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 77, created_at: createdAt, inserted: false }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ full_name: "Sender", avatar: null, username: "sender" }], rowCount: 1 });
 
@@ -718,6 +712,51 @@ describe("POST /api/chat/conversations/:id/messages", () => {
         expect(sqlCalls.some((sql: string) => sql.includes("UPDATE conversations SET updated_at"))).toBe(false);
         expect(sqlCalls.some((sql: string) => sql.includes("INSERT INTO message_reads"))).toBe(false);
         expect(sqlCalls.some((sql: string) => sql.includes("SELECT user_id FROM conversation_participants"))).toBe(false);
+    });
+
+    test("notification quick reply cannot bypass an admins-only group posting policy", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ ok: 1 }] })
+            .mockResolvedValueOnce({ rows: [{ is_group: true, group_name: "Team" }] })
+            .mockResolvedValueOnce({ rows: [{ role: "employee", is_active: true }] })
+            .mockResolvedValueOnce({ rows: [{ is_group: true, post_policy: "admins" }] })
+            .mockResolvedValueOnce({ rows: [{ role: "member" }] });
+        const res = await request(app).post("/api/chat/conversations/10/messages")
+            .set("Cookie", authCookie(1)).set(CSRF).send({ content: "Reply", clientMsgId: "popup-1" });
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe("post-policy");
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO messages"))).toBe(false);
+    });
+});
+
+describe("notification snapshot read boundaries", () => {
+    beforeEach(() => mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 }));
+    test("reads through a message in the conversation without using a current-time cursor", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{ ok: 1 }] })
+            .mockResolvedValueOnce({ rows: [{ last_read_at: "2026-10-12T12:00:00Z" }] })
+            .mockResolvedValueOnce({ rows: [] });
+        const res = await request(app).post("/api/chat/conversations/10/read")
+            .set("Cookie", authCookie()).set(CSRF).send({ throughMessageId: "77" });
+        expect(res.status).toBe(200);
+        const call = mockQuery.mock.calls.find(([sql]) => String(sql).includes("GREATEST(message_reads.last_read_at"));
+        expect(call?.[1]).toEqual([10, 1, 77]);
+    });
+    test("rejects a read boundary from another conversation", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{ ok: 1 }] }).mockResolvedValueOnce({ rows: [] });
+        const res = await request(app).post("/api/chat/conversations/10/read")
+            .set("Cookie", authCookie()).set(CSRF).send({ throughMessageId: "999" });
+        expect(res.status).toBe(400);
+    });
+    test("rejects malformed boundaries before updating the cursor", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({ rows: [{ ok: 1 }] });
+        const res = await request(app).post("/api/chat/conversations/10/read")
+            .set("Cookie", authCookie()).set(CSRF).send({ throughMessageId: "7garbage" });
+        expect(res.status).toBe(400);
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO message_reads"))).toBe(false);
     });
 });
 

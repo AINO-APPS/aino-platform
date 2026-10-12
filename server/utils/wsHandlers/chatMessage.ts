@@ -32,7 +32,8 @@
 import { logger } from "../logger";
 import { schema, validate } from "../wsValidate";
 import { pushNotifications } from "../../services/pushNotifications";
-const redis = require("../../redis");
+import { createChatService } from "../../modules/chat/chat.service";
+import { sql as chatSql } from "../../modules/chat/chat.repository";
 
 type Query = (
   sql: string,
@@ -408,11 +409,11 @@ async function chatMessage({
     linkPreview: linkPreview || null,
   };
 
-  // ── 5. Fan-out + unread counters ───────────────────────────────────
+  // ── 5. Fan-out ──────────────────────────────────────────────────────
   //
   // DUPLICATE RE-SEND: the message was already persisted + fanned out by the
   // original frame — only RE-ECHO to the SENDER (their echo was lost; this
-  // clears their outbox / pending bubble). No unread bumps, no pushes, no
+  // clears their outbox / pending bubble). No pushes, no
   // second broadcast to the other participants.
   if (isDuplicateResend) {
     sendToUser(tenantId, senderId, "chat_message", outMsg);
@@ -425,15 +426,7 @@ async function chatMessage({
   // on any error we fall back to sending pushes to everyone.
   const mutedRecipients = new Set<number>();
   try {
-    const mutedRows = (
-      await db.query(
-        `SELECT user_id FROM conversation_participants
-          WHERE conversation_id = $1
-            AND is_muted = TRUE
-            AND (muted_until IS NULL OR muted_until > NOW())`,
-        [conversationId],
-      )
-    ).rows;
+    const mutedRows = (await db.query(chatSql.mutedRecipients, [conversationId])).rows;
     for (const r of mutedRows) mutedRecipients.add(r.user_id);
   } catch {
     /* fall back to pushing everyone */
@@ -447,10 +440,15 @@ async function chatMessage({
     .filter((n) => n > 0 && n !== senderId && participantIdSet.has(n));
   const mentionedSet = new Set(mentionedIds);
 
+  const groupAvatarMetadata = participant.is_group && participants.length > 1
+    ? createChatService().getGroupPushAvatarMetadata(db, conversationId).catch(() => {
+        logger.warn({ event: "push_avatar_metadata_load_failed", conversationId },
+          "Group avatar metadata unavailable; sending message push without it");
+        return undefined;
+      })
+    : undefined;
+
   for (const p of participants) {
-    if (p.user_id !== senderId) {
-      await redis.incrUnread(tenantId, p.user_id, conversationId);
-    }
     sendToUser(tenantId, p.user_id, "chat_message", outMsg);
     if (p.user_id !== senderId) {
 
@@ -485,6 +483,7 @@ async function chatMessage({
             senderAvatar: sender?.avatar,
             isGroup: Boolean(participant.is_group),
             groupName: participant.group_name || undefined,
+            groupAvatarMetadata,
             messagePreview: content.trim().substring(0, 150),
             unreadCount: unreadTotal,
           })

@@ -18,6 +18,8 @@ type UnreadConversation = {
 };
 
 interface ChatContextValue {
+    activeConversationId: number | string | null;
+    setActiveConversationId: (id: number | string | null) => void;
     unreadCount: number;
     refreshUnread: () => Promise<void> | void;
     updateUnreadFromConversations: (
@@ -26,6 +28,8 @@ interface ChatContextValue {
 }
 
 const ChatCtx = createContext<ChatContextValue>({
+    activeConversationId: null,
+    setActiveConversationId: () => {},
     unreadCount: 0,
     refreshUnread: () => {},
     updateUnreadFromConversations: () => {},
@@ -35,6 +39,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
     const tenantReady = isAuthenticated && hasTenantContext(user);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [activeConversationId, setActiveConversationId] = useState<number | string | null>(null);
 
     const updateUnreadFromConversations = useCallback(
         (conversations: UnreadConversation[]) => {
@@ -106,11 +111,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const value = useMemo(
         () => ({
+            activeConversationId,
+            setActiveConversationId,
             unreadCount,
             refreshUnread,
             updateUnreadFromConversations,
         }),
-        [unreadCount, refreshUnread, updateUnreadFromConversations],
+        [activeConversationId, unreadCount, refreshUnread, updateUnreadFromConversations],
     );
 
     return <ChatCtx.Provider value={value}>{children}</ChatCtx.Provider>;

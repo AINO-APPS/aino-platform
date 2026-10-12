@@ -21,7 +21,7 @@
   "pages/admin/OrgRoleLabels.tsx": 669,
   "pages/admin/PlatformAccessInbox.tsx": 633,
   "pages/attendance/MySalarySlips.tsx": 663,
-  "pages/chat/useChatState.ts": 771,
+  "pages/chat/useChatState.ts": 769,
   "pages/chat/useMessageActions.ts": 751,
   "pages/integrations/GitHubIntegration.tsx": 705,
   "pages/meeting/useMeetingState.ts": 2971,

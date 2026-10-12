@@ -1,4 +1,5 @@
 export type RoutedPushType = "call" | "message" | "call_cancel" | "session_revoked" | "reaction";
+import { messageDataBytes, MESSAGE_DATA_BUDGET_BYTES, validGroupMemberPreviews } from "./messageAvatars";
 
 interface ContractLogger {
     error(details: unknown, message: string): void;
@@ -75,6 +76,17 @@ export function assertRoutingPayloadContract(
     } else {
         if (data.type !== "chat_message") invalid.push("type");
         if (!/^msg:\d+$/.test(data.dedupeKey || "")) invalid.push("dedupeKey");
+        if ("groupAvatar" in data || "groupMemberPreviews" in data) {
+            if (data.isGroup !== "true") invalid.push("isGroup");
+            if (Buffer.byteLength(data.groupAvatar || "", "utf8") > 2048) invalid.push("groupAvatar");
+            if (data.groupMemberPreviews !== undefined) {
+                try {
+                    if (Buffer.byteLength(data.groupMemberPreviews, "utf8") > 2048 ||
+                        !validGroupMemberPreviews(JSON.parse(data.groupMemberPreviews))) invalid.push("groupMemberPreviews");
+                } catch { invalid.push("groupMemberPreviews"); }
+            }
+            if (messageDataBytes(data) > MESSAGE_DATA_BUDGET_BYTES) invalid.push("payloadBudget");
+        }
     }
 
     if (Number.isNaN(Date.parse(data.sentAt || ""))) invalid.push("sentAt");

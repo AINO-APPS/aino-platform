@@ -262,39 +262,6 @@ async function getOnlineUsers(tenantId: number | null | undefined, userIds: numb
 // containing the full resolved payload). The old helpers (setUserStatus /
 // getUserStatus / getUserStatuses) were deleted; no callers remain.
 
-// -- Unread counter helpers --
-
-async function incrUnread(tenantId: number | null | undefined, userId: number, conversationId: number): Promise<void> {
-    if (!isReady || !client) return;
-    try {
-        await client.incr(tk(tenantId, "unread", userId, conversationId));
-    } catch { /* ignore */ }
-}
-
-async function resetUnread(tenantId: number | null | undefined, userId: number, conversationId: number): Promise<void> {
-    if (!isReady || !client) return;
-    try {
-        await client.del(tk(tenantId, "unread", userId, conversationId));
-    } catch { /* ignore */ }
-}
-
-async function getUnreadCounts(tenantId: number | null | undefined, userId: number, conversationIds: number[]): Promise<Record<number, number> | null> {
-    if (!isReady || !client || !conversationIds.length) return null;
-    try {
-        const pipeline = client.pipeline();
-        for (const cid of conversationIds) pipeline.get(tk(tenantId, "unread", userId, cid));
-        const results = await pipeline.exec();
-        const map: Record<number, number> = {};
-        for (let i = 0; i < conversationIds.length; i++) {
-            // Defensive: see comment in getOnlineUsers — pipeline entries
-            // may be missing if the connection is torn down mid-flight.
-            const entry = results?.[i];
-            map[conversationIds[i]] = entry && !entry[0] ? (parseInt(entry[1] as string, 10) || 0) : 0;
-        }
-        return map;
-    } catch { return null; }
-}
-
 // -- Search cache helpers --
 
 function searchKey(tenantId: number | null | undefined, userId: number, queryStr: string): string {
@@ -480,9 +447,6 @@ export {
     isOnline,
     getOnlineUsers,
     // Unread counters
-    incrUnread,
-    resetUnread,
-    getUnreadCounts,
     // Search cache
     getSearchCache,
     setSearchCache,

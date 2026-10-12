@@ -20,11 +20,6 @@ jest.mock("../utils/logger", () => ({
     requestLogger: (_req: any, _res: any, next: any) => next(),
 }));
 
-jest.mock("../redis", () => ({
-    incrUnread: jest.fn(),
-}));
-
-const redis = require("../redis");
 const { chatMessage } = require("../utils/wsHandlers/chatMessage");
 
 /** Build a fresh ws stub. Captures every `ws.send` payload for assertions. */
@@ -126,7 +121,7 @@ describe("chatMessage handler — validation", () => {
 describe("chatMessage handler — happy path", () => {
     beforeEach(() => { jest.clearAllMocks(); });
 
-    test("inserts, broadcasts to every participant, bumps unread for non-senders", async () => {
+    test("inserts and broadcasts to every participant", async () => {
         const db = makeHappyPathDb();
         const send = jest.fn();
         const ws = makeWs();
@@ -146,11 +141,6 @@ describe("chatMessage handler — happy path", () => {
         // Echo carries the clientMsgId.
         expect(broadcasts[0][3].clientMsgId).toBe("abc");
         expect(broadcasts[0][3].id).toBe(999);
-        // 2 non-sender participants get unread bumped.
-        expect(redis.incrUnread).toHaveBeenCalledTimes(2);
-        const recipientBroadcastIndex = send.mock.calls.findIndex((call: any[]) => call[1] === 8 && call[2] === "chat_message");
-        expect(recipientBroadcastIndex).toBeGreaterThanOrEqual(0);
-        expect(redis.incrUnread.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[recipientBroadcastIndex]);
     });
 
     test("rejects non-participant via auth check (no broadcast)", async () => {

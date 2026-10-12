@@ -1,0 +1,23 @@
+{
+  "schema": "../../schemas/push/chat-message.schema.json",
+  "data": {
+    "type": "chat_message",
+    "title": "Design",
+    "body": "Hello team",
+    "conversationId": "456",
+    "messageId": "123",
+    "senderId": "7",
+    "senderName": "Alice",
+    "isGroup": "true",
+    "groupName": "Design",
+    "senderAvatar": "/uploads/alice.png",
+    "groupAvatar": "",
+    "groupMemberPreviews": "[{\"name\":\"Alice\",\"avatar\":\"/uploads/alice.png\"},{\"name\":\"Bob\",\"avatar\":null}]",
+    "unreadCount": "5",
+    "badgeCount": "5",
+    "dedupeKey": "msg:123",
+    "expiresAt": "1781667765",
+    "tenantId": "1",
+    "sentAt": "2026-06-17T02:42:45.000Z"
+  }
+}

@@ -8,6 +8,9 @@ Push notifications have been fully implemented for the WorkPulse mobile app. The
 
 ## Architecture
 
+Desktop/web custom message popups are documented separately in
+[`desktop/README.md`](../desktop/README.md); they are not this native FCM path.
+
 ### Backend (Node.js/TypeScript)
 - **Service**: `server/services/pushNotifications.ts`
   - Firebase Cloud Messaging (FCM) integration
@@ -27,16 +30,40 @@ Push notifications have been fully implemented for the WorkPulse mobile app. The
   - Message notifications sent via `pushNotifications.sendMessageNotification()`
   - General notifications sent via `pushNotifications.sendNotificationAlert()`
 
-### Mobile (React Native/Expo)
-- **Service**: `mobile/src/services/pushNotificationService.ts`
-  - Handles FCM token acquisition via Expo
-  - Manages notification permissions
-  - Stores device token in secure storage
-  - Provides `usePushNotifications()` hook
+### Native Android message delivery
 
-- **Listeners**:
-  - `PushNotificationInitializer.tsx` - Initializes FCM on app startup
-  - `PushNotificationListener.tsx` - Routes incoming push notifications to handlers
+- `aino-android` uses Firebase Messaging, strict `PushPayload` validation and
+  `ChatNotifications`, not the retired React Native/Notifee message renderer.
+- Android messages remain **high-priority data-only**; adding a provider
+  `notification` block would bypass native avatar/history/reply rendering.
+  iOS keeps its APNs alert; web keeps the provider notification.
+- Token registration advertises `pushVersion: 4`. Only `platform: android` with
+  `push_version >= 4` receives optional `groupAvatar` and serialized
+  `groupMemberPreviews` on group messages. Android v1–3, iOS and web keep their
+  exact legacy message key set. General-alert links (v2) and reactions (v3)
+  continue working. Missing `push_version` column falls back to legacy delivery.
+- HTTP and WebSocket send paths share one best-effort group metadata query per
+  message through the chat service/repository boundary. Selection matches the
+  conversation list: photos first, ascending user ID, at most four members.
+- `groupMemberPreviews` is a string containing a JSON array of strict
+  `{ "name": string|null, "avatar": string|null }` records. Names have a
+  200-character maximum; URLs and the serialized array are bounded to 2048 UTF-8
+  bytes. The entire serialized data map is limited to 3800 bytes (FCM limit:
+  4096), counting escaped JSON/multibyte text. Over-budget URLs or collages are
+  omitted intact, not cut into invalid URLs. Oversized legacy sender-avatar data
+  is cleared without removing required keys. Omissions and metadata query failures
+  are logged without URLs, credentials or message content; they never stop a
+  persisted message's push.
+- Android posts a matching fallback immediately, then resolves missing metadata
+  from its account-scoped conversation cache/authenticated list and loads photos
+  with the existing authenticated Coil transport. Direct avatars share chat's
+  initials/brand colours; groups share its photo/collage/glyph. Sender `Person`
+  icons remain independent. Pre-cropped avatars use ordinary bitmap shortcut
+  icons, avoiding adaptive safe-zone remasking. Updates are silent and respect
+  dismissal, visible-thread, account and generation guards.
+- OS/OEM templates decide final heads-up/shade geometry. Verify avatar content
+  and crop against the same contact/group in chat on Android 11+ and an OEM device;
+  build/unit tests alone do not prove system UI appearance or live FCM delivery.
   
 ## Setup Instructions
 

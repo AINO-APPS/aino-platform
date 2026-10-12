@@ -82,7 +82,7 @@ const { app } = require("../index");
 const CSRF = { "X-Requested-With": "WorkPulse" };
 
 describe("POST /api/auth/device-token push capabilities", () => {
-    test.each([[undefined, 1], [1, 1], [2, 2], [3, 3], [4, 1]])(
+    test.each([[undefined, 1], [1, 1], [2, 2], [3, 3], [4, 4], [5, 1], [0, 1], ["bad", 1]])(
         "registers requested push version %s as %s", async (requestedVersion, expectedVersion) => {
             mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
             mockQuery.mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 });

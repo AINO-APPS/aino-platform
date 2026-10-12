@@ -3,6 +3,7 @@ import type {
   BiometricAvailability, BiometricEnrollment, BiometricLoginResult, CallPipAction, CallPipState,
   LocationResult, OperationResult, ScreenSource, UpdateCheckResult, UpdateInfoPayload,
   WifiInfoResult, WindowVisibility,
+  MessageAlertState, MessageAlertAction,
 } from "./ipc-types";
 
 // Payload and bridge types live in `ipc-types.ts` so the web renderer can
@@ -28,6 +29,9 @@ export interface InvokeContract {
 
 /** Fire-and-forget messages sent by a renderer. */
 export interface SendContract {
+  "messages:publish": [state: MessageAlertState]; "messages:clear": []; "messages:ready": [];
+  "messages:resize": [height: number];
+  "messages:action": [action: MessageAlertAction];
   "window-minimize": []; "window-maximize": []; "window-close": [];
   "download-update": []; "install-update": [];
   "screen-source-selected": [sourceId: string | null];
@@ -40,6 +44,7 @@ export interface SendContract {
 
 /** Notifications emitted by main to a renderer. */
 export interface ListenerContract {
+  "messages:state": [state: MessageAlertState]; "messages:action": [action: MessageAlertAction];
   "maximize-change": [maximized: boolean];
   "update-available": [info: UpdateInfoPayload];
   "download-progress": [info: UpdateInfoPayload];
@@ -55,8 +60,8 @@ export interface ListenerContract {
 }
 
 export const INVOKE_CHANNELS = ["get-app-version", "is-maximized", "check-for-update", "fetch-release-notes", "get-ip-location", "get-native-location", "open-location-settings", "get-wifi-info", "biometric:available", "biometric:enroll", "biometric:login", "biometric:disable"] as const satisfies readonly (keyof InvokeContract)[];
-export const SEND_CHANNELS = ["window-minimize", "window-maximize", "window-close", "download-update", "install-update", "screen-source-selected", "flash-frame", "show-and-focus", "set-badge-count", "call:pip-open", "call:pip-close", "call:pip-update-state", "call:pip-ready", "call:pip-action"] as const satisfies readonly (keyof SendContract)[];
-export const LISTENER_CHANNELS = ["maximize-change", "update-available", "download-progress", "update-downloaded", "update-reminder", "update-not-available", "update-error", "screen-sources", "window-hidden", "window-shown", "call:pip-window-closed", "call:pip-action", "call:pip-state"] as const satisfies readonly (keyof ListenerContract)[];
+export const SEND_CHANNELS = ["window-minimize", "window-maximize", "window-close", "download-update", "install-update", "screen-source-selected", "flash-frame", "show-and-focus", "set-badge-count", "call:pip-open", "call:pip-close", "call:pip-update-state", "call:pip-ready", "call:pip-action", "messages:publish", "messages:clear", "messages:ready", "messages:resize", "messages:action"] as const satisfies readonly (keyof SendContract)[];
+export const LISTENER_CHANNELS = ["maximize-change", "update-available", "download-progress", "update-downloaded", "update-reminder", "update-not-available", "update-error", "screen-sources", "window-hidden", "window-shown", "call:pip-window-closed", "call:pip-action", "call:pip-state", "messages:state", "messages:action"] as const satisfies readonly (keyof ListenerContract)[];
 export type RendererInvoke = <C extends keyof InvokeContract>(channel: C, ...args: InvokeContract[C]["args"]) => Promise<InvokeContract[C]["result"]>;
 export type RendererSend = <C extends keyof SendContract>(channel: C, ...args: SendContract[C]) => void;
 export type RendererOn = <C extends keyof ListenerContract>(channel: C, listener: (event: IpcRendererEvent, ...args: ListenerContract[C]) => void) => void;
@@ -78,5 +83,3 @@ export function onIpc<C extends keyof SendContract>(channel: C, listener: (event
   }) as never);
 }
 export function sendIpc<C extends keyof ListenerContract>(target: WebContents, channel: C, ...args: ListenerContract[C]): void { target.send(channel, ...args); }
-
-

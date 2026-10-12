@@ -107,6 +107,8 @@ export const sql = {
     q087a: " AND m.id > $",
     q088a: " ORDER BY m.created_at ASC, m.id ASC LIMIT $",
     q089: "SELECT id, conversation_id, caller_id, call_type, status, started_at, ended_at, duration, created_at FROM call_logs WHERE id = $1",
+    readThroughMessage: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) SELECT $1, $2, created_at FROM messages WHERE id = $3 AND conversation_id = $1 ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = GREATEST(message_reads.last_read_at, EXCLUDED.last_read_at) RETURNING last_read_at",
+    mutedRecipients: "SELECT user_id FROM conversation_participants WHERE conversation_id = $1 AND is_muted = TRUE AND (muted_until IS NULL OR muted_until > NOW())",
 } as const;
 
 /** Executes a statement owned by this persistence boundary. */

@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { sendToUser, emitCallHistoryMessage } = require("../../utils/ws");
-const redis = require("../../redis");
 const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploadPath");
 const { getStorage } = require("../../platform/storage");
 import { enqueueChatMediaPipelineJob } from "../../jobs";
@@ -229,9 +228,6 @@ router.post(
         };
 
         for (const p of participants) {
-          if (p.user_id !== req.userId) {
-            await redis.incrUnread(req.tenantId, p.user_id, convIdNum);
-          }
           sendToUser(req.tenantId, p.user_id, "chat_message", outMsg);
         }
       }

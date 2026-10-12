@@ -55,6 +55,43 @@ describe("pushNotifications.sendMessageNotification", () => {
         sendEachForMulticast.mockClear();
     });
 
+    test("dispatches avatar fields only to Android v4+, preserving all legacy platform keys and counts", async () => {
+        const rows = [
+            ...[1, 2, 3, 4, 5].map(push_version => ({ device_token: `android-${push_version}`, platform: "android", push_version })),
+            { device_token: "ios", platform: "ios", push_version: 4 },
+            { device_token: "web", platform: "web", push_version: 4 },
+        ];
+        const metadata = { groupAvatar: "/uploads/g.png", groupMemberPreviews: [{ name: "Alice", avatar: null }, { name: "Bob", avatar: "/uploads/b.png" }] };
+        const result = await pushNotifications.sendMessageNotification(jest.fn().mockResolvedValue({ rows }), 10, 1, {
+            conversationId: 456, messageId: 123, senderId: 7, senderName: "Alice",
+            isGroup: true, groupName: "Team", messagePreview: "Hello", groupAvatarMetadata: Promise.resolve(metadata),
+        });
+        expect(result).toEqual({ succeeded: 7, failed: 0 });
+        const legacy = sendEachForMulticast.mock.calls.find(([sent]: any[]) => sent.tokens.includes("android-1"))![0];
+        const current = sendEachForMulticast.mock.calls.find(([sent]: any[]) => sent.tokens.includes("android-4"))![0];
+        expect(legacy.tokens).toEqual(["android-1", "android-2", "android-3", "ios", "web"]);
+        expect(current.tokens).toEqual(["android-4", "android-5"]);
+        expect(legacy.data.groupAvatar).toBeUndefined();
+        expect(legacy.data.groupMemberPreviews).toBeUndefined();
+        expect(current.data).toEqual({ ...legacy.data, groupAvatar: metadata.groupAvatar, groupMemberPreviews: JSON.stringify(metadata.groupMemberPreviews) });
+        expect(current.notification).toBeUndefined();
+        expect(Object.values(current.data).every(value => typeof value === "string")).toBe(true);
+        expect(Buffer.byteLength(JSON.stringify(current.data), "utf8")).toBeLessThanOrEqual(3800);
+    });
+
+    test("failed group metadata still sends the message and logs without message content or URLs", async () => {
+        const query = jest.fn().mockResolvedValue({ rows: [{ device_token: "android-4", platform: "android", push_version: 4 }] });
+        const result = await pushNotifications.sendMessageNotification(query, 10, 1, {
+            conversationId: 456, messageId: 123, senderId: 7, senderName: "Alice",
+            isGroup: true, groupName: "Team", messagePreview: "Hello", groupAvatarMetadata: Promise.reject(new Error("SQL unavailable")),
+        });
+        expect(result).toEqual({ succeeded: 1, failed: 0 });
+        expect(sendEachForMulticast.mock.calls[0][0].data.groupAvatar).toBeUndefined();
+        expect(require("../utils/logger").logger.warn).toHaveBeenCalledWith({
+            event: "push_avatar_metadata_load_failed", conversationId: 456,
+        }, expect.any(String));
+    });
+
     test("sends Android messages as DATA-ONLY high-priority pushes", async () => {
         const mockQuery = jest.fn().mockResolvedValue({ rows: [{ device_token: "token1" }] });
 

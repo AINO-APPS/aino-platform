@@ -26,13 +26,15 @@ import useScrollPin from "./useScrollPin";
 import { NEAR_BOTTOM_PX } from "./chatUtils";
 import { reconcileOwnMessage } from "./messageDelivery";
 import type { AnyRecord } from "../../types";
+import { MESSAGE_ALERT_EVENT } from "../../components/notifications/messageAlerts";
+import useVisibleChat from "./useVisibleChat";
 
 type ChatMessage = AnyRecord & { id: number | string };
 type Conversation = AnyRecord & { id: number | string };
 export default function useChatState() {
   const { user } = useAuth();
   const { refreshUnread, updateUnreadFromConversations } = useChatUnread();
-  const { notifyMessage, notifyMention, notifyReaction } =
+  const { notifyReaction } =
     useChatNotification();
   const {
     conversations,
@@ -64,6 +66,11 @@ export default function useChatState() {
 
   // Core state
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const isChatVisible = useVisibleChat(activeConv?.id ?? null, Number(conversations.find((c) => c.id === activeConv?.id)?.unread_count) || 0, (id) => {
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === id ? { ...conversation, unread_count: 0 } : conversation));
+    refreshUnread();
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
@@ -152,23 +159,15 @@ export default function useChatState() {
               if (prev.some((m) => m.id === d.id)) return prev;
               return [...prev, msgFields];
             });
-            markConversationRead(d.conversationId as number | string).catch(
-              () => {},
+            if (isChatVisible()) markConversationRead(d.conversationId as number | string).catch(
+              (error: unknown) => console.error("Failed to mark visible chat read", error),
             );
             if (d.senderId !== user?.id && d.id) {
               ackDelivered(d.id as number | string).catch(() => {});
             }
           }
-          // Play notification sound for messages from others
-          if (d.senderId !== user?.id) {
-            notifyMessage(
-              d.senderName as string,
-              d.content as string,
-              d.conversationId as number | string,
-            );
-          }
           setConversations((prev) => {
-            const isActive = activeConvRef.current?.id === d.conversationId;
+            const isActive = activeConvRef.current?.id === d.conversationId && isChatVisible();
             const exists = prev.some((c) => c.id === d.conversationId);
             // Reload if the conversation is new here, or a group's info/roles changed (photo, name, policies).
             if (!exists || ["group_info_updated", "group_renamed", "member_added", "member_removed", "member_left", "role_changed", "owner_transferred"].includes(String((d.metadata as AnyRecord | undefined)?.type))) {
@@ -429,16 +428,6 @@ export default function useChatState() {
           );
           break;
         }
-        case "chat_mention": {
-          if (d.senderId !== user?.id) {
-            notifyMention(
-              d.senderName as string,
-              d.content as string,
-              d.conversationId as number | string,
-            );
-          }
-          break;
-        }
         // ─── Call events (delegated to useCallState) ───
         case "call_incoming":
         case "call_started":
@@ -461,6 +450,14 @@ export default function useChatState() {
   );
 
   const { sendMessage: wsSend } = useWebSocket(onWsMessage);
+
+  useEffect(() => {
+    const refresh = () => { void loadConversations(); };
+    window.addEventListener(MESSAGE_ALERT_EVENT, refresh);
+    return () => {
+      window.removeEventListener(MESSAGE_ALERT_EVENT, refresh);
+    };
+  }, [loadConversations]);
 
   useEffect(() => {
     const onProfileUpdate = (event: Event) => {
@@ -661,6 +658,7 @@ export default function useChatState() {
     onSelectConversation: selectConversation,
     onMarkedRead: markConversationReadInList,
     sendReadReceipt,
+    isVisible: isChatVisible,
   });
 
   useConversationDraft({

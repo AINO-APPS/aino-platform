@@ -7,9 +7,11 @@ import type {
 } from "./chat.types";
 import { ChatError } from "./chat.types";
 import * as repository from "./chat.repository";
+import { getGroupPushAvatarMetadata } from "./chat.avatar.repository";
 
 export function createChatService() {
     return {
+        getGroupPushAvatarMetadata,
         query(
             db: Pick<ChatDb, "query">,
             statement: keyof typeof repository.sql,

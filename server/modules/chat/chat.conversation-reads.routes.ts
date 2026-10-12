@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { sendToUser, emitCallHistoryMessage } = require("../../utils/ws");
-const redis = require("../../redis");
 const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploadPath");
 const { getStorage } = require("../../platform/storage");
 import { enqueueChatMediaPipelineJob } from "../../jobs";
@@ -23,21 +22,8 @@ router.get("/conversations", auth, async (req: Request, res: Response) => {
       await service.query(req.db!, "q030", [req.userId])
     ).rows;
 
-    // Overlay Redis unread counts if available (faster than the SQL subquery)
-    if (rows.length > 0) {
-      const convIds = rows.map((r: { id: number }) => r.id);
-      const redisCounts = await redis.getUnreadCounts(
-        req.tenantId,
-        req.userId,
-        convIds,
-      );
-      if (redisCounts) {
-        for (const row of rows) {
-          row.unread_count = redisCounts[row.id] ?? row.unread_count;
-        }
-      }
-    }
-
+    // Snapshot reads can leave newer messages unread. The SQL cursor/count is
+    // authoritative; resetting a Redis counter must not hide that remainder.
     res.json(rows);
   } catch (err) {
     req.log.error({ err }, "List conversations error");
@@ -124,8 +110,18 @@ router.post(
         return res.status(403).json({ error: "Not a participant" });
       }
 
-      await service.query(req.db!, "q032", [convId, req.userId]);
-      redis.resetUnread(req.tenantId, req.userId, convId);
+      let readAt = new Date().toISOString();
+      if (req.body?.throughMessageId !== undefined) {
+        const raw = String(req.body.throughMessageId);
+        if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+          return res.status(400).json({ error: "Invalid read boundary" });
+        }
+        const result = await service.query(req.db!, "readThroughMessage", [convId, req.userId, Number(raw)]);
+        if (!result.rows.length) return res.status(400).json({ error: "Read boundary is not in this conversation" });
+        readAt = new Date(result.rows[0].last_read_at).toISOString();
+      } else {
+        await service.query(req.db!, "q032", [convId, req.userId]);
+      }
 
       // Notify others about read receipt
       const participants = (
@@ -135,7 +131,7 @@ router.post(
         sendToUser(req.tenantId, p.user_id, "chat_read_receipt", {
           conversationId: convId,
           userId: req.userId,
-          readAt: new Date().toISOString(),
+          readAt,
         });
       }
 

@@ -82,11 +82,16 @@ chat.routes.ts -> chat.*.routes.ts -> chat.service.ts -> chat.repository.ts
 - The composition router retains `requireTenant` and `requireFeature("chat")`;
   every module endpoint retains `auth` and any original middleware.
 - Route adapters retain HTTP parsing, status/response mapping, and delivery
-  side effects: WebSocket fan-out, Redis unread updates, media jobs, storage,
+  side effects: WebSocket fan-out, media jobs, storage,
   push cancellation, and status updates.
 - The service applies chat workflows and is the only route-to-database path.
 - `chat.repository.ts` owns every SQL statement and does not import Express;
   the conversation-list query lives in `chat.conversation-list.repository.ts`.
+- `chat.avatar.repository.ts`, exposed through the chat service, loads group
+  message-push metadata once for HTTP/WS fan-out. It reuses the list's member
+  selection expression (photo-first, ascending user ID, four members).
+  Metadata load failure is logged and never blocks a persisted message push;
+  only Android v4+ tokens receive the optional bounded avatar fields.
 - Group invite links, join requests, the group photo upload and the active
   group-call lookup live in `chat.group-invite.{routes,service,repository}.ts`.
   Links are tenant-scoped (each tenant has its own database) and joiners must
