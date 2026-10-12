@@ -13,6 +13,7 @@ const os_1 = __importDefault(require("os"));
 const tray_1 = require("./tray");
 const updater_1 = require("./updater");
 const callPipWindow_1 = require("./callPipWindow");
+const messageAlertWindow_1 = require("./messageAlertWindow");
 const biometric_1 = require("./biometric");
 const permissions_1 = require("./permissions");
 const screenCapture_1 = require("./screenCapture");
@@ -248,6 +249,7 @@ electron_1.app.whenReady().then(async () => {
     // Always-on-top mini call window (Teams-style "floatie") — opens via
     // IPC from the renderer when the user clicks the in-call PiP button.
     (0, callPipWindow_1.setupCallPipWindow)(mainWindow);
+    (0, messageAlertWindow_1.setupMessageAlertWindow)(mainWindow, RAILWAY_URL, openRemoteUpload);
     // Desktop biometric login (Windows Hello / Touch ID) — registers the
     // biometric:* IPC handlers used by the renderer's AuthContext.
     (0, biometric_1.setupBiometric)(() => mainWindow);

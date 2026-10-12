@@ -17,6 +17,7 @@ import os from "os";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";
 import { setupCallPipWindow } from "./callPipWindow";
+import { setupMessageAlertWindow } from "./messageAlertWindow";
 import { setupBiometric } from "./biometric";
 import { handleIpc, onIpc, sendIpc } from "./ipc-contract";
 import { setupPermissions } from "./permissions";
@@ -284,6 +285,7 @@ app.whenReady().then(async () => {
   // Always-on-top mini call window (Teams-style "floatie") — opens via
   // IPC from the renderer when the user clicks the in-call PiP button.
   setupCallPipWindow(mainWindow);
+  setupMessageAlertWindow(mainWindow, RAILWAY_URL, openRemoteUpload);
 
   // Desktop biometric login (Windows Hello / Touch ID) — registers the
   // biometric:* IPC handlers used by the renderer's AuthContext.
@@ -356,5 +358,4 @@ app.whenReady().then(async () => {
 });
 
 setupLifecycle(app, () => mainWindow);
-
 

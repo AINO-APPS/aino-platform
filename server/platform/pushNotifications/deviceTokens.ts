@@ -121,6 +121,31 @@ export async function getDeviceTokens(
     }
 }
 
+/** Only Android v4+ accepts message group-avatar keys; iOS/web retain legacy data. */
+export async function getMessageDeviceTokenGroups(
+    query: QueryFn, userId: number, tenantId: number | null, logger: DeviceTokenLogger,
+): Promise<{ legacy: string[]; avatarAware: string[] }> {
+    try {
+        const result = await query(
+            `SELECT device_token, platform, push_version FROM device_tokens
+             WHERE user_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)
+             AND created_at > NOW() - INTERVAL '1 year'`,
+            [userId, tenantId || null],
+        );
+        const legacy: string[] = [];
+        const avatarAware: string[] = [];
+        for (const row of result.rows) {
+            (row.platform === "android" && Number(row.push_version) >= 4 ? avatarAware : legacy).push(row.device_token);
+        }
+        return { legacy, avatarAware };
+    } catch (err) {
+        if (!isMissingPushVersion(err)) {
+            logger.error({ userId, tenantId }, "Failed to get message avatar device token groups; using legacy payload");
+        }
+        return { legacy: await getDeviceTokens(query, userId, tenantId, logger), avatarAware: [] };
+    }
+}
+
 export async function getReactionDeviceTokens(
     query: QueryFn, userId: number, tenantId: number | null, logger: DeviceTokenLogger,
 ): Promise<string[]> {

@@ -18,6 +18,18 @@ export type ScreenSource = { id: string; name: string; thumbnail: string; appIco
 export type WindowVisibility = { reason: string };
 export type CallPipAction = "mute" | "unmute" | "restore" | "end";
 export type CallPipState = { remoteName?: string; remoteAvatar?: string | null; status?: string; durationSec?: number; muted?: boolean; videoOff?: boolean; callType?: string };
+export type MessageAlert = {
+  conversationId: string; messageId: string; title: string; sender: string; preview: string;
+  avatar: string | null; isGroup: boolean; members: Array<{ name?: string | null; avatar?: string | null }>;
+  count: number; updatedAt: number; replyText: string; draftId: string; replyOpen: boolean;
+  busy: boolean; error: string;
+};
+export type MessageAlertState = { session: string; cards: MessageAlert[]; dark: boolean; primary: string };
+export type MessageAlertAction = {
+  session: string; conversationId: string; messageId: string;
+  action: "open" | "dismiss" | "read" | "mute" | "reply" | "expand";
+  text?: string; duration?: "1h" | "always";
+};
 
 export interface ElectronAPI {
   platform: NodeJS.Platform;
@@ -43,6 +55,15 @@ export interface ElectronAPI {
   openLocationSettings(): Promise<OperationResult>; getWifiInfo(): Promise<WifiInfoResult>;
   onWindowHidden(callback: (value: WindowVisibility) => void): Unsubscribe;
   onWindowShown(callback: (value: WindowVisibility) => void): Unsubscribe;
+  messageAlerts: {
+    publish(state: MessageAlertState): void;
+    clear(): void;
+    ready(): void;
+    resize(height: number): void;
+    act(action: MessageAlertAction): void;
+    onState(callback: (state: MessageAlertState) => void): Unsubscribe;
+    onAction(callback: (action: MessageAlertAction) => void): Unsubscribe;
+  };
   callPip: {
     open(state: CallPipState): void; close(): void; updateState(partial: CallPipState): void;
     onWindowClosed(callback: () => void): Unsubscribe;

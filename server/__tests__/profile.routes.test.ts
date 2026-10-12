@@ -97,6 +97,26 @@ function setupAuthOnly() {
     mockQuery.mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 });
 }
 
+describe("message popup preferences", () => {
+    beforeEach(() => mockQuery.mockReset().mockImplementation((sql: string) => {
+        if (sql.includes("token_version")) return Promise.resolve({ rows: [{ token_version: 0 }] });
+        if (sql.includes("SELECT notification_prefs")) return Promise.resolve({ rows: [{ notification_prefs: { readReceipts: false, messageTone: "ding" } }] });
+        return Promise.resolve({ rows: [], rowCount: 1 });
+    }));
+    test("persists popup/privacy controls while preserving unrelated sound and read settings", async () => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ messagePopups: false, hideSensitiveContent: true });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ messagePopups: false, hideSensitiveContent: true, readReceipts: false, messageTone: "ding" });
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("UPDATE users SET notification_prefs"))).toBe(true);
+    });
+    test("rejects non-boolean popup settings", async () => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ messagePopups: "false" });
+        expect(res.status).toBe(400);
+    });
+});
+
 // ─── GET /api/profile ──────────────────────────────────────────────────────
 
 describe("GET /api/profile", () => {

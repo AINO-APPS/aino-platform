@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { CallPipAction, CallPipState, ElectronAPI, ListenerContract, RendererInvoke, RendererSend, Unsubscribe, WindowVisibility } from "./ipc-contract";
+import type { CallPipAction, CallPipState, ElectronAPI, ListenerContract, MessageAlertAction, MessageAlertState, RendererInvoke, RendererSend, Unsubscribe, WindowVisibility } from "./ipc-contract";
 
 type Listener<T> = (callback: (value: T) => void) => Unsubscribe;
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as RendererInvoke;
@@ -47,6 +47,15 @@ function createListener<C extends keyof ListenerContract, T = ListenerContract[C
 const electronAPI = {
     platform: process.platform,
     isElectron: true,
+    messageAlerts: {
+        publish: (state: MessageAlertState) => send("messages:publish", state),
+        clear: () => send("messages:clear"),
+        ready: () => send("messages:ready"),
+        resize: (height: number) => send("messages:resize", height),
+        act: (action: MessageAlertAction) => send("messages:action", action),
+        onState: createListener("messages:state"),
+        onAction: createListener("messages:action"),
+    },
     getVersion: () => invoke("get-app-version"),
     isMaximized: () => invoke("is-maximized"),
     minimize: () => send("window-minimize"),

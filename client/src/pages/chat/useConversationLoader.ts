@@ -16,6 +16,7 @@ type Message = AnyRecord & { id: number | string };
 type Conversation = AnyRecord & { id: number | string };
 
 type UseConversationLoaderOptions = {
+  isVisible?: () => boolean;
   activeConversation: Conversation | null;
   activeConversationRef: MutableRefObject<Conversation | null>;
   messages: Message[];
@@ -66,6 +67,7 @@ export default function useConversationLoader({
   onSelectConversation,
   onMarkedRead,
   sendReadReceipt,
+  isVisible = () => true,
 }: UseConversationLoaderOptions): ConversationLoader {
   const generationRef = useRef(0);
 
@@ -118,11 +120,11 @@ export default function useConversationLoader({
 
       // ── Phase 2: metadata, all IN PARALLEL. None of these depend on
       // one another, so chaining them only multiplied the latency.
-      const markRead = markConversationRead(conversationId).then(() => {
+      const markRead = (isVisible() ? markConversationRead(conversationId).then(() => {
         if (!isCurrent()) return;
         onMarkedRead(conversationId);
         sendReadReceipt(conversationId);
-      });
+      }) : Promise.resolve());
 
       const readStatus = getReadStatus(conversationId).then((readResponse) => {
         if (!isCurrent()) return;
@@ -162,6 +164,7 @@ export default function useConversationLoader({
       onMarkedRead,
       onSelectConversation,
       sendReadReceipt,
+      isVisible,
       setHasMore,
       setLoading,
       setMembers,

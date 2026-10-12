@@ -10,7 +10,6 @@
  */
 import { logger } from "../logger";
 import { schema, validate } from "../wsValidate";
-const redis = require("../../redis");
 
 type Query = (
   sql: string,
@@ -114,5 +113,4 @@ export async function handleChatRead({
            ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = NOW()`,
     [readConvId, senderId],
   );
-  redis.resetUnread(tenantId, senderId, readConvId);
 }

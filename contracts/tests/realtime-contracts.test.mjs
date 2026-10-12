@@ -14,6 +14,15 @@ const validateFixture = relative => {
   return { fixture, schema, errors: validateJsonSchema(schema, fixture.data) };
 };
 
+test("Android v4 registration uses the actual deviceToken field and retains older versions", () => {
+  const schema = load("contracts/openapi.json").components.schemas.DeviceTokenRequest;
+  for (const pushVersion of [1, 2, 3, 4]) {
+    assert.deepEqual(validateJsonSchema(schema, { deviceToken: "fcm-token", platform: "android", pushVersion }), []);
+  }
+  assert.deepEqual(validateJsonSchema(schema, { deviceToken: "fcm-token", platform: "android" }), []);
+  assert.ok(validateJsonSchema(schema, { token: "obsolete", platform: "android", pushVersion: 4 }).length > 0);
+});
+
 test("all canonical push fixtures satisfy their declared schemas", () => {
   for (const name of fs.readdirSync(path.join(root, "contracts/fixtures/push"))) {
     const { errors } = validateFixture(`contracts/fixtures/push/${name}`);
@@ -32,6 +41,19 @@ test("dedupe keys are tied to the payload class", () => {
   const { fixture, schema } = validateFixture("contracts/fixtures/push/chat-message.json");
   const wrong = { ...fixture.data, dedupeKey: `call:${fixture.data.messageId}` };
   assert.ok(validateJsonSchema(schema, wrong).some(error => error.includes("pattern mismatch")));
+});
+
+test("v4 group metadata is optional, string-valued and has bounded strict members", () => {
+  const { fixture, schema } = validateFixture("contracts/fixtures/push/chat-message.group-v4.json");
+  const { groupAvatar, groupMemberPreviews, ...legacy } = fixture.data;
+  assert.deepEqual(validateJsonSchema(schema, legacy), []);
+  assert.ok(Buffer.byteLength(JSON.stringify(fixture.data), "utf8") <= 3800);
+  assert.ok(Object.values(fixture.data).every(value => typeof value === "string"));
+  for (const value of ["bad", "{}", '[{"name":2,"avatar":null}]', '[{"name":"A"}]',
+    '[{"name":"A","avatar":null,"extra":"x"}]', JSON.stringify(Array(5).fill({ name: "A", avatar: null }))]) {
+    assert.ok(validateJsonSchema(schema, { ...fixture.data, groupMemberPreviews: value }).length > 0, value);
+  }
+  assert.ok(validateJsonSchema(schema, { ...fixture.data, isGroup: "false" }).length > 0);
 });
 
 test("general alerts carry a relative deep link (or empty string) only for link-aware devices", () => {

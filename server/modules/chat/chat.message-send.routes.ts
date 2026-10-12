@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { sendToUser, emitCallHistoryMessage } = require("../../utils/ws");
-const redis = require("../../redis");
 const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploadPath");
 const { getStorage } = require("../../platform/storage");
 import { enqueueChatMediaPipelineJob } from "../../jobs";
@@ -81,6 +80,14 @@ router.post(
         return res.status(400).json({ error: "Invalid reply target" });
       }
 
+      if (conversation?.is_group) {
+        await loadUserContext(req, res, () => {});
+        if (res.headersSent) return;
+        const ctx = await loadGroupContext(req.db!, convId, req.userId, req.roleLevel || 1);
+        if (!ctx || !canDo("send", ctx)) {
+          return res.status(403).json({ error: "Only group admins can send messages", code: "post-policy" });
+        }
+      }
       const result = (
         await service.query(req.db!, "q037", [convId, req.userId, content, replyToId, clientMsgId])
       ).rows[0];
@@ -139,12 +146,26 @@ router.post(
         clientMsgId,
       };
 
-      for (const p of participants) {
-        if (p.user_id !== req.userId) {
-          await redis.incrUnread(req.tenantId, p.user_id, convId);
+      const groupAvatarMetadata = conversation?.is_group && participants.length > 1
+        ? service.getGroupPushAvatarMetadata(req.db!, convId).catch(() => {
+            req.log.warn({ event: "push_avatar_metadata_load_failed", conversationId: convId },
+              "Group avatar metadata unavailable; sending message push without it");
+            return undefined;
+          })
+        : undefined;
+      // Popup quick replies use this route, so mute suppression must match WebSocket sends.
+      const mutedRecipients = new Set<number>();
+      if (participants.length > 1) {
+        try {
+          for (const row of (await service.query(req.db!, "mutedRecipients", [convId])).rows) mutedRecipients.add(row.user_id);
+        } catch (err: any) {
+          req.log.warn({ err: err?.message, conversationId: convId }, "Muted recipient lookup failed; sending pushes");
         }
+      }
+
+      for (const p of participants) {
         sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
-        if (p.user_id !== req.userId) {
+        if (p.user_id !== req.userId && !mutedRecipients.has(p.user_id)) {
           // Recipient total-unread badge + message push (best-effort; must
           // not block the send). Mirrors the WS handler's push dispatch.
           void (async () => {
@@ -176,6 +197,7 @@ router.post(
                   senderAvatar: sender?.avatar,
                   isGroup: Boolean(conversation?.is_group),
                   groupName: conversation?.group_name || undefined,
+                  groupAvatarMetadata,
                   messagePreview: content.substring(0, 150),
                   unreadCount: unreadTotal,
                 },
@@ -371,9 +393,6 @@ router.post(
       };
 
       for (const p of participants) {
-        if (p.user_id !== req.userId) {
-          await redis.incrUnread(req.tenantId, p.user_id, convId);
-        }
         sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
       }
 

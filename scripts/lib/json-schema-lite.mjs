@@ -29,9 +29,16 @@ export function validateJsonSchema(schema, value, root = schema, at = "$", error
     if (schema.maxLength != null && value.length > schema.maxLength) errors.push(`${at}: longer than ${schema.maxLength}`);
     if (schema.pattern && !(new RegExp(schema.pattern).test(value))) errors.push(`${at}: pattern mismatch`);
     if (schema.format === "date-time" && Number.isNaN(Date.parse(value))) errors.push(`${at}: invalid date-time`);
+    if (schema.contentMediaType === "application/json" && schema.contentSchema) {
+      try { validateJsonSchema(schema.contentSchema, JSON.parse(value), root, `${at}<json>`, errors); }
+      catch { errors.push(`${at}: invalid JSON content`); }
+    }
   }
   if (typeof value === "number" && schema.minimum != null && value < schema.minimum) errors.push(`${at}: below minimum`);
-  if (Array.isArray(value) && schema.items) value.forEach((item, i) => validateJsonSchema(schema.items, item, root, `${at}[${i}]`, errors));
+  if (Array.isArray(value)) {
+    if (schema.maxItems != null && value.length > schema.maxItems) errors.push(`${at}: more than ${schema.maxItems} items`);
+    if (schema.items) value.forEach((item, i) => validateJsonSchema(schema.items, item, root, `${at}[${i}]`, errors));
+  }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     for (const key of schema.required || []) if (!(key in value)) errors.push(`${at}: missing ${key}`);
     for (const [key, child] of Object.entries(schema.properties || {})) if (key in value) validateJsonSchema(child, value[key], root, `${at}.${key}`, errors);

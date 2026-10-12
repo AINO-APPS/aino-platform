@@ -33,6 +33,7 @@ import MeetingPiP from "./components/meeting/MeetingPiP";
 import GlobalMeetingRoom from "./components/meeting/GlobalMeetingRoom";
 import GlobalIncomingCall from "./components/notifications/GlobalIncomingCall";
 import GlobalMeetingNotification from "./components/notifications/GlobalMeetingNotification";
+import GlobalMessageNotifications from "./components/notifications/GlobalMessageNotifications";
 import PageSkeleton from "./components/common/PageSkeleton";
 import ImpersonationBanner from "./components/common/ImpersonationBanner";
 import ElectronTitleBar from "./components/common/ElectronTitleBar";
@@ -59,6 +60,7 @@ const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/legal/TermsOfService"));
 const AccountDeletion = lazy(() => import("./pages/legal/AccountDeletion"));
 const CallPipPage = lazy(() => import("./pages/CallPipPage"));
+const MessagePopupPage = lazy(() => import("./pages/MessagePopupPage"));
 // Stage 3 — Projects + GitHub integrations admin pages.
 const Projects = lazy(() => import("./pages/Projects"));
 const Integrations = lazy(() => import("./pages/Integrations"));
@@ -474,6 +476,7 @@ function MainApp() {
                             <CustomFieldsProvider>
                               <ChatProvider>
                                 <StatusProvider>
+                                  <GlobalMessageNotifications />
                                   <CallProvider>
                                     <MeetingProvider>
                                       <AppRoutes />
@@ -498,6 +501,9 @@ function MainApp() {
 }
 
 export default function App() {
+  if (typeof window !== "undefined" && window.location.pathname === "/message-popup") {
+    return <Suspense fallback={null}><MessagePopupPage /></Suspense>;
+  }
   // ─── Electron always-on-top mini call window ────────────────────────
   // The Electron main process opens a secondary BrowserWindow that loads
   // workpulse://app/pip-call. That window must be standalone — no auth

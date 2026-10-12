@@ -17,10 +17,12 @@ import {
 import {
     getDeviceTokenGroups,
     getReactionDeviceTokens,
+    getMessageDeviceTokenGroups,
     getDeviceTokens,
     registerDeviceToken,
 } from "../platform/pushNotifications/deviceTokens";
 import { initializePushFirebaseApp } from "../platform/pushNotifications/firebaseApp";
+import { fitMessagePushData, withGroupAvatarMetadata, type GroupPushAvatarMetadata } from "../platform/pushNotifications/messageAvatars";
 
 /** FCM TTL for call-teardown pushes (android.ttl, ms) — the ring window. */
 const CALL_CANCEL_TTL_MS = 60 * 1000;
@@ -411,13 +413,15 @@ class PushNotificationService {
             groupName?: string;
             messagePreview: string;
             unreadCount?: number; // T031: Server-authoritative unread count
+            groupAvatarMetadata?: Promise<GroupPushAvatarMetadata | undefined>;
         },
     ): Promise<{ succeeded: number; failed: number }> {
         if (!this.initialized || !this.app) {
             return { succeeded: 0, failed: 0 };
         }
 
-        const tokens = await this.getDeviceTokens(query, userId, tenantId);
+        const groups = await getMessageDeviceTokenGroups(query, userId, tenantId, logger);
+        const tokens = [...groups.legacy, ...groups.avatarAware];
         if (tokens.length === 0) {
             logger.info({ event: "push_skip_no_tokens", notificationType: "message", userId, tenantId, messageId: messageData.messageId }, "No device tokens for message notification recipient");
             return { succeeded: 0, failed: 0 };
@@ -519,7 +523,25 @@ class PushNotificationService {
             "Dispatching message notification push",
         );
 
-        return this.sendToDevices(query, tokens, payload, `msg-${messageData.messageId}`);
+        payload.data = fitMessagePushData(payload.data, logger);
+        if (!messageData.isGroup || groups.avatarAware.length === 0) {
+            return this.sendToDevices(query, tokens, payload, `msg-${messageData.messageId}`);
+        }
+        let metadata: GroupPushAvatarMetadata | undefined;
+        try {
+            metadata = await messageData.groupAvatarMetadata;
+        } catch {
+            logger.warn({ event: "push_avatar_metadata_load_failed", conversationId: messageData.conversationId },
+                "Group avatar metadata unavailable; sending message push without it");
+        }
+        const avatarData = withGroupAvatarMetadata(payload.data, metadata, logger);
+        assertRoutingPayloadContract("message", avatarData, logger);
+        const results = await Promise.all([
+            groups.legacy.length ? this.sendToDevices(query, groups.legacy, payload, `msg-${messageData.messageId}`) : { succeeded: 0, failed: 0 },
+            this.sendToDevices(query, groups.avatarAware, { ...payload, data: avatarData }, `msg-${messageData.messageId}`),
+        ]);
+        return results.reduce((sum, result) => ({ succeeded: sum.succeeded + result.succeeded, failed: sum.failed + result.failed }),
+            { succeeded: 0, failed: 0 });
     }
 
     async sendReactionNotification(

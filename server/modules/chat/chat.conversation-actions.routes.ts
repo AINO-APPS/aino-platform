@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { sendToUser, emitCallHistoryMessage } = require("../../utils/ws");
-const redis = require("../../redis");
 const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploadPath");
 const { getStorage } = require("../../platform/storage");
 import { enqueueChatMediaPipelineJob } from "../../jobs";
@@ -74,7 +73,6 @@ router.post(
         return res.json({ ok: true, unread: false });
       }
       await service.query(req.db!, "q066", [convId, req.userId, latest.created_at]);
-      redis.resetUnread(req.tenantId, req.userId, convId);
       res.json({ ok: true, unread: true });
     } catch (err) {
       req.log.error({ err }, "Mark unread error");
@@ -106,7 +104,6 @@ router.delete(
       // requester only; other participants keep their copy. Only the
       // requester's own devices are told so they can sync.
       await service.query(req.db!, "q068", [convId, req.userId]);
-      redis.resetUnread(req.tenantId, req.userId, convId);
       sendToUser(req.tenantId, req.userId, "chat_cleared", {
         conversationId: convId,
       });
@@ -142,7 +139,6 @@ router.delete(
       // group-creator restriction). A newer message brings the conversation
       // back; leaving a group stays on POST /conversations/:id/leave.
       await service.query(req.db!, "q069", [convId, req.userId]);
-      redis.resetUnread(req.tenantId, req.userId, convId);
       sendToUser(req.tenantId, req.userId, "chat_conv_deleted", {
         conversationId: convId,
       });

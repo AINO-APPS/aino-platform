@@ -24,6 +24,11 @@ for(const e of endpoints.filter(covered)){
  if(["post","put","patch","delete"].includes(method)&&e.path.startsWith("/api/"))parameters.push({$ref:"#/components/parameters/CsrfHeader"});
  const op={tags:[tagFor(e.path)],summary:d[0],operationId:`${method}_${e.path.replace(/[:{}]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")}`,parameters,security:publicOps.has(key)?[]:[{cookieAuth:[]},{bearerAuth:[]}],responses:{"200":{description:"Successful response",content:content(R(d[2]||"FreeFormValue"))},"400":err("Invalid request"),"401":err("Authentication required or session invalid"),"403":err("Forbidden, CSRF header missing, or feature unavailable"),"429":err("Rate limit exceeded"),"500":err("Unexpected server error")}};
  if(d[1])op.requestBody={required:true,content:content(R(d[1]))};
+ if(key==="POST /api/chat/conversations/:id/read"){
+  op.summary="Mark conversation read, optionally through a displayed message";
+  op.responses["200"].content=content(R("OkResponse"));
+  op.requestBody={required:false,content:content({type:"object",properties:{throughMessageId:{description:"A message in this conversation. Advances the read cursor through this message without reading later arrivals. Omit to read through the current time.",anyOf:[{type:"integer",minimum:1,maximum:Number.MAX_SAFE_INTEGER},{type:"string",pattern:"^[1-9][0-9]*$"}]}},additionalProperties:false})};
+ }
  const p=e.path.replace(/:([A-Za-z0-9_]+)/g,"{$1}"); paths[p]||={}; paths[p][method]=op;
 }
 const obj=(properties,required=[])=>({type:"object",properties,required,additionalProperties:false});
@@ -34,7 +39,7 @@ const schemas={
  AuthResponse:obj({user:R("User"),token:{type:"string",description:"Mirrors the JWT cookie for native clients"}},["user","token"]),
  LoginRequest:obj({username:{type:"string"},password:{type:"string",format:"password"}},["username","password"]),
  RegisterRequest:{type:"object",required:["username","password"],properties:{username:{type:"string"},password:{type:"string",format:"password"},email:{type:"string",format:"email"},full_name:{type:"string"},invite_code:{type:"string"}},additionalProperties:true},
- RegistrationMode:{type:"object",additionalProperties:true},DeviceTokenRequest:obj({token:{type:"string"},platform:{type:"string",enum:["ios","android","web"]}},["token"]),
+ RegistrationMode:{type:"object",additionalProperties:true},DeviceTokenRequest:obj({deviceToken:{type:"string",minLength:1},platform:{type:"string",enum:["ios","android","web"]},pushVersion:{type:"integer",enum:[1,2,3,4],default:1,description:"v2 alert links, v3 Android reactions, v4 Android group avatars. Missing/unknown versions register as legacy v1."}},["deviceToken","platform"]),
  Profile:{allOf:[R("User"),{type:"object",additionalProperties:true}]},ProfileUpdate:{type:"object",properties:{full_name:{type:"string"},username:{type:"string"}},additionalProperties:true},
  ClockEventRequest:{type:"object",properties:{latitude:{type:"number"},longitude:{type:"number"},photo:{type:"string"},notes:{type:"string"}},additionalProperties:true},
  Presence:{type:"object",properties:{status:{type:["string","null"]},preference:{type:"string"}},additionalProperties:true},PresenceUpdate:obj({status:{type:["string","null"]}}),

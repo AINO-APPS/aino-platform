@@ -16,7 +16,9 @@ export function useOpenConversationFromQuery(
     const wanted = Number(new URLSearchParams(search).get("conv")) || null;
 
     useEffect(() => {
-        if (!wanted || handled.current === wanted) return;
+        // Forget handled ids once the query is dropped so the same chat can be requested again.
+        if (!wanted) { handled.current = null; return; }
+        if (handled.current === wanted) return;
         const conv = conversations.find((c: any) => Number(c.id) === wanted);
         if (!conv) return;
         handled.current = wanted;

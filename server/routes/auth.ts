@@ -950,10 +950,10 @@ router.post("/device-token", auth, async (req: Request, res: Response) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
 
-        // pushVersion 2 accepts alert links; version 3 also accepts Android reactions.
+        // v2 accepts alert links, v3 reactions, and v4 Android group avatar metadata.
         const db = req.db || { query: masterQuery };
         const requestedPushVersion = Number(req.body.pushVersion);
-        const pushVersion = requestedPushVersion === 3 ? 3 : requestedPushVersion === 2 ? 2 : 1;
+        const pushVersion = [2, 3, 4].includes(requestedPushVersion) ? requestedPushVersion : 1;
         await registerDeviceToken((sql: string, params?: unknown[]) => db.query(sql, params), userId, tenantId, deviceToken, platform, logger, pushVersion, deviceIdOf(req));
 
         logger.info({ userId, tenantId, platform }, "Device token registered for push notifications");

@@ -6056,7 +6056,7 @@
         "tags": [
           "chat"
         ],
-        "summary": "POST /api/chat/conversations/:id/read",
+        "summary": "Mark conversation read, optionally through a displayed message",
         "operationId": "post_api_chat_conversations_id_read",
         "parameters": [
           {
@@ -6085,7 +6085,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/OkResponse"
                 }
               }
             }
@@ -6137,6 +6137,33 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "throughMessageId": {
+                    "description": "A message in this conversation. Advances the read cursor through this message without reading later arrivals. Omit to read through the current time.",
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]*$"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
               }
             }
           }
@@ -19302,8 +19329,9 @@
       "DeviceTokenRequest": {
         "type": "object",
         "properties": {
-          "token": {
-            "type": "string"
+          "deviceToken": {
+            "type": "string",
+            "minLength": 1
           },
           "platform": {
             "type": "string",
@@ -19312,10 +19340,22 @@
               "android",
               "web"
             ]
+          },
+          "pushVersion": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "default": 1,
+            "description": "v2 alert links, v3 Android reactions, v4 Android group avatars. Missing/unknown versions register as legacy v1."
           }
         },
         "required": [
-          "token"
+          "deviceToken",
+          "platform"
         ],
         "additionalProperties": false
       },

@@ -9,6 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { hasTenantContext, useAuth } from "./AuthContext";
+import { useToast } from "./components/common/Toast";
 import { getNotificationPrefs, updateNotificationPrefs } from "./api/organization";
 import {
     DEFAULT_PREFS,
@@ -21,6 +22,7 @@ export type NotificationPrefs = typeof DEFAULT_PREFS;
 
 interface NotificationPrefsContextValue {
     prefs: NotificationPrefs;
+    prefsLoaded: boolean;
     updatePrefs: (partial: Partial<NotificationPrefs>) => void;
     resetPrefs: () => void;
     playRingtone: () => () => void;
@@ -36,9 +38,9 @@ const NotificationPrefsContext =
 
 const LS_KEY = "workpulse.notificationPrefs";
 
-function loadFromCache(): Partial<NotificationPrefs> | null {
+function loadFromCache(key: string): Partial<NotificationPrefs> | null {
     try {
-        const raw = localStorage.getItem(LS_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") return parsed;
@@ -48,9 +50,9 @@ function loadFromCache(): Partial<NotificationPrefs> | null {
     return null;
 }
 
-function saveToCache(prefs: NotificationPrefs) {
+function saveToCache(key: string, prefs: NotificationPrefs) {
     try {
-        localStorage.setItem(LS_KEY, JSON.stringify(prefs));
+        localStorage.setItem(key, JSON.stringify(prefs));
     } catch {
         /* quota */
     }
@@ -62,50 +64,73 @@ export function NotificationPrefsProvider({
     children: ReactNode;
 }) {
     const { isAuthenticated, user } = useAuth();
+    const toast = useToast();
     const tenantReady = isAuthenticated && hasTenantContext(user);
+    const cacheKey = `${LS_KEY}:${user?.tenant_id ?? ""}:${user?.id ?? "signed-out"}`;
 
-    // Merge defaults <- localStorage cache <- server response so the first
-    // render already has sane values without flicker.
+    // Cache is account-scoped; alerts wait for canonical privacy preferences.
     const initial = useMemo(
-        () => ({ ...DEFAULT_PREFS, ...(loadFromCache() || {}) }),
-        [],
+        () => ({ ...DEFAULT_PREFS, ...(loadFromCache(cacheKey) || {}) }),
+        [cacheKey],
     );
     const [prefs, setPrefs] = useState<NotificationPrefs>(initial);
+    const [prefsLoaded, setPrefsLoaded] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const initialLoadDoneRef = useRef(false);
+    useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
-    // Pull canonical prefs from the server when user logs in. Falls back to
-    // the cached/default prefs if the request fails (offline, server down).
+    // Failed loads keep alerts paused and retry when connectivity/focus returns.
     useEffect(() => {
+        setPrefs(initial);
+        setPrefsLoaded(false);
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        initialLoadDoneRef.current = false;
         if (!tenantReady) return;
         // If the auth profile already shipped notification_prefs, prefer that
         // (avoids the extra round-trip on initial app load).
         const userPrefs = user?.notification_prefs as
             | Partial<NotificationPrefs>
             | undefined;
-        if (userPrefs && Object.keys(userPrefs).length > 0) {
+        if (userPrefs) {
             const merged = { ...DEFAULT_PREFS, ...userPrefs };
             setPrefs(merged);
-            saveToCache(merged);
+            saveToCache(cacheKey, merged);
             initialLoadDoneRef.current = true;
+            setPrefsLoaded(true);
             return;
         }
         let cancelled = false;
-        getNotificationPrefs()
+        let loading = false;
+        let errorShown = false;
+        const load = () => {
+            if (loading || initialLoadDoneRef.current) return;
+            loading = true;
+            getNotificationPrefs()
             .then((res) => {
                 if (cancelled) return;
                 const merged = { ...DEFAULT_PREFS, ...(res.data || {}) };
                 setPrefs(merged);
-                saveToCache(merged);
+                saveToCache(cacheKey, merged);
                 initialLoadDoneRef.current = true;
+                setPrefsLoaded(true);
             })
-            .catch(() => {
-                initialLoadDoneRef.current = true;
-            });
+            .catch((error: unknown) => {
+                if (cancelled) return;
+                console.error("Failed to load notification preferences", error);
+                if (!errorShown) toast.error("Message alerts are paused until notification preferences can be loaded.");
+                errorShown = true;
+            })
+            .finally(() => { loading = false; });
+        };
+        load();
+        window.addEventListener("online", load);
+        window.addEventListener("focus", load);
         return () => {
             cancelled = true;
+            window.removeEventListener("online", load);
+            window.removeEventListener("focus", load);
         };
-    }, [tenantReady, user?.id]);
+    }, [tenantReady, cacheKey, initial, toast]);
 
     /**
      * Update prefs locally, persist to localStorage immediately, debounce-save
@@ -115,34 +140,38 @@ export function NotificationPrefsProvider({
         (partial: Partial<NotificationPrefs>) => {
             setPrefs((prev) => {
                 const merged = { ...prev, ...partial };
-                saveToCache(merged);
+                saveToCache(cacheKey, merged);
 
                 // Debounce server save (avoid spamming PUT while user drags slider)
                 if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
                 saveTimerRef.current = setTimeout(() => {
                     if (!tenantReady) return;
-                    updateNotificationPrefs(partial).catch(() => {
-                        /* will retry on next change; cache already saved */
+                    updateNotificationPrefs(merged).catch((error: unknown) => {
+                        console.error("Failed to save notification preferences", error);
+                        toast.error("Notification preferences could not be saved. Please try again.");
                     });
                 }, 500);
 
                 return merged;
             });
         },
-        [tenantReady],
+        [tenantReady, cacheKey, toast],
     );
 
     const resetPrefs = useCallback(() => {
         setPrefs(DEFAULT_PREFS);
-        saveToCache(DEFAULT_PREFS);
+        saveToCache(cacheKey, DEFAULT_PREFS);
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         if (tenantReady) {
             // Push every default field so the server stores a complete record.
             const { v: _v, ...rest } = DEFAULT_PREFS;
             void _v;
-            updateNotificationPrefs(rest).catch(() => {});
+            updateNotificationPrefs(rest).catch((error: unknown) => {
+                console.error("Failed to reset notification preferences", error);
+                toast.error("Notification preferences could not be reset. Please try again.");
+            });
         }
-    }, [tenantReady]);
+    }, [tenantReady, cacheKey, toast]);
 
     /* ─── Playback helpers used by the rest of the app ───────────────── */
 
@@ -210,6 +239,7 @@ export function NotificationPrefsProvider({
     const value = useMemo(
         () => ({
             prefs,
+            prefsLoaded,
             updatePrefs,
             resetPrefs,
             playRingtone,
@@ -221,6 +251,7 @@ export function NotificationPrefsProvider({
         }),
         [
             prefs,
+            prefsLoaded,
             updatePrefs,
             resetPrefs,
             playRingtone,
@@ -246,6 +277,7 @@ export function useNotificationPrefs(): NotificationPrefsContextValue {
         // mounts don't crash. Returns no-op helpers + defaults.
         return {
             prefs: DEFAULT_PREFS,
+            prefsLoaded: false,
             updatePrefs: () => {},
             resetPrefs: () => {},
             playRingtone: () => () => {},

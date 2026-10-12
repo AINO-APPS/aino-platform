@@ -351,6 +351,8 @@ const REGISTRY: Record<SoundCategory, SoundPreset[]> = {
 export const DEFAULT_PREFS = {
     v: 1,
     muteAll: false,
+    messagePopups: true,
+    hideSensitiveContent: false,
     ringtone: "classic",
     ringtoneVolume: 0.6,
     outgoingTone: "ringback",

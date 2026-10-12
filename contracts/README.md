@@ -48,4 +48,17 @@ Administration is web-only (2026-10-01). Admin routes answer `403 { code: "WEB_O
 
 ### Known coverage gaps
 
+Group message avatar metadata is capability-gated to **Android pushVersion 4+**
+only; Android v1–3, iOS and web retain the exact legacy message key set. Optional
+`groupAvatar` is an intact URL or empty string. `groupMemberPreviews` is a
+stringified JSON array of at most four strict `{name, avatar}` objects (string/null),
+photo-first then ascending user ID, matching the conversation list. Names are
+limited to 200 characters. Runtime validators additionally enforce UTF-8 limits:
+2048 bytes per metadata field and 3800 bytes for the complete serialized data map.
+The schema's string `maxLength` is a character bound, not a replacement for those
+byte checks. `chat-message.group-v4.json` and the unchanged legacy fixture cover both
+variants. Oversized metadata is omitted intact and logged; native Android fills
+missing metadata through its account-scoped cache/authenticated conversation list.
+General-alert v2 links and v3 reaction capability remain unchanged.
+
 This is intentionally a baseline, not an exhaustive realtime specification. AsyncAPI currently omits detailed schemas for typing/read, WebRTC signal/reconnect/ready/subscribe/reaction, meetings/huddles, presence/status, and group-management events. In-app notifications (`notification`, `notifications_changed`) and the cross-device domain sync events (`task_assigned`, `task_updated`, `attendance_update`, `team_attendance_update`, `leave_update`, `leave_policy_changed`, `approval_update`) are modeled, including the relative `link` deep-link formats shared by the WS payload, `GET /api/notifications` rows and the FCM general alert (`link`, `linkTaskId`; sent only to device tokens registered with `pushVersion: 2`, because older Android apps reject unknown keys). Several documented server events retain open `data` objects because their exact payload varies by transition. Push schemas cover the server-built FCM `data` map, not provider-added metadata or every platform wrapper (`android`, `apns`, `webpush`). Only incoming-call push currently has a server-side `hideSensitiveContent` variant; message and general-alert builders do not consult that preference, so no unsupported privacy variant is asserted for them.
