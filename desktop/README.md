@@ -8,11 +8,12 @@ that opens the conversation when clicked.
 
 ## Actions and behavior
 
-- Conversation avatar, sender/group name, text or attachment preview.
-- Inline text reply, open conversation, mark read, dismiss, and mute for an hour
-  or indefinitely. Replies use the existing authenticated HTTP endpoint, honour
-  group posting rules and recipients' mutes, and reuse an idempotency key when
-  the same text is retried. Errors keep the draft and offer retry.
+- A simple card: conversation avatar, name, text or attachment preview, a close
+  button, and **Reply** / **Mark as read**. Clicking the card opens the
+  conversation; muting stays in the chat itself.
+- Replies use the existing authenticated HTTP endpoint, honour group posting
+  rules and recipients' mutes, and reuse an idempotency key when the same text
+  is retried. Errors keep the draft and offer retry.
 - Drafts stay inside the popup card, so typing is not sent over IPC on every
   keystroke. Actions apply to the message the user saw, even if a newer
   message arrives before the click.

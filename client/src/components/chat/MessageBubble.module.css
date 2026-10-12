@@ -172,12 +172,8 @@
   background: rgba(0, 0, 0, 0.55);
   border-radius: 10px;
   backdrop-filter: blur(2px);
-  /* The read tick is a filled disc with the check "punched out" using this
-       variable as the punch-out color. Over the dark media pill we must NOT use
-       white (the disc is also forced white below) — otherwise it's a white check
-       on a white disc and the tick is invisible. Use the dark pill color so the
-       check reads against the white disc. */
-  --read-check-bg: rgba(0, 0, 0, 0.55);
+  /* Android onMedia: white glyphs; the read check uses the dark pill colour. */
+  --tick-read-check: rgba(0, 0, 0, 0.55);
 }
 .mediaOnly .time,
 .mediaOnly .edited {
@@ -189,10 +185,7 @@
 .mediaOnly .deliveryPartial {
   color: #fff;
 }
-/* SVG ticks over media: force white for contrast against the photo backdrop.
-   The read tick's filled disc + outer ring are `currentColor` (white here); its
-   punched-out check uses --read-check-bg (set to the dark pill color above) so
-   the check stays visible on the white disc. */
+/* SVG ticks over media: white, like Android's onMedia footer. */
 .mediaOnly .tick,
 .mediaOnly .tickSending,
 .mediaOnly .tickSent,
@@ -316,23 +309,43 @@
   text-decoration: underline;
 }
 
-/* ─── Meta: time + edited (WhatsApp footer, bottom-right) ─── */
+/* ─── Meta: time + receipt in one row, sharing the last text line when it fits (Android BubbleTextWithFooter) ─── */
 .meta {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   margin-top: 1px;
   justify-content: flex-end;
+  white-space: nowrap;
+  line-height: 1;
+}
+/* Plain-text bubbles (Android BubbleTextWithFooter): text and time/receipt share one row
+   when they fit; otherwise the footer moves to its own right-aligned row. */
+.textWithMeta {
+  position: relative;
+}
+.metaSpacer {
+  display: inline-block;
+  visibility: hidden;
+  margin-left: 8px;
+  vertical-align: bottom;
+}
+.inlineMeta {
+  position: absolute;
+  right: 0;
+  bottom: 3px;
+}
+.metaSpacer .meta,
+.inlineMeta .meta {
+  margin-top: 0;
 }
 .time {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  opacity: 0.8;
 }
 .edited {
-  font-size: 0.58rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  font-style: italic;
 }
 
 /* ─── Hover toolbar ─── */
@@ -663,7 +676,6 @@
 }
 .myBubble .time {
   color: var(--text-muted);
-  opacity: 0.8;
 }
 .myBubble .edited {
   color: var(--text-muted);
@@ -704,7 +716,7 @@
   color: var(--primary);
 }
 
-/* ─── Signal-style SVG delivery ticks ─── */
+/* ─── Android SignalReceiptIcon receipts (15px, 3px leading gap) ─── */
 .tick {
   display: inline-flex;
   align-items: center;
@@ -712,69 +724,38 @@
   margin-left: 3px;
   line-height: 0;
   vertical-align: middle;
+  flex-shrink: 0;
 }
 .tick svg {
   display: block;
 }
-/* sending — muted, gently spinning ring */
+/* sending — muted spinning quarter arc */
 .tickSending {
   color: var(--text-muted);
-  opacity: 0.7;
+}
+.tickSending svg {
   animation: tickSpin 0.9s linear infinite;
 }
 /* sent — outlined circled check, muted */
 .tickSent {
   color: var(--text-muted);
 }
-/* delivered — solid grey disc */
+/* delivered — solid secondary disc with a transparent cut-out check */
 .tickDelivered {
   color: var(--text-secondary);
-  animation: tickPop 0.18s ease-out;
 }
-/* read — org-accent disc with a ripple ring */
+/* read — org-accent disc with a ring at 45% */
 .tickRead {
   color: var(--primary);
-  animation: tickPop 0.22s ease-out;
-}
-.tickRipple {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: tickRipple 0.6s ease-out;
-}
-@keyframes tickRipple {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  60% {
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0.45;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tickRipple {
+  .tickSending svg {
     animation: none;
   }
 }
 @keyframes tickSpin {
   to {
     transform: rotate(360deg);
-  }
-}
-@keyframes tickPop {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.18);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
   }
 }
 

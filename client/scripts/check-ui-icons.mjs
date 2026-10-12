@@ -8,6 +8,8 @@ const chartFiles = new Set([
     "components/agile/AgileWorkflowPanels.tsx", "pages/SprintInsights.tsx",
     "components/FloatingTimer/FloatingTimer.tsx", "components/dashboard/WorkTimerCard.tsx",
     "pages/dashboard/TimerCard.tsx",
+    // Message receipts mirror Android's custom-drawn SignalReceiptIcon; no Material glyph matches.
+    "components/chat/DeliveryStatus.tsx",
 ]);
 const contentFiles = new Map([
     ["components/DailyNotes/templates.ts", "Editable note template prose"],
@@ -47,7 +49,7 @@ export function inventoryUiIcons() {
                 if (module === "@mui/icons-material") report(node.getStart(ast), "Non-tree-shakeable Material barrel import");
             }
             if ((ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === "svg") || (ts.isJsxSelfClosingElement(node) && node.tagName.getText(ast) === "svg")) {
-                if (chartFiles.has(file)) exceptions.push(`${file}: chart/progress drawing`);
+                if (chartFiles.has(file)) exceptions.push(`${file}: ${file.endsWith("DeliveryStatus.tsx") ? "Android receipt glyph parity" : "chart/progress drawing"}`);
                 else report(node.getStart(ast), "Bespoke SVG UI icon");
             }
             if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isJsxText(node)) {

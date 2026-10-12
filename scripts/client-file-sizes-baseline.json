@@ -5,7 +5,7 @@
   "components/agile/AgileWorkflowPanels.tsx": 1127,
   "components/calendar/EventFormModal.tsx": 658,
   "components/chat/CallOverlay.tsx": 997,
-  "components/chat/MessageBubble.tsx": 661,
+  "components/chat/MessageBubble.tsx": 656,
   "components/chat/call/index.tsx": 1721,
   "components/chat/call/useCallControls.ts": 751,
   "components/chat/call/useWebRTC.ts": 1798,

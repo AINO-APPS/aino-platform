@@ -26,9 +26,9 @@ export default function MessagePopupPage() {
         observer.observe(surface);
         return () => observer.disconnect();
     }, [state]);
-    const act = useCallback((action: MessageAlertAction["action"], card: MessageAlert, text?: string, duration?: "1h" | "always") => {
+    const act = useCallback((action: MessageAlertAction["action"], card: MessageAlert, text?: string) => {
         if (state) window.electronAPI?.messageAlerts.act({ session: state.session, conversationId: card.conversationId,
-            messageId: card.messageId, action, text, duration });
+            messageId: card.messageId, action, text });
     }, [state?.session]);
     return <MessagePopup cards={state?.cards ?? []} act={act} standalone />;
 }

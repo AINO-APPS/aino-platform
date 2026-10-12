@@ -5,10 +5,12 @@ import s from "./MessageBubble.module.css";
 interface MessageContentProps {
     text?: string;
     isMine?: boolean;
+    /** Time/receipt footer floated into the last text line (Android inline footer). */
+    meta?: React.ReactNode;
 }
 
 /** Parse markdown-style text: **bold**, *italic*, ~~strike~~, `code`, @mentions, URLs */
-export default function MessageContent({ text }: MessageContentProps) {
+export default function MessageContent({ text, meta }: MessageContentProps) {
     if (!text) return null;
     const tokens: React.ReactNode[] = [];
     const regex = /```(\w*)\n([\s\S]*?)```|`([^`]+)`|\*\*(.+?)\*\*|\*(?!\s)(.+?)(?<!\s)\*|~~(.+?)~~|(@\w[\w\s]*?)(?=\s|$)|(https?:\/\/[^\s<]+)/g;
@@ -42,5 +44,17 @@ export default function MessageContent({ text }: MessageContentProps) {
     }
     if (last < text.length) tokens.push(text.slice(last));
 
-    return <div className={s.text}>{tokens.length > 0 ? tokens : text}</div>;
+    // Code blocks are full-width; their footer stays on its own row.
+    const inline = meta && !text.includes("```");
+    const body = tokens.length > 0 ? tokens : text;
+    if (!inline) return <><div className={s.text}>{body}</div>{meta}</>;
+    // An invisible copy reserves the footer's width at the end of the last line; it wraps
+    // to a new line only when it cannot fit, and the visible footer pins to that spot.
+    return (
+        <div className={`${s.text} ${s.textWithMeta}`}>
+            {body}
+            <span className={s.metaSpacer} aria-hidden="true">{meta}</span>
+            <span className={s.inlineMeta}>{meta}</span>
+        </div>
+    );
 }

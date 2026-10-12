@@ -33,7 +33,7 @@ export function attachmentPreview(
 
 /**
  * Conversation-list delivery tick for the caller's OWN last message, using the
- * same ripple-tick glyphs as the in-thread DeliveryStatus (read = org accent).
+ * same Android receipt glyphs as the in-thread DeliveryStatus (read = org accent).
  */
 export function ListTick({ conv, userId }: { conv: any; userId?: number | string }) {
   if (userId == null || Number(conv.last_sender_id) !== Number(userId))
@@ -48,13 +48,13 @@ export function ListTick({ conv, userId }: { conv: any; userId?: number | string
     marginLeft: "auto",
     paddingLeft: "6px",
     flexShrink: 0,
-    color: read ? "var(--primary)" : "var(--text-muted, #8a8f98)",
+    color: read ? "var(--primary)" : "var(--text-secondary)",
   };
   const state: TickState = read ? "read" : delivered ? "delivered" : "sent";
   const label = read ? "Read" : delivered ? "Delivered" : "Sent";
   return (
     <span style={style} title={label} aria-label={label}>
-      <RippleTickGlyph state={state} size={14} />
+      <RippleTickGlyph state={state} size={15} />
     </span>
   );
 }

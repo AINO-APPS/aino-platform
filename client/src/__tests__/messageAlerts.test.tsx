@@ -12,7 +12,7 @@ import { canAlert, mergeAlert, privateAlert, isConversationMuted, messagePreview
 const mocks = vi.hoisted(() => ({
     auth: { isAuthenticated: true, user: { id: 1, tenant_id: 2 } },
     active: null as number | null, effective: "available", prefsLoaded: true,
-    getConversations: vi.fn(), sendQuickReply: vi.fn(), markConversationRead: vi.fn(), muteConversation: vi.fn(),
+    getConversations: vi.fn(), sendQuickReply: vi.fn(), markConversationRead: vi.fn(),
     refreshUnread: vi.fn(), setActive: vi.fn(), messageTone: vi.fn(), mentionTone: vi.fn(),
 }));
 let prefs = { ...DEFAULT_PREFS };
@@ -22,7 +22,7 @@ vi.mock("../NotificationPrefsContext", () => ({ useNotificationPrefs: () => ({ p
 vi.mock("../ThemeContext", () => ({ useTheme: () => ({ theme: "dark" }) }));
 vi.mock("../status/useStatus", () => ({ useStatus: () => ({ effective: mocks.effective }) }));
 vi.mock("../api/chat", () => ({ getConversations: mocks.getConversations, sendQuickReply: mocks.sendQuickReply,
-    markConversationRead: mocks.markConversationRead, muteConversation: mocks.muteConversation }));
+    markConversationRead: mocks.markConversationRead }));
 
 const fixture = (id = "7"): MessageAlert => ({ conversationId: id, messageId: "11", title: "Asha", sender: "Asha",
     preview: "Hello", avatar: "/asha.png", members: [], isGroup: false, count: 1, updatedAt: Date.now(),
@@ -47,7 +47,6 @@ beforeEach(() => {
     mocks.getConversations.mockResolvedValue({ data: [7, 8, 9, 10].map((id) => ({ id, other_full_name: "Asha", is_muted: false })) });
     mocks.sendQuickReply.mockResolvedValue({ data: { id: 55 } });
     mocks.markConversationRead.mockResolvedValue({ data: { ok: true } });
-    mocks.muteConversation.mockResolvedValue({ data: { ok: true } });
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
     Object.defineProperty(window, "electronAPI", { value: undefined, configurable: true });
@@ -132,7 +131,7 @@ describe("global message notifications", () => {
         let resolve: (() => void) | undefined;
         mocks.markConversationRead.mockImplementationOnce(() => new Promise<void>((done) => { resolve = done; }));
         await mount(); emit();
-        fireEvent.click(await screen.findByText("Mark read"));
+        fireEvent.click(await screen.findByText("Mark as read"));
         expect(mocks.markConversationRead).toHaveBeenCalledWith("7", "11");
         emit(12);
         await act(async () => resolve?.());
@@ -142,7 +141,7 @@ describe("global message notifications", () => {
         let resolve: (() => void) | undefined;
         mocks.markConversationRead.mockImplementationOnce(() => new Promise<void>((done) => { resolve = done; }));
         const view = await mount(); emit();
-        fireEvent.click(await screen.findByText("Mark read"));
+        fireEvent.click(await screen.findByText("Mark as read"));
         mocks.auth.isAuthenticated = false;
         view.rerender(<MemoryRouter><GlobalMessageNotifications /></MemoryRouter>);
         await act(async () => resolve?.());
@@ -185,14 +184,13 @@ describe("global message notifications", () => {
         expect(screen.queryByLabelText("Dismiss notification")).toBeNull();
         await waitFor(() => expect(mocks.messageTone).toHaveBeenCalledTimes(1));
     });
-    test("confirmed mute dismisses the card and suppresses subsequent messages", async () => {
+    test("the simple card offers only reply and mark as read alongside open and dismiss", async () => {
         await mount(); emit();
-        mocks.getConversations.mockResolvedValue({ data: [{ id: 7, is_muted: true, muted_until: null }] });
-        fireEvent.click(await screen.findByLabelText("Mute conversation for 1 hour"));
-        await waitFor(() => expect(mocks.muteConversation).toHaveBeenCalledWith("7", "1h"));
-        await waitFor(() => expect(screen.queryByLabelText("Dismiss notification")).toBeNull());
-        emit(12);
-        expect(screen.queryByLabelText("Dismiss notification")).toBeNull();
+        await screen.findByText("Message 11");
+        expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
+        expect(screen.queryByLabelText(/mute/i)).toBeNull();
+        expect(screen.queryByText(/AINO/)).toBeNull();
     });
     test("waits for canonical preferences before exposing an early-arriving message", async () => {
         mocks.prefsLoaded = false;
