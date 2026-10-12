@@ -42,6 +42,8 @@ files:
   - updater.js
   - updaterFeed.js
   - callPipWindow.js
+  - messageAlertWindow.js
+  - messageAlertPolicy.js
   - biometric.js
   - ipc-contract.js
   - permissions.js
