@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Brand mark "Timeline": staggered schedule bars, the active one in amber. Transparent, no tile. -->
+  <rect x="172" y="232" width="440" height="152" rx="76" fill="#23895B"/>
+  <rect x="332" y="436" width="520" height="152" rx="76" fill="#F5A524"/>
+  <rect x="172" y="640" width="560" height="152" rx="76" fill="#23895B"/></svg>

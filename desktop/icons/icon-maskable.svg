@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Opaque variant of icon-source.svg for PWA maskable / Apple touch icons; mark sits inside the 80% safe zone. -->
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <g transform="translate(512 512) scale(.8) translate(-512 -512)">
+    <rect x="172" y="232" width="440" height="152" rx="76" fill="#23895B"/>
+    <rect x="332" y="436" width="520" height="152" rx="76" fill="#F5A524"/>
+    <rect x="172" y="640" width="560" height="152" rx="76" fill="#23895B"/>
+  </g>
+</svg>

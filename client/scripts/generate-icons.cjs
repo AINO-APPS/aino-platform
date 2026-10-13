@@ -29,6 +29,7 @@ const sharp = resolveDep("sharp");
 const pngToIco = resolveDep("png-to-ico");
 
 const SOURCE_PATH = path.join(REPO_ROOT, "desktop", "icons", "icon-source.svg");
+const MASKABLE_PATH = path.join(REPO_ROOT, "desktop", "icons", "icon-maskable.svg");
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 async function generate() {
@@ -43,11 +44,31 @@ async function generate() {
     // 1. PWA / apple-touch icons referenced from manifest.json + index.html.
     for (const size of [192, 512]) {
         await sharp(source)
-            .resize(size, size, { fit: "cover" })
+            .resize(size, size, { fit: "cover", kernel: "lanczos3" })
             .png()
             .toFile(path.join(PUBLIC_DIR, `icon-${size}.png`));
         console.log(`  ✓ icon-${size}.png`);
     }
+
+    // Full-bleed variant for `purpose: "maskable"`, so Android/ChromeOS masks
+    // crop background rather than the rounded tile's transparent corners.
+    const maskable = fs.readFileSync(MASKABLE_PATH);
+    await sharp(maskable)
+        .resize(512, 512, { fit: "cover", kernel: "lanczos3" })
+        .png()
+        .toFile(path.join(PUBLIC_DIR, "icon-maskable-512.png"));
+    console.log("  ✓ icon-maskable-512.png");
+
+    // Apple ignores transparency on touch icons, so use the full-bleed art.
+    await sharp(maskable)
+        .resize(180, 180, { fit: "cover", kernel: "lanczos3" })
+        .png()
+        .toFile(path.join(PUBLIC_DIR, "apple-touch-icon.png"));
+    console.log("  ✓ apple-touch-icon.png (180)");
+
+    // Scalable favicon for modern browsers.
+    fs.copyFileSync(SOURCE_PATH, path.join(PUBLIC_DIR, "favicon.svg"));
+    console.log("  ✓ favicon.svg");
 
     // 2. favicon.ico — multi-resolution (16/32/48). Also the fallback target in
     //    BrandingContext when an org has no custom logo.
