@@ -296,19 +296,15 @@ class PushNotificationService {
                 priority: "high",
                 ttl: CALL_CANCEL_TTL_MS,
             },
+            // Background/silent push so CallKit/JS can dismiss the call. An empty
+            // `sound` fails firebase-admin validation (messaging/invalid-payload)
+            // and rejects the WHOLE multicast, Android tokens included.
             apns: {
                 headers: {
-                    "apns-priority": "10",
+                    "apns-priority": "5",
                     "apns-push-type": "background",
                 },
-                payload: {
-                    aps: {
-                        // Background/silent push so CallKit/JS can dismiss the call.
-                        alert: { title: "", body: "" },
-                        sound: "",
-                        "mutable-content": 1,
-                    },
-                },
+                payload: { aps: { "content-available": 1 } },
             },
         };
         // ROOT-CAUSE FIX ("receiver keeps ringing after the caller hung up"):
@@ -386,9 +382,11 @@ class PushNotificationService {
                 dedupeKey: `session_revoked:${sessionKey}`,
             }, tenantId),
             android: { priority: "high", ttl: SESSION_REVOKED_TTL_MS },
+            // A silent background push. An empty `sound` fails firebase-admin's
+            // validation (messaging/invalid-payload) and the phone was never told.
             apns: {
-                headers: { "apns-priority": "10", "apns-push-type": "background" },
-                payload: { aps: { alert: { title: "", body: "" }, sound: "", "mutable-content": 1 } },
+                headers: { "apns-priority": "5", "apns-push-type": "background" },
+                payload: { aps: { "content-available": 1 } },
             },
         };
         try {

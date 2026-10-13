@@ -18,8 +18,13 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 export const MOBILE_ACCESS_TTL_SECONDS = 15 * 60;
 export const REFRESH_OPT_IN_HEADER = "x-aino-token-refresh";
 
-/** A request that raced the previous rotation may present the old token this long without revoking. */
-const ROTATION_GRACE_MS = 30_000;
+/**
+ * A request that raced the previous rotation, or whose response was lost on a
+ * flaky mobile network and retried (often minutes later, on the next request
+ * after the app was backgrounded), may present the old token this long without
+ * revoking. 30 s revoked real phones and deleted their push tokens.
+ */
+const ROTATION_GRACE_MS = 10 * 60_000;
 
 type Query = (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount?: number | null }>;
 interface DbLike { query: Query; }

@@ -63,8 +63,16 @@ describe("rotating refresh tokens", () => {
         const db = store({ user_id: 7, device_id: "dev-1" });
         const first = await issueRefreshToken(SID, 7, 3, db);
         await rotateRefreshToken(first, db);
-        expect(await rotateRefreshToken(first, db, Date.now() + 31_000)).toEqual({ status: "reused", userId: 7, sid: SID, deviceId: "dev-1" });
+        expect(await rotateRefreshToken(first, db, Date.now() + 601_000)).toEqual({ status: "reused", userId: 7, sid: SID, deviceId: "dev-1" });
         expect(db.row).toBeNull();
+    });
+
+    test("a slow mobile retry of a lost rotation does not revoke the session", async () => {
+        const db = store({ user_id: 7, device_id: "dev-1" });
+        const first = await issueRefreshToken(SID, 7, 3, db);
+        await rotateRefreshToken(first, db);
+        expect((await rotateRefreshToken(first, db, Date.now() + 3 * 60_000 + 17_000)).status).toBe("rotated");
+        expect(db.row).not.toBeNull();
     });
 
     test("a lost rotation response is recovered inside the grace window", async () => {

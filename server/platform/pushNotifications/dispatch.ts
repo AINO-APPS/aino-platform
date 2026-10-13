@@ -28,13 +28,14 @@ export interface PushPayload {
         headers?: Record<string, string>;
         payload: {
             aps: {
-                alert: {
+                alert?: {
                     title: string;
                     body: string;
                 };
                 badge?: number;
-                sound: string;
-                "mutable-content": number;
+                sound?: string;
+                "mutable-content"?: number;
+                "content-available"?: number;
                 category?: string;
             };
         };

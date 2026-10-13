@@ -382,8 +382,10 @@ describe("pushNotifications.sendCallCancellation", () => {
         );
 
         const sent = sendEachForMulticast.mock.calls[0][0];
-        expect(sent.apns.headers["apns-priority"]).toBe("10");
+        // APNs rejects priority 10 for a content-available-only (background) payload.
+        expect(sent.apns.headers["apns-priority"]).toBe("5");
         expect(sent.apns.headers["apns-push-type"]).toBe("background");
+        expect(sent.apns.payload.aps).toEqual({ "content-available": 1 });
     });
 
     test.each([

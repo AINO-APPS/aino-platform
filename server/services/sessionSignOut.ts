@@ -40,6 +40,9 @@ export function pushSessionRevoked(db: { query: Query }, tenantId: number | null
             "DELETE FROM device_tokens WHERE user_id = $1 AND device_id = ANY($2) RETURNING device_token",
             [userId, ids],
         )).rows.map((row) => String(row.device_token));
+        // The phone must POST its token again after the next sign-in; log it so a
+        // later "No device tokens" can be traced back to this revocation.
+        logger.info({ event: "push_tokens_revoked", userId, tenantId, deviceCount: ids.length, tokenCount: tokens.length }, "Push tokens removed for ended session");
         if (tokens.length) {
             await pushNotifications.sendSessionRevoked((sql: string, values?: unknown[]) => db.query(sql, values) as any, tokens, tenantId);
         }
