@@ -1,6 +1,6 @@
 /**
  * Generate the web client's PWA / favicon assets from the SAME source artwork
- * the desktop .exe and mobile app use (`desktop/icons/icon-source.png`). This
+ * the desktop .exe and mobile app use (`desktop/icons/icon-source.svg`). This
  * keeps the browser-tab favicon and installed-PWA icon visually identical to
  * the native builds.
  *
@@ -28,7 +28,7 @@ function resolveDep(name) {
 const sharp = resolveDep("sharp");
 const pngToIco = resolveDep("png-to-ico");
 
-const SOURCE_PATH = path.join(REPO_ROOT, "desktop", "icons", "icon-source.png");
+const SOURCE_PATH = path.join(REPO_ROOT, "desktop", "icons", "icon-source.svg");
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 async function generate() {
@@ -58,7 +58,7 @@ async function generate() {
     fs.writeFileSync(path.join(PUBLIC_DIR, "favicon.ico"), ico);
     console.log("  ✓ favicon.ico (16/32/48)");
 
-    console.log("\nDone! Client icons regenerated from desktop/icons/icon-source.png");
+    console.log("\nDone! Client icons regenerated from desktop/icons/icon-source.svg");
 }
 
 generate().catch((err) => {
