@@ -1322,6 +1322,20 @@ describe("per-user cleared/hidden filtering on reads", () => {
         expect(list![1]).toEqual([2]);
     });
 
+    test("unread counts skip system rows except missed calls (Signal parity)", async () => {
+        setupAuth();
+        await request(app).get("/api/chat/conversations").set("Cookie", authCookie(2));
+
+        const list = sqlCalls().find(([sql]) => sql.includes("AS unread_count"));
+        expect(list![0]).toContain(
+            "(msg.format_type IS DISTINCT FROM 'system' OR (msg.metadata->>'type' = 'call' AND msg.metadata->>'status' = 'missed'))",
+        );
+        const { sql } = require("../modules/chat/chat.repository");
+        expect(sql.q041).toContain(
+            "(m.format_type IS DISTINCT FROM 'system' OR (m.metadata->>'type' = 'call' AND m.metadata->>'status' = 'missed'))",
+        );
+    });
+
     test("message pages only return messages after the requester's cleared_at", async () => {
         mockParticipantQueries();
 

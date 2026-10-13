@@ -4,7 +4,7 @@
  * This file owns all chat SQL and has no knowledge of Express, Request, Response, cookies, or status codes.
  */
 import type { ChatDb, DirectConversationResult } from "./chat.types";
-import { CONVERSATION_LIST_SQL } from "./chat.conversation-list.repository";
+import { CONVERSATION_LIST_SQL, unreadEligibleSql } from "./chat.conversation-list.repository";
 
 
 
@@ -55,7 +55,7 @@ export const sql = {
     q038: "INSERT INTO message_reads (conversation_id, user_id, last_read_at) VALUES ($1, $2, $3) ON CONFLICT (conversation_id, user_id) DO UPDATE SET last_read_at = $3",
     q039: "SELECT full_name, avatar, username FROM users WHERE id = $1",
     q040: "SELECT m.content, m.file_url, m.file_type, m.file_name, u.full_name AS sender_name FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = $1 AND m.conversation_id = $2",
-    q041: "SELECT COUNT(*)::int AS unread FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1 LEFT JOIN message_reads mr ON mr.conversation_id = m.conversation_id AND mr.user_id = $1 WHERE m.sender_id <> $1 AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at) AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)",
+    q041: "SELECT COUNT(*)::int AS unread FROM messages m JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1 LEFT JOIN message_reads mr ON mr.conversation_id = m.conversation_id AND mr.user_id = $1 WHERE m.sender_id <> $1 AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at) AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz) AND " + unreadEligibleSql("m"),
     q042: "INSERT INTO messages (conversation_id, sender_id, content, file_url, file_name, file_type, file_size, reply_to_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at",
     q043: "INSERT INTO chat_media_jobs (message_id, conversation_id, sender_id, status, stage, progress, attempts, pipeline_meta) VALUES ($1, $2, $3, 'queued', 'queued', 0, 1, '{}'::jsonb) RETURNING id, status, stage, progress, pipeline_meta",
     q044: "SELECT id, message_id, conversation_id, sender_id, status FROM chat_media_jobs WHERE id = $1",

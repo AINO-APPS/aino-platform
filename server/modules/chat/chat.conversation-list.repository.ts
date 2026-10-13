@@ -6,6 +6,13 @@
  * from this user's preview and unread count, and `cp.hidden_at` ("Delete
  * chat for me") drops the row until a message newer than it arrives.
  */
+/**
+ * Signal parity: of the system rows only a missed call counts as unread.
+ * Answered/declined call history and group events never raise the badge.
+ */
+export const unreadEligibleSql = (alias: string) =>
+    `(${alias}.format_type IS DISTINCT FROM 'system' OR (${alias}.metadata->>'type' = 'call' AND ${alias}.metadata->>'status' = 'missed'))`;
+
 export const GROUP_MEMBER_PREVIEWS_SQL = `SELECT COALESCE(json_agg(json_build_object('name', x.full_name, 'avatar', x.avatar)), '[]'::json)
             FROM (SELECT u4.full_name, u4.avatar FROM conversation_participants cp4 JOIN users u4 ON u4.id = cp4.user_id
                   WHERE cp4.conversation_id = c.id ORDER BY (u4.avatar IS NULL), cp4.user_id ASC LIMIT 4) x`;
@@ -40,7 +47,8 @@ export const CONVERSATION_LIST_SQL = `SELECT
         (SELECT COUNT(*)::int FROM messages msg WHERE msg.conversation_id = c.id
           AND msg.created_at > COALESCE(mr.last_read_at, '1970-01-01'::timestamptz)
           AND msg.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
-          AND msg.sender_id != $1 AND msg.deleted_at IS NULL) AS unread_count,
+          AND msg.sender_id != $1 AND msg.deleted_at IS NULL
+          AND ${unreadEligibleSql("msg")}) AS unread_count,
         CASE WHEN c.is_group THEN (SELECT COUNT(*)::int FROM conversation_participants WHERE conversation_id = c.id) END AS member_count,
         CASE WHEN c.is_group THEN (
             SELECT COALESCE(json_agg(x.avatar) FILTER (WHERE x.avatar IS NOT NULL), '[]'::json)

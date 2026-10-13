@@ -34,6 +34,7 @@ import { schema, validate } from "../wsValidate";
 import { pushNotifications } from "../../services/pushNotifications";
 import { createChatService } from "../../modules/chat/chat.service";
 import { sql as chatSql } from "../../modules/chat/chat.repository";
+import { unreadEligibleSql } from "../../modules/chat/chat.conversation-list.repository";
 
 type Query = (
   sql: string,
@@ -174,7 +175,8 @@ async function getTotalUnread(db: DbLike, userId: number): Promise<number> {
             AND mr.user_id = $1
           WHERE m.sender_id <> $1
             AND (mr.last_read_at IS NULL OR m.created_at > mr.last_read_at)
-            AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)`,
+            AND m.created_at > COALESCE(cp.cleared_at, '-infinity'::timestamptz)
+            AND ${unreadEligibleSql("m")}`,
       [userId],
     )
   ).rows[0];

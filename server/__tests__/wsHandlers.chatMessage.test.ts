@@ -143,6 +143,21 @@ describe("chatMessage handler — happy path", () => {
         expect(broadcasts[0][3].id).toBe(999);
     });
 
+    test("badge total skips system rows except missed calls", async () => {
+        const db = makeHappyPathDb();
+        await chatMessage({
+            db, senderId: 7, tenantId: 1,
+            data: { conversationId: 5, content: "hello world", clientMsgId: "abc" },
+            ws: makeWs(), sendToUser: jest.fn(),
+        });
+        await new Promise((r) => setImmediate(r));
+        const badge = db.query.mock.calls.find((call: any[]) => /COUNT\(\*\)::int AS unread/.test(String(call[0])));
+        expect(badge).toBeTruthy();
+        expect(badge![0]).toContain(
+            "(m.format_type IS DISTINCT FROM 'system' OR (m.metadata->>'type' = 'call' AND m.metadata->>'status' = 'missed'))",
+        );
+    });
+
     test("rejects non-participant via auth check (no broadcast)", async () => {
         const db = { query: jest.fn().mockResolvedValue({ rows: [] }) }; // participant check returns []
         const send = jest.fn();
