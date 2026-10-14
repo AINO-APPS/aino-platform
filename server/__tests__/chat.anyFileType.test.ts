@@ -38,16 +38,16 @@ describe("chat uploads accept any file type (Signal parity)", () => {
 
 describe("attachment push preview", () => {
     test("view-once never reveals the file name or caption", () => {
-        expect(chatMediaPreview({ fileType: "image/jpeg", fileName: "secret.jpg", caption: "hi", viewOnce: true })).toBe("📷 View-once photo");
-        expect(chatMediaPreview({ fileType: "video/mp4", fileName: "secret.mp4", viewOnce: true })).toBe("🎥 View-once video");
+        expect(chatMediaPreview({ fileType: "image/jpeg", fileName: "secret.jpg", caption: "hi", viewOnce: true })).toBe("Photo");
+        expect(chatMediaPreview({ fileType: "video/mp4", fileName: "secret.mp4", viewOnce: true })).toBe("Video");
     });
 
     test("media types use Signal labels, files use their name, captions win", () => {
-        expect(chatMediaPreview({ fileType: "image/png", fileName: "a.png" })).toBe("📷 Photo");
-        expect(chatMediaPreview({ fileType: "image/gif" })).toBe("🎞️ GIF");
-        expect(chatMediaPreview({ fileType: "video/mp4" })).toBe("🎥 Video");
-        expect(chatMediaPreview({ fileType: "audio/mp4" })).toBe("🎤 Voice message");
-        expect(chatMediaPreview({ fileType: "application/octet-stream", fileName: "logo.svg" })).toBe("📎 logo.svg");
-        expect(chatMediaPreview({ fileType: "image/png", caption: " Look " })).toBe("📷 Look");
+        expect(chatMediaPreview({ fileType: "image/png", fileName: "a.png" })).toBe("Photo");
+        expect(chatMediaPreview({ fileType: "image/gif" })).toBe("GIF");
+        expect(chatMediaPreview({ fileType: "video/mp4" })).toBe("Video");
+        expect(chatMediaPreview({ fileType: "audio/mp4" })).toBe("Voice message");
+        expect(chatMediaPreview({ fileType: "application/octet-stream", fileName: "logo.svg" })).toBe("logo.svg");
+        expect(chatMediaPreview({ fileType: "image/png", caption: " Look " })).toBe("Look");
     });
 });

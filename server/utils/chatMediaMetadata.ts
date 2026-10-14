@@ -50,8 +50,9 @@ export function buildUploadedMediaMetadata(input: {
 }
 
 /**
- * Signal `ThreadBodyUtil`-style text for an attachment message (push body and
- * previews). A view-once message never reveals its caption or file name.
+ * Plain text for an attachment message (push body): "Photo", "Video",
+ * "Voice message", "GIF", the file name, or the caption. Clients draw the
+ * media icon. A view-once message never reveals its caption or file name.
  */
 export function chatMediaPreview(input: {
   fileType?: string | null;
@@ -61,15 +62,15 @@ export function chatMediaPreview(input: {
 }): string {
   const type = String(input.fileType || "").toLowerCase();
   const video = type.startsWith("video/");
-  if (input.viewOnce) return video ? "🎥 View-once video" : "📷 View-once photo";
+  if (input.viewOnce) return video ? "Video" : "Photo";
   const caption = String(input.caption || "").trim();
-  const [emoji, label] =
-    type === "image/gif" ? ["🎞️", "GIF"]
-      : type.startsWith("image/") ? ["📷", "Photo"]
-        : video ? ["🎥", "Video"]
-          : type.startsWith("audio/") ? ["🎤", "Voice message"]
-            : ["📎", String(input.fileName || "").trim() || "File"];
-  return `${emoji} ${caption || label}`;
+  const label =
+    type === "image/gif" ? "GIF"
+      : type.startsWith("image/") ? "Photo"
+        : video ? "Video"
+          : type.startsWith("audio/") ? "Voice message"
+            : String(input.fileName || "").trim() || "File";
+  return caption || label;
 }
 
 /**
