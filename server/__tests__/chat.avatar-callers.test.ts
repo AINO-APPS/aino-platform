@@ -24,6 +24,7 @@ jest.mock("../modules/chat/chat.shared", () => ({
     verifyParticipant: jest.fn().mockResolvedValue(true),
     verifyReplyTarget: jest.fn().mockResolvedValue(true),
     chatUpload: { single: () => (_req: any, _res: any, next: any) => next() },
+    normalizeChatUpload: (_req: any, _res: any, next: any) => next(),
 }));
 jest.mock("../jobs", () => ({ enqueueChatMediaPipelineJob: jest.fn() }));
 jest.mock("../services/chatMediaPipeline", () => ({ broadcastMediaJobUpdate: jest.fn(), processChatMediaJob: jest.fn() }));

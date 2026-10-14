@@ -6,6 +6,7 @@ const { randomFilename } = require("../../platform/storage");
 const { deleteChatAttachment } = require("../../services/chatAttachments");
 import { createChatService } from "./chat.service";
 import type { ChatDb } from "./chat.types";
+import { contentMatchesType } from "../../utils/uploadPolicy";
 
 export const service = createChatService();
 
@@ -60,19 +61,36 @@ const ALLOWED_TYPES: Record<string, string> = {
   "text/csv": "csv",
 };
 
+/** Any file that is not a known, content-checked type is stored and served as an opaque download. */
+export const GENERIC_FILE_TYPE = "application/octet-stream";
+
+/**
+ * Signal parity: any file can be sent in a chat. Known types keep their MIME
+ * (inline previews) only when the bytes match it; everything else (SVG, HTML,
+ * archives, code, ...) becomes `application/octet-stream`, which `/uploads`
+ * serves with nosniff + a sandbox CSP, so it can only ever be downloaded.
+ */
+export function chatStoredType(mimetype: string, bytes: Buffer | undefined): string {
+  const type = String(mimetype || "").toLowerCase();
+  if (type === GENERIC_FILE_TYPE || !ALLOWED_TYPES[type]) return GENERIC_FILE_TYPE;
+  return contentMatchesType(type, bytes) ? type : GENERIC_FILE_TYPE;
+}
+
 // A3: buffered in memory, then written to object storage. Disk storage pinned
 // the app to one Railway instance (a volume attaches to a single container),
 // which made horizontal scaling impossible.
 export const chatUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
-  fileFilter: (_req: Request, file: UploadedFile, cb: MulterCb<boolean>) => {
-    if (!ALLOWED_TYPES[file.mimetype]) {
-      return cb(new Error("File type not allowed"));
-    }
-    cb(null, true);
-  },
+  fileFilter: (_req: Request, _file: UploadedFile, cb: MulterCb<boolean>) => cb(null, true),
 });
+
+/** Runs after `chatUpload`: rewrites the declared type to the type the file is stored and served as. */
+export function normalizeChatUpload(req: Request, _res: unknown, next: () => void): void {
+  const file = (req as any).file as { mimetype: string; buffer?: Buffer } | undefined;
+  if (file) file.mimetype = chatStoredType(file.mimetype, file.buffer);
+  next();
+}
 
 /** Server-generated filename; extension comes from the validated MIME type. */
 export function chatFilename(userId: number | undefined, mimetype: string): string {

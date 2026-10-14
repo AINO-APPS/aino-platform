@@ -8,12 +8,11 @@ const { getUploadKey, getUploadUrl, getKeyFromUrl } = require("../../utils/uploa
 const { getStorage } = require("../../platform/storage");
 import { enqueueChatMediaPipelineJob } from "../../jobs";
 import { broadcastMediaJobUpdate, processChatMediaJob } from "../../services/chatMediaPipeline";
-import { buildUploadedMediaMetadata, copyForwardedMediaMetadata } from "../../utils/chatMediaMetadata";
+import { buildUploadedMediaMetadata, chatMediaPreview, copyForwardedMediaMetadata } from "../../utils/chatMediaMetadata";
 const { canDo, loadGroupContext } = require("../../utils/groupPerms");
 import { ChatError } from "./chat.types";
-import { verifyUploadContent } from "../../utils/uploadPolicy";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
-import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
+import { service, db, type DbLike, chatUpload, normalizeChatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
 
 const router = express.Router();
 
@@ -245,7 +244,7 @@ router.post(
   auth,
   loadUserContext,
   chatUpload.single("file"),
-  verifyUploadContent,
+  normalizeChatUpload,
   async (req: Request, res: Response) => {
     try {
       const convId = parseInt(String(req.params.id), 10);
@@ -395,6 +394,12 @@ router.post(
       for (const p of participants) {
         sendToUser(req.tenantId, p.user_id, "chat_message", wsMsg);
       }
+      void sendUploadPushes(req, convId, result.id, sender, participants, chatMediaPreview({
+        fileType: req.file.mimetype,
+        fileName: safeName,
+        caption: content,
+        viewOnce: metadata?.viewOnce === true,
+      }));
 
       // HTTP response — snake_case, matching GET /messages exactly so the
       // optimistic media message can be replaced 1:1 without losing
@@ -465,5 +470,65 @@ router.post(
     }
   },
 );
+
+/**
+ * Attachment messages notify recipients like text sends do (Signal): muted
+ * participants are skipped and the body is a media preview, never the file
+ * name of a view-once message. Best-effort; never fails the upload.
+ */
+async function sendUploadPushes(
+  req: Request,
+  convId: number,
+  messageId: number,
+  sender: { full_name?: string; avatar?: string } | undefined,
+  participants: Array<{ user_id: number }>,
+  preview: string,
+): Promise<void> {
+  try {
+    const recipients = participants.filter((p) => p.user_id !== req.userId);
+    if (recipients.length === 0) return;
+    const conversation = (await service.query(req.db!, "q035", [convId])).rows[0];
+    const muted = new Set<number>();
+    try {
+      for (const row of (await service.query(req.db!, "mutedRecipients", [convId])).rows) muted.add(row.user_id);
+    } catch (err: any) {
+      req.log.warn({ err: err?.message, conversationId: convId }, "Muted recipient lookup failed; sending pushes");
+    }
+    const groupAvatarMetadata = conversation?.is_group && participants.length > 1
+      ? service.getGroupPushAvatarMetadata(req.db!, convId).catch(() => undefined)
+      : undefined;
+    const { pushNotifications } = require("../../services/pushNotifications");
+    for (const p of recipients) {
+      if (muted.has(p.user_id)) continue;
+      let unreadTotal: number | undefined;
+      try {
+        unreadTotal = (await service.query(req.db!, "q041", [p.user_id])).rows[0]?.unread ?? undefined;
+      } catch (err: any) {
+        req.log.warn({ err: err?.message, userId: p.user_id }, "Failed to compute total unread for badge");
+      }
+      await pushNotifications.sendMessageNotification(
+        (req.db as unknown as DbLike).query,
+        p.user_id,
+        req.tenantId,
+        {
+          conversationId: convId,
+          messageId,
+          senderId: req.userId,
+          senderName: sender?.full_name || "Unknown",
+          senderAvatar: sender?.avatar,
+          isGroup: Boolean(conversation?.is_group),
+          groupName: conversation?.group_name || undefined,
+          groupAvatarMetadata,
+          messagePreview: preview.substring(0, 150),
+          unreadCount: unreadTotal,
+        },
+      ).catch((err: any) => {
+        req.log.warn({ err: err?.message, userId: p.user_id, messageId }, "Failed to send message push notification");
+      });
+    }
+  } catch (err: any) {
+    req.log.warn({ err: err?.message, messageId }, "Attachment push dispatch failed");
+  }
+}
 
 export default router;

@@ -50,6 +50,29 @@ export function buildUploadedMediaMetadata(input: {
 }
 
 /**
+ * Signal `ThreadBodyUtil`-style text for an attachment message (push body and
+ * previews). A view-once message never reveals its caption or file name.
+ */
+export function chatMediaPreview(input: {
+  fileType?: string | null;
+  fileName?: string | null;
+  caption?: string | null;
+  viewOnce?: boolean;
+}): string {
+  const type = String(input.fileType || "").toLowerCase();
+  const video = type.startsWith("video/");
+  if (input.viewOnce) return video ? "🎥 View-once video" : "📷 View-once photo";
+  const caption = String(input.caption || "").trim();
+  const [emoji, label] =
+    type === "image/gif" ? ["🎞️", "GIF"]
+      : type.startsWith("image/") ? ["📷", "Photo"]
+        : video ? ["🎥", "Video"]
+          : type.startsWith("audio/") ? ["🎤", "Voice message"]
+            : ["📎", String(input.fileName || "").trim() || "File"];
+  return `${emoji} ${caption || label}`;
+}
+
+/**
  * Preserve media presentation metadata when forwarding.
  *
  * Return a detached shallow copy so later view-once mutations on the original
