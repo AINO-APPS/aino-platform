@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
   CheckSquare2,
@@ -51,9 +51,13 @@ interface CallsTabProps {
   userId: number | string;
   query?: string;
   onCallBack?: (conversationId: number, type: "voice" | "video") => void;
+  /** Bumped by the sidebar ⋮ menu: "Select calls". */
+  selectRequest?: number;
+  /** Bumped by the sidebar ⋮ menu: "Refresh". */
+  refreshRequest?: number;
 }
 
-export default function CallsTab({ userId, query = "", onCallBack }: CallsTabProps) {
+export default function CallsTab({ userId, query = "", onCallBack, selectRequest = 0, refreshRequest = 0 }: CallsTabProps) {
   const [calls, setCalls] = useState<CallEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -86,6 +90,13 @@ export default function CallsTab({ userId, query = "", onCallBack }: CallsTabPro
     loadCalls();
   }, [loadCalls]);
 
+  const handledRefresh = useRef(refreshRequest);
+  useEffect(() => {
+    if (refreshRequest === handledRefresh.current) return;
+    handledRefresh.current = refreshRequest;
+    loadCalls();
+  }, [refreshRequest, loadCalls]);
+
   const exitSelection = () => {
     setSelectionMode(false);
     setSelectedIds(new Set());
@@ -115,6 +126,14 @@ export default function CallsTab({ userId, query = "", onCallBack }: CallsTabPro
     setSelectedIds(id == null ? new Set() : new Set([id]));
     setError("");
   };
+
+  const handledSelect = useRef(selectRequest);
+  useEffect(() => {
+    if (selectRequest === handledSelect.current) return;
+    handledSelect.current = selectRequest;
+    enterSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectRequest]);
 
   const toggleAll = () => {
     if (allSelected) {

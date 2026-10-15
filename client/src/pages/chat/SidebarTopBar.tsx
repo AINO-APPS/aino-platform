@@ -1,12 +1,42 @@
 import { useRef, useState, type RefObject } from "react";
-import { ArrowLeft, MessageCircle, MoreVertical, Phone, Search, UserPlus, Video, X } from "../../constants/icons";
-import SignalMenu from "../../components/chat/signal/SignalMenu";
+import {
+    Archive,
+    ArrowLeft,
+    CheckCircle2,
+    CheckDone,
+    MessageCircle,
+    MoreVertical,
+    Phone,
+    RefreshCw,
+    Search,
+    Settings,
+    SquarePen,
+    UserPlus,
+    Video,
+    X,
+} from "../../constants/icons";
+import SignalMenu, { type SignalMenuEntry } from "../../components/chat/signal/SignalMenu";
 import s from "./ChatSidebar.module.css";
 
 export type SidebarTab = "msgs" | "meetings" | "calls";
 
-interface Props {
+/** Handlers/flags backing the per-tab ⋮ overflow menu (Android chat list parity). */
+export interface SidebarMenuOptions {
     tab: SidebarTab;
+    showArchived: boolean;
+    archivedCount: number;
+    canMarkAllRead: boolean;
+    canSelect: boolean;
+    onNewChat: () => void;
+    onNewGroup: () => void;
+    onMarkAllRead: () => void;
+    onSelect: () => void;
+    onToggleArchived: () => void;
+    onRefresh: () => void;
+    onOpenSettings: () => void;
+}
+
+interface Props extends SidebarMenuOptions {
     onTab: (t: SidebarTab) => void;
     unread: number;
     meetingUnread: number;
@@ -16,11 +46,33 @@ interface Props {
     searchOpen: boolean;
     onSearchOpen: (open: boolean) => void;
     searchInputRef: RefObject<HTMLInputElement>;
-    onNewGroup: () => void;
 }
 
 const TITLES: Record<SidebarTab, string> = { msgs: "Chats", meetings: "Meetings", calls: "Calls" };
 const PLACEHOLDER: Record<SidebarTab, string> = { msgs: "Search", meetings: "Search meeting chats", calls: "Search calls" };
+
+export function sidebarMenuItems(o: SidebarMenuOptions): SignalMenuEntry[] {
+    const refresh: SignalMenuEntry = { label: "Refresh", icon: <RefreshCw size={18} />, onClick: o.onRefresh };
+    if (o.tab === "calls") {
+        return [{ label: "Select calls", icon: <CheckCircle2 size={18} />, onClick: o.onSelect }, { divider: true }, refresh];
+    }
+    const markRead: SignalMenuEntry = { label: "Mark all as read", icon: <CheckDone size={18} />, disabled: !o.canMarkAllRead, onClick: o.onMarkAllRead };
+    const select: SignalMenuEntry = { label: "Select chats", icon: <CheckCircle2 size={18} />, disabled: !o.canSelect, onClick: o.onSelect };
+    if (o.tab === "meetings") return [markRead, select, { divider: true }, refresh];
+    return [
+        !o.showArchived && { label: "New chat", icon: <SquarePen size={18} />, onClick: o.onNewChat },
+        !o.showArchived && { label: "New group", icon: <UserPlus size={18} />, onClick: o.onNewGroup },
+        !o.showArchived && { divider: true },
+        markRead,
+        select,
+        o.showArchived
+            ? { label: "Back to chats", icon: <ArrowLeft size={18} />, onClick: o.onToggleArchived }
+            : { label: "Archived chats", icon: <Archive size={18} />, trailing: o.archivedCount > 0 ? o.archivedCount : undefined, onClick: o.onToggleArchived },
+        { divider: true },
+        refresh,
+        { label: "Settings", icon: <Settings size={18} />, onClick: o.onOpenSettings },
+    ];
+}
 
 /** Android chat-list toolbar (title · search · ⋮) with Signal filter chips (Chats · Meet · Calls). */
 export default function SidebarTopBar(p: Props) {
@@ -85,7 +137,7 @@ export default function SidebarTopBar(p: Props) {
                     y={menuAt.y}
                     alignRight
                     onClose={() => setMenuAt(null)}
-                    items={[{ label: "New group", icon: <UserPlus size={18} />, onClick: p.onNewGroup }]}
+                    items={sidebarMenuItems(p)}
                 />
             )}
         </>

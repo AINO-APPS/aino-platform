@@ -1,6 +1,7 @@
-import { X, Video, Archive, ChevronLeft, CheckSquare2, Trash2 } from "../../constants/icons";
+import { X, Video, Archive, ChevronLeft, CheckSquare2, Trash2, SquarePen } from "../../constants/icons";
 import { useState } from "react";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import NotificationSoundsModal from "../../components/profile/NotificationSoundsModal";
 import { ChatAvatar } from "../../components/chat";
 import { useFeatures } from "../../FeaturesContext";
 import { getConvName } from "./chatUtils";
@@ -37,6 +38,8 @@ interface ChatSidebarProps {
   onOpenConvSettings?: (c: any) => void;
   onBlockConv?: (c: any) => void;
   onNewGroup: () => void;
+  onMarkAllRead?: (ids: Array<number | string>) => void | Promise<void>;
+  onRefresh?: () => void;
   searchInputRef: React.RefObject<HTMLInputElement>;
 }
 
@@ -68,6 +71,8 @@ export default function ChatSidebar({
   onOpenConvSettings,
   onBlockConv,
   onNewGroup,
+  onMarkAllRead,
+  onRefresh,
   searchInputRef,
 }: ChatSidebarProps) {
   const { hasFeature } = useFeatures() as any;
@@ -138,7 +143,7 @@ export default function ChatSidebar({
         const next = new Set(current);
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        if (next.size === 0) setSelectionMode(false);
+        // Android parity: zero selected keeps selection mode until Cancel.
         return next;
       });
     },
@@ -150,7 +155,7 @@ export default function ChatSidebar({
   };
 
   const selectableConversations =
-    sidebarTab === "meetings" ? meetingConvs : regularConvs;
+    sidebarTab === "meetings" ? meetingConvs : showArchived ? archivedConvs : regularConvs;
   const allSelected =
     selectableConversations.length > 0 &&
     selectedIds.size === selectableConversations.length;
@@ -167,7 +172,6 @@ export default function ChatSidebar({
             selectableConversations.map((conversation) => conversation.id),
           ),
     );
-    setSelectionMode(!allSelected);
   };
   const performBulkDelete = async () => {
     if (!onBulkDeleteConversations || selectedIds.size === 0) return;
@@ -196,6 +200,13 @@ export default function ChatSidebar({
     setSearch("");
     exitSelection();
   };
+
+  // ⋮ overflow menu (Android chat-list parity).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [callsSelectRequest, setCallsSelectRequest] = useState(0);
+  const [callsRefreshRequest, setCallsRefreshRequest] = useState(0);
+  const unreadVisible = selectableConversations.filter((c) => (c.unread_count || 0) > 0);
+  const showFab = sidebarTab === "msgs" && !showSearch && !selectionMode && !showArchived;
 
   return (
     <div
@@ -239,6 +250,23 @@ export default function ChatSidebar({
         onSearchOpen={(open) => (open ? openSearch() : closeSearch())}
         searchInputRef={searchInputRef}
         onNewGroup={onNewGroup}
+        showArchived={showArchived}
+        archivedCount={allRegular.filter((c) => c.is_archived).length}
+        canMarkAllRead={unreadVisible.length > 0}
+        canSelect={selectableConversations.length > 0}
+        onNewChat={openSearch}
+        onMarkAllRead={() => void onMarkAllRead?.(unreadVisible.map((c) => c.id))}
+        onSelect={() => {
+          if (sidebarTab === "calls") return setCallsSelectRequest((n) => n + 1);
+          setSelectedIds(new Set());
+          setSelectionMode(true);
+        }}
+        onToggleArchived={() => {
+          exitSelection();
+          setShowArchived((v) => !v);
+        }}
+        onRefresh={() => (sidebarTab === "calls" ? setCallsRefreshRequest((n) => n + 1) : onRefresh?.())}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* ── Calls tab ── */}
@@ -246,6 +274,8 @@ export default function ChatSidebar({
         <CallsTab
           userId={userId}
           query={search}
+          selectRequest={callsSelectRequest}
+          refreshRequest={callsRefreshRequest}
           onCallBack={
             onCallConv
               ? (id, type) => {
@@ -349,7 +379,7 @@ export default function ChatSidebar({
             </div>
           ) : null}
           {!showArchived && (
-            <div className={s.convList}>
+            <div className={`${s.convList} ${showFab ? s.withFab : ""}`}>
               {loadingConvs ? (
                 <div className={s.skeletonList}>
                   {[...Array(8)].map((_, i) => (
@@ -394,20 +424,26 @@ export default function ChatSidebar({
                   )}
                 </>
               )}
-
-              <ConfirmDialog
-                isOpen={confirmBulkDelete}
-                title="Delete selected conversations?"
-                message={`Delete ${selectedIds.size} conversation${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`}
-                confirmText={deleting ? "Deleting…" : "Delete"}
-                onConfirm={performBulkDelete}
-                onCancel={() => !deleting && setConfirmBulkDelete(false)}
-                isDanger
-              />
             </div>
           )}
         </>
       )}
+
+      {showFab && (
+        <button type="button" className={s.fab} onClick={openSearch} aria-label="New chat" title="New chat">
+          <SquarePen size={24} />
+        </button>
+      )}
+      <ConfirmDialog
+        isOpen={confirmBulkDelete}
+        title="Delete selected conversations?"
+        message={`Delete ${selectedIds.size} conversation${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`}
+        confirmText={deleting ? "Deleting…" : "Delete"}
+        onConfirm={performBulkDelete}
+        onCancel={() => !deleting && setConfirmBulkDelete(false)}
+        isDanger
+      />
+      {settingsOpen && <NotificationSoundsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import FilePreview from "./FilePreview";
 import VideoViewer from "./video/VideoViewer";
 import { useVideoMeta } from "./video/useVideoMeta";
 import { saveToDevice } from "./messageActions";
+import { resolveServerAsset } from "../../utils/serverAsset";
 
 interface SharedFile {
     id: number | string;
@@ -181,7 +182,7 @@ export default function SharedFilesPanel({ convId, title, messages = [], onJumpT
                                   }}
                               >
                                   {m.link_preview.image ? (
-                                      <img src={m.link_preview.image} alt="" className={s.linkThumb} />
+                                      <img src={resolveServerAsset(m.link_preview.image)} alt="" className={s.linkThumb} />
                                   ) : (
                                       <span className={s.linkThumb}>
                                           <Link2 size={18} />

@@ -303,10 +303,9 @@
 }
 .link {
   color: var(--primary-light);
-  text-decoration: none;
-}
-.link:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
 
 /* ─── Meta: time + receipt in one row, sharing the last text line when it fits (Android BubbleTextWithFooter) ─── */
@@ -663,7 +662,6 @@
 /* ─── myBubble inner element overrides ─── */
 .myBubble .link {
   color: var(--primary-light);
-  text-decoration: none;
 }
 .myBubble .mention {
   color: var(--primary-light);

@@ -5,6 +5,7 @@ import type useChatState from "./useChatState";
 import type { AnyRecord } from "../../types";
 import { createPendingMessageId } from "./messageDelivery";
 import { hideMessagesForMe } from "./chatLocalDeletes";
+import { handOffLocalPreview } from "../../components/chat/chatMediaMemory";
 
 type ChatState = ReturnType<typeof useChatState>;
 type Msg = AnyRecord & { id: number | string };
@@ -219,8 +220,7 @@ export default function useMessageActions(state: ChatState) {
         },
       })
         .then(({ data }) => {
-          const localUrl = String(msg.file_url || "");
-          if (localUrl.startsWith("blob:")) URL.revokeObjectURL(localUrl);
+          if (String(msg.file_url || "").startsWith("blob:")) handOffLocalPreview({ file_url: data?.file_url, file_type: msg.file_type }, String(msg.file_url));
           mediaPreviewUrlsRef.current.delete(clientMsgId);
           setMessages((prev) => {
             const replaced = prev.map((m) =>
@@ -372,7 +372,7 @@ export default function useMessageActions(state: ChatState) {
           );
         },
       });
-      URL.revokeObjectURL(localUrl);
+      handOffLocalPreview({ file_url: data?.file_url, file_type: file.type }, localUrl);
       mediaPreviewUrlsRef.current.delete(tempId);
       setMessages((prev) => {
         const replaced = prev.map((m) =>

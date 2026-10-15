@@ -18,6 +18,9 @@ export interface SignalMenuAction {
     label: string;
     icon?: ReactNode;
     danger?: boolean;
+    disabled?: boolean;
+    /** Right-aligned secondary content (e.g. a count). */
+    trailing?: ReactNode;
     onClick?: () => void;
     /** Opens a nested page of items in place (e.g. mute durations). */
     submenu?: SignalMenuEntry[];
@@ -96,7 +99,10 @@ export default function SignalMenu({ x, y, alignRight, items, onClose }: Props) 
                         type="button"
                         role="menuitem"
                         className={`${s.item} ${entry.danger ? s.danger : ""}`}
+                        disabled={entry.disabled}
+                        aria-disabled={entry.disabled || undefined}
                         onClick={() => {
+                            if (entry.disabled) return;
                             if (entry.submenu) {
                                 setStack((st) => [...st, { title: entry.label, items: entry.submenu! }]);
                                 return;
@@ -107,6 +113,7 @@ export default function SignalMenu({ x, y, alignRight, items, onClose }: Props) 
                     >
                         {entry.icon && <span className={s.icon}>{entry.icon}</span>}
                         {entry.label}
+                        {entry.trailing != null && <span className={s.trailing}>{entry.trailing}</span>}
                     </button>
                 );
             })}

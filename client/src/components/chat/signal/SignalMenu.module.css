@@ -42,6 +42,19 @@
 .danger {
     color: var(--sig-danger);
 }
+.item:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.item:disabled:hover {
+    background: none;
+}
+.trailing {
+    margin-left: auto;
+    padding-left: 12px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
 .back {
     font-weight: 600;
     border-bottom: 1px solid var(--sig-divider);

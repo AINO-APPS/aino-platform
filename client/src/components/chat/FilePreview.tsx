@@ -17,6 +17,7 @@ import {
   Timer,
 } from "../../constants/icons";
 import { markMessageViewed } from "../../api/chat";
+import { localMediaFor } from "./chatMediaMemory";
 import VideoThumb from "./video/VideoThumb";
 import type { ViewerMeta } from "./video/VideoViewer";
 import s from "./FilePreview.module.css";
@@ -213,19 +214,39 @@ export default function FilePreview({
   viewer,
 }: FilePreviewProps) {
   const [lightbox, setLightbox] = useState(false);
+  const isImage = !!fileType && IMAGE_TYPES.includes(fileType);
+  // Just-sent media: keep showing the local blob until the remote copy has
+  // decoded, so the bubble never flashes an empty box in between.
+  const localSrc = isImage || fileType?.startsWith("video/") ? localMediaFor(fileUrl) : undefined;
+  const [remoteReadyUrl, setRemoteReadyUrl] = useState<string | null>(null);
   // Drives the `--img-aspect` custom property on .imgWrap so the bubble
   // reserves the image's real height. Falls back to the CSS 4/3 default until
   // the first decode reports the intrinsic size.
   const [imgAspect, setImgAspect] = useState<string | null>(
-    () => imageAspectCache.get(fileUrl) || null,
+    () => imageAspectCache.get(fileUrl) || (localSrc && imageAspectCache.get(localSrc)) || null,
   );
   // View-once: resolved URL fetched on demand when the recipient taps to view.
   const [revealedUrl, setRevealedUrl] = useState<string | null>(null);
   const [consumed, setConsumed] = useState(!!viewOnceConsumed);
   const [loadingView, setLoadingView] = useState(false);
-  const isImage = !!fileType && IMAGE_TYPES.includes(fileType);
   const isAudio = fileType?.startsWith("audio/");
   const isVideo = fileType?.startsWith("video/");
+
+  useEffect(() => {
+    if (!isImage || !localSrc || remoteReadyUrl === fileUrl) return;
+    let cancelled = false;
+    const probe = new window.Image();
+    probe.src = fileUrl;
+    // Remote failed to load/decode: keep the local pixels.
+    (probe.decode ? probe.decode() : Promise.reject()).then(
+      () => !cancelled && setRemoteReadyUrl(fileUrl),
+      () => {},
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isImage, localSrc, fileUrl, remoteReadyUrl]);
+  const imageSrc = localSrc && remoteReadyUrl !== fileUrl ? localSrc : fileUrl;
 
   // Record the decoded image's intrinsic ratio so .imgWrap holds exactly the
   // right height from here on (and immediately on any future mount, via the
@@ -321,7 +342,7 @@ export default function FilePreview({
           }
         >
           <img
-            src={fileUrl}
+            src={imageSrc}
             alt={fileName}
             className={s.image}
             // NOT lazy: an in-thread attachment sitting just above the newest
@@ -352,7 +373,14 @@ export default function FilePreview({
 
   if (isVideo && isMessage) {
     return (
-      <VideoThumb fileUrl={fileUrl} fileName={fileName} withCaption={withCaption} viewer={viewer} />
+      <VideoThumb
+        fileUrl={fileUrl}
+        fileName={fileName}
+        withCaption={withCaption}
+        viewer={viewer}
+        posterSource={localSrc}
+        pending={fileUrl.startsWith("blob:")}
+      />
     );
   }
 

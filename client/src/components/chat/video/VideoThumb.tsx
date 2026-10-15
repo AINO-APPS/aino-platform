@@ -10,6 +10,10 @@ interface Props {
     fileName?: string;
     withCaption?: boolean;
     viewer?: ViewerMeta;
+    /** Local blob of a just-sent video: poster/metadata come from it, no network wait. */
+    posterSource?: string;
+    /** Optimistic (not yet persisted) message: no play affordance yet. */
+    pending?: boolean;
 }
 
 /**
@@ -17,8 +21,8 @@ interface Props {
  * Signal media, frosted play button and a duration pill. Clicking opens the
  * full-screen Teams-style viewer.
  */
-export default function VideoThumb({ fileUrl, fileName, withCaption, viewer }: Props) {
-    const meta = useVideoMeta(fileUrl);
+export default function VideoThumb({ fileUrl, fileName, withCaption, viewer, posterSource, pending }: Props) {
+    const meta = useVideoMeta(posterSource || fileUrl);
     const [open, setOpen] = useState(false);
     const box = fillTargetDimensions(meta.width, meta.height, withCaption ? 240 : 150);
 
@@ -43,9 +47,11 @@ export default function VideoThumb({ fileUrl, fileName, withCaption, viewer }: P
                     </span>
                 )}
                 <span className={s.thumbShade} aria-hidden="true" />
-                <span className={s.thumbPlay} aria-hidden="true">
-                    <Play size={24} fill="currentColor" />
-                </span>
+                {!pending && (
+                    <span className={s.thumbPlay} aria-hidden="true">
+                        <Play size={24} fill="currentColor" />
+                    </span>
+                )}
                 {meta.duration > 0 && (
                     <span className={s.thumbBadge}>
                         <Play size={10} fill="currentColor" />

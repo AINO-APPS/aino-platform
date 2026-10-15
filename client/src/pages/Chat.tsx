@@ -274,6 +274,8 @@ export default function Chat() {
         onMuteConv={handleMuteConv}
         onArchiveConv={handleArchiveConv}
         onToggleReadConv={handleToggleReadConv}
+        onMarkAllRead={actions.handleMarkAllRead}
+        onRefresh={loadConversations}
         onBulkDeleteConversations={async (ids: Array<number | string>) => {
           await Promise.all(ids.map((id) => handleDeleteConv(id)));
         }}

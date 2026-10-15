@@ -17,6 +17,7 @@ export default function useConversationActions(state: ChatState) {
     setShowGroupModal,
     setGroupEditData,
     refreshUnread,
+    loadConversations,
   } = state;
 
   const handleDeleteConv = async (convId: number | string) => {
@@ -141,6 +142,18 @@ export default function useConversationActions(state: ChatState) {
     setConvMenu(null);
   };
 
+  // Chat-list ⋮ "Mark all as read": optimistic, then reconcile with the server.
+  const handleMarkAllRead = async (convIds: Array<number | string>) => {
+    if (convIds.length === 0) return;
+    const ids = new Set(convIds.map(String));
+    setConversations((prev) =>
+      prev.map((c) => (ids.has(String(c.id)) ? { ...c, unread_count: 0 } : c)),
+    );
+    await Promise.allSettled(convIds.map((id) => markConversationRead(id)));
+    refreshUnread();
+    await loadConversations();
+  };
+
   // Archive / unarchive (Signal parity: stays archived on new messages).
   const handleArchiveConv = async (convId: number | string) => {
     try {
@@ -214,6 +227,7 @@ export default function useConversationActions(state: ChatState) {
     handleFavConv,
     handleMuteConv,
     handleToggleReadConv,
+    handleMarkAllRead,
     handleArchiveConv,
     handleToggleBlock,
     openGroupEdit,

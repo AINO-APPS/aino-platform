@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Camera, Mic, Keyboard, Smile, Send, Plus, BarChart3, Paperclip } from "../../constants/icons";
+import { Camera, Mic, Keyboard, Smile, Send, Plus, BarChart3, Paperclip } from "../../constants/icons";
 import {
   VoiceRecorder,
   ReplyPreview,
@@ -12,8 +12,8 @@ import MediaEditor, {
   type MediaEditorResult,
 } from "../../components/chat/MediaEditor";
 import VideoPreview from "../../components/chat/VideoPreview";
+import LinkPreviewCard from "../../components/chat/LinkPreviewCard";
 import { getLinkPreview } from "../../api/chat";
-import { serverURL } from "../../api/client";
 import { useNotificationPrefs } from "../../NotificationPrefsContext";
 import s from "./ChatInputBar.module.css";
 
@@ -110,6 +110,7 @@ export default function ChatInputBar({
   const [previewDismissedUrl, setPreviewDismissedUrl] = useState<string | null>(
     null,
   );
+  const [previewLoadingUrl, setPreviewLoadingUrl] = useState<string | null>(null);
   const previewFetchRef = useRef<number>(0);
   const { prefs } = useNotificationPrefs();
   const linkPreviewsEnabled = prefs.linkPreviews !== false;
@@ -121,6 +122,7 @@ export default function ChatInputBar({
     if (!url || !linkPreviewsEnabled) {
       previewFetchRef.current++;
       setLinkPreview(null);
+      setPreviewLoadingUrl(null);
       setPreviewDismissedUrl(null);
       return;
     }
@@ -128,6 +130,7 @@ export default function ChatInputBar({
     if (linkPreview?.url === url) return;
     const fetchId = ++previewFetchRef.current;
     const timer = setTimeout(async () => {
+      setPreviewLoadingUrl(url);
       try {
         const { data } = await getLinkPreview(url);
         if (previewFetchRef.current === fetchId) {
@@ -135,6 +138,8 @@ export default function ChatInputBar({
         }
       } catch {
         if (previewFetchRef.current === fetchId) setLinkPreview(null);
+      } finally {
+        if (previewFetchRef.current === fetchId) setPreviewLoadingUrl(null);
       }
     }, 600);
     return () => clearTimeout(timer);
@@ -144,7 +149,9 @@ export default function ChatInputBar({
   const handleFormSubmit = (e?: any) => {
     e?.preventDefault?.();
     onSend(e, { linkPreview: linkPreviewsEnabled ? linkPreview : null });
+    previewFetchRef.current++;
     setLinkPreview(null);
+    setPreviewLoadingUrl(null);
     setPreviewDismissedUrl(null);
   };
 
@@ -211,91 +218,18 @@ export default function ChatInputBar({
         </div>
       )}
 
-      {!recording && linkPreview && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.6rem",
-            padding: "0.5rem 0.8rem",
-            margin: "0 0.75rem",
-            borderLeft: "3px solid var(--primary)",
-            background: "var(--surface, rgba(255,255,255,0.04))",
-            borderRadius: "8px",
+      {!recording && (linkPreview || previewLoadingUrl) && (
+        <LinkPreviewCard
+          preview={linkPreview ?? { url: previewLoadingUrl as string }}
+          isMine
+          loading={!linkPreview}
+          onRemove={() => {
+            previewFetchRef.current++;
+            setPreviewDismissedUrl(linkPreview?.url ?? previewLoadingUrl);
+            setLinkPreview(null);
+            setPreviewLoadingUrl(null);
           }}
-        >
-          {linkPreview.image && (
-            <img
-              src={
-                linkPreview.image.startsWith("/")
-                  ? `${serverURL}${linkPreview.image}`
-                  : linkPreview.image
-              }
-              alt=""
-              style={{
-                width: 44,
-                height: 44,
-                objectFit: "cover",
-                borderRadius: 6,
-                flexShrink: 0,
-              }}
-              onError={(e) =>
-                ((e.target as HTMLImageElement).style.display = "none")
-              }
-            />
-          )}
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div
-              style={{
-                fontSize: "0.82rem",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {linkPreview.title}
-            </div>
-            {linkPreview.description && (
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--text-secondary)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {linkPreview.description}
-              </div>
-            )}
-            <div
-              style={{
-                fontSize: "0.7rem",
-                color: "var(--text-muted, #8a8f98)",
-              }}
-            >
-              {linkPreview.siteName}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPreviewDismissedUrl(linkPreview.url);
-              setLinkPreview(null);
-            }}
-            title="Remove preview"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-secondary)",
-              flexShrink: 0,
-            }}
-          >
-            <X size={15} />
-          </button>
-        </div>
+        />
       )}
 
       {!recording && (

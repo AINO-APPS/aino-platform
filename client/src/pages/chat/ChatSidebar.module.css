@@ -1,5 +1,6 @@
 /* ─── Sidebar ─── */
 .sidebar {
+  position: relative;
   width: 360px;
   min-width: 320px;
   display: flex;
@@ -1000,4 +1001,35 @@
 }
 .callTime {
   white-space: nowrap;
+}
+
+/* Android chat-list "New chat" FAB: 56px rounded-square (18dp), primary fill. */
+.fab {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 18px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+.sidebar button.fab {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+}
+.fab:hover {
+  filter: brightness(1.08);
+}
+.fab:focus-visible {
+  outline: 2px solid var(--primary-light, var(--primary));
+  outline-offset: 2px;
+}
+.withFab {
+  padding-bottom: 84px;
 }

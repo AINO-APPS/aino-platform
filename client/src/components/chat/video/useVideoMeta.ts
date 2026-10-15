@@ -30,7 +30,8 @@ export function useVideoMeta(url: string, enabled = true): VideoMeta {
         video.preload = "metadata";
         video.muted = true;
         video.playsInline = true;
-        video.src = url;
+        // `#t=0.1` makes engines that skip the explicit seek still decode the first frame.
+        video.src = url.includes("#") ? url : `${url}#t=0.1`;
 
         const publish = (patch: Partial<VideoMeta>) => {
             if (cancelled) return;
