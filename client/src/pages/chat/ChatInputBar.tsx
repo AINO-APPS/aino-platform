@@ -14,6 +14,7 @@ import MediaEditor, {
 import VideoPreview from "../../components/chat/VideoPreview";
 import { getLinkPreview } from "../../api/chat";
 import { serverURL } from "../../api/client";
+import { useNotificationPrefs } from "../../NotificationPrefsContext";
 import s from "./ChatInputBar.module.css";
 
 export interface LinkPreviewData {
@@ -110,11 +111,15 @@ export default function ChatInputBar({
     null,
   );
   const previewFetchRef = useRef<number>(0);
+  const { prefs } = useNotificationPrefs();
+  const linkPreviewsEnabled = prefs.linkPreviews !== false;
+  const editorQuality = prefs.sentMediaQuality === "high" ? "hd" : "standard";
 
   useEffect(() => {
     const match = input.match(URL_RE);
     const url = match?.[0] || null;
-    if (!url) {
+    if (!url || !linkPreviewsEnabled) {
+      previewFetchRef.current++;
       setLinkPreview(null);
       setPreviewDismissedUrl(null);
       return;
@@ -134,11 +139,11 @@ export default function ChatInputBar({
     }, 600);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, previewDismissedUrl]);
+  }, [input, previewDismissedUrl, linkPreviewsEnabled]);
 
   const handleFormSubmit = (e?: any) => {
     e?.preventDefault?.();
-    onSend(e, { linkPreview });
+    onSend(e, { linkPreview: linkPreviewsEnabled ? linkPreview : null });
     setLinkPreview(null);
     setPreviewDismissedUrl(null);
   };
@@ -456,6 +461,7 @@ export default function ChatInputBar({
         createPortal(
           <MediaEditor
             initialFiles={editorFiles}
+            initialQuality={editorQuality}
             onSend={handleEditorSend}
             onClose={() => setEditorFiles(null)}
           />,

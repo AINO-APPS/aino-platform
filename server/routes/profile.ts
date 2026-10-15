@@ -326,14 +326,14 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
 
 /* ─── Notification & sound preferences ───────────────────────────────── */
 
-// Allowed preset IDs per category. Anything else is rejected so the JSONB
-// blob can never grow unbounded from client-supplied junk.
+// Allowed enum values per field; anything else is rejected so the JSONB blob stays bounded.
 const ALLOWED_PRESETS: Record<string, string[]> = {
     ringtone: ["classic", "calm", "dynamic", "urgent", "boop", "marimba", "none"],
     outgoingTone: ["ringback", "pulse", "soft", "none"],
     messageTone: ["ding", "pop", "chime", "knock", "subtle", "none"],
     mentionTone: ["mention", "chime", "urgent", "none"],
     reactionTone: ["subtle", "pop", "none"],
+    sentMediaQuality: ["standard", "high"],
 };
 
 interface NotificationPrefsResult {
@@ -351,7 +351,7 @@ function validateNotificationPrefs(input: any): NotificationPrefsResult {
         return Math.max(0, Math.min(1, n));
     };
 
-    const idFields = ["ringtone", "outgoingTone", "messageTone", "mentionTone", "reactionTone"];
+    const idFields = ["ringtone", "outgoingTone", "messageTone", "mentionTone", "reactionTone", "sentMediaQuality"];
     for (const f of idFields) {
         if (input[f] !== undefined) {
             if (typeof input[f] !== "string" || !ALLOWED_PRESETS[f].includes(input[f])) {
@@ -370,7 +370,7 @@ function validateNotificationPrefs(input: any): NotificationPrefsResult {
         }
     }
 
-    const boolFields = ["muteAll", "messagePopups", "playWhenFocused", "playOnSend", "hideSensitiveContent", "readReceipts"];
+    const boolFields = ["muteAll", "messagePopups", "playWhenFocused", "playOnSend", "hideSensitiveContent", "readReceipts", "typingIndicators", "linkPreviews"];
     for (const f of boolFields) {
         if (input[f] !== undefined) {
             if (typeof input[f] !== "boolean") return { error: `Invalid value for ${f}` };

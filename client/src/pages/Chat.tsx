@@ -42,7 +42,6 @@ export default function Chat() {
     setSearch,
     searchResults,
     searching,
-    typingUsers,
     mobileView,
     setMobileView,
     onlineUsers,
@@ -257,7 +256,7 @@ export default function Chat() {
         setSearch={setSearch}
         searchResults={searchResults}
         searching={searching}
-        typingUsers={typingUsers}
+        typingUsers={x.visibleTypingUsers}
         onlineUsers={onlineUsers}
         userStatusMap={userStatusMap}
         convMenu={convMenu}
@@ -322,7 +321,7 @@ export default function Chat() {
                 onlineUsers={onlineUsers}
                 userStatusMap={userStatusMap}
                 userWorkModeMap={userWorkModeMap}
-                typing={!!typingUsers[activeConv.id]}
+                typing={!!x.visibleTypingUsers[activeConv.id]}
                 onBack={() => setMobileView("list")}
                 onGroupEdit={x.openSettings}
                 onToggleSearch={() => setShowSearch(true)}
@@ -354,7 +353,7 @@ export default function Chat() {
               activeConv={activeConv}
               convMembers={convMembers}
               readReceipts={readReceipts}
-              typingUsers={typingUsers}
+              typingUsers={x.visibleTypingUsers}
               loadingMsgs={loadingMsgs}
               loadingMore={loadingMore}
               loadMoreError={loadMoreError}

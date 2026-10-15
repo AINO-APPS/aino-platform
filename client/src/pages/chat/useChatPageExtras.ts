@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createConversation } from "../../api/chat";
 import { hideMessagesForMe } from "./chatLocalDeletes";
 import type { MuteDuration } from "../../components/chat/signal/SignalMenu";
+import { NO_TYPING, useTypingIndicatorsEnabled } from "./typingPrefs";
 
 /**
  * Glue for the Android-parity chat surfaces (group settings page, delete-for-me,
@@ -15,6 +16,7 @@ export default function useChatPageExtras(state: any, actions: any) {
     const setGroupSettingsOpen = (open: boolean) => setGroupSettingsId(open && activeConv ? activeConv.id : null);
     const [deleteMsg, setDeleteMsg] = useState<any>(null);
     const [leaveConfirm, setLeaveConfirm] = useState(false);
+    const visibleTypingUsers = useTypingIndicatorsEnabled() ? state.typingUsers : NO_TYPING;
 
     const openConvMeta = (c: any) =>
         openConversation(c.id, {
@@ -100,5 +102,6 @@ export default function useChatPageExtras(state: any, actions: any) {
         afterLeft,
         deleteForMe,
         messageMember,
+        visibleTypingUsers,
     };
 }

@@ -73,7 +73,26 @@ export async function handleChatTyping({
     )
   ).rows;
 
-  for (const p of participants) {
+  // Typing indicators are reciprocal: a user who disabled them neither sends
+  // nor receives them. On any prefs lookup failure, deliver to everyone.
+  let recipients = participants;
+  try {
+    const ids = [senderId, ...participants.map((p) => p.user_id)];
+    const prefRows = (
+      await db.query("SELECT id, notification_prefs FROM users WHERE id = ANY($1)", [ids])
+    ).rows;
+    const disabled = new Set(
+      prefRows
+        .filter((r) => r.notification_prefs?.typingIndicators === false)
+        .map((r) => Number(r.id)),
+    );
+    if (disabled.has(senderId)) return;
+    recipients = participants.filter((p) => !disabled.has(Number(p.user_id)));
+  } catch (err) {
+    logger.warn({ err, senderId, tenantId }, "chat_typing: prefs lookup failed; delivering to all");
+  }
+
+  for (const p of recipients) {
     sendToUser(tenantId, p.user_id, "chat_typing", {
       conversationId,
       userId: senderId,

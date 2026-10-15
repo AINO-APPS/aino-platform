@@ -368,7 +368,15 @@ export const DEFAULT_PREFS = {
     // Privacy (Signal parity): reciprocal read receipts. When false, the
     // server neither shares your read state nor shows you others'.
     readReceipts: true,
+    // Reciprocal like read receipts: when false you neither send nor see typing.
+    typingIndicators: true,
+    // When false the composer never fetches or attaches a link preview card.
+    linkPreviews: true,
+    // Default quality for photos/videos you send ("high" = HD).
+    sentMediaQuality: "standard" as SentMediaQuality,
 };
+
+export type SentMediaQuality = "standard" | "high";
 
 /**
  * Look up a preset's display label by category + id. Returns `id` if unknown.

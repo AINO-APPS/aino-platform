@@ -115,6 +115,24 @@ describe("message popup preferences", () => {
             .set(CSRF).send({ messagePopups: "false" });
         expect(res.status).toBe(400);
     });
+    test("persists typing indicator, link preview and sent media quality prefs", async () => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ typingIndicators: false, linkPreviews: false, sentMediaQuality: "high" });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ typingIndicators: false, linkPreviews: false, sentMediaQuality: "high", readReceipts: false });
+    });
+    test("rejects an unknown sentMediaQuality", async () => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ sentMediaQuality: "ultra" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("Invalid value for sentMediaQuality");
+    });
+    test.each(["typingIndicators", "linkPreviews"])("rejects non-boolean %s", async (field) => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ [field]: "false" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe(`Invalid value for ${field}`);
+    });
 });
 
 // ─── GET /api/profile ──────────────────────────────────────────────────────

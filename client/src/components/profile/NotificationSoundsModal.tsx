@@ -343,6 +343,38 @@ export default function NotificationSoundsModal({ onClose }: NotificationSoundsM
                                 </span>
                             </span>
                         </label>
+
+                        <label className={s.checkboxRow}>
+                            <input type="checkbox" checked={prefs.typingIndicators !== false}
+                                onChange={(e) => updatePrefs({ typingIndicators: e.target.checked })} />
+                            <span>
+                                <span className={s.checkboxTitle}>Typing indicators</span>
+                                <span className={s.checkboxHint}>If disabled, you won't send or see typing indicators.</span>
+                            </span>
+                        </label>
+
+                        <label className={s.checkboxRow}>
+                            <input type="checkbox" checked={prefs.linkPreviews !== false}
+                                onChange={(e) => updatePrefs({ linkPreviews: e.target.checked })} />
+                            <span>
+                                <span className={s.checkboxTitle}>Generate link previews</span>
+                                <span className={s.checkboxHint}>Retrieve link previews directly from websites for messages you send.</span>
+                            </span>
+                        </label>
+
+                        <div className={s.row}>
+                            <div className={s.rowHeader}>
+                                <span className={s.rowLabel}>Sent media quality</span>
+                            </div>
+                            <div className={s.rowControls}>
+                                <select className={s.select} aria-label="Sent media quality"
+                                    value={prefs.sentMediaQuality === "high" ? "high" : "standard"}
+                                    onChange={(e) => updatePrefs({ sentMediaQuality: e.target.value })}>
+                                    <option value="standard">Standard</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

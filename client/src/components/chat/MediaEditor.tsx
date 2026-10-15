@@ -33,6 +33,8 @@ export interface MediaEditorResult {
 
 interface MediaEditorProps {
     initialFiles: File[];
+    /** Starting quality pill, from the user's "Sent media quality" preference. */
+    initialQuality?: "standard" | "hd";
     onSend: (results: MediaEditorResult[]) => void;
     onClose: () => void;
 }
@@ -65,7 +67,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     });
 }
 
-export default function MediaEditor({ initialFiles, onSend, onClose }: MediaEditorProps) {
+export default function MediaEditor({ initialFiles, initialQuality = "standard", onSend, onClose }: MediaEditorProps) {
     const [items, setItems] = useState<EditItem[]>(() =>
         initialFiles.map((f, i) => ({
             id: `item_${Date.now()}_${i}`,
@@ -79,7 +81,7 @@ export default function MediaEditor({ initialFiles, onSend, onClose }: MediaEdit
     const [activeIdx, setActiveIdx] = useState(0);
     const [tool, setTool] = useState<Tool>("none");
     const [penColor, setPenColor] = useState(PEN_COLORS[0]);
-    const [quality, setQuality] = useState<"standard" | "hd">("standard");
+    const [quality, setQuality] = useState<"standard" | "hd">(initialQuality);
     const [viewOnce, setViewOnce] = useState(false);
     const [caption, setCaption] = useState("");
     const [busy, setBusy] = useState(false);
