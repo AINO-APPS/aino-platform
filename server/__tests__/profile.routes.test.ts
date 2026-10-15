@@ -133,6 +133,28 @@ describe("message popup preferences", () => {
         expect(res.status).toBe(400);
         expect(res.body.error).toBe(`Invalid value for ${field}`);
     });
+
+    // Mirrors the preset ids offered by client/src/utils/sounds.ts.
+    const CLIENT_SOUND_PRESETS: Record<string, string[]> = {
+        ringtone: ["classic", "calm", "dynamic", "urgent", "boop", "marimba", "crystal", "vapor", "none"],
+        outgoingTone: ["ringback", "pulse", "soft", "echo", "drift", "none"],
+        messageTone: ["ding", "pop", "chime", "knock", "subtle", "glassy", "ripple", "none"],
+        mentionTone: ["mention", "chime", "urgent", "spark", "none"],
+        reactionTone: ["subtle", "pop", "click", "none"],
+    };
+    const soundCases = Object.entries(CLIENT_SOUND_PRESETS).flatMap(([key, ids]) => ids.map((id) => [key, id]));
+    test.each(soundCases)("accepts every client %s preset (%s)", async (key, id) => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ [key]: id });
+        expect(res.status).toBe(200);
+        expect(res.body[key]).toBe(id);
+    });
+    test.each(Object.keys(CLIENT_SOUND_PRESETS))("rejects an unknown %s preset", async (key) => {
+        const res = await request(app).put("/api/profile/notification-prefs").set("Cookie", authCookie())
+            .set(CSRF).send({ [key]: "not-a-tone" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe(`Invalid value for ${key}`);
+    });
 });
 
 // ─── GET /api/profile ──────────────────────────────────────────────────────

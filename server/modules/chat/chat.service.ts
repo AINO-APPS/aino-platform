@@ -8,6 +8,24 @@ import type {
 import { ChatError } from "./chat.types";
 import * as repository from "./chat.repository";
 import { getGroupPushAvatarMetadata } from "./chat.avatar.repository";
+const { loadGroupContext, GOVERNANCE_LEVEL } = require("../../utils/groupPerms");
+
+/**
+ * Unpin rule: the pinner, org governance, or (groups) an owner/admin.
+ * Legacy pins without pinned_by stay unpinnable by either 1:1 participant.
+ */
+async function canUnpin(
+    db: ChatDb,
+    userId: number,
+    msg: repository.MessageRow,
+    orgRoleLevel: number,
+): Promise<boolean> {
+    if (orgRoleLevel >= GOVERNANCE_LEVEL) return true;
+    if (msg.pinned_by != null && Number(msg.pinned_by) === userId) return true;
+    const ctx = await loadGroupContext(db, msg.conversation_id, userId, orgRoleLevel);
+    if (ctx?.isGroup) return ctx.role === "owner" || ctx.role === "admin";
+    return msg.pinned_by == null;
+}
 
 export function createChatService() {
     return {
@@ -83,11 +101,12 @@ export function createChatService() {
                 action = "added";
             }
 
-            const senderName = await repository.getUserDisplayName(db, userId);
+            const sender = await repository.getUserNameAndAvatar(db, userId);
             const participantIds = await repository.getConversationParticipantIds(db, msg.conversation_id);
 
             return {
-                action, conversationId: msg.conversation_id, senderName, participantIds,
+                action, conversationId: msg.conversation_id,
+                senderName: sender.fullName, senderAvatar: sender.avatar, participantIds,
                 messageOwnerId: msg.sender_id ?? null,
                 reactionId: addition?.id ?? null,
                 sentAt: addition ? Math.floor(new Date(addition.created_at).getTime() / 1000) : null,
@@ -96,7 +115,12 @@ export function createChatService() {
 
         getReactionPushRecipient: repository.getReactionPushRecipient,
 
-        async togglePin(db: ChatDb, userId: number, messageId: number): Promise<TogglePinResult> {
+        async togglePin(
+            db: ChatDb,
+            userId: number,
+            messageId: number,
+            orgRoleLevel = 1,
+        ): Promise<TogglePinResult> {
             const msg = await repository.getMessage(db, messageId);
             if (!msg) throw new ChatError("Message not found", 404);
             if (!(await repository.verifyParticipant(db, msg.conversation_id, userId))) {
@@ -104,6 +128,9 @@ export function createChatService() {
             }
 
             const isPinned = !!msg.pinned_at;
+            if (isPinned && !(await canUnpin(db, userId, msg, orgRoleLevel))) {
+                throw new ChatError("Only the person who pinned this message or a group admin can unpin it", 403);
+            }
             await repository.setPinned(db, messageId, isPinned ? null : userId);
 
             const pinnedByName = await repository.getUserDisplayName(db, userId);

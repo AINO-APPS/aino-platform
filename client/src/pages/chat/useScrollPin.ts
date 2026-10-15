@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
-import { NEAR_BOTTOM_PX, PIN_SETTLE_MS } from "./chatUtils";
+import { useCallback, useEffect, useRef } from "react";
+import { NEAR_BOTTOM_PX } from "./chatUtils";
 
 interface ScrollPinOptions {
     /** Scrollable message list element. */
     containerRef: React.RefObject<HTMLDivElement | null>;
-    /** Active conversation id — a change restarts the pin. */
+    /** Active conversation id — a change re-sticks to the bottom. */
     conversationId: string | number | null | undefined;
     /** True while the thread's history request is still in flight. */
     loading: boolean;
@@ -14,26 +14,35 @@ interface ScrollPinOptions {
 
 interface ScrollPin {
     /**
-     * True once the user has deliberately scrolled away from the newest
-     * message. Consumers use it to stop auto-following, and reset it when the
-     * user sends a message of their own.
+     * True while the view should follow the newest message. Updated ONLY from
+     * user scrolls, so it always reflects the state BEFORE content changed: a
+     * tall new row can't make a stuck view look "scrolled up".
      */
-    userScrolledUpRef: React.MutableRefObject<boolean>;
+    stuckToBottomRef: React.MutableRefObject<boolean>;
+    /** Re-stick and jump (instantly) to the newest message. */
+    scrollToBottom: () => void;
+}
+
+type ScrollMetrics = Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">;
+
+export function isNearBottom(el: ScrollMetrics): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+}
+
+/** A new newest message follows when it's our own, or the view was stuck before it arrived. */
+export function shouldFollowNewMessage({ isOwn, wasStuck }: { isOwn: boolean; wasStuck: boolean }): boolean {
+    return isOwn || wasStuck;
 }
 
 /**
- * Keeps a freshly-opened conversation pinned to its newest message.
+ * Signal-style stick-to-bottom for the message list.
  *
- * Opening a conversation MUST land at the newest message. The incremental
- * auto-scroll in useChatState cannot do this on its own: it fires the instant
- * `setMessages` commits, at which point the skeleton block is still mounted,
- * images/avatars have not laid out, and the container height is about to
- * change completely.
- *
- * So we wait until loading finishes (skeleton unmounted, real rows committed),
- * hard-set `scrollTop` — instant, with no smooth animation to be stranded by a
- * competing scroll — and then re-pin as late-expanding content (attachments,
- * link previews) changes the scroll height, until the user scrolls up.
+ * While the user is at the newest message the thread stays glued there for
+ * the life of the conversation: every growth of the scroll content (new rows,
+ * the typing row, images / link previews decoding late) instantly re-pins
+ * `scrollTop` to the bottom. Scrolling up to read history unsticks it, so
+ * nothing yanks the view (including the load-older scroll restore); scrolling
+ * back to the bottom, or sending a message, re-sticks it.
  */
 export default function useScrollPin({
     containerRef,
@@ -41,94 +50,90 @@ export default function useScrollPin({
     loading,
     isEmpty,
 }: ScrollPinOptions): ScrollPin {
-    const userScrolledUpRef = useRef(false);
-    // True while `pin()` is writing scrollTop, so the scroll listener can tell
-    // our own programmatic jumps apart from a real user scroll.
+    const stuckToBottomRef = useRef(true);
+    // True while we are writing scrollTop, so the scroll listener can tell our
+    // own jumps apart from a real user scroll.
     const programmaticScrollRef = useRef(false);
 
+    const pinNow = useCallback(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        programmaticScrollRef.current = true;
+        el.scrollTop = el.scrollHeight;
+        // Released on the next frame: the `scroll` event this write queues is
+        // delivered asynchronously.
+        requestAnimationFrame(() => {
+            programmaticScrollRef.current = false;
+        });
+    }, [containerRef]);
+
+    const scrollToBottom = useCallback(() => {
+        stuckToBottomRef.current = true;
+        pinNow();
+    }, [pinNow]);
+
     useEffect(() => {
-        userScrolledUpRef.current = false;
+        stuckToBottomRef.current = true;
     }, [conversationId]);
 
     useEffect(() => {
         const container = containerRef.current;
         if (!conversationId || loading || !container) return;
-        // NOTE: deliberately no bail-out on an empty thread. Combining that
-        // early return with a dep array that ignored the message count used to
-        // permanently skip the pin for a conversation that finished loading
-        // empty — every later realtime message then had no owner for the
-        // initial scroll. `isEmpty` is a dependency instead, so the pin starts
-        // as soon as the first rows land.
+        // `isEmpty` is a dependency (not a bail-out) so the pin restarts as
+        // soon as the first rows of an initially empty thread land.
 
-        const pin = () => {
-            const el = containerRef.current;
-            if (!el || userScrolledUpRef.current) return;
-            programmaticScrollRef.current = true;
-            el.scrollTop = el.scrollHeight;
-            // Released on the next frame: the `scroll` event this write queues
-            // is delivered asynchronously, so clearing the flag synchronously
-            // would let our own jump be misread as a user scroll.
-            requestAnimationFrame(() => {
-                programmaticScrollRef.current = false;
-            });
+        const pinIfStuck = () => {
+            if (stuckToBottomRef.current) pinNow();
         };
 
-        // First paint of the real rows.
+        // First paint of the real rows, then once more for late-settling rows.
         const raf = requestAnimationFrame(() => {
-            pin();
-            // Second frame: catches rows whose height settled after the first.
-            requestAnimationFrame(pin);
+            pinIfStuck();
+            requestAnimationFrame(pinIfStuck);
         });
 
-        // The container is `flex: 1; overflow-y: auto` inside a chain of
-        // fixed-height parents, so its BORDER BOX never changes when content
-        // grows. Observing only the container (as the original fix did) fired
-        // once on registration and then never again, making the whole re-pin
-        // mechanism dead code. Observing the scrollable CONTENT is what
-        // actually reports growth; the container is still observed so window /
-        // composer resizes re-pin too.
-        const observer = new ResizeObserver(() => pin());
-        observer.observe(container);
-        for (const child of Array.from(container.children)) {
-            observer.observe(child);
-        }
-
-        // `load` does not bubble, so it must be captured. This catches every
-        // attachment, avatar and link-preview thumbnail finishing — the events
-        // that actually change the thread height on desktop, where each image
-        // is proxied to a remote origin and lands long after the rAF pins.
-        const onMediaSettled = () => pin();
-        container.addEventListener("load", onMediaSettled, true);
-        container.addEventListener("error", onMediaSettled, true);
-
-        const release = () => {
-            observer.disconnect();
-            container.removeEventListener("load", onMediaSettled, true);
-            container.removeEventListener("error", onMediaSettled, true);
+        // The container's own box never changes when content grows (it is a
+        // fixed-height flex child), so observe the CONTENT rows as well; the
+        // container is observed for window / composer resizes.
+        const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(pinIfStuck) : null;
+        const observeAll = (nodes: Iterable<Node>) => {
+            for (const node of nodes) if (node instanceof Element) resize?.observe(node);
         };
-        const stopObserving = setTimeout(release, PIN_SETTLE_MS);
+        resize?.observe(container);
+        observeAll(Array.from(container.children));
+        // New rows (messages, the typing indicator) are new children: observe
+        // them too, and re-pin on any add/remove.
+        const mutations = typeof MutationObserver !== "undefined"
+            ? new MutationObserver((records) => {
+                for (const record of records) observeAll(Array.from(record.addedNodes));
+                pinIfStuck();
+            })
+            : null;
+        mutations?.observe(container, { childList: true });
 
+        // `load` does not bubble, so it must be captured: attachments, avatars
+        // and link-preview thumbnails finishing late (desktop proxies them).
+        container.addEventListener("load", pinIfStuck, true);
+        container.addEventListener("error", pinIfStuck, true);
+
+        // A plain `scroll` listener covers wheel, touch, keyboard, scrollbar
+        // drags and momentum alike.
         const onUserScroll = () => {
-            const el = containerRef.current;
-            if (!el) return;
-            // Ignore the scroll events generated by our own pin().
             if (programmaticScrollRef.current) return;
-            const distanceFromBottom =
-                el.scrollHeight - el.scrollTop - el.clientHeight;
-            userScrolledUpRef.current = distanceFromBottom > NEAR_BOTTOM_PX;
+            const el = containerRef.current;
+            if (el) stuckToBottomRef.current = isNearBottom(el);
         };
-        // A plain `scroll` listener covers wheel, touch, keyboard (PageDown),
-        // scrollbar drags and momentum alike — the previous wheel/touchmove
-        // pair missed keyboard and scrollbar interaction entirely.
         container.addEventListener("scroll", onUserScroll, { passive: true });
 
         return () => {
             cancelAnimationFrame(raf);
-            clearTimeout(stopObserving);
-            release();
+            resize?.disconnect();
+            mutations?.disconnect();
+            container.removeEventListener("load", pinIfStuck, true);
+            container.removeEventListener("error", pinIfStuck, true);
             container.removeEventListener("scroll", onUserScroll);
         };
-    }, [containerRef, conversationId, loading, isEmpty]);
+    }, [containerRef, conversationId, loading, isEmpty, pinNow]);
 
-    return { userScrolledUpRef };
+    return { stuckToBottomRef, scrollToBottom };
 }

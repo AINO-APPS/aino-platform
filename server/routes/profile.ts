@@ -328,11 +328,11 @@ router.put("/password", auth, async (req: Request, res: Response, next) => {
 
 // Allowed enum values per field; anything else is rejected so the JSONB blob stays bounded.
 const ALLOWED_PRESETS: Record<string, string[]> = {
-    ringtone: ["classic", "calm", "dynamic", "urgent", "boop", "marimba", "none"],
-    outgoingTone: ["ringback", "pulse", "soft", "none"],
-    messageTone: ["ding", "pop", "chime", "knock", "subtle", "none"],
-    mentionTone: ["mention", "chime", "urgent", "none"],
-    reactionTone: ["subtle", "pop", "none"],
+    ringtone: ["classic", "calm", "dynamic", "urgent", "boop", "marimba", "crystal", "vapor", "none"],
+    outgoingTone: ["ringback", "pulse", "soft", "echo", "drift", "none"],
+    messageTone: ["ding", "pop", "chime", "knock", "subtle", "glassy", "ripple", "none"],
+    mentionTone: ["mention", "chime", "urgent", "spark", "none"],
+    reactionTone: ["subtle", "pop", "click", "none"],
     sentMediaQuality: ["standard", "high"],
 };
 

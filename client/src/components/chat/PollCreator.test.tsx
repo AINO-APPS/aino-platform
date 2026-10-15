@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock("../../api/client", () => ({ default: api }));
+vi.mock("../common/Toast", () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn() }) }));
 import PollCreator from "./PollCreator";
 import useMessageActions from "../../pages/chat/useMessageActions";
 

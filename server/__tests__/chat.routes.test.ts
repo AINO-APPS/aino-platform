@@ -778,7 +778,7 @@ describe("POST /api/chat/messages/:id/reactions", () => {
             .mockResolvedValueOnce({ rows: [{ user_id: 1 }] })
             .mockResolvedValueOnce({ rows: removed ? [{ id: 91 }] : [] })
             .mockResolvedValueOnce({ rows: removed || !inserted ? [] : [{ id: 91, created_at: "2026-10-11T12:00:00Z" }] })
-            .mockResolvedValueOnce({ rows: [{ full_name: "Alice" }] })
+            .mockResolvedValueOnce({ rows: [{ full_name: "Alice", avatar: "/uploads/alice.png" }] })
             .mockResolvedValueOnce({ rows: [{ user_id: 1 }, { user_id: ownerId }, { user_id: 3 }] });
         if (!removed && inserted && ownerId !== 1) {
             mockQuery.mockResolvedValueOnce({ rows: eligible ? [{ full_name: "Alice", avatar: "/uploads/alice.png" }] : [] });
@@ -803,7 +803,7 @@ describe("POST /api/chat/messages/:id/reactions", () => {
         const fanout = sendToUser.mock.calls.filter((call: any[]) => call[2] === "chat_reaction");
         expect(fanout.map((call: any[]) => call[1])).toEqual([1, 2, 3]);
         expect(fanout[0][3]).toEqual({
-            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice",
+            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice", avatar: "/uploads/alice.png",
             emoji: "👍", action: "added", reactionId: 91, sentAt: 1791720000,
         });
     });
@@ -853,7 +853,7 @@ describe("POST /api/chat/messages/:id/reactions", () => {
         expect((await postReaction()).status).toBe(200);
         const event = sendToUser.mock.calls.find((call: any[]) => call[2] === "chat_reaction")[3];
         expect(event).toEqual({
-            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice", emoji: "👍", action: "removed",
+            messageId: 12, conversationId: 10, userId: 1, fullName: "Alice", avatar: "/uploads/alice.png", emoji: "👍", action: "removed",
         });
     });
 

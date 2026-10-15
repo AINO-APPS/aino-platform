@@ -32,6 +32,7 @@ export interface ToggleReactionResult {
     action: "added" | "removed";
     conversationId: number;
     senderName: string;
+    senderAvatar: string | null;
     participantIds: number[];
     messageOwnerId: number | null;
     reactionId: number | null;

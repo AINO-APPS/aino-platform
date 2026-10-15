@@ -16,6 +16,7 @@ import DeliveryStatus from "./DeliveryStatus";
 import MessageToolbar from "./MessageToolbar";
 import ReactionBar from "./ReactionBar";
 import EmojiGifPicker from "./EmojiGifPicker";
+import { jumbomojiSize } from "./jumbomoji";
 
 interface MessageBubbleProps {
   msg: any;
@@ -250,6 +251,10 @@ function MessageBubble({
     !isViewOnceMedia &&
     !String(msg.content || "").trim() &&
     !isPoll;
+  // Plain 1-3 emoji text renders large without a bubble (Signal jumbomoji).
+  const isPlainText = !msg.file_url && !isPoll && !msg.reply_to_id && !msg.forwarded_from_id && !msg.link_preview &&
+    !["system", "meeting", "poll"].includes(msg.format_type) && msg.metadata?.type !== "call";
+  const jumboPx = isPlainText ? jumbomojiSize(msg.content) : null;
   const isPending = String(msg.id).startsWith("pending_");
   const isFailed = !!msg._failed;
   const isPendingMedia = String(msg.id).startsWith("pending_media_");
@@ -337,7 +342,7 @@ function MessageBubble({
 
         <div
           ref={bubbleRef}
-          className={`${s.bubble} ${isMine ? s.myBubble : s.theirBubble} ${isMediaOnly ? s.mediaOnly : ""} ${msg.pinned_at ? s.pinned : ""} ${msg.starred ? s.starredBubble : ""} ${toolbarOpen ? s.toolbarActive : ""} ${isPending && !isFailed ? s.pendingBubble : ""} ${isFailed ? s.failedBubble : ""}`}
+          className={`${s.bubble} ${isMine ? s.myBubble : s.theirBubble} ${isMediaOnly ? s.mediaOnly : ""} ${jumboPx ? s.jumbo : ""} ${msg.pinned_at ? s.pinned : ""} ${msg.starred ? s.starredBubble : ""} ${toolbarOpen ? s.toolbarActive : ""} ${isPending && !isFailed ? s.pendingBubble : ""} ${isFailed ? s.failedBubble : ""}`}
           onContextMenu={isPending ? undefined : handleContext}
         >
           {msg.pinned_at && (
@@ -439,12 +444,14 @@ function MessageBubble({
           {/* Link preview card (Signal parity — sender-generated, above the text) */}
           {msg.link_preview && !isPoll && <LinkPreviewCard preview={msg.link_preview} isMine={isMine} />}
 
-          {msg.content && !isPoll && (
+          {jumboPx ? (
+            <div className={s.jumboText} style={{ fontSize: `${jumboPx}px` }}>{msg.content.trim()}</div>
+          ) : msg.content && !isPoll && (
             <MessageContent text={msg.content} isMine={isMine}
               meta={!msg.file_url ? footer : undefined} />
           )}
 
-          {!(msg.content && !isPoll && !msg.file_url) && footer}
+          {(jumboPx || !(msg.content && !isPoll && !msg.file_url)) && footer}
 
           {!isPending && (
             <MessageToolbar

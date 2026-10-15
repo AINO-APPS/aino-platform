@@ -98,6 +98,21 @@ export default function ChatInputBar({
     if (showEmojiPicker) onToggleEmoji();
     setCameraOpen(true);
   };
+
+  // Reply / Edit should land the caret in the composer, ready to type.
+  const replyId = replyTo?.id;
+  const editId = editingMsg?.id;
+  useEffect(() => {
+    if (replyId == null && editId == null) return;
+    const frame = requestAnimationFrame(() => {
+      const textarea = inputAreaRef.current?.querySelector("textarea");
+      if (!textarea) return;
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [replyId, editId]);
   const openGallery = () => {
     setPlusOpen(false);
     fileInputRef.current?.click();

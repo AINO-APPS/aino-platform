@@ -76,6 +76,7 @@ export function NotificationPrefsProvider({
     const [prefs, setPrefs] = useState<NotificationPrefs>(initial);
     const [prefsLoaded, setPrefsLoaded] = useState(false);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingSaveRef = useRef<Partial<NotificationPrefs>>({});
     const initialLoadDoneRef = useRef(false);
     useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
 
@@ -84,6 +85,7 @@ export function NotificationPrefsProvider({
         setPrefs(initial);
         setPrefsLoaded(false);
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        pendingSaveRef.current = {};
         initialLoadDoneRef.current = false;
         if (!tenantReady) return;
         // If the auth profile already shipped notification_prefs, prefer that
@@ -134,26 +136,30 @@ export function NotificationPrefsProvider({
 
     /**
      * Update prefs locally, persist to localStorage immediately, debounce-save
-     * to the server. Returns the merged result so callers can chain.
+     * only the changed keys to the server (it merges them with stored prefs),
+     * so one stale key can't make every later save fail.
      */
     const updatePrefs = useCallback(
         (partial: Partial<NotificationPrefs>) => {
             setPrefs((prev) => {
                 const merged = { ...prev, ...partial };
                 saveToCache(cacheKey, merged);
-
-                // Debounce server save (avoid spamming PUT while user drags slider)
-                if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-                saveTimerRef.current = setTimeout(() => {
-                    if (!tenantReady) return;
-                    updateNotificationPrefs(merged).catch((error: unknown) => {
-                        console.error("Failed to save notification preferences", error);
-                        toast.error("Notification preferences could not be saved. Please try again.");
-                    });
-                }, 500);
-
                 return merged;
             });
+
+            // Debounce server save (avoid spamming PUT while user drags slider)
+            pendingSaveRef.current = { ...pendingSaveRef.current, ...partial };
+            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = setTimeout(() => {
+                saveTimerRef.current = null;
+                const pending = pendingSaveRef.current;
+                pendingSaveRef.current = {};
+                if (!tenantReady || Object.keys(pending).length === 0) return;
+                updateNotificationPrefs(pending).catch((error: unknown) => {
+                    console.error("Failed to save notification preferences", error);
+                    toast.error("Notification preferences could not be saved. Please try again.");
+                });
+            }, 500);
         },
         [tenantReady, cacheKey, toast],
     );
@@ -162,6 +168,7 @@ export function NotificationPrefsProvider({
         setPrefs(DEFAULT_PREFS);
         saveToCache(cacheKey, DEFAULT_PREFS);
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        pendingSaveRef.current = {};
         if (tenantReady) {
             // Push every default field so the server stores a complete record.
             const { v: _v, ...rest } = DEFAULT_PREFS;

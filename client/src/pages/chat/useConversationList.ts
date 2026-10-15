@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { getConversations, getPresence } from "../../api/chat";
 import type { AnyRecord } from "../../types";
@@ -43,12 +43,16 @@ export default function useConversationList({
     const [userWorkModeMap, setUserWorkModeMap] = useState<
         Record<string, string | null>
     >({});
+    // Only the first load shows the skeleton; later reloads (mark-all-read,
+    // realtime events) update the list in place instead of flashing it.
+    const hasLoadedRef = useRef(false);
 
     const loadConversations = useCallback(async () => {
-        setLoadingConversations(true);
+        if (!hasLoadedRef.current) setLoadingConversations(true);
         try {
             const { data } = await getConversations();
             const loaded = data as ChatConversation[];
+            hasLoadedRef.current = true;
             setConversations(loaded);
             updateUnreadFromConversations(loaded);
 

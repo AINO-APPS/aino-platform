@@ -887,3 +887,29 @@
 .edited {
   font-size: var(--sig-footer-size, 12px);
 }
+
+/* ─── Jumbomoji: 1-3 emoji-only text, no bubble (Signal); footer stays readable below ─── */
+.jumbo {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.jumbo::before,
+.jumbo::after {
+  display: none !important;
+}
+.jumboText {
+  line-height: 1.15;
+  margin: 0;
+}
+.mine .jumboText {
+  text-align: right;
+}
+.jumbo .meta {
+  margin-top: 2px;
+}
+.jumbo .time,
+.jumbo .edited {
+  color: var(--text-muted);
+}

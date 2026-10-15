@@ -35,6 +35,7 @@ router.post("/messages/:id/reactions", auth, async (req: Request, res: Response)
                 conversationId: result.conversationId,
                 userId: req.userId,
                 fullName: result.senderName,
+                avatar: result.senderAvatar ?? null,
                 emoji,
                 action: result.action,
                 ...(result.reactionId ? { reactionId: result.reactionId, sentAt: result.sentAt } : {}),
@@ -66,11 +67,11 @@ router.post("/messages/:id/reactions", auth, async (req: Request, res: Response)
     }
 });
 
-router.post("/messages/:id/pin", auth, async (req: Request, res: Response) => {
+router.post("/messages/:id/pin", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const msgId = parseMessageId(req.params.id);
 
-        const result = await service.togglePin(db(req), req.userId!, msgId);
+        const result = await service.togglePin(db(req), req.userId!, msgId, req.roleLevel || 1);
 
         for (const participantId of result.participantIds) {
             sendToUser(req.tenantId, participantId, "chat_pin", {

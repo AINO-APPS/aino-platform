@@ -22,8 +22,7 @@ import {
   mapRealtimeMessage,
   updateRealtimeMessage,
 } from "./chatRealtimeReducers";
-import useScrollPin from "./useScrollPin";
-import { NEAR_BOTTOM_PX } from "./chatUtils";
+import useScrollPin, { shouldFollowNewMessage } from "./useScrollPin";
 import { reconcileOwnMessage } from "./messageDelivery";
 import type { AnyRecord } from "../../types";
 import { MESSAGE_ALERT_EVENT } from "../../components/notifications/messageAlerts";
@@ -541,45 +540,28 @@ export default function useChatState() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // ─── Initial "open at the latest message" pin ───
-  // Extracted to useScrollPin so the scroll behaviour can be unit tested
-  // directly; see that hook for why the naive rAF-only approach left the
-  // thread parked mid-history on desktop.
-  const { userScrolledUpRef } = useScrollPin({
+  // ─── Signal-style stick-to-bottom ───
+  // useScrollPin owns the stuck state and keeps a stuck thread glued to the
+  // newest message as content grows (rows, typing row, late media).
+  const { stuckToBottomRef, scrollToBottom } = useScrollPin({
     containerRef: messagesContainerRef,
     conversationId: activeConv?.id ?? null,
     loading: loadingMsgs,
     isEmpty: messages.length === 0,
   });
 
-  // Scroll to bottom on new messages — Signal-style "smart" auto-scroll. We
-  // only follow the conversation to the newest message when the user is
-  // ALREADY near the bottom (or it's their own freshly-sent message). If they
-  // have scrolled up to read history we leave their position untouched so the
-  // view doesn't yank them down every time a message arrives (the floating
-  // "scroll to latest" button in ChatMessages lets them jump back manually).
+  // New newest message: our own re-sticks; others follow only if the view was
+  // stuck BEFORE the row rendered (a post-render measurement would treat a
+  // tall new row as "scrolled up"). Reading history is never interrupted.
   const lastMessageId = messages.length
     ? messages[messages.length - 1].id
     : null;
   useEffect(() => {
-    const end = messagesEndRef.current;
-    const container = messagesContainerRef.current;
-    if (!end) return;
-    // The initial open is owned by the pin effect above — skip this one
-    // while the thread is still hydrating so the two don't fight.
+    // The initial open is owned by useScrollPin while the thread hydrates.
     if (loadingMsgs) return;
     const last = messages[messages.length - 1];
-    const isOwn = last && Number(last.sender_id) === Number(user?.id);
-    let nearBottom = true;
-    if (container) {
-      const distanceFromBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
-      nearBottom = distanceFromBottom < NEAR_BOTTOM_PX;
-    }
-    if (nearBottom || isOwn) {
-      if (isOwn) userScrolledUpRef.current = false;
-      end.scrollIntoView({ behavior: "smooth" });
-    }
+    const isOwn = !!last && Number(last.sender_id) === Number(user?.id);
+    if (shouldFollowNewMessage({ isOwn, wasStuck: stuckToBottomRef.current })) scrollToBottom();
     // Keyed on the newest message id (not the whole array) so reactions /
     // edits to older messages don't trigger a scroll.
   }, [lastMessageId]); // eslint-disable-line react-hooks/exhaustive-deps

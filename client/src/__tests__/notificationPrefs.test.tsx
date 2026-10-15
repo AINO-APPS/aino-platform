@@ -53,7 +53,7 @@ test("repeated failed retries report the paused alerts only once", async () => {
     expect(mocks.toast.error).toHaveBeenCalledTimes(1);
     expect(captured.prefsLoaded).toBe(false);
 });
-test("debounced changes persist the complete latest settings without losing a preceding toggle", async () => {
+test("debounced changes persist only the changed settings without losing a preceding toggle", async () => {
     vi.useFakeTimers();
     mocks.auth.user.notification_prefs = { readReceipts: false, messageTone: "soft" };
     const view = render(tree());
@@ -61,7 +61,8 @@ test("debounced changes persist the complete latest settings without losing a pr
     act(() => captured.updatePrefs({ hideSensitiveContent: true }));
     await act(async () => vi.advanceTimersByTime(500));
     expect(mocks.updatePrefs).toHaveBeenCalledTimes(1);
-    expect(mocks.updatePrefs.mock.calls[0][0]).toMatchObject({ messagePopups: false, hideSensitiveContent: true, readReceipts: false });
+    expect(mocks.updatePrefs.mock.calls[0][0]).toEqual({ messagePopups: false, hideSensitiveContent: true });
+    expect(captured.prefs).toMatchObject({ messagePopups: false, hideSensitiveContent: true, readReceipts: false });
     act(() => captured.updatePrefs({ messagePopups: true }));
     view.unmount();
     await act(async () => vi.advanceTimersByTime(500));

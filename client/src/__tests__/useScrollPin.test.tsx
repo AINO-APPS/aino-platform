@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useRef } from "react";
-import useScrollPin from "../pages/chat/useScrollPin";
+import useScrollPin, { isNearBottom, shouldFollowNewMessage } from "../pages/chat/useScrollPin";
 import { NEAR_BOTTOM_PX } from "../pages/chat/chatUtils";
 
 /**
@@ -159,7 +159,7 @@ describe("useScrollPin — opening a chat lands on the latest message", () => {
         // pin() assigns scrollTop, which fires a `scroll` event. If that were
         // mistaken for user intent the hook would lock itself out of every
         // further re-pin on the very first frame.
-        expect(result.current.userScrolledUpRef.current).toBe(false);
+        expect(result.current.stuckToBottomRef.current).toBe(true);
     });
 
     it("stops following once the user scrolls up, and stays put", async () => {
@@ -173,7 +173,7 @@ describe("useScrollPin — opening a chat lands on the latest message", () => {
         });
         await flushFrames();
 
-        expect(result.current.userScrolledUpRef.current).toBe(true);
+        expect(result.current.stuckToBottomRef.current).toBe(false);
 
         const parked = scroller.scrollTop;
         await act(async () => {
@@ -196,14 +196,14 @@ describe("useScrollPin — opening a chat lands on the latest message", () => {
         await act(async () => {
             scroller.el.scrollTop = 600;
         });
-        expect(result.current.userScrolledUpRef.current).toBe(true);
+        expect(result.current.stuckToBottomRef.current).toBe(false);
 
         // Scroll back to just inside the "at latest" band.
         await act(async () => {
             scroller.el.scrollTop = 1500 - (NEAR_BOTTOM_PX - 10);
         });
 
-        expect(result.current.userScrolledUpRef.current).toBe(false);
+        expect(result.current.stuckToBottomRef.current).toBe(true);
     });
 
     it("still pins a conversation that finished loading empty", async () => {
@@ -215,5 +215,123 @@ describe("useScrollPin — opening a chat lands on the latest message", () => {
         await flushFrames();
 
         expect(scroller.distanceFromBottom).toBe(0);
+    });
+});
+
+describe("useScrollPin — Signal-style stick-to-bottom for the whole conversation", () => {
+    let resizeCallbacks: Array<() => void> = [];
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
+            setTimeout(() => cb(Date.now()), 16) as unknown as number,
+        );
+        vi.stubGlobal("cancelAnimationFrame", (id: number) =>
+            clearTimeout(id as unknown as ReturnType<typeof setTimeout>),
+        );
+        resizeCallbacks = [];
+        // Controllable ResizeObserver: tests fire "content grew" explicitly.
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                constructor(cb: () => void) {
+                    resizeCallbacks.push(cb);
+                }
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        );
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        document.body.innerHTML = "";
+    });
+    const fireResize = () => act(async () => { resizeCallbacks.forEach((cb) => cb()); });
+
+    it("keeps pinning on content growth long after the initial settle window", async () => {
+        const scroller = makeScroller({ contentHeight: 2000, viewport: 500 });
+        renderPin(scroller);
+        await flushFrames();
+        await act(async () => { vi.advanceTimersByTime(60_000); });
+
+        scroller.grow(400);
+        await fireResize();
+        await flushFrames();
+
+        expect(scroller.distanceFromBottom).toBe(0);
+    });
+
+    it("a tall new row or the typing row appearing keeps a stuck view at the bottom", async () => {
+        const scroller = makeScroller({ contentHeight: 2000, viewport: 500 });
+        renderPin(scroller);
+        await flushFrames();
+
+        // A new 400px message (> NEAR_BOTTOM_PX) is appended as a new child.
+        await act(async () => {
+            scroller.grow(400);
+            scroller.el.appendChild(document.createElement("div"));
+            await Promise.resolve();
+        });
+        await flushFrames();
+        expect(scroller.distanceFromBottom).toBe(0);
+
+        // Typing indicator row appears, then disappears.
+        const typingRow = document.createElement("div");
+        await act(async () => {
+            scroller.grow(60);
+            scroller.el.appendChild(typingRow);
+            await Promise.resolve();
+        });
+        await flushFrames();
+        expect(scroller.distanceFromBottom).toBe(0);
+    });
+
+    it("never pins while the user is reading history (load-older restore stays put)", async () => {
+        const scroller = makeScroller({ contentHeight: 2000, viewport: 500 });
+        const { result } = renderPin(scroller);
+        await flushFrames();
+
+        await act(async () => { scroller.el.scrollTop = 100; });
+        expect(result.current.stuckToBottomRef.current).toBe(false);
+
+        await act(async () => {
+            scroller.grow(800);
+            scroller.el.insertBefore(document.createElement("div"), scroller.el.firstChild);
+            await Promise.resolve();
+        });
+        await fireResize();
+        await flushFrames();
+        expect(scroller.scrollTop).toBe(100);
+    });
+
+    it("scrollToBottom re-sticks so later growth follows again", async () => {
+        const scroller = makeScroller({ contentHeight: 2000, viewport: 500 });
+        const { result } = renderPin(scroller);
+        await flushFrames();
+        await act(async () => { scroller.el.scrollTop = 100; });
+
+        await act(async () => { result.current.scrollToBottom(); });
+        await flushFrames();
+        expect(result.current.stuckToBottomRef.current).toBe(true);
+        expect(scroller.distanceFromBottom).toBe(0);
+
+        scroller.grow(300);
+        await fireResize();
+        await flushFrames();
+        expect(scroller.distanceFromBottom).toBe(0);
+    });
+});
+
+describe("scroll decision helpers", () => {
+    it("own messages always follow; others only when stuck before the update", () => {
+        expect(shouldFollowNewMessage({ isOwn: true, wasStuck: false })).toBe(true);
+        expect(shouldFollowNewMessage({ isOwn: false, wasStuck: true })).toBe(true);
+        expect(shouldFollowNewMessage({ isOwn: false, wasStuck: false })).toBe(false);
+    });
+
+    it("near-bottom uses the shared NEAR_BOTTOM_PX band (inclusive)", () => {
+        expect(isNearBottom({ scrollHeight: 1000, clientHeight: 500, scrollTop: 500 - NEAR_BOTTOM_PX })).toBe(true);
+        expect(isNearBottom({ scrollHeight: 1000, clientHeight: 500, scrollTop: 499 - NEAR_BOTTOM_PX })).toBe(false);
     });
 });

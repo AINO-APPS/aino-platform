@@ -13,6 +13,8 @@ import MeetingCard from "../../components/chat/MeetingCard";
 import { buildTimelineRows } from "./timelineRows";
 import { isBeforeClearedAt, isMessageHiddenForMe } from "./chatLocalDeletes";
 import { NEAR_BOTTOM_PX } from "./chatUtils";
+import { groupPermissions } from "./groupSettings/groupPermissions";
+import { canTogglePin, canUnpinMessage, type PinContext } from "./pinPermissions";
 import s from "./ChatMessages.module.css";
 
 interface ChatMessagesProps {
@@ -124,6 +126,11 @@ export default function ChatMessages({
     [visibleMessages],
   );
   const latestPin = pinnedInView[0];
+  const pinCtx: PinContext = {
+    userId: user?.id,
+    isGroup: !!activeConv?.is_group,
+    myRole: activeConv?.is_group ? groupPermissions(activeConv, convMembers, user?.id).role : null,
+  };
   // buildTimelineRows walks the full message array (grouping + date dividers);
   // memoize it so it only recomputes when the messages actually change, not on
   // every typing/scroll-button state update.
@@ -165,8 +172,11 @@ export default function ChatMessages({
     onLoadMore,
   ]);
 
+  // An instant jump lands within NEAR_BOTTOM_PX, so useScrollPin's scroll
+  // listener re-sticks the thread and keeps it glued while media settles.
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = messagesContainerRef.current as HTMLDivElement | null;
+    if (el) el.scrollTop = el.scrollHeight;
   };
 
   return (
@@ -198,14 +208,16 @@ export default function ChatMessages({
                     : <><VoiceIcon size={14} /> Voice message</>)}
               </span>
             </button>
-            <button
-              type="button"
-              className={s.pinnedBannerUnpin}
-              onClick={() => onUnpin?.(latestPin.id)}
-              title="Unpin"
-            >
-              <X size={14} />
-            </button>
+            {canUnpinMessage(latestPin, pinCtx) && (
+              <button
+                type="button"
+                className={s.pinnedBannerUnpin}
+                onClick={() => onUnpin?.(latestPin.id)}
+                title="Unpin"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         )}
         {dragOver && <div className={s.dropOverlay}>Drop file to send</div>}
@@ -281,7 +293,7 @@ export default function ChatMessages({
                 onReply={onReply}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onPin={onPin}
+                onPin={canTogglePin(m, pinCtx) ? onPin : undefined}
                 onForward={onForward}
                 onReact={onReact}
                 onStar={onStar}
@@ -344,6 +356,7 @@ export default function ChatMessages({
           onClose={onClosePinned}
           onJumpTo={onJumpTo}
           onUnpin={onUnpin}
+          canUnpin={(pin) => canUnpinMessage(pin, pinCtx)}
         />
       )}
       {showSharedFiles && (

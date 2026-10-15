@@ -21,9 +21,10 @@ interface PinnedMessagesProps {
     onClose: () => void;
     onJumpTo?: (id: number | string) => void;
     onUnpin?: (id: number | string) => void;
+    canUnpin?: (pin: PinnedMessage) => boolean;
 }
 
-export default function PinnedMessages({ convId, currentUserId, onClose, onJumpTo, onUnpin }: PinnedMessagesProps) {
+export default function PinnedMessages({ convId, currentUserId, onClose, onJumpTo, onUnpin, canUnpin }: PinnedMessagesProps) {
     const [pins, setPins] = useState<PinnedMessage[]>([]);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
@@ -81,7 +82,7 @@ export default function PinnedMessages({ convId, currentUserId, onClose, onJumpT
                             </div>
                             <span className={s.text}>{p.content || (p.file_name ? <><AttachmentIcon size={14} /> {p.file_name}</> : <><VoiceIcon size={14} /> Voice message</>)}</span>
                         </div>
-                        {onUnpin && (
+                        {onUnpin && (canUnpin?.(p) ?? true) && (
                             <button className={s.unpinBtn} onClick={e => { e.stopPropagation(); onUnpin(p.id); }} title="Unpin">
                                 <X size={14} />
                             </button>

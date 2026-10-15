@@ -61,7 +61,7 @@ describe("chat.service toggleReaction", () => {
             { rows: [{ user_id: 1 }] }, // verifyParticipant hit
             { rows: [] }, // findExistingReaction miss
             { rows: [{ id: 91, created_at: "2026-10-11T12:00:00Z" }] }, // insertReaction
-            { rows: [{ full_name: "Alice" }] }, // getUserDisplayName
+            { rows: [{ full_name: "Alice", avatar: "/uploads/alice.png" }] }, // getUserNameAndAvatar
             { rows: [{ user_id: 1 }, { user_id: 2 }] }, // getConversationParticipantIds
         ]);
         const service = createChatService();
@@ -69,7 +69,7 @@ describe("chat.service toggleReaction", () => {
         const result = await service.toggleReaction(db, 1, 12, "👍");
         expect(result.action).toBe("added");
         expect(result.participantIds).toEqual([1, 2]);
-        expect(result).toMatchObject({ messageOwnerId: 2, reactionId: 91, sentAt: 1791720000 });
+        expect(result).toMatchObject({ messageOwnerId: 2, reactionId: 91, sentAt: 1791720000, senderName: "Alice", senderAvatar: "/uploads/alice.png" });
         expect(db.query).toHaveBeenCalledWith(expect.stringContaining("RETURNING id, created_at"), [12, 1, "👍"]);
     });
 
@@ -85,7 +85,7 @@ describe("chat.service toggleReaction", () => {
         ]);
         const service = createChatService();
         expect(await service.toggleReaction(db, 1, 12, "👍")).toMatchObject({
-            action: "removed", reactionId: null, sentAt: null,
+            action: "removed", reactionId: null, sentAt: null, senderAvatar: null,
         });
         expect(await service.toggleReaction(db, 1, 12, "👍")).toMatchObject({
             action: "added", reactionId: 92, sentAt: 1791720060,
@@ -113,6 +113,60 @@ describe("chat.service togglePin", () => {
         const service = createChatService();
 
         await expect(service.togglePin(db, 1, 12)).rejects.toThrow(/participant/i);
+    });
+
+    const pinnedMsg = (pinnedBy: number | null) => ({
+        rows: [{ id: 12, conversation_id: 10, deleted_at: null, pinned_at: "2026-10-01T00:00:00Z", pinned_by: pinnedBy }],
+    });
+    const unpinTail = [{ rows: [], rowCount: 1 }, { rows: [{ full_name: "Alice" }] }, { rows: [{ user_id: 1 }, { user_id: 2 }] }];
+    const unpinCalled = (db: ChatDb) => (db.query as jest.Mock).mock.calls.some(([sql]) => String(sql).includes("pinned_at = NULL"));
+
+    test("the pinner can unpin without a group lookup", async () => {
+        const db = makeDb([pinnedMsg(1), { rows: [{ user_id: 1 }] }, ...unpinTail]);
+        await expect(createChatService().togglePin(db, 1, 12)).resolves.toMatchObject({ pinned: false, conversationId: 10 });
+        expect(unpinCalled(db)).toBe(true);
+    });
+
+    test("another group member cannot unpin someone else's pin", async () => {
+        const db = makeDb([pinnedMsg(2), { rows: [{ user_id: 1 }] }, { rows: [{ is_group: true }] }, { rows: [{ role: "member" }] }]);
+        const err = await createChatService().togglePin(db, 1, 12).catch((e) => e);
+        expect(err).toBeInstanceOf(ChatError);
+        expect(err.statusCode).toBe(403);
+        expect(err.message).toBe("Only the person who pinned this message or a group admin can unpin it");
+        expect(unpinCalled(db)).toBe(false);
+    });
+
+    test.each(["admin", "owner"])("a group %s can unpin someone else's pin", async (role) => {
+        const db = makeDb([pinnedMsg(2), { rows: [{ user_id: 1 }] }, { rows: [{ is_group: true }] }, { rows: [{ role }] }, ...unpinTail]);
+        await expect(createChatService().togglePin(db, 1, 12)).resolves.toMatchObject({ pinned: false });
+        expect(unpinCalled(db)).toBe(true);
+    });
+
+    test("org governance can unpin any pin", async () => {
+        const db = makeDb([pinnedMsg(2), { rows: [{ user_id: 1 }] }, ...unpinTail]);
+        await expect(createChatService().togglePin(db, 1, 12, 4)).resolves.toMatchObject({ pinned: false });
+    });
+
+    test("the other 1:1 participant cannot unpin", async () => {
+        const db = makeDb([pinnedMsg(2), { rows: [{ user_id: 1 }] }, { rows: [{ is_group: false }] }, { rows: [{ role: "member" }] }]);
+        await expect(createChatService().togglePin(db, 1, 12)).rejects.toMatchObject({ statusCode: 403 });
+        expect(unpinCalled(db)).toBe(false);
+    });
+
+    test("legacy 1:1 pins without pinned_by can be unpinned by either participant", async () => {
+        const db = makeDb([pinnedMsg(null), { rows: [{ user_id: 1 }] }, { rows: [{ is_group: false }] }, { rows: [{ role: "member" }] }, ...unpinTail]);
+        await expect(createChatService().togglePin(db, 1, 12)).resolves.toMatchObject({ pinned: false });
+        expect(unpinCalled(db)).toBe(true);
+    });
+
+    test("legacy group pins without pinned_by need a group admin", async () => {
+        const db = makeDb([pinnedMsg(null), { rows: [{ user_id: 1 }] }, { rows: [{ is_group: true }] }, { rows: [{ role: "member" }] }]);
+        await expect(createChatService().togglePin(db, 1, 12)).rejects.toMatchObject({ statusCode: 403 });
+    });
+
+    test("any participant can pin", async () => {
+        const db = makeDb([{ rows: [{ id: 12, conversation_id: 10, deleted_at: null, pinned_at: null, pinned_by: null }] }, { rows: [{ user_id: 1 }] }, ...unpinTail]);
+        await expect(createChatService().togglePin(db, 1, 12)).resolves.toMatchObject({ pinned: true });
     });
 
     describe("chat.service listConversationMembers", () => {

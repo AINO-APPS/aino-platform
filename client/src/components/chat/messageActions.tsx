@@ -40,7 +40,8 @@ export function buildMessageActions(msg: any, isMine: boolean, h: MessageActionH
         hasText && { icon: <Copy size={15} />, label: "Copy", onClick: () => h.onCopy?.() },
         canSave && { icon: <Download size={15} />, label: "Save to device", onClick: () => saveToDevice(msg.file_url, msg.file_name) },
         !!h.onSelect && { icon: <CheckSquare2 size={15} />, label: "Select", onClick: () => h.onSelect?.(msg) },
-        { icon: <Pin size={15} />, label: msg.pinned_at ? "Unpin" : "Pin", onClick: () => h.onPin?.(msg) },
+        // Callers omit onPin when the user may not unpin this message.
+        (!msg.pinned_at || !!h.onPin) && { icon: <Pin size={15} />, label: msg.pinned_at ? "Unpin" : "Pin", onClick: () => h.onPin?.(msg) },
         { icon: <Star size={15} />, label: msg.starred ? "Unsave" : "Save", onClick: () => h.onStar?.(msg) },
         !!h.onDelete && { icon: <Trash2 size={15} />, label: "Delete", danger: true, onClick: () => h.onDelete?.(msg) },
     ];

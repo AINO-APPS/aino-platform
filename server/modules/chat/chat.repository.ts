@@ -151,6 +151,11 @@ export async function getUserDisplayName(db: ChatDb, userId: number): Promise<st
     return row?.full_name || "";
 }
 
+export async function getUserNameAndAvatar(db: ChatDb, userId: number): Promise<{ fullName: string; avatar: string | null }> {
+    const row = (await db.query("SELECT full_name, avatar FROM users WHERE id = $1", [userId])).rows[0];
+    return { fullName: row?.full_name || "", avatar: row?.avatar || null };
+}
+
 export async function getConversationParticipantIds(db: ChatDb, conversationId: number): Promise<number[]> {
     const rows = (
         await db.query(

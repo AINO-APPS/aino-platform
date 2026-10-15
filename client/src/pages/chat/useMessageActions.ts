@@ -6,6 +6,8 @@ import type { AnyRecord } from "../../types";
 import { createPendingMessageId } from "./messageDelivery";
 import { hideMessagesForMe } from "./chatLocalDeletes";
 import { handOffLocalPreview } from "../../components/chat/chatMediaMemory";
+import { useToast } from "../../components/common/Toast";
+import { pinErrorMessage } from "./pinPermissions";
 
 type ChatState = ReturnType<typeof useChatState>;
 type Msg = AnyRecord & { id: number | string };
@@ -63,6 +65,7 @@ export default function useMessageActions(state: ChatState) {
     selectedMessageIds,
     setSelectedMessageIds,
   } = state;
+  const toast = useToast();
   const uploadControllersRef = useRef<Map<string, AbortController>>(new Map());
   const pendingMediaRef = useRef<Map<string, PendingMedia>>(new Map());
   const mediaPreviewUrlsRef = useRef<Map<string, string>>(new Map());
@@ -562,8 +565,8 @@ export default function useMessageActions(state: ChatState) {
             : m,
         ),
       );
-    } catch {
-      /* ignore */
+    } catch (err) {
+      toast.error(pinErrorMessage(err));
     }
   };
 
@@ -712,13 +715,9 @@ export default function useMessageActions(state: ChatState) {
   const handleUnpin = async (msgId: number | string) => {
     try {
       await togglePin(msgId);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, pinned_at: null, pinned_by: null } : m,
-        ),
-      );
-    } catch {
-      /* ignore */
+      setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, pinned_at: null, pinned_by: null } : m)));
+    } catch (err) {
+      toast.error(pinErrorMessage(err));
     }
   };
 
