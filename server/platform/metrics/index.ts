@@ -16,6 +16,7 @@ export { installHttpMetrics, httpMetricsMiddleware, routeTemplate } from "./http
 export { tenantLabel, promotedTenants } from "./tenantLabel";
 export { setWebSocketServer, readQueueDepths, QUEUE_NAMES } from "./collectors";
 export { observeJob } from "./jobMetrics";
+export { recordCallQuality, callPathLabel, type CallQualityReport } from "./callMetrics";
 export { recordLegacyRealmlessToken, recordRealmMismatch } from "./realmMetrics";
 export {
     startMigrationDriftSampler,

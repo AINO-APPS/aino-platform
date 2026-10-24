@@ -154,6 +154,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "GET    /api/chat/calls/active",
   "POST   /api/chat/calls/cancel",
   "POST   /api/chat/calls/delete",
+  "POST   /api/chat/calls/quality",
   "GET    /api/chat/conversations",
   "POST   /api/chat/conversations",
   "DELETE /api/chat/conversations/:id",

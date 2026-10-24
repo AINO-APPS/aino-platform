@@ -436,3 +436,32 @@ Files: same two mesh hooks (bitrate + active-speaker already partly present).
 > No unchecked items remain. Future work beyond this tracker (an SFU for
 > flawless 10-way video) is explicitly out of scope per the "Realistic ceiling"
 > section above.
+
+---
+
+## Post-completion correction (2026-10)
+
+The phases above are genuinely done, but the tracker overstated media quality:
+"mesh scaling" shipped **static** bitrate governance, not adaptation. Three
+gaps were found afterwards and are now fixed:
+
+1. **No adaptive ladder in group calls.** Web meetings used only
+   `videoBitrateForPeerCount` (500/300/150 kbps) and Android `MeetingSession`
+   never called `startQualityAdaptation` — only the 1:1 `ActiveCallController`
+   did. A peer whose uplink degraded stayed at its static cap and froze. Both
+   clients now run the shared quality controller per peer, with the peer-count
+   cap as the ceiling.
+2. **Android meeting recovery ignored `IceRecoveryPolicy`.** The policy declares
+   `RestartIce` ×2 → `RebuildRelayOnly` → `GiveUp`, but `MeetingSession` did
+   three restarts and then marked the peer `Failed`, so a peer that TURN could
+   have carried was abandoned. It now follows the policy, including the
+   relay-only rebuild.
+3. **Stale RTT baseline after a path change.** The controller learned its RTT
+   floor only in the first 10 s and could then only lower it. After an ICE
+   restart onto a relay (≈90–150 ms vs ≈20 ms direct) every sample graded as
+   excess RTT, so the ladder walked to the bottom rung and stayed there. The
+   floor is now relearned on a candidate-pair type change or reconnect, and the
+   ladder holds while the new floor is learned.
+
+Still open: no inbound-frame watchdog on the meeting path (the chat path has
+one), and the mesh ceiling itself.

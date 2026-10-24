@@ -128,6 +128,60 @@ groups:
           summary: "Realtime pod {{ $labels.instance_id }} nearing the WS cap"
           description: "Add a realtime replica before reaching ~5k connections."
 
+  - name: aino-calls
+    interval: 30s
+    rules:
+      - alert: AinoCallFreezeRateHigh
+        # Inbound video freezes per call-minute. A healthy call is ~0; a
+        # sustained rate above 0.5 means users are watching frozen tiles.
+        expr: >-
+          sum(rate(aino_call_freeze_ratio_sum[15m]))
+          /
+          sum(rate(aino_call_freeze_ratio_count[15m])) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Call video is freezing at {{ $value | printf \"%.2f\" }} per call-minute"
+          description: >-
+            Check the encoder tier and RTT histograms by path. A freeze rate
+            that only appears on `path="relay"` points at the TURN path; one
+            that appears on `path="direct"` points at the client encoder.
+
+      - alert: AinoCallIceRestartRateHigh
+        # Frequent ICE restarts mean the media path keeps breaking — the
+        # signature of a network/NAT problem rather than an encoder problem.
+        expr: >-
+          sum(rate(aino_call_ice_restarts_total[15m]))
+          /
+          sum(rate(aino_call_quality_samples_total[15m])) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Over 20% of call samples report an ICE restart"
+          description: >-
+            Calls are repeatedly losing their media path. Verify Cloudflare
+            TURN credentials are being minted (GET /api/chat/ice-config) and
+            that relay candidates are reachable.
+
+      - alert: AinoCallQualityDegraded
+        # The adaptive ladder bottoming out across many calls means the
+        # controller is being forced down, not that one user has bad Wi-Fi.
+        expr: >-
+          sum(rate(aino_call_encoder_tier_sum[15m]))
+          /
+          sum(rate(aino_call_encoder_tier_count[15m])) > 3
+        for: 20m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average call encoder tier is {{ $value | printf \"%.1f\" }} (0 = best)"
+          description: >-
+            Most calls are pinned near the bottom rung. Compare RTT by path:
+            a relayed path graded against a direct-path baseline is the known
+            cause of a permanently degraded ladder.
+
   - name: aino-schema
     interval: 5m
     rules:

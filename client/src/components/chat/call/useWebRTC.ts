@@ -416,7 +416,7 @@ export default function useWebRTC({
    * the stats loop reads, so neither failure mode can recur.
    */
   const applyBitrateRampUp = useCallback(
-    (pc: RTCPeerConnection | null) => {
+    (pc: RTCPeerConnection | null, preserveTier = false) => {
       if (!pc) return;
       if (!qualityControllerRef.current) {
         qualityControllerRef.current = createQualityController({ isMobile });
@@ -425,6 +425,7 @@ export default function useWebRTC({
       cancelBitrateRampRef.current = startBitrateRampUp(
         pc,
         qualityControllerRef.current,
+        { preserveTier },
       );
     },
     [isMobile],
@@ -842,13 +843,19 @@ export default function useWebRTC({
       pc.onconnectionstatechange = () => {
         console.log("[call-webrtc] connection state:", pc.connectionState);
         if (pc.connectionState === "connected") {
+          // A second "connected" on the same peer connection means we just
+          // recovered from an ICE restart / relay rebuild. The media path has
+          // changed, so the learned RTT floor is stale and the ladder position
+          // is still valid — relearn the floor, keep the tier.
+          const isReconnect = initialNegotiationDone;
           initialNegotiationDone = true;
           onStatusChange("connected");
           stopRingtone();
           if (disconnectTimerRef.current)
             clearTimeout(disconnectTimerRef.current);
           iceRestartAttemptedRef.current = false;
-          applyBitrateRampUp(pc);
+          if (isReconnect) qualityControllerRef.current?.relearnBaseline();
+          applyBitrateRampUp(pc, isReconnect);
           // Shrink the receiver's playout buffer where supported (Chrome).
           // A large default jitter buffer is a major source of the "call feels
           // laggy even though the network is fine" complaint.

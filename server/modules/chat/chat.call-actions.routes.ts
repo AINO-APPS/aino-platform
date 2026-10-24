@@ -15,8 +15,39 @@ import { ChatError } from "./chat.types";
 import { parseMessageId, parseConversationId, parseCreateGroupConversation, parseDirectConversationUserId, parseEmoji, parseUserId } from "./chat.schema";
 import { service, db, type DbLike, chatUpload, chatFilename, deleteChatObject, verifyParticipant, verifyReplyTarget, getUserOrg, emitSystemMessage } from "./chat.shared";
 import { acknowledgeCallRinging, cancelRingingCall } from "../../utils/wsHandlers/callRinging";
+import { recordCallQuality } from "../../platform/metrics";
 
 const router = express.Router();
+
+/**
+ * Client-reported call quality. Fire-and-forget: the client sends one
+ * aggregated sample per call (and one per ICE restart) so a "video froze and
+ * never recovered" report can be checked against the media path, the RTT
+ * floor and the encoder tier instead of guessed at.
+ */
+router.post("/calls/quality", auth, async (req: Request, res: Response) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const num = (key: string): number | null => {
+      const value = body[key];
+      return typeof value === "number" && Number.isFinite(value) ? value : null;
+    };
+    recordCallQuality({
+      path: typeof body.path === "string" ? body.path : null,
+      platform: typeof body.platform === "string" ? body.platform : null,
+      rttSeconds: num("rttSeconds"),
+      packetLoss: num("packetLoss"),
+      freezeCount: num("freezeCount"),
+      durationSeconds: num("durationSeconds"),
+      encoderTier: num("encoderTier"),
+      iceRestarts: num("iceRestarts"),
+    });
+    res.status(204).end();
+  } catch (err) {
+    req.log.warn({ err }, "call quality report failed");
+    res.status(204).end();
+  }
+});
 
 router.post(
   "/calls/:callId/reject",

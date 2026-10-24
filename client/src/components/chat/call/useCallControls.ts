@@ -1,10 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { findVideoSender } from "./videoSender";
+import { reportCallQuality } from "../../../api/chat";
 import useCallMediaState from "./useCallMediaState";
 import {
+  adaptPlayoutBuffer,
   applyVideoEncodingTier,
   createQualityController,
+  PLAYOUT_MIN_SECONDS,
   type ConnectionQuality,
   type QualityController,
   type RawStatsSample,
@@ -113,6 +116,17 @@ export default function useCallControls({
       prevBytesRef.current = { sent: 0, received: 0, timestamp: 0 };
       let lastQuality: ConnectionQuality | null = null;
       let retryVideoTier = false;
+      let playoutSeconds = PLAYOUT_MIN_SECONDS;
+      // Telemetry: one aggregated sample every 30 s. Without this a "video
+      // froze and never recovered" report cannot be checked against the media
+      // path, the RTT floor or the encoder tier — there was no record at all.
+      const callStartedAt = Date.now();
+      let lastReportAt = 0;
+      let lastFreezeCount = 0;
+      let lastPath: string | null = null;
+      let lastTier = 0;
+      let lastRtt: number | null = null;
+      let lastLoss = 0;
 
       const interval = setInterval(async () => {
         try {
@@ -151,14 +165,18 @@ export default function useCallControls({
               if (typeof report.currentRoundTripTime === "number") {
                 rttSeconds = report.currentRoundTripTime;
               }
-              if (wantDetailed && report.localCandidateId) {
+              // Candidate types are needed on EVERY sample, not just when the
+              // stats panel is open: a change of pair type (host/srflx → relay)
+              // is how the quality controller detects that the media path moved
+              // and its learned RTT floor is stale.
+              if (report.localCandidateId) {
                 const local = stats.get(report.localCandidateId);
                 if (local) {
                   localCandidateType = local.candidateType || null;
                   transportProtocol = local.protocol || null;
                 }
               }
-              if (wantDetailed && report.remoteCandidateId) {
+              if (report.remoteCandidateId) {
                 const remote = stats.get(report.remoteCandidateId);
                 if (remote) remoteCandidateType = remote.candidateType || null;
               }
@@ -216,9 +234,15 @@ export default function useCallControls({
             jitterBufferEmittedCount,
             qualityLimitationReason,
             outboundFractionLost,
+            localCandidateType,
+            remoteCandidateType,
           };
 
           const decision = controller.observe(sample);
+
+          // Adaptive playout: a buffer pinned at the minimum underruns on a
+          // relayed or mobile path, which the user sees as stutter/freeze.
+          playoutSeconds = adaptPlayoutBuffer(pc, playoutSeconds, decision);
 
           // Write only changed or rejected tiers; avoid needless encoder reconfiguration.
           if (decision.changed || retryVideoTier) {
@@ -236,6 +260,26 @@ export default function useCallControls({
           if (decision.quality !== lastQuality) {
             lastQuality = decision.quality;
             setConnectionQuality(decision.quality);
+          }
+
+          lastPath = localCandidateType;
+          lastTier = decision.tierIndex;
+          lastRtt = decision.smoothedRttSeconds;
+          lastLoss = decision.smoothedLossRate;
+          lastFreezeCount = freezeCount;
+
+          const nowMs = Date.now();
+          if (nowMs - lastReportAt >= 30_000) {
+            lastReportAt = nowMs;
+            void reportCallQuality({
+              path: lastPath,
+              platform: isMobileUa ? "web-mobile" : "web",
+              rttSeconds: lastRtt,
+              packetLoss: lastLoss,
+              freezeCount: lastFreezeCount,
+              durationSeconds: (nowMs - callStartedAt) / 1000,
+              encoderTier: lastTier,
+            });
           }
 
           if (!wantDetailed) return;

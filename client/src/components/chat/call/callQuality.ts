@@ -80,6 +80,14 @@ export interface RawStatsSample {
   qualityLimitationReason: string | null;
   /** Loss reported by the peer for our video, not loss on received media. */
   outboundFractionLost?: number | null;
+  /**
+   * Candidate types of the nominated pair. Used to detect an ICE path change
+   * (e.g. direct → TURN relay) so the RTT baseline can be relearned. A relayed
+   * path has a structurally higher floor than a direct one; grading a relayed
+   * path against a direct-path baseline pins the ladder at the bottom rung.
+   */
+  localCandidateType?: string | null;
+  remoteCandidateType?: string | null;
 }
 
 export interface QualityDecision {
@@ -138,7 +146,14 @@ export interface QualityController {
    * a desync that previously left calls stuck at the 400 kbps start cap).
    */
   setTierIndex(index: number): void;
-  /** Clear all learned state (new peer connection / ICE restart). */
+  /**
+   * Relearn the RTT baseline WITHOUT moving the ladder. Call this whenever the
+   * media path changes (ICE restart, relay-only rebuild, nominated pair swap):
+   * the new path has a different latency floor, and grading it against the old
+   * floor would ratchet the encoder to the bottom rung for the rest of the call.
+   */
+  relearnBaseline(): void;
+  /** Clear all learned state (new peer connection / call teardown). */
   reset(): void;
 }
 
@@ -165,6 +180,14 @@ export function createQualityController(
   let baselineRtt: number | null = null;
   let baselineSamples: number[] = [];
   let firstSampleAt: number | null = null;
+  /** Candidate types of the pair the current baseline was learned on. */
+  let baselinePathKey: string | null = null;
+  /**
+   * True only between a path change and the point where enough samples exist
+   * to trust the new floor. At call start this is false: the first sample
+   * seeds the baseline and grading proceeds immediately, as before.
+   */
+  let relearning = false;
 
   function reset() {
     tierIndex = RAMP_START_TIER_INDEX;
@@ -176,6 +199,27 @@ export function createQualityController(
     baselineRtt = null;
     baselineSamples = [];
     firstSampleAt = null;
+    baselinePathKey = null;
+    relearning = false;
+  }
+
+  /**
+   * Reopen the learning window. The ladder position is deliberately preserved:
+   * a path change is not evidence that the encoder is wrong, only that the
+   * latency floor we compare against is stale.
+   */
+  function relearnBaseline() {
+    baselineRtt = null;
+    baselineSamples = [];
+    firstSampleAt = null;
+    baselinePathKey = null;
+    goodStreak = 0;
+    relearning = true;
+  }
+
+  function pathKeyOf(sample: RawStatsSample): string | null {
+    if (!sample.localCandidateType && !sample.remoteCandidateType) return null;
+    return `${sample.localCandidateType ?? "?"}/${sample.remoteCandidateType ?? "?"}`;
   }
 
   function updateBaseline(rtt: number, timestampMs: number) {
@@ -195,12 +239,29 @@ export function createQualityController(
     // Window closed. Keep adapting DOWNWARD only: if the path genuinely got
     // shorter (ICE switched from relay to a direct pair) the floor follows,
     // but a congestion-induced rise must never be absorbed into "normal".
+    // A path that got LONGER is handled by relearnBaseline(), not here.
     if (baselineRtt === null || rtt < baselineRtt) baselineRtt = rtt;
   }
 
   function observe(sample: RawStatsSample): QualityDecision {
     const previous = prev;
     prev = sample;
+
+    // ── Path change: relearn the floor before grading anything ───────────
+    // An ICE restart or relay-only rebuild moves the call onto a path with a
+    // different latency floor (direct ≈ 20 ms, TURN-relayed ≈ 90 ms+). Grading
+    // the new path against the old floor reports permanent "excess RTT" and
+    // walks the ladder to the bottom rung, where it then stays for the rest of
+    // the call — the "reconnects, then quality drops" symptom.
+    const pathKey = pathKeyOf(sample);
+    if (pathKey !== null) {
+      if (baselinePathKey === null) {
+        baselinePathKey = pathKey;
+      } else if (pathKey !== baselinePathKey) {
+        relearnBaseline();
+        baselinePathKey = pathKey;
+      }
+    }
 
     // ── RTT: smooth, then learn/compare against the path baseline ────────
     if (sample.rttSeconds !== null && Number.isFinite(sample.rttSeconds)) {
@@ -267,19 +328,27 @@ export function createQualityController(
       };
     }
 
+    // After a path change there is nothing meaningful to compare RTT against
+    // until the new floor is learned, so RTT-excess grading is suspended for
+    // those few samples. Loss and CPU limitation are absolute and stay
+    // authoritative — a genuinely broken uplink must still downshift at once.
+    const learningBaseline =
+      relearning && baselineSamples.length < BASELINE_MIN_SAMPLES;
+    if (!learningBaseline) relearning = false;
+
     if (outboundLossEwma >= LOSS_BAD) {
       grade = "bad";
       reason = `uplink loss ${(outboundLossEwma * 100).toFixed(1)}%`;
-    } else if (rttExcess >= RTT_EXCESS_BAD) {
+    } else if (!learningBaseline && rttExcess >= RTT_EXCESS_BAD) {
       grade = "bad";
       reason = `rtt +${Math.round(rttExcess * 1000)}ms over baseline`;
     } else if (
       outboundLossEwma >= LOSS_WARN ||
-      rttExcess >= RTT_EXCESS_WARN ||
+      (!learningBaseline && rttExcess >= RTT_EXCESS_WARN) ||
       sample.qualityLimitationReason === "cpu"
     ) {
       grade = "warn";
-      reason = "degrading";
+      reason = learningBaseline ? "learning path baseline" : "degrading";
     }
 
     // ── Move the ladder AT MOST one rung ─────────────────────────────────
@@ -346,6 +415,7 @@ export function createQualityController(
       tierIndex = Math.min(BOTTOM_TIER_INDEX, Math.max(0, index));
       goodStreak = 0;
     },
+    relearnBaseline,
     reset,
   };
 }
@@ -462,17 +532,24 @@ export function applyAudioEncodingCap(
 export function startBitrateRampUp(
   pc: RTCPeerConnection,
   controller: QualityController,
-  options: { stepMs?: number } = {},
+  options: { stepMs?: number; preserveTier?: boolean } = {},
 ): () => void {
   const stepMs = options.stepMs ?? 700;
   const timers: ReturnType<typeof setTimeout>[] = [];
 
-  controller.setTierIndex(RAMP_START_TIER_INDEX);
+  // A reconnect (ICE restart / relay rebuild) is not a fresh call: the ladder
+  // position was earned on this same session, so throwing it away would drop
+  // the user to 300 kbps and force a slow climb back after every blip.
+  const startIndex = options.preserveTier
+    ? controller.getTierIndex()
+    : RAMP_START_TIER_INDEX;
+
+  controller.setTierIndex(startIndex);
   void applyVideoEncodingTier(pc, controller.getTier());
   void applyAudioEncodingCap(pc);
 
-  for (let step = 1; step <= RAMP_START_TIER_INDEX; step++) {
-    const target = RAMP_START_TIER_INDEX - step;
+  for (let step = 1; step <= startIndex; step++) {
+    const target = startIndex - step;
     timers.push(
       setTimeout(() => {
         // Only ever move UP from where the controller currently is. If the
@@ -540,14 +617,24 @@ export function preferOpusFec(sdp: string): string {
 }
 
 /**
+ * Playout buffer bounds, in seconds. Chrome honours `playoutDelayHint`;
+ * other browsers ignore the property.
+ *
+ * A large default buffer is what makes a call feel laggy even when the network
+ * is fine — but a buffer pinned at the minimum is a freeze generator on a
+ * relayed or mobile path, where jitter routinely exceeds 50 ms. Start low and
+ * let the quality loop raise it when it sees underruns.
+ */
+export const PLAYOUT_MIN_SECONDS = 0.05;
+export const PLAYOUT_MAX_SECONDS = 0.2;
+
+/**
  * Ask the receiver for the smallest playout buffer it can manage. Chrome
  * honours `playoutDelayHint` (seconds); other browsers ignore the property.
- * A large default buffer is what makes a call feel laggy even when the
- * network is fine.
  */
 export function applyLowLatencyPlayout(
   pc: RTCPeerConnection,
-  seconds = 0.05,
+  seconds = PLAYOUT_MIN_SECONDS,
 ): void {
   for (const receiver of pc.getReceivers()) {
     try {
@@ -556,4 +643,31 @@ export function applyLowLatencyPlayout(
       /* not supported — ignore */
     }
   }
+}
+
+/**
+ * Adaptive playout: raise the buffer when the path is actually jittery, and
+ * bring it back down once it is clean again. Returns the value applied.
+ *
+ * `jitterBufferSeconds` is the measured mean jitter-buffer delay for the last
+ * interval; `freezeDelta` is the number of new inbound freezes. Either one
+ * above its threshold means the current buffer is too small for this path.
+ */
+export function adaptPlayoutBuffer(
+  pc: RTCPeerConnection,
+  current: number,
+  sample: { jitterBufferSeconds: number; freezeDelta: number },
+): number {
+  const underrunning =
+    sample.freezeDelta > 0 || sample.jitterBufferSeconds >= JITTER_BUFFER_WARN;
+
+  let next = current;
+  if (underrunning) {
+    next = Math.min(PLAYOUT_MAX_SECONDS, current + 0.05);
+  } else if (sample.jitterBufferSeconds < JITTER_BUFFER_WARN / 2) {
+    next = Math.max(PLAYOUT_MIN_SECONDS, current - 0.025);
+  }
+
+  if (next !== current) applyLowLatencyPlayout(pc, next);
+  return next;
 }

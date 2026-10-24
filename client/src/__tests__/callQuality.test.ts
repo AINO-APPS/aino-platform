@@ -326,6 +326,76 @@ describe("quality controller", () => {
     }
   });
 
+  it("relearns the RTT floor when the media path changes, instead of pinning the ladder", () => {
+    // Regression: a call that connects on a direct path (≈20 ms) and then
+    // recovers from an ICE failure onto a TURN relay (≈120 ms) used to grade
+    // the relayed path against the direct-path floor forever. Excess RTT was
+    // permanently "bad", so the ladder walked to the bottom rung and stayed
+    // there — the "reconnects, then quality drops" symptom.
+    const controller = createQualityController();
+    const direct = { localCandidateType: "srflx", remoteCandidateType: "srflx" };
+    const relayed = { localCandidateType: "relay", remoteCandidateType: "srflx" };
+
+    let decision = controller.observe(
+      makeSample({ timestampMs: 0, rttSeconds: 0.02, ...direct }),
+    );
+    for (let i = 1; i < 6; i++) {
+      decision = controller.observe(
+        makeSample({ timestampMs: i * 2000, rttSeconds: 0.02, ...direct }),
+      );
+    }
+    expect(decision.baselineRttSeconds).toBeCloseTo(0.02, 3);
+    const tierBeforePathChange = decision.tierIndex;
+
+    // ICE restart: the nominated pair becomes relayed and RTT jumps to 120 ms.
+    for (let i = 0; i < 8; i++) {
+      decision = controller.observe(
+        makeSample({
+          timestampMs: 20_000 + i * 2000,
+          rttSeconds: 0.12,
+          ...relayed,
+        }),
+      );
+    }
+
+    // The new floor is learned (well above the old 20 ms direct-path floor),
+    // so a steady relayed path grades healthy and the ladder is NOT dragged
+    // toward the bottom rung.
+    expect(decision.baselineRttSeconds).toBeGreaterThan(0.06);
+    expect(decision.quality).toBe("good");
+    expect(decision.tierIndex).toBeLessThanOrEqual(tierBeforePathChange);
+  });
+
+  it("still downshifts on a relayed path that is genuinely congested", () => {
+    // Relearning must not make the controller blind: a relayed path whose RTT
+    // climbs well above its OWN floor still degrades.
+    const controller = createQualityController();
+    const relayed = { localCandidateType: "relay", remoteCandidateType: "srflx" };
+    let decision = controller.observe(
+      makeSample({ timestampMs: 0, rttSeconds: 0.12, ...relayed }),
+    );
+    for (let i = 1; i < 6; i++) {
+      decision = controller.observe(
+        makeSample({ timestampMs: i * 2000, rttSeconds: 0.12, ...relayed }),
+      );
+    }
+    const healthyTier = decision.tierIndex;
+
+    let downshifted = false;
+    for (let i = 0; i < 8 && !downshifted; i++) {
+      decision = controller.observe(
+        makeSample({
+          timestampMs: 20_000 + i * 2000,
+          rttSeconds: 0.6,
+          ...relayed,
+        }),
+      );
+      downshifted = decision.changed;
+    }
+    expect(downshifted).toBe(true);
+    expect(decision.tierIndex).toBe(healthyTier + 1);
+  });
+
   it("clears learned state on reset", () => {
     const controller = createQualityController();
     controller.observe(makeSample({ timestampMs: 0 }));

@@ -131,3 +131,36 @@ These are all **Small/Medium, low-risk** and eliminate the visible, ticket-gener
 4. **P1.3** CallKeep listener teardown
 5. **P1.5** gate group calls
 6. *(if time)* **P1.4** ICE buffering across rebuild — with forced-relay test
+
+---
+
+## Status correction (2026-10)
+
+Several items above are now **stale** — they describe code that has since changed. Read this section before acting on any P0/P1 item.
+
+### Already fixed in code (do not re-implement)
+
+| Item | Reality now |
+| ---- | ----------- |
+| **P0.2** `quality-state` dropped | Fixed. `quality-state` is whitelisted in `server/utils/wsHandlers/callSignaling.ts` and handled on web in `useWebRTC.ts`. |
+| **P1.2** no web connect timeout | Fixed. The meeting path has a 30 s per-peer connect timeout with manual retry (`useMeetingState.ts`). |
+| **P1.4** ICE candidates lost across rebuild | Fixed. The chat path explicitly preserves pending ICE during a relay rebuild (`useWebRTC.ts`). |
+| **P3.2** group calling | Implemented as a full mesh (web + Android), capped at 8 participants. |
+
+### Open gaps this audit did not list
+
+These are the defects that actually produce "quality drops after a reconnect" and "video freezes":
+
+1. **Stale RTT baseline after a path change** — *fixed in this change.* The quality controller learned its RTT floor only in the first 10 s of a call and could then only move it **down**. After an ICE restart onto a TURN relay (≈90–150 ms vs ≈20 ms direct) every sample graded as "excess RTT", so the ladder walked to the bottom rung and stayed there for the rest of the call. The controller now relearns the floor whenever the nominated candidate-pair type changes or the peer reconnects, and holds the ladder while the new floor is being learned.
+2. **Reconnect threw away the ladder position** — *fixed.* The connect-time ramp restarted at tier 3 on every `connected` transition. It now preserves the current tier on a reconnect and only ramps from the conservative start on a fresh call.
+3. **Fixed 50 ms playout buffer** — *fixed.* `playoutDelayHint` was pinned at 50 ms, which underruns on a relayed or mobile path. It now adapts between 50 ms and 200 ms based on measured jitter-buffer delay and inbound freezes.
+4. **Group calls had no adaptive ladder** — *fixed.* Android `MeetingSession` never called `startQualityAdaptation`; web meetings used only a static peer-count cap. Both now run the same controller per peer, with the peer-count cap as the ceiling.
+5. **Android meeting ICE recovery ignored the shared policy** — *fixed.* `IceRecoveryPolicy` declared a relay-only rebuild after two failures, but `MeetingSession` did three restarts and then marked the peer failed. It now follows the policy, including the relay-only rebuild.
+6. **No WebRTC telemetry** — *fixed.* Clients report an aggregated sample to `POST /api/chat/calls/quality`; the server exposes `aino_call_*` Prometheus series and three alerts (`AinoCallFreezeRateHigh`, `AinoCallIceRestartRateHigh`, `AinoCallQualityDegraded`).
+
+### Still open (deliberately deferred)
+
+- **Mesh topology.** Group calls remain a full mesh (O(N²) connections, O(N) uplinks per device) capped at 8. This is a real quality ceiling, but it is not the cause of the reconnect-degradation bug and an SFU would not have fixed that. Revisit as a separate initiative.
+- **No inbound-frame watchdog on the meeting path.** The chat path asks the peer to re-announce `video-state` when no remote video arrives; meetings have no equivalent, so a live connection that stops producing frames can still leave a stale tile.
+- **Android process death ends the call.** `ActiveCallService` deliberately does not restart after an OS kill.
+- **Third-party WebRTC artifact.** Android uses `io.github.webrtc-sdk:android:150.7871.01`, not upstream `org.webrtc`. Provenance is undocumented; see `aino-android/docs/SOURCE_PROVENANCE.md`.

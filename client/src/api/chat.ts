@@ -172,3 +172,18 @@ export const deleteCalls = (selection: number[] | { all: true }) =>
     API.post("/chat/calls/delete", Array.isArray(selection) ? { ids: selection } : selection);
 export const getActiveCall = () => API.get("/chat/calls/active");
 export const getIceConfig = () => API.get("/chat/ice-config");
+
+/**
+ * Fire-and-forget call-quality sample. Never awaited by call code: telemetry
+ * must not delay or break a call.
+ */
+export const reportCallQuality = (sample: {
+    path?: string | null;
+    platform?: string;
+    rttSeconds?: number | null;
+    packetLoss?: number | null;
+    freezeCount?: number | null;
+    durationSeconds?: number | null;
+    encoderTier?: number | null;
+    iceRestarts?: number | null;
+}) => API.post("/chat/calls/quality", sample).catch(() => undefined);
