@@ -5,9 +5,9 @@ import {
   applyLowLatencyPlayout,
   createQualityController,
   preferOpusFec,
-  startBitrateRampUp,
   type QualityController,
 } from "./callQuality";
+import { startBitrateRampUp } from "./encodeLadder";
 import {
   forgetInboundSignal,
   rememberInboundSignal,

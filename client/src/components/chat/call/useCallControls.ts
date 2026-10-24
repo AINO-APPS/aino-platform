@@ -1,17 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { findVideoSender } from "./videoSender";
-import { reportCallQuality } from "../../../api/chat";
+import { createQualityReporter } from "./qualityReporter";
 import useCallMediaState from "./useCallMediaState";
 import {
   adaptPlayoutBuffer,
-  applyVideoEncodingTier,
   createQualityController,
   PLAYOUT_MIN_SECONDS,
   type ConnectionQuality,
   type QualityController,
   type RawStatsSample,
 } from "./callQuality";
+import { applyVideoEncodingTier } from "./encodeLadder";
 
 interface DetailedStats {
   rtt: number | null;
@@ -117,16 +117,9 @@ export default function useCallControls({
       let lastQuality: ConnectionQuality | null = null;
       let retryVideoTier = false;
       let playoutSeconds = PLAYOUT_MIN_SECONDS;
-      // Telemetry: one aggregated sample every 30 s. Without this a "video
-      // froze and never recovered" report cannot be checked against the media
-      // path, the RTT floor or the encoder tier — there was no record at all.
-      const callStartedAt = Date.now();
-      let lastReportAt = 0;
-      let lastFreezeCount = 0;
-      let lastPath: string | null = null;
-      let lastTier = 0;
-      let lastRtt: number | null = null;
-      let lastLoss = 0;
+      const qualityReporter = createQualityReporter(
+        isMobileUa ? "web-mobile" : "web",
+      );
 
       const interval = setInterval(async () => {
         try {
@@ -262,25 +255,13 @@ export default function useCallControls({
             setConnectionQuality(decision.quality);
           }
 
-          lastPath = localCandidateType;
-          lastTier = decision.tierIndex;
-          lastRtt = decision.smoothedRttSeconds;
-          lastLoss = decision.smoothedLossRate;
-          lastFreezeCount = freezeCount;
-
-          const nowMs = Date.now();
-          if (nowMs - lastReportAt >= 30_000) {
-            lastReportAt = nowMs;
-            void reportCallQuality({
-              path: lastPath,
-              platform: isMobileUa ? "web-mobile" : "web",
-              rttSeconds: lastRtt,
-              packetLoss: lastLoss,
-              freezeCount: lastFreezeCount,
-              durationSeconds: (nowMs - callStartedAt) / 1000,
-              encoderTier: lastTier,
-            });
-          }
+          qualityReporter.record({
+            path: localCandidateType,
+            rttSeconds: decision.smoothedRttSeconds,
+            packetLoss: decision.smoothedLossRate,
+            freezeCount,
+            encoderTier: decision.tierIndex,
+          });
 
           if (!wantDetailed) return;
 

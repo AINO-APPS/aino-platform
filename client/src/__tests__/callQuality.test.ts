@@ -1,18 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  applyAudioEncodingCap,
   applyLowLatencyPlayout,
-  applyVideoEncodingTier,
   BOTTOM_TIER_INDEX,
   buildTiers,
   createQualityController,
   MOBILE_TOP_TIER_BITRATE,
   preferOpusFec,
   RAMP_START_TIER_INDEX,
-  startBitrateRampUp,
   VIDEO_TIERS,
   type RawStatsSample,
 } from "../components/chat/call/callQuality";
+import {
+  applyAudioEncodingCap,
+  applyVideoEncodingTier,
+  startBitrateRampUp,
+} from "../components/chat/call/encodeLadder";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
