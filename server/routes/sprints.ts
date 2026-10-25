@@ -7,47 +7,11 @@ const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
+const { notifySprintStarted, notifySprintCompleted } = require("./_helpers/sprintNotifications");
+const { snapshotBurndown } = require("./_helpers/sprintBurndown");
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
-
-// ─── Helper: take a daily burndown snapshot for a sprint ────────────────────
-//
-// Snapshots are stored in `sprint_burndown_snapshots` (one row per
-// sprint × day). Idempotent for the same date — we UPSERT on conflict.
-// Used by the sprint complete flow and by the daily background job.
-async function snapshotBurndown(db: any, sprintId: number) {
-    const tasks = (await db.query(
-        `SELECT t.story_points, ws.is_terminal, t.is_blocked
-           FROM tasks t
-           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1`,
-        [sprintId]
-    )).rows;
-
-    const num = (v: any) => (v == null ? 0 : Number(v));
-    let total = 0, done = 0, blocked = 0, openCount = 0;
-    for (const t of tasks) {
-        const sp = num(t.story_points);
-        total += sp;
-        if (t.is_terminal) done += sp;
-        else openCount += 1;
-        if (t.is_blocked) blocked += sp;
-    }
-    const remaining = total - done;
-
-    await db.query(
-        `INSERT INTO sprint_burndown_snapshots (sprint_id, snapshot_date, total_points, done_points, remaining_points, blocked_points, open_tasks)
-         VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)
-         ON CONFLICT (sprint_id, snapshot_date)
-         DO UPDATE SET total_points = EXCLUDED.total_points,
-                       done_points = EXCLUDED.done_points,
-                       remaining_points = EXCLUDED.remaining_points,
-                       blocked_points = EXCLUDED.blocked_points,
-                       open_tasks = EXCLUDED.open_tasks`,
-        [sprintId, total, done, remaining, blocked, openCount]
-    );
-}
 
 router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
@@ -388,6 +352,9 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
         );
         await snapshotBurndown(req.db, parseInt(String(id), 10));
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
+        // Everyone on the team hears that the sprint started, except the person
+        // who started it.
+        await notifySprintStarted(req, sprint);
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
         return res.json({ sprint: updated });
     } catch (err) {
@@ -473,6 +440,18 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
         );
 
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
+
+        // Tell the team what actually moved, not just that the sprint closed.
+        await notifySprintCompleted(req, sprint, {
+            sprintName: sprint.name,
+            doneTasks: Number(velocityRow.done_tasks),
+            totalTasks: Number(velocityRow.total_tasks),
+            velocity: Number(velocityRow.velocity),
+            rolledOver,
+            rolloverTarget: rolloverTo && rolloverTo !== "backlog"
+                ? (await req.db!.query("SELECT name FROM sprints WHERE id = $1", [rolloverTo])).rows[0]?.name || "the next sprint"
+                : "the backlog",
+        });
 
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
         res.json({

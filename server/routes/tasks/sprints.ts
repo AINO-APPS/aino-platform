@@ -13,8 +13,31 @@ const { canAccessTask } = require('./_helpers/access');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
+const { taskAudience, taskNotificationLink } = require('../../modules/tasks/tasks.notifications');
+const { notifyUser } = require('../../realtime/fanout');
 
 const router = express.Router();
+
+/**
+ * Tell the assignee they were added to a sprint.
+ *
+ * Only the assignee — the rest of the team already sees the sprint on their
+ * board, and a notification per ticket would be noise.
+ */
+async function notifySprintTaskAdded(req: Request, task: any, sprint: any): Promise<void> {
+    const audience = taskAudience(task, req.userId);
+    for (const userId of audience) {
+        await notifyUser(
+            req.db,
+            req.tenantId,
+            userId,
+            "sprint",
+            `Added to ${sprint.name}`,
+            `${task.title} was added to ${sprint.name}.`,
+            { link: taskNotificationLink(task.id), linkTaskId: task.id, actorId: req.userId },
+        ).catch(() => undefined);
+    }
+}
 
 // Both routes below are part of the Agile feature bundle — same gate as
 // /api/sprints and /api/agile. Applied per-route (NOT router.use) because
@@ -118,6 +141,10 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
             }
             await req.db!.query('UPDATE tasks SET sprint_id = $1, due_date = $2 WHERE id = $3', [sprint.id, sprint.end_date, id]);
             await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', sprint.name, null, req.db);
+            // Being added to a sprint is one of the five events worth telling
+            // people about; the assignee hears it unless they did it themselves.
+            const assigned = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
+            await notifySprintTaskAdded(req, assigned, sprint);
         }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];

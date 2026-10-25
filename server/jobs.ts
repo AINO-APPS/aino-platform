@@ -33,6 +33,7 @@ let inspectorPruneQueue: any = null;
 let retentionCleanupQueue: any = null;
 let staleCallQueue: any = null;
 let sprintLifecycleQueue: any = null;
+let dueDateQueue: any = null;
 let chatMediaQueue: any = null;
 let workers: any[] = [];
 let fallbackIntervals: NodeJS.Timeout[] = [];
@@ -488,6 +489,58 @@ async function runSprintLifecycleSweep(): Promise<number> {
 }
 
 /**
+ * Due-date reminder sweep.
+ *
+ * Notifies the assignee of every open task whose due date is today or
+ * tomorrow, once per task per day. This is one of the five task events worth a
+ * notification; status changes and reordering deliberately emit nothing.
+ */
+async function runDueDateReminderSweep(): Promise<number> {
+  const { notifyUser } = require("./realtime/fanout");
+  const { isDueDateApproaching, taskNotificationLink } = require("./modules/tasks/tasks.notifications");
+  let sent = 0;
+  await forEachTenant(
+    async (db: TenantDb, tenant) => {
+      const rows = (await db.query(
+        `SELECT t.id, t.title, t.due_date, t.assigned_to
+           FROM tasks t
+           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+          WHERE t.assigned_to IS NOT NULL
+            AND t.due_date IS NOT NULL
+            AND COALESCE(ws.is_terminal, FALSE) = FALSE
+            AND t.due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 1
+            AND NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                   WHERE n.user_id = t.assigned_to
+                     AND n.link_task_id = t.id
+                     AND n.type = 'task_due'
+                     AND n.created_at::date = CURRENT_DATE
+                )`,
+      )).rows;
+      for (const task of rows) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (!isDueDateApproaching(task.due_date, today)) continue;
+        const due = String(task.due_date).slice(0, 10);
+        const when = due === today ? "today" : "tomorrow";
+        await notifyUser(
+          db,
+          tenant.id,
+          task.assigned_to,
+          "task_due",
+          `Due ${when}: ${task.title}`,
+          `${task.title} is due ${when}.`,
+          { link: taskNotificationLink(task.id), linkTaskId: task.id },
+        ).catch(() => undefined);
+        sent += 1;
+      }
+    },
+    { label: "dueDateReminders" },
+  );
+  if (sent > 0) logger.info({ sent }, "Due-date reminders sent");
+  return sent;
+}
+
+/**
  * Initialize job queues. Must be called after Redis is connected.
  */
 async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<void> {
@@ -615,6 +668,8 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   staleCallQueue = schedule("stale-call-sweep", STALE_CALL_SWEEP_MS, expireStaleRingingCalls, "Stale-call sweep");
   // Hourly sprint auto-create / start / complete + rollover (services/sprintScheduler).
   sprintLifecycleQueue = schedule("sprint-lifecycle", SPRINT_LIFECYCLE_SWEEP_MS, runSprintLifecycleSweep, "Sprint lifecycle");
+  // Daily due-date reminders for open tasks due today or tomorrow.
+  dueDateQueue = schedule("due-date-reminders", 24 * 60 * 60 * 1000, runDueDateReminderSweep, "Due-date reminders");
 
   // Chat media pipeline: staged media processing (prepare/transform/upload/finalize)
   // so long-running work is durable + retryable outside request handlers.
@@ -696,6 +751,13 @@ async function shutdownJobs(): Promise<void> {
   if (sprintLifecycleQueue) {
     try {
       await sprintLifecycleQueue.close();
+    } catch {
+      /* ignore */
+    }
+  }
+  if (dueDateQueue) {
+    try {
+      await dueDateQueue.close();
     } catch {
       /* ignore */
     }

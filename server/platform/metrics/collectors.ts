@@ -23,6 +23,7 @@ const QUEUE_NAMES = [
     "retention-cleanup",
     "stale-call-sweep",
     "sprint-lifecycle",
+    "due-date-reminders",
     "chat-media-pipeline",
 ] as const;
 
