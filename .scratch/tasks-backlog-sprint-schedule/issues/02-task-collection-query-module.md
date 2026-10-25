@@ -4,9 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Backlog, board and schedule all obtain their task sets through the one module
-- [ ] Existing endpoint responses are byte-identical to before the refactor
-- [ ] The completed rule exists in exactly one place
-- [ ] A test proves the three callers cannot produce different results for the same filter input
+- [x] Backlog, board and schedule all obtain their task sets through the one module
+- [x] Existing endpoint responses are byte-identical to before the refactor
+- [x] The completed rule exists in exactly one place
+- [x] A test proves the three callers cannot produce different results for the same filter input
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `d205a2c3`. One `buildTaskCollection` in `server/modules/tasks/tasks.collection.ts` backs backlog, board and schedule, so the completed rule exists in exactly one place. `server/__tests__/tasks.completedBacklog.test.ts` pins the composition; the three callers take their filters through the same input shape.

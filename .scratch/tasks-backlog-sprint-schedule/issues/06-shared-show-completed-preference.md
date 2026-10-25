@@ -4,10 +4,16 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The preference persists server-side per user per organisation, not in local storage
-- [ ] Default is hidden and the Completed count is still visible when hidden
-- [ ] Toggling affects backlog, schedule and search consistently
-- [ ] A URL parameter overrides the stored preference for that view only and does not persist
-- [ ] The preference round-trips unchanged through the generated client models
+- [x] The preference persists server-side per user per organisation, not in local storage
+- [x] Default is hidden and the Completed count is still visible when hidden
+- [x] Toggling affects backlog, schedule and search consistently
+- [x] A URL parameter overrides the stored preference for that view only and does not persist
+- [x] The preference round-trips unchanged through the generated client models
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `841f2623`. `users.task_prefs` stores `show_completed` server-side per user per org; the default is hidden with the count still visible. A `completed=` URL parameter overrides the stored choice for that view without persisting it. The value round-trips through the generated client models.

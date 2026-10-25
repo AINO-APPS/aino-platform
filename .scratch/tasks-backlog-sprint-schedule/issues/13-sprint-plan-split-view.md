@@ -4,12 +4,18 @@
 
 **Blocked by:** 12
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Backlog and sprint are visible simultaneously
-- [ ] Dragging in either direction moves the task and updates both lists
-- [ ] The goal is visible and editable inline
-- [ ] Committed points and the sprint's size are shown together
-- [ ] Recent velocity is shown while planning
-- [ ] A mini burndown renders from existing snapshot data
-- [ ] Moving a task into the sprint removes it from the backlog immediately and survives reload
+- [x] Backlog and sprint are visible simultaneously
+- [x] Dragging in either direction moves the task and updates both lists
+- [x] The goal is visible and editable inline
+- [x] Committed points and the sprint's size are shown together
+- [x] Recent velocity is shown while planning
+- [x] A mini burndown renders from existing snapshot data
+- [x] Moving a task into the sprint removes it from the backlog immediately and survives reload
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `aacf756a`. `SprintPlan` shows the ranked backlog and one sprint side by side with two-way drag that updates both lists immediately. The goal edits inline, committed points sit against the sprint size, recent velocity is shown while planning, and a mini-burndown renders from the existing snapshot data.

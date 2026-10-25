@@ -11,3 +11,9 @@
 - [x] CI fails when a generated file is edited by hand or falls out of date
 - [x] Existing web values are preserved as the seed; visual regression on the current Tasks screens is unchanged
 - [x] Density metrics for comfortable and compact are expressible as tokens
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `6ee374fd`. `contracts/design/tokens.json` seeds from the existing `client/src/global.css` values and drives all three platform outputs. `npm run tokens:validate` fails on a hand-edited generated file or a value that drifts from the stylesheet, and the drift check runs inside `contracts:validate`. Density metrics for comfortable and compact are token groups.

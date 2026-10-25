@@ -4,10 +4,16 @@
 
 **Blocked by:** 12
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Cards in an epic show the epic indicator
-- [ ] Filtering by epic works in backlog, board and plan
-- [ ] Each epic reports completed versus total, in count and in points
-- [ ] The epics panel lists epics with their rollups while planning
-- [ ] An epic with no children renders sensibly rather than as an error
+- [x] Cards in an epic show the epic indicator
+- [x] Filtering by epic works in backlog, board and plan
+- [x] Each epic reports completed versus total, in count and in points
+- [x] The epics panel lists epics with their rollups while planning
+- [x] An epic with no children renders sensibly rather than as an error
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `e50e4b07`. `EpicPanel` lists epics with completed-versus-total in both count and points. Cards carry an epic indicator, and the epic filter works in backlog, board and plan. An epic with no children renders an empty rollup rather than an error.

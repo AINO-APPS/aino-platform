@@ -4,10 +4,16 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Quick-add creates a task and retains focus for consecutive entry
-- [ ] Title, points, assignee and sprint are editable inline without opening the detail view
-- [ ] Every destructive or moving action produces an undo affordance
-- [ ] Undo restores the exact prior state, including position
-- [ ] The undo affordance is reachable and operable by keyboard
+- [x] Quick-add creates a task and retains focus for consecutive entry
+- [x] Title, points, assignee and sprint are editable inline without opening the detail view
+- [x] Every destructive or moving action produces an undo affordance
+- [x] Undo restores the exact prior state, including position
+- [x] The undo affordance is reachable and operable by keyboard
+
+## Comments
+
+**2026-10-25 — implemented**
+
+- Commit `2da0f153`. `QuickAdd` creates on Enter and keeps focus for the next item; title, points, assignee and sprint edit inline without the modal. `useUndo` gives every destructive or moving action a 10-second undo that restores the exact prior state including position, and is operable by keyboard.
