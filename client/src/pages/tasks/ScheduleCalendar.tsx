@@ -15,6 +15,15 @@ import {
     type CalendarMode,
     type ScheduledTask,
 } from "./calendar";
+import {
+    DEFAULT_OVERLAYS,
+    overlayItems,
+    overlaysForDay,
+    toggleOverlay,
+    type OverlayItem,
+    type OverlayType,
+    type OverlayVisibility,
+} from "./overlays";
 import s from "./ScheduleCalendar.module.css";
 
 interface ScheduleCalendarProps {
@@ -26,6 +35,8 @@ interface ScheduleCalendarProps {
     onUnschedule: (taskId: number | string) => void;
     onOpenDetail: (task: any) => void;
     today?: string;
+    /** Read-only background context: leave, holidays and meetings. */
+    overlays?: any;
 }
 
 /**
@@ -44,9 +55,13 @@ export default function ScheduleCalendar({
     onUnschedule,
     onOpenDetail,
     today = toDateString(new Date()),
+    overlays,
 }: ScheduleCalendarProps) {
     const [anchor, setAnchor] = useState(today);
     const [draggingId, setDraggingId] = useState<number | string | null>(null);
+    const [overlayVisibility, setOverlayVisibility] = useState<OverlayVisibility>(DEFAULT_OVERLAYS);
+
+    const overlayList = useMemo<OverlayItem[]>(() => overlayItems(overlays), [overlays]);
 
     const days = useMemo(
         () => (mode === "week" ? weekDays(anchor, today) : monthGrid(anchor, today)),
@@ -98,6 +113,19 @@ export default function ScheduleCalendar({
                         </button>
                     ))}
                 </div>
+                <div className={s["schedule-modes"]} role="group" aria-label="Overlays">
+                    {(["leave", "holidays", "meetings"] as OverlayType[]).map((type) => (
+                        <button
+                            key={type}
+                            type="button"
+                            aria-pressed={overlayVisibility[type]}
+                            className={overlayVisibility[type] ? s["mode-active"] : ""}
+                            onClick={() => setOverlayVisibility((current) => toggleOverlay(current, type))}
+                        >
+                            {type === "leave" ? "Leave" : type === "holidays" ? "Holidays" : "Meetings"}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {overdue.length > 0 && (
@@ -125,6 +153,7 @@ export default function ScheduleCalendar({
                     {days.map((day) => {
                         const dayTasks = byDay.get(day.date) ?? [];
                         const totals = dayTotals(dayTasks);
+                        const dayOverlays = overlaysForDay(overlayList, day.date, overlayVisibility);
                         return (
                             <div
                                 key={day.date}
@@ -134,6 +163,17 @@ export default function ScheduleCalendar({
                                 onDragOver={(event) => event.preventDefault()}
                                 onDrop={() => dropOnDay(day.date)}
                             >
+                                {dayOverlays.length > 0 && (
+                                    <div className={s["day-overlays"]} aria-hidden="true">
+                                        {dayOverlays.map((overlay) => (
+                                            <span
+                                                key={overlay.id}
+                                                className={`${s["overlay-band"]} ${s[`overlay-${overlay.type}`]}`}
+                                                title={overlay.label}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
                                 <div className={s["day-header"]}>
                                     <span className={s["day-number"]}>
                                         {Number(day.date.slice(8, 10))}

@@ -7,7 +7,6 @@ const { logAction } = require("../utils/audit");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
-
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireTenant);

@@ -96,6 +96,34 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    position: relative;
+}
+
+.day-overlays {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.overlay-band {
+    flex: 1;
+    opacity: 0.18;
+}
+
+.overlay-leave {
+    background: var(--warning, #f59e0b);
+}
+
+.overlay-holidays {
+    background: var(--danger, #ef4444);
+}
+
+.overlay-meetings {
+    background: var(--primary);
 }
 
 .day-outside {

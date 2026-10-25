@@ -10,7 +10,7 @@ import { groupScheduled, nextDays, scheduledWindow, SCHEDULED_AHEAD_DAYS, SCHEDU
 import { useVisiblePoll } from "./hooks/useVisiblePoll";
 import ScheduleCalendar from "./ScheduleCalendar";
 import type { CalendarMode } from "./calendar";
-import { getBacklog } from "../../api/tasks";
+import { getBacklog, getScheduleOverlays } from "../../api/tasks";
 import s from "./ScheduledTab.module.css";
 
 interface ScheduledTabProps {
@@ -42,6 +42,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const [rescheduleDate, setRescheduleDate] = useState(today);
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("month");
   const [backlogTasks, setBacklogTasks] = useState<any[]>([]);
+  const [overlays, setOverlays] = useState<any>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const load = useCallback(async () => {
@@ -71,6 +72,14 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
     }
   }, []);
   useEffect(() => { void loadBacklog(); }, [loadBacklog, version]);
+
+  // Read-only context behind the calendar: leave, holidays and meetings.
+  useEffect(() => {
+    const [start, end] = scheduledWindow(getLocalToday());
+    getScheduleOverlays(start, end)
+      .then((res) => setOverlays(res.data))
+      .catch(() => setOverlays(null));
+  }, [version]);
 
   const groups = useMemo(() => groupScheduled(tasks, today), [tasks, today]);
   const overdueCount = groups.find((g) => g.date === null)?.tasks.length ?? 0;
@@ -150,6 +159,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         }}
         onOpenDetail={onOpenDetail}
         today={today}
+        overlays={overlays}
       />
       {calendarMode === "list" && (
       <>

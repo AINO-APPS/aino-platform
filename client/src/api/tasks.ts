@@ -118,6 +118,8 @@ export const getEpics = () => API.get("/tasks/epics");
 export const getSprintCompletionPreview = (id: number | string) =>
     API.get(`/sprints/${id}/completion-preview`);
 export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
+export const getScheduleOverlays = (from: string, to: string) =>
+    API.get("/tasks/schedule-overlays", { params: { from, to } });
 
 // Sprints
 export const getSprints = () => API.get("/sprints");
