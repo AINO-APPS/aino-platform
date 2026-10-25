@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { readUrlFilters, writeUrlFilters } from "./useTasksRoute";
 
 interface TaskFilters {
     assignee?: string;
@@ -9,12 +11,31 @@ interface TaskFilters {
 }
 
 export function useFilters({ activeTab }: { activeTab: string }) {
-    const [filterAssignee, setFilterAssignee] = useState("");
-    const [filterLabel, setFilterLabel] = useState("");
-    const [filterPriority, setFilterPriority] = useState("");
-    const [filterStatus, setFilterStatus] = useState("");
-    const [filterSearch, setFilterSearch] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const urlFilters = useMemo(() => readUrlFilters(searchParams), [searchParams]);
+    const [filterAssignee, setFilterAssignee] = useState(urlFilters.assignee);
+    const [filterLabel, setFilterLabel] = useState(urlFilters.label);
+    const [filterPriority, setFilterPriority] = useState(urlFilters.priority);
+    const [filterStatus, setFilterStatus] = useState(urlFilters.status);
+    const [filterSearch, setFilterSearch] = useState(urlFilters.search);
     const [filtersOpen, setFiltersOpen] = useState(false);
+
+    // Filters live in the query string so a view can be bookmarked and shared.
+    // Writing on change keeps the URL and the controls in step; the replace
+    // avoids filling history with every keystroke.
+    useEffect(() => {
+        setSearchParams(
+            writeUrlFilters(searchParams, {
+                assignee: filterAssignee,
+                label: filterLabel,
+                priority: filterPriority,
+                status: filterStatus,
+                search: filterSearch.trim(),
+            }),
+            { replace: true },
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filterAssignee, filterLabel, filterPriority, filterStatus, filterSearch]);
 
     const plannerFilters = useMemo<TaskFilters | undefined>(() => {
         const f: TaskFilters = {};

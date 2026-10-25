@@ -111,6 +111,10 @@ export default function KeepAlive() {
     // Normalize path
     const current = pathname === "/" ? "/" : pathname.replace(/\/$/, "");
 
+    // Tasks tabs are real routes (/tasks/backlog, /tasks/sprint/:id, …). They
+    // all render the Tasks page, which reads the view from the URL.
+    const keepAlivePath = current.startsWith("/tasks/") ? "/tasks" : current;
+
     // Force password change
     if (user?.must_change_password) return <Navigate to="/change-password" />;
 
@@ -128,7 +132,7 @@ export default function KeepAlive() {
     if (consoleRedirect) return <Navigate to={consoleRedirect} replace />;
 
     // Role check for current path
-    const minRole = ROLE_REQUIREMENTS[current];
+    const minRole = ROLE_REQUIREMENTS[keepAlivePath];
     if (minRole) {
         const userLevel = (ROLE_LEVEL as any)[user?.role] || 1;
         const reqLevel = (ROLE_LEVEL as any)[minRole] || 1;
@@ -138,15 +142,15 @@ export default function KeepAlive() {
     }
 
     // Track visited keep-alive paths
-    if (lazyPages[current]) {
-        visited.current.add(current);
+    if (lazyPages[keepAlivePath]) {
+        visited.current.add(keepAlivePath);
     }
 
     return (
         <>
             {[...visited.current].map((path) => {
                 const Page = lazyPages[path];
-                const isActive = path === current;
+                const isActive = path === keepAlivePath;
                 return (
                     <div key={path} style={{ display: isActive ? "contents" : "none" }}>
                         <Suspense fallback={<PageSkeleton />}>

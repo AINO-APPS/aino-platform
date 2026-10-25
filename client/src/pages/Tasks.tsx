@@ -1,7 +1,7 @@
 import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as GlyphBan, ArrowDownCircle, ClipboardList } from "../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects } from "../api/tasks";
 import { getLocalToday } from "../api/client";
 import { getTeamSprintConfig } from "../api/organization";
@@ -32,6 +32,7 @@ import { useComments } from "./tasks/hooks/useComments";
 import { useBacklog } from "./tasks/hooks/useBacklog";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
+import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 
 import s from "./Tasks.module.css";
 
@@ -42,6 +43,7 @@ export default function Tasks() {
   const { hasFeature } = useFeatures();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({
     total: 0,
@@ -56,6 +58,8 @@ export default function Tasks() {
   const [carriedCount, setCarriedCount] = useState(0);
   const [activeTab, setActiveTab] = useState("backlog");
   const [selectedSprintId, setSelectedSprintId] = useState<any>(null);
+  // Tabs are real routes: the URL is the source of truth for the view.
+  const tasksRoute = useTasksRoute();
   const [sprintImportOpen, setSprintImportOpen] = useState(false);
   const [scheduledFocus, setScheduledFocus] = useState<string | null>(null);
   const toast = useToast() as any;
@@ -113,6 +117,15 @@ export default function Tasks() {
     useConfirmDialog() as any;
   const filters = useFilters({ activeTab }) as any;
   const globalSearch = useGlobalSearch() as any;
+
+  // Tab changes are navigations, so every view has a revisitable URL.
+  const changeTab = useCallback(
+    (tab: string) => {
+      setActiveTab(tab);
+      tasksRoute.goToView(tab as any, tab === "sprint" ? selectedSprintId : null);
+    },
+    [tasksRoute, selectedSprintId],
+  );
 
   const fetchTasks = useCallback(
     async (signal?: AbortSignal) => {
@@ -187,28 +200,31 @@ export default function Tasks() {
     );
   }, [availableSprints]);
 
+  // The URL is the source of truth for the view. Legacy `?tab=` links are
+  // redirected to their route so old bookmarks keep working.
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["backlog", "sprint", "scheduled", "service-desk"].includes(tabParam)) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab");
+      const query = next.toString();
+      navigate(`${tasksViewPath(tabParam as any, searchParams.get("sprint_id"))}${query ? `?${query}` : ""}`, { replace: true });
+      return;
+    }
+    setActiveTab(tasksRoute.route.view);
+    if (tasksRoute.route.sprintId) {
+      const parsed = Number(tasksRoute.route.sprintId);
+      setSelectedSprintId(Number.isNaN(parsed) ? tasksRoute.route.sprintId : parsed);
+    }
+  }, [tasksRoute.route.view, tasksRoute.route.sprintId, searchParams, navigate]);
+
+  // Deep links to a specific task open its detail on arrival.
   useEffect(() => {
     const taskId = searchParams.get("task");
-    const tabParam = searchParams.get("tab");
-    const sprintIdParam = searchParams.get("sprint_id");
-
-    let consumed = false;
-    if (tabParam && ["backlog", "sprint", "scheduled", "service-desk"].includes(tabParam)) {
-      setActiveTab(tabParam);
-      consumed = true;
-    }
-    if (sprintIdParam) {
-      const parsed = Number(sprintIdParam);
-      setSelectedSprintId(Number.isNaN(parsed) ? sprintIdParam : parsed);
-      consumed = true;
-    }
-    if (taskId) {
-      consumed = true;
-      getTaskDetail(taskId as any)
-        .then((res) => detail.openTaskDetail(res.data))
-        .catch(() => {});
-    }
-    if (consumed) setSearchParams({}, { replace: true });
+    if (!taskId) return;
+    getTaskDetail(taskId as any)
+      .then((res) => detail.openTaskDetail(res.data))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -346,7 +362,7 @@ export default function Tasks() {
       <div className={s["tasks-page"]}>
         <TasksHeader
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={changeTab}
           date={date}
           setDate={setDate}
           isToday={isToday}
