@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "../../constants/icons";
 import IssueKey from "./IssueKey";
+import { useIsNarrowCalendar } from "../../hooks/useViewportWidth";
 import {
     addDays,
     dayTotals,
@@ -60,6 +61,10 @@ export default function ScheduleCalendar({
     const [anchor, setAnchor] = useState(today);
     const [draggingId, setDraggingId] = useState<number | string | null>(null);
     const [overlayVisibility, setOverlayVisibility] = useState<OverlayVisibility>(DEFAULT_OVERLAYS);
+    // On a narrow viewport the month grid is unreadable, so the calendar becomes
+    // a horizontal date strip plus one scrollable day column.
+    const narrow = useIsNarrowCalendar();
+    const [selectedDay, setSelectedDay] = useState(today);
 
     const overlayList = useMemo<OverlayItem[]>(() => overlayItems(overlays), [overlays]);
 
@@ -145,6 +150,60 @@ export default function ScheduleCalendar({
             )}
 
             <div className={s["schedule-body"]}>
+                {narrow && mode !== "list" ? (
+                    <div className={s["day-column"]}>
+                        <div
+                            className={s["date-strip"]}
+                            role="tablist"
+                            aria-label="Days"
+                        >
+                            {weekDays(anchor, today).map((day) => (
+                                <button
+                                    key={day.date}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={day.date === selectedDay}
+                                    className={`${s["date-strip-day"]} ${day.date === selectedDay ? s["date-strip-active"] : ""} ${day.isToday ? s["date-strip-today"] : ""}`}
+                                    onClick={() => setSelectedDay(day.date)}
+                                >
+                                    <span className={s["date-strip-weekday"]}>
+                                        {new Date(`${day.date}T00:00:00`).toLocaleDateString(
+                                            undefined,
+                                            { weekday: "short" },
+                                        )}
+                                    </span>
+                                    <span className={s["date-strip-number"]}>
+                                        {Number(day.date.slice(8, 10))}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        <div
+                            className={s["day-column-body"]}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => dropOnDay(selectedDay)}
+                        >
+                            {(byDay.get(selectedDay) ?? []).map((task) => (
+                                <button
+                                    key={task.id}
+                                    type="button"
+                                    className={s["day-task"]}
+                                    draggable
+                                    onDragStart={() => setDraggingId(task.id)}
+                                    onClick={() => onOpenDetail(task)}
+                                >
+                                    <IssueKey task={task as any} copyable={false} />
+                                    <span className={s["day-task-title"]}>{task.title}</span>
+                                </button>
+                            ))}
+                            {(byDay.get(selectedDay) ?? []).length === 0 && (
+                                <p className={s["day-column-empty"]}>
+                                    Nothing planned for this day.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                ) : (
                 <div
                     className={`${s["grid"]} ${mode === "week" ? s["grid-week"] : ""}`}
                     role="grid"
@@ -203,6 +262,7 @@ export default function ScheduleCalendar({
                         );
                     })}
                 </div>
+                )}
 
                 <aside
                     className={s["tray"]}

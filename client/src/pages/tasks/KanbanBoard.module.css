@@ -5,22 +5,71 @@
    horizontal scroll so the columns keep the kanban metaphor instead of
    stacking. */
 .kanban-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.kanban-columns {
   display: grid;
   /* `1fr` per column with a sensible minimum so the row stays single until
-     the viewport gets very narrow. `auto-fit` is replaced with the actual
-     column count via grid-auto-flow + the inline style on each column. */
+     the viewport gets very narrow. */
   grid-auto-flow: column;
   grid-auto-columns: minmax(220px, 1fr);
   gap: 1rem;
-  margin-top: 1rem;
   /* Allow horizontal scroll when too many columns + low viewport width — keeps
      the single-row layout intact instead of wrapping. */
   overflow-x: auto;
   align-items: stretch;
+  min-width: 0;
+}
+
+/* Phone: one column at a time, swiped between. No horizontal scrollbar. */
+.kanban-board[data-phone="true"] .kanban-columns {
+  grid-auto-flow: row;
+  grid-auto-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-x: visible;
+  touch-action: pan-y;
+}
+
+.phone-column-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phone-column-nav button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.phone-column-nav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.phone-column-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wip-warning {
-  grid-column: 1 / -1;
   padding: 8px 12px;
   border: 1px solid var(--warning, #f59e0b);
   border-radius: var(--radius-sm);
@@ -69,8 +118,8 @@
    fixed minimum width and let the board scroll horizontally. Stacking only
    happens on very small mobile devices where horizontal scroll is awkward. */
 @media (max-width: 1200px) {
-  .kanban-board { grid-auto-columns: minmax(240px, 1fr); }
+  .kanban-columns { grid-auto-columns: minmax(240px, 1fr); }
 }
 @media (max-width: 640px) {
-  .kanban-board { grid-auto-flow: row; grid-auto-columns: 1fr; overflow-x: visible; }
+  .kanban-columns { grid-auto-flow: row; grid-auto-columns: 1fr; overflow-x: visible; }
 }

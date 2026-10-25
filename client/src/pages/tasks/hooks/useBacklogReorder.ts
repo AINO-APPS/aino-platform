@@ -141,6 +141,62 @@ export function useBacklogReorder({
         [draggingId, tasks, move],
     );
 
+    /**
+     * Touch drag.
+     *
+     * HTML5 drag-and-drop does not fire on touch, so a long press lifts the row
+     * and the row under the finger becomes the drop target. The row is found by
+     * hit-testing the element under the touch point, which works regardless of
+     * how the list is nested.
+     */
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
+    const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const onTouchStart = useCallback(
+        (event: React.TouchEvent, taskId: number | string) => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            touchStart.current = { x: touch.clientX, y: touch.clientY };
+            if (longPress.current) clearTimeout(longPress.current);
+            longPress.current = setTimeout(() => setDraggingId(taskId), 250);
+        },
+        [],
+    );
+
+    const onTouchMove = useCallback(
+        (event: React.TouchEvent) => {
+            const origin = touchStart.current;
+            const touch = event.touches[0];
+            if (!origin || !touch) return;
+            // A real drag cancels the long-press timer only once it has moved
+            // far enough; a small wobble should still lift the row.
+            const moved = Math.hypot(touch.clientX - origin.x, touch.clientY - origin.y);
+            if (moved > 8 && longPress.current && draggingId === null) {
+                clearTimeout(longPress.current);
+                longPress.current = null;
+            }
+            if (draggingId === null) return;
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+            const row = element?.closest<HTMLElement>("[data-task-id]");
+            const overTaskId = row?.dataset.taskId;
+            if (overTaskId) setOverId(overTaskId);
+        },
+        [draggingId],
+    );
+
+    const onTouchEnd = useCallback(() => {
+        if (longPress.current) {
+            clearTimeout(longPress.current);
+            longPress.current = null;
+        }
+        touchStart.current = null;
+        if (draggingId !== null && overId !== null) onDrop(overId);
+        else {
+            setDraggingId(null);
+            setOverId(null);
+        }
+    }, [draggingId, overId, onDrop]);
+
     return {
         draggingId,
         overId,
@@ -149,6 +205,9 @@ export function useBacklogReorder({
         onDragStart,
         onDragOver,
         onDrop,
+        onTouchStart,
+        onTouchMove,
+        onTouchEnd,
         cancel: () => setDraggingId(null),
     };
 }

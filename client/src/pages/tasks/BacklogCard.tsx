@@ -34,6 +34,9 @@ interface BacklogCardProps {
         onDragStart: (taskId: number | string) => void;
         onDragOver: (taskId: number | string) => void;
         onDrop: (taskId: number | string) => void;
+        onTouchStart?: (event: React.TouchEvent, taskId: number | string) => void;
+        onTouchMove?: (event: React.TouchEvent) => void;
+        onTouchEnd?: () => void;
     };
     /** Patch one field without opening the detail view. */
     onInlineEdit?: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
@@ -93,7 +96,11 @@ export default function BacklogCard({
             role={reorder ? "listitem" : undefined}
             aria-roledescription={reorder ? "sortable backlog item" : undefined}
             aria-grabbed={reorder ? reorder.draggingId === task.id : undefined}
+            data-task-id={reorder ? String(task.id) : undefined}
             onKeyDown={(e) => reorder?.onKeyDown(e, task.id)}
+            onTouchStart={(e) => reorder?.onTouchStart?.(e, task.id)}
+            onTouchMove={(e) => reorder?.onTouchMove?.(e)}
+            onTouchEnd={() => reorder?.onTouchEnd?.()}
             onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest(`.${s["backlog-actions"]}`)) return;

@@ -22,3 +22,37 @@
   .tasks-page { padding: 0.5rem 0.5rem 4rem; }
   .tasks-progress-counts { gap: 0.6rem; font-size: 0.72rem; }
 }
+
+/* ── Touch and narrow-viewport pass ────────────────────────────────────────
+   Every interactive target in the Tasks area meets the 44×44 minimum, and no
+   surface introduces a horizontal scrollbar at the narrowest supported width
+   (360px). Wide content (the board, the date strip) scrolls inside its own
+   container instead of pushing the page sideways. */
+.tasks-page {
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.tasks-page button,
+.tasks-page [role="button"],
+.tasks-page a[href] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Chips and badges are labels, not targets — they keep their compact size. */
+.tasks-page .label-pill,
+.tasks-page .backlog-ticket-id,
+.tasks-page .task-priority-badge,
+.tasks-page .backlog-status-badge,
+.tasks-page .epic-indicator {
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .tasks-page { padding: 0.5rem 0.5rem 4.5rem; }
+  /* The board and the date strip own their horizontal scroll; nothing else
+     may widen the page. */
+  .tasks-page > * { min-width: 0; }
+}

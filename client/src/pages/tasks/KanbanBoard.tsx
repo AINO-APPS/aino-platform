@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import TaskCard from "./TaskCard";
 import { useAgileConfig } from "../../AgileConfigContext";
+import { useIsPhone } from "../../hooks/useViewportWidth";
+import { useSwipe } from "./hooks/useSwipe";
 import s from "./KanbanBoard.module.css";
 
 interface KanbanBoardProps {
@@ -46,6 +48,18 @@ export default function KanbanBoard({
     attribution,
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
+    // On a phone the board is one column at a time, swiped between. On wider
+    // viewports every column is visible and the board scrolls horizontally.
+    const isPhone = useIsPhone();
+    const [phoneColumn, setPhoneColumn] = useState(0);
+    const columnCount = workflowStates.length;
+    const swipe = useSwipe(
+        () => setPhoneColumn((index) => Math.min(columnCount - 1, index + 1)),
+        () => setPhoneColumn((index) => Math.max(0, index - 1)),
+    );
+    const visibleColumns = isPhone
+        ? workflowStates.slice(phoneColumn, phoneColumn + 1)
+        : workflowStates;
     // Match a task to a column either by workflow_state_id (preferred) or by the
     // legacy `status` key (back-compat for tasks created pre-migration).
     const getColTasks = (col: any) =>
@@ -58,7 +72,7 @@ export default function KanbanBoard({
         );
 
     return (
-        <div className={s["kanban-board"]}>
+        <div className={s["kanban-board"]} data-phone={isPhone ? "true" : undefined}>
             {wipWarning && (
                 <div className={s["wip-warning"]} role="status">
                     {wipWarning}
@@ -67,7 +81,33 @@ export default function KanbanBoard({
             <div className="sr-only" role="status" aria-live="polite">
                 {announcement}
             </div>
-            {workflowStates.map((col: any) => {
+            {isPhone && columnCount > 1 && (
+                <div className={s["phone-column-nav"]} role="group" aria-label="Board column">
+                    <button
+                        type="button"
+                        aria-label="Previous column"
+                        disabled={phoneColumn === 0}
+                        onClick={() => setPhoneColumn((index) => Math.max(0, index - 1))}
+                    >
+                        ‹
+                    </button>
+                    <span className={s["phone-column-label"]} aria-live="polite">
+                        {workflowStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
+                    </span>
+                    <button
+                        type="button"
+                        aria-label="Next column"
+                        disabled={phoneColumn >= columnCount - 1}
+                        onClick={() =>
+                            setPhoneColumn((index) => Math.min(columnCount - 1, index + 1))
+                        }
+                    >
+                        ›
+                    </button>
+                </div>
+            )}
+            <div className={s["kanban-columns"]} {...(isPhone ? swipe : {})}>
+                {visibleColumns.map((col: any) => {
                 const colTasks = getColTasks(col);
                 // Drag-over compares against either id or key — useDragDrop passes whichever it has
                 const isDragOver =
@@ -144,7 +184,8 @@ export default function KanbanBoard({
                         </div>
                     </div>
                 );
-            })}
+                })}
+            </div>
         </div>
     );
 }
