@@ -75,3 +75,49 @@ test("call teardown reasons are the server-supported action mapping", () => {
   ), ["accepted", "cancelled", "rejected", "ended", "handled_elsewhere"]);
   assert.ok(validateJsonSchema(schema, { ...fixture.data, reason: "declined" }).length > 0);
 });
+
+// ── Task field deltas ───────────────────────────────────────────────────────
+// The `task_updated` frame carries only the fields that changed, the actor and
+// a timestamp. These assertions pin the payload shape so a client can patch the
+// card it already holds instead of replacing the whole object.
+const taskUpdatedSchema = () => {
+  const yaml = fs.readFileSync(path.join(root, "contracts/asyncapi/aino-realtime.yaml"), "utf8");
+  const start = yaml.indexOf("    TaskUpdatedEvent:");
+  assert.ok(start > 0, "TaskUpdatedEvent missing from AsyncAPI");
+  const block = yaml.slice(start, yaml.indexOf("    AttendanceUpdateEvent:", start));
+  const fieldsStart = block.indexOf("                  fields:");
+  const fieldsEnd = block.indexOf("                  actor:", fieldsStart);
+  const fieldNames = [...block.slice(fieldsStart, fieldsEnd).matchAll(/^ {22}([a-z_]+):/gm)].map(m => m[1]);
+  return { block, fieldNames };
+};
+
+test("task_updated documents a field-level delta, not a whole object", () => {
+  const { block, fieldNames } = taskUpdatedSchema();
+  assert.ok(block.includes("fields:"), "delta fields missing");
+  assert.ok(block.includes("actor:"), "delta actor missing");
+  assert.ok(block.includes("at:"), "delta timestamp missing");
+  assert.ok(!/^ {18}task:/m.test(block), "delta must not carry the whole task object");
+  assert.ok(fieldNames.length >= 10, `expected the allow-listed fields, got ${fieldNames.join(",")}`);
+});
+
+test("the delta field allow-list matches the server module", () => {
+  const { fieldNames } = taskUpdatedSchema();
+  const source = fs.readFileSync(path.join(root, "server/modules/tasks/tasks.deltas.ts"), "utf8");
+  const listStart = source.indexOf("export const DELTA_FIELDS = [");
+  const listEnd = source.indexOf("] as const;", listStart);
+  const serverFields = [...source.slice(listStart, listEnd).matchAll(/"([a-z_]+)"/g)].map(m => m[1]);
+  assert.deepEqual([...fieldNames].sort(), [...serverFields].sort());
+});
+
+test("the client mirror of the delta allow-list matches the server", () => {
+  const read = file => fs.readFileSync(path.join(root, file), "utf8");
+  const extract = source => {
+    const start = source.indexOf("export const DELTA_FIELDS = [");
+    const end = source.indexOf("] as const;", start);
+    return [...source.slice(start, end).matchAll(/"([a-z_]+)"/g)].map(m => m[1]).sort();
+  };
+  assert.deepEqual(
+    extract(read("client/src/pages/tasks/hooks/taskDeltas.ts")),
+    extract(read("server/modules/tasks/tasks.deltas.ts")),
+  );
+});

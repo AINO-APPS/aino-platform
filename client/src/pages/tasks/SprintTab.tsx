@@ -157,6 +157,7 @@ export default function SprintTab({
                     boardDrag={boardDrag}
                     wipWarning={boardDrag.wipWarning}
                     announcement={boardAnnouncement}
+                    attribution={backlog.attribution}
                 />
             )}
 

@@ -25,6 +25,8 @@ interface KanbanBoardProps {
     };
     wipWarning?: string | null;
     announcement?: string;
+    /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
+    attribution?: Record<string, { name: string }>;
 }
 
 export default function KanbanBoard({
@@ -41,6 +43,7 @@ export default function KanbanBoard({
     boardDrag,
     wipWarning,
     announcement,
+    attribution,
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
     // Match a task to a column either by workflow_state_id (preferred) or by the
@@ -134,6 +137,7 @@ export default function KanbanBoard({
                                         onOpenComments={onOpenComments}
                                         onDragStart={onDragStart}
                                         onDragEnd={onDragEnd}
+                                        attribution={attribution?.[String(task.id)] ?? null}
                                     />
                                 </div>
                             ))}

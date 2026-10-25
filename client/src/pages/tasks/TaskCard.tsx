@@ -53,6 +53,8 @@ interface TaskCardProps {
     onOpenComments: (id: number | string) => void;
     onDragStart: (e: React.DragEvent, id: number | string) => void;
     onDragEnd: (e: React.DragEvent, id: number | string) => void;
+    /** "Updated by <name>" flash after a realtime delta. Non-blocking. */
+    attribution?: { name: string } | null;
 }
 
 export default function TaskCard({
@@ -62,6 +64,7 @@ export default function TaskCard({
     onOpenComments,
     onDragStart,
     onDragEnd,
+    attribution,
 }: TaskCardProps) {
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
@@ -235,6 +238,12 @@ export default function TaskCard({
                 </div>
                 {!compact && <span className={s["drag-hint"]}>⠿ drag to move</span>}
             </div>
+
+            {attribution && (
+                <span className={s["task-attribution"]} role="status">
+                    Updated by {attribution.name}
+                </span>
+            )}
         </div>
     );
 }

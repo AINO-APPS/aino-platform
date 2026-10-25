@@ -97,3 +97,18 @@
 .task-card-compact { padding: 0.5rem 0.6rem; gap: 0.25rem; }
 .task-card-compact .task-title { font-size: 0.85rem; line-height: 1.3; }
 .task-card-compact .task-card-footer { padding-top: 0.25rem; }
+
+/* Realtime attribution: a short, non-blocking note of who just changed the card. */
+.task-attribution {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--primary);
+    animation: attribution-fade 4s ease forwards;
+}
+
+@keyframes attribution-fade {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; }
+}

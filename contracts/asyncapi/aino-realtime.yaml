@@ -393,6 +393,9 @@ components:
       summary: >-
         Sent (deduped) to the assignee, creator and acting user on task update, status change, delete and new
         comment. On reassignment the new assignee gets task_assigned instead; the previous assignee gets task_updated.
+        Update and status frames carry a field-level delta so a client patches the card it already holds instead of
+        replacing the whole object: only the fields that changed, the actor and a timestamp. Two people editing
+        different fields both survive; the same field edited twice resolves to the later `at`.
       payload:
         allOf:
           - $ref: '#/components/schemas/Envelope'
@@ -405,6 +408,43 @@ components:
                 properties:
                   taskId: { $ref: '#/components/schemas/PositiveId' }
                   action: { enum: [updated, status, deleted, comment] }
+                  fields:
+                    type: object
+                    description: >-
+                      Only the fields that changed, with their new values. Absent on delete and comment frames.
+                    additionalProperties: false
+                    properties:
+                      title: { type: string }
+                      description: { type: [string, "null"] }
+                      priority: { type: string }
+                      assigned_to: { type: [integer, "null"] }
+                      due_date: { type: [string, "null"] }
+                      planned_date: { type: [string, "null"] }
+                      sprint_id: { type: [integer, "null"] }
+                      story_points: { type: [number, "null"] }
+                      work_item_type_id: { type: [integer, "null"] }
+                      workflow_state_id: { type: [integer, "null"] }
+                      status: { type: [string, "null"] }
+                      parent_task_id: { type: [integer, "null"] }
+                      is_blocked: { type: boolean }
+                      blocked_reason: { type: [string, "null"] }
+                      project_id: { type: [integer, "null"] }
+                      rank: { type: [string, "null"] }
+                      estimated_minutes: { type: [integer, "null"] }
+                      logged_minutes: { type: integer }
+                      acceptance_criteria: { type: [array, "null"] }
+                  actor:
+                    type: [object, "null"]
+                    description: Who made the change, so the card can attribute it.
+                    required: [id, name]
+                    additionalProperties: false
+                    properties:
+                      id: { $ref: '#/components/schemas/PositiveId' }
+                      name: { type: [string, "null"] }
+                  at:
+                    type: string
+                    format: date-time
+                    description: When the write happened. The later write wins per field.
     AttendanceUpdateEvent:
       summary: Sent to the acting user's own connections when their attendance changes.
       payload:

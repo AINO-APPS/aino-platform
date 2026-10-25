@@ -42,6 +42,8 @@ interface BacklogCardProps {
         isSelected: (id: number | string) => boolean;
         toggle: (id: number | string) => void;
     };
+    /** "Updated by <name>" flash after a realtime delta. Non-blocking. */
+    attribution?: { name: string } | null;
 }
 
 /** One backlog row. Extracted so the tab stays within the file-size ratchet. */
@@ -57,6 +59,7 @@ export default function BacklogCard({
     reorder,
     onInlineEdit,
     selection,
+    attribution,
 }: BacklogCardProps) {
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(task.title ?? "");
@@ -254,6 +257,11 @@ export default function BacklogCard({
                     {!compact && (
                         <span className={s["backlog-meta-time"]}>
                             {formatRelativeTime(task.created_at)}
+                        </span>
+                    )}
+                    {attribution && (
+                        <span className={s["backlog-attribution"]} role="status">
+                            Updated by {attribution.name}
                         </span>
                     )}
                     <div className={s["backlog-actions"]}>

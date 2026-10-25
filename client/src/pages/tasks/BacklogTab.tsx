@@ -91,6 +91,8 @@ interface BacklogTabProps {
     onQuickAdd: (title: string) => Promise<void> | void;
     onInlineEdit: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
     selection: any;
+    /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
+    attribution?: Record<string, { name: string }>;
     bulkBar: React.ReactNode;
     scheduleTaskId: number | string | null;
     setScheduleTaskId: (v: number | string | null) => void;
@@ -159,6 +161,7 @@ export default function BacklogTab({
     onQuickAdd,
     onInlineEdit,
     selection,
+    attribution,
     bulkBar,
     scheduleTaskId,
     setScheduleTaskId,
@@ -451,6 +454,7 @@ export default function BacklogTab({
                             reorder={reorder}
                             onInlineEdit={onInlineEdit}
                             selection={selection}
+                            attribution={attribution?.[String(task.id)] ?? null}
                         />
                     ))}
                     <div className="sr-only" role="status" aria-live="polite">

@@ -3,25 +3,39 @@
 const { sendToUser, notifyUser } = require('./ws');
 const { notifyByEmail } = require('./mailer');
 import { taskLink } from './notificationLinks';
+import { buildTaskDelta, type DeltaField } from '../modules/tasks/tasks.deltas';
 
 export type TaskUpdatedAction = 'updated' | 'status' | 'deleted' | 'comment';
 
 /**
  * Send `task_updated` { taskId, action } to the given users (deduped, falsy ids
  * dropped). Callers pass assignee, creator and acting user.
+ *
+ * When `delta` is supplied the frame also carries a field-level delta — only
+ * the fields that changed, the actor and a timestamp — so a client can patch
+ * the card it already holds instead of refetching the whole object.
  */
 export function emitTaskUpdated(
     tenantId: number | null | undefined,
     taskId: number,
     action: TaskUpdatedAction,
     userIds: Array<number | string | null | undefined>,
+    delta?: {
+        fields: Partial<Record<DeltaField, unknown>>;
+        actor: { id: number; name?: string | null } | null;
+    },
 ): void {
+    const payload = delta ? buildTaskDelta(taskId, delta.fields, delta.actor) : null;
     const seen = new Set<number>();
     for (const raw of userIds) {
         const uid = Number(raw);
         if (!raw || !Number.isFinite(uid) || seen.has(uid)) continue;
         seen.add(uid);
-        sendToUser(tenantId, uid, 'task_updated', { taskId, action });
+        sendToUser(tenantId, uid, 'task_updated', {
+            taskId,
+            action,
+            ...(payload ? { fields: payload.fields, actor: payload.actor, at: payload.at } : {}),
+        });
     }
 }
 

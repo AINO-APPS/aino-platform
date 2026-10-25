@@ -468,6 +468,7 @@ export default function Tasks() {
             onQuickAdd={backlog.quickAdd}
             onInlineEdit={backlog.inlineEdit}
             selection={backlog.bulk}
+            attribution={backlog.attribution}
             bulkBar={
               <BacklogBulkBar
                 bulk={backlog.bulk}

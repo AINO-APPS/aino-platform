@@ -7,6 +7,7 @@ import { useTaskPreferences } from "./useTaskPreferences";
 import { useBacklogReorder } from "./useBacklogReorder";
 import { useUndo } from "./useUndo";
 import { useBulkSelection } from "./useBulkSelection";
+import { useTaskDeltas } from "./useTaskDeltas";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -378,7 +379,13 @@ export function useBacklog({
         if (activeTab === "backlog") fetchBacklog();
         else if (activeTab === "sprint") fetchTasks();
     };
-    useRealtimeEvent(["task_updated", "task_assigned"], refreshVisible);
+    // Field deltas patch the rows already on screen, so a teammate's edit lands
+    // without a refetch and without flicker. `task_assigned` still refetches
+    // because it can add a row that is not on screen yet.
+    const deltas = useTaskDeltas(setBacklogTasks, {
+        enabled: activeTab === "backlog",
+    });
+    useRealtimeEvent(["task_assigned"], refreshVisible);
     // Teammates' edits never reach this user's socket; poll while visible.
     useVisiblePoll(refreshVisible, 30_000, activeTab === "backlog" || activeTab === "sprint");
 
@@ -437,6 +444,7 @@ export function useBacklog({
         showAllCompleted,
         cardDensity: preferences.card_density,
         setCardDensity,
+        attribution: deltas.attribution,
         reorder,
         reorderAnnouncement,
         quickAdd,

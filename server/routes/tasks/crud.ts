@@ -21,6 +21,7 @@ const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
+const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -347,7 +348,11 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
-        emitTaskUpdated(req.tenantId, id, 'status', [updated?.assigned_to, updated?.user_id, req.userId]);
+        const statusActor = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
+        emitTaskUpdated(req.tenantId, id, 'status', [updated?.assigned_to, updated?.user_id, req.userId], {
+            fields: diffTask(task, updated),
+            actor: { id: req.userId!, name: statusActor?.full_name || statusActor?.username || null },
+        });
         res.json(enriched[0]);
     } catch (err) {
         req.log.error({ err: err }, 'Error updating task status:');
@@ -637,7 +642,13 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (newAssignedTo && String(newAssignedTo) !== String(task.assigned_to) && newAssignedTo !== req.userId) {
             assignmentNotified = await notifyTaskAssigned(req, updated, newAssignedTo);
         }
-        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, assignmentNotified ? null : updated?.assigned_to, task.user_id, req.userId]);
+        // Broadcast only the fields that actually changed, so two people editing
+        // different fields of the same ticket both survive.
+        const actor = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
+        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, assignmentNotified ? null : updated?.assigned_to, task.user_id, req.userId], {
+            fields: diffTask(task, updated),
+            actor: { id: req.userId!, name: actor?.full_name || actor?.username || null },
+        });
 
         res.json(enriched[0]);
     } catch (err) {
