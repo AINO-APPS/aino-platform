@@ -1,0 +1,153 @@
+#!/usr/bin/env node
+/**
+ * Design token validator (ticket 04).
+ *
+ * Enforces the things a generator cannot honestly check about itself:
+ *   1. Generated outputs are current (`generate-tokens.mjs --check`).
+ *   2. The token source still agrees with the web client's stylesheet, for every
+ *      group and both themes. `global.css` is what each platform transcribed, so
+ *      if the source and the stylesheet disagree, one of them is a lie.
+ *   3. During expand, any platform file still carrying a hand-typed copy of a
+ *      canonical colour must agree with the source.
+ *   4. Every declared output that is present carries the generated banner, and no
+ *      output silently lost a group the previous run had.
+ *
+ * Node built-ins only.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { camel, containsArgbFor, themeVars } from "./lib/design-tokens.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(root, "..");
+const SOURCE = path.join(root, "contracts/design/tokens.json");
+const WEB_CSS = path.join(root, "client/src/global.css");
+
+const GROUPS = ["color", "space", "typography", "radius", "elevation", "motion", "density"];
+const fail = [];
+const check = (condition, message) => { if (!condition) fail.push(message); };
+const normalise = value => String(value).toLowerCase().replace(/\s+/g, " ").trim();
+
+const source = JSON.parse(fs.readFileSync(SOURCE, "utf8"));
+
+// 1. Generated outputs must be current.
+try {
+  execFileSync(process.execPath, [path.join(root, "scripts/generate-tokens.mjs"), "--check"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+} catch (error) {
+  fail.push(`generated outputs are out of date — run npm run tokens:generate\n${error.stdout ?? ""}${error.stderr ?? ""}`.trim());
+}
+
+// 2. Source must agree with the stylesheet, both themes, every group.
+const css = fs.readFileSync(WEB_CSS, "utf8");
+const darkVars = themeVars(css, "dark");
+const lightVars = themeVars(css, "light");
+check(darkVars !== null, "global.css has no dark theme block");
+
+if (darkVars) {
+  for (const group of GROUPS) {
+    for (const [name, entry] of Object.entries(source.tokens[group] ?? {})) {
+      const expectedDark = darkVars[name];
+      if (expectedDark === undefined) {
+        // Crafted groups (space, typography, density) legitimately do not exist
+        // in the stylesheet. Derived groups must.
+        check(
+          group === "space" || group === "typography" || group === "density",
+          `token ${name} exists in the source but not in global.css — drift`
+        );
+        continue;
+      }
+      check(
+        normalise(entry.dark) === normalise(expectedDark),
+        `token ${name} drift (dark): source says ${entry.dark}, global.css says ${expectedDark}`
+      );
+      const expectedLight = lightVars?.[name];
+      if (expectedLight !== undefined) {
+        check(
+          normalise(entry.light) === normalise(expectedLight),
+          `token ${name} drift (light): source says ${entry.light}, global.css says ${expectedLight}`
+        );
+      }
+    }
+  }
+}
+
+// 3. Legacy hand-typed copies must not disagree during expand.
+const legacyPath = path.resolve(repoRoot, source.legacyAndroidTokens ?? "");
+if (source.legacyAndroidTokens && fs.existsSync(legacyPath)) {
+  const legacy = fs.readFileSync(legacyPath, "utf8").toUpperCase();
+  for (const [name, entry] of Object.entries(source.tokens.color)) {
+    const kotlinName = camel(name);
+    if (!new RegExp(`\\b${kotlinName}\\s*=`).test(legacy)) continue;
+    check(
+      containsArgbFor(legacy, entry.dark),
+      `${source.legacyAndroidTokens} disagrees with the source for ${name}`
+    );
+  }
+}
+
+/**
+ * Which groups each platform must actually carry. Web emits every group as a
+ * custom property (kebab names); mobile receives colour and dimensions. Elevation
+ * and motion are CSS syntax (shadow stacks, transition shorthand) with no
+ * faithful Compose/SwiftUI equivalent, so asserting them on mobile would demand
+ * a stringly-typed copy that no consumer could use.
+ */
+const PLATFORM_GROUPS = {
+  web: GROUPS,
+  android: ["color", "space", "typography", "radius", "density"],
+  ios: ["color", "space", "typography", "radius", "density"],
+};
+
+/** The identifier a platform's generated file should contain for a token. */
+const identifierFor = (platform, name) => (platform === "web" ? name : camel(name));
+let present = 0;
+for (const output of source.outputs) {
+  const [top] = output.path.split("/");
+  const platformPresent = top === "aino-platform" || fs.existsSync(path.join(repoRoot, top));
+  const absolute = path.resolve(repoRoot, output.path);
+  if (!platformPresent) continue;
+  present += 1;
+  if (!fs.existsSync(absolute)) {
+    fail.push(`declared output is missing: ${output.path}`);
+    continue;
+  }
+  const text = fs.readFileSync(absolute, "utf8");
+  check(text.includes("Generated by scripts/generate-tokens.mjs"), `${output.path} is missing its generated banner`);
+
+  const required = PLATFORM_GROUPS[output.platform] ?? [];
+  for (const group of required) {
+    const first = Object.keys(source.tokens[group] ?? {})[0];
+    if (!first) continue;
+    const identifier = identifierFor(output.platform, first);
+    check(
+      text.toLowerCase().includes(identifier.toLowerCase()),
+      `${output.path} does not carry the ${group} group (missing ${identifier})`
+    );
+  }
+  for (const group of GROUPS.filter(g => !required.includes(g))) {
+    const first = Object.keys(source.tokens[group] ?? {})[0];
+    if (!first) continue;
+    const identifier = identifierFor(output.platform, first);
+    check(
+      !text.toLowerCase().includes(identifier.toLowerCase()),
+      `${output.path} unexpectedly carries the ${group} group, which has no meaning on this platform`
+    );
+  }
+}
+
+if (fail.length > 0) {
+  console.error(`tokens: ${fail.length} violation(s)`);
+  for (const message of fail) console.error(`  - ${message}`);
+  process.exit(1);
+}
+
+const groups = Object.entries(source.tokens).map(([group, entries]) => `${group}=${Object.keys(entries).length}`);
+console.log(
+  `tokens: ok — ${groups.join(" ")}, ${source.themes.length} themes, ` +
+  `${present}/${source.outputs.length} platform outputs present`
+);

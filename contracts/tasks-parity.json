@@ -1,0 +1,902 @@
+{
+  "version": 1,
+  "updated": "2026-10-25",
+  "spec": "docs/TASKS_DESIGN_SPEC.md",
+  "clients": [
+    "web",
+    "desktop",
+    "android",
+    "ios"
+  ],
+  "features": [
+    {
+      "id": "planned-date-semantics",
+      "name": "planned_date is metadata, never a container",
+      "decision": "D2",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/planned-date-semantics.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../PlannedDateTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/planned-date-semantics.swift"
+      }
+    },
+    {
+      "id": "single-status-source",
+      "name": "workflow_state_id is the only status",
+      "decision": "D4",
+      "phase": 0,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/single-status-source.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../StatusSourceContractTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/single-status-source.swift"
+      }
+    },
+    {
+      "id": "derived-completed-at",
+      "name": "completed_at derived from done category by trigger",
+      "decision": "D5",
+      "phase": 0,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/derived-completed-at.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CompletedAtContractTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/derived-completed-at.swift"
+      }
+    },
+    {
+      "id": "design-tokens-generated",
+      "name": "Single JSON token source generating CSS/Compose/SwiftUI",
+      "decision": "D38",
+      "phase": 0,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/design-tokens-generated.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../DesignTokensTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/design-tokens-generated.swift"
+      }
+    },
+    {
+      "id": "generated-api-models",
+      "name": "API models generated from OpenAPI for web/Kotlin/Swift",
+      "decision": "D41",
+      "phase": 0,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/generated-api-models.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../ApiModelsContractTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/generated-api-models.swift"
+      }
+    },
+    {
+      "id": "backlog-is-not-in-sprint",
+      "name": "Backlog = sprint_id IS NULL, no date predicate",
+      "decision": "D1",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/backlog-is-not-in-sprint.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../BacklogMembershipTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/backlog-is-not-in-sprint.swift"
+      }
+    },
+    {
+      "id": "backlog-collapsible-completed",
+      "name": "Collapsible Completed section with count badge",
+      "decision": "D14",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/backlog-collapsible-completed.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CompletedSectionTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/backlog-collapsible-completed.swift"
+      }
+    },
+    {
+      "id": "show-completed-preference",
+      "name": "Server-side per-user show_completed synced across clients",
+      "decision": "D15",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/show-completed-preference.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../PreferencesSyncTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/show-completed-preference.swift"
+      }
+    },
+    {
+      "id": "completed-visible-hidden-default",
+      "name": "Completed hidden by default with visible count",
+      "decision": "D16",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/completed-visible-hidden-default.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CompletedDefaultTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/completed-visible-hidden-default.swift"
+      }
+    },
+    {
+      "id": "completed-window-retention",
+      "name": "Completed window = 30 days or last closed sprint, plus View all",
+      "decision": "D17",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/completed-window-retention.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CompletedWindowTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/completed-window-retention.swift"
+      }
+    },
+    {
+      "id": "one-completed-rule-all-views",
+      "name": "Single Show completed rule across backlog, board, schedule, search",
+      "decision": "D14",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/one-completed-rule-all-views.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CompletedRuleTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/one-completed-rule-all-views.swift"
+      }
+    },
+    {
+      "id": "route-per-view",
+      "name": "Real routes with filters in the query string",
+      "decision": "D18",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/route-per-view.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../DeepLinkRoutesTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/route-per-view.swift"
+      }
+    },
+    {
+      "id": "lexorank-rank",
+      "name": "Per-team LexoRank single rank field",
+      "decision": "D8",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/lexorank-rank.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../RankContractTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/lexorank-rank.swift"
+      }
+    },
+    {
+      "id": "server-computed-rank",
+      "name": "PATCH /tasks/:id/rank with beforeId/afterId, server computes",
+      "decision": "D50",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/server-computed-rank.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../RankEndpointTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/server-computed-rank.swift"
+      }
+    },
+    {
+      "id": "dnd-unified",
+      "name": "dnd-kit on web with touch and keyboard sensors; native drag elsewhere",
+      "decision": "D19",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/dnd-unified.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "Native Compose drag-and-drop on Android; dnd-kit is web-only. Behaviour parity is asserted against the shared interaction rule set by DragParityTest.kt."
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/dnd-unified.swift"
+      }
+    },
+    {
+      "id": "backlog-flat-ranked",
+      "name": "Flat ranked backlog, no buckets",
+      "decision": "D20",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/backlog-flat-ranked.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../FlatBacklogTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/backlog-flat-ranked.swift"
+      }
+    },
+    {
+      "id": "bulk-actions-backlog",
+      "name": "Multi-select bulk move, status, assign, delete (backlog only)",
+      "decision": "D23",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/bulk-actions-backlog.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../BulkActionsTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/bulk-actions-backlog.swift"
+      }
+    },
+    {
+      "id": "backlog-quick-add-inline-edit",
+      "name": "Quick-add, inline edit, undo toasts",
+      "decision": "D27",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/backlog-quick-add-inline-edit.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../QuickAddTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/backlog-quick-add-inline-edit.swift"
+      }
+    },
+    {
+      "id": "issue-key-canonical",
+      "name": "PROJ-123 on cards, search, URLs, comments",
+      "decision": "D26",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/issue-key-canonical.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../IssueKeyTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/issue-key-canonical.swift"
+      }
+    },
+    {
+      "id": "feature-flag-nextgen",
+      "name": "Per-org tasks.nextGen flag with fallback",
+      "decision": "D43",
+      "phase": 1,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/feature-flag-nextgen.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../NextGenFlagTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/feature-flag-nextgen.swift"
+      }
+    },
+    {
+      "id": "realtime-field-deltas",
+      "name": "Field-level deltas, per-field last-write-wins, attribution flash",
+      "decision": "D48",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/realtime-field-deltas.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../RealtimeDeltaTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/realtime-field-deltas.swift"
+      }
+    },
+    {
+      "id": "sprint-board-plan-toggle",
+      "name": "Sprint tab with Board and Plan split view",
+      "decision": "D21",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/sprint-board-plan-toggle.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../BoardPlanToggleTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/sprint-board-plan-toggle.swift"
+      }
+    },
+    {
+      "id": "epics-first-class",
+      "name": "Epic badge, filter, progress rollup, epics panel",
+      "decision": "D24",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/epics-first-class.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../EpicsRollupTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/epics-first-class.swift"
+      }
+    },
+    {
+      "id": "schedule-calendar",
+      "name": "Month and week calendar, unscheduled tray, drag scheduling",
+      "decision": "D22",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/schedule-calendar.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CalendarTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/schedule-calendar.swift"
+      }
+    },
+    {
+      "id": "schedule-overlays",
+      "name": "Read-only leave, holiday and meeting overlays",
+      "decision": "D51",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/schedule-overlays.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CalendarOverlayTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/schedule-overlays.swift"
+      }
+    },
+    {
+      "id": "card-density",
+      "name": "Comfortable and Compact densities, per user",
+      "decision": "D25",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/card-density.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../DensityTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/card-density.swift"
+      }
+    },
+    {
+      "id": "carryover-preflight",
+      "name": "Carryover default next sprint else backlog, with pre-flight dialog",
+      "decision": "D32",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/carryover-preflight.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CarryoverTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/carryover-preflight.swift"
+      }
+    },
+    {
+      "id": "closed-sprint-immutable",
+      "name": "Completed sprints reject task writes except retrospective",
+      "decision": "D11",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/closed-sprint-immutable.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../ImmutableSprintTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/closed-sprint-immutable.swift"
+      }
+    },
+    {
+      "id": "scope-baselines",
+      "name": "sprint_baselines plus scope added and removed points",
+      "decision": "D12",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/scope-baselines.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../ScopeBaselineTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/scope-baselines.swift"
+      }
+    },
+    {
+      "id": "inline-sprint-insights",
+      "name": "Committed-vs-completed and mini burndown in Plan",
+      "decision": "D34",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/inline-sprint-insights.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../InlineInsightsTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/inline-sprint-insights.swift"
+      }
+    },
+    {
+      "id": "time-tracking-on-task",
+      "name": "logged vs estimated, timer from task, timesheet rollup",
+      "decision": "D13",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/time-tracking-on-task.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../TimeTrackingTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/time-tracking-on-task.swift"
+      }
+    },
+    {
+      "id": "command-palette",
+      "name": "Cmd/Ctrl+K unified search, views and actions",
+      "decision": "D29",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/command-palette.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../CommandPaletteTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/command-palette.swift"
+      }
+    },
+    {
+      "id": "notification-events-v1",
+      "name": "Added-to-sprint, assigned, sprint started, sprint completed, due soon",
+      "decision": "D49",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/notification-events-v1.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../TaskNotificationTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/notification-events-v1.swift"
+      }
+    },
+    {
+      "id": "continuous-team-mode",
+      "name": "Team-level Continuous vs Sprints mode",
+      "decision": "D35",
+      "phase": 2,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/continuous-team-mode.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "n/a",
+        "waiver": "Team mode is agile configuration, which is web-only per server/middleware/webOnly.ts. Native reads the resolved mode.",
+        "phase": 2
+      },
+      "ios": {
+        "status": "n/a",
+        "waiver": "Agile configuration is web-only per contracts/README.md. The iOS webview reads the resolved mode and never writes it.",
+        "phase": 2
+      }
+    },
+    {
+      "id": "responsive-touch",
+      "name": "Responsive and touch layouts, 44pt targets, bottom sheet",
+      "decision": "D39",
+      "phase": 3,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/responsive-touch.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "Android is already native Compose and touch-first; the same layout rules are asserted by TouchTargetTest.kt."
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/responsive-touch.swift"
+      }
+    },
+    {
+      "id": "a11y-wcag-aa",
+      "name": "WCAG 2.1 AA release gate on the Tasks area",
+      "decision": "D45",
+      "phase": 3,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/a11y-wcag-aa.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../AccessibilityTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/a11y-wcag-aa.swift"
+      }
+    },
+    {
+      "id": "ios-webview-session",
+      "name": "Scoped WKWebView Tasks plus single-use session exchange",
+      "decision": "D40",
+      "phase": 3,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/ios-webview-session.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "n/a",
+        "waiver": "Android keeps its native Compose Tasks implementation by decision D36; no webview is introduced.",
+        "phase": 3
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/ios-webview-session.swift"
+      }
+    },
+    {
+      "id": "parity-ci-gate",
+      "name": "CI renders the matrix and fails on drift",
+      "decision": "D44",
+      "phase": 3,
+      "web": {
+        "status": "planned",
+        "owner_test": "e2e/tasks/parity-ci-gate.spec.ts"
+      },
+      "desktop": {
+        "status": "planned",
+        "owner_test": "shipped with web (same bundle)"
+      },
+      "android": {
+        "status": "planned",
+        "owner_test": "androidTest/.../ParityGateTest.kt"
+      },
+      "ios": {
+        "status": "planned",
+        "owner_test": "AinoMobileTests/parity-ci-gate.swift"
+      }
+    }
+  ],
+  "non_goals": [
+    {
+      "id": "watchers",
+      "rationale": "No watcher or subscription model exists server-side; notification scope is fixed by D49."
+    },
+    {
+      "id": "versions-releases",
+      "rationale": "No release entity exists; sprints carry delivery cadence."
+    },
+    {
+      "id": "roadmap-gantt",
+      "rationale": "Requires a cross-sprint timeline model; Schedule covers day-level planning per D22."
+    },
+    {
+      "id": "workload-resource-view",
+      "rationale": "Needs a capacity model, deferred by D33."
+    },
+    {
+      "id": "capacity-planning",
+      "rationale": "Deferred by D33; story points plus historical velocity cover planning in v1."
+    },
+    {
+      "id": "swimlanes",
+      "rationale": "Doubles board interaction complexity with no demand evidence; grouping is a later view option per D20."
+    },
+    {
+      "id": "subtask-checklist-ui",
+      "rationale": "parent_task_id exists and subtasks render, but an inline checklist UI is deferred."
+    },
+    {
+      "id": "shared-saved-views",
+      "rationale": "Personal views ship first; org-shared views are v2."
+    },
+    {
+      "id": "mobile-offline-write",
+      "rationale": "No offline write queue exists in any client; realtime field deltas require connectivity per D48."
+    },
+    {
+      "id": "planner-buckets",
+      "rationale": "Buckets would become a second container competing with sprints; flat ranked list chosen per D20."
+    },
+    {
+      "id": "board-bulk-actions",
+      "rationale": "Bulk triage belongs in backlog; board bulk would double drag-and-drop complexity per D23."
+    },
+    {
+      "id": "service-desk-changes",
+      "rationale": "Unrelated to backlog, sprint and schedule; explicitly untouched per D31."
+    }
+  ]
+}
