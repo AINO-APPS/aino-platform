@@ -45,6 +45,8 @@ import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
+import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
+import TasksOverlays from "./tasks/TasksOverlays";
 
 import s from "./Tasks.module.css";
 
@@ -370,6 +372,28 @@ export default function Tasks() {
   const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
   const summaryAllActive = !filters.filterPriority;
+
+  // One keyboard entry point for tasks, views and actions, plus the `?` help
+  // overlay that documents the complete shortcut set.
+  const tasksPalette = useTasksPalette({
+    sprintId: selectedSprintId,
+    onOpenTask: (task) => detail.openTaskDetail(task),
+    onGoToView: (view, sprintId) => {
+      changeTab(view);
+      if (view === "sprint" && sprintId) setSelectedSprintId(sprintId);
+    },
+    onNewTask: () => {
+      changeTab("backlog");
+      backlog.setBacklogFormOpen(true);
+    },
+    onToggleCompleted: () => backlog.toggleCompleted(),
+    onToggleDensity: () =>
+      backlog.setCardDensity(
+        backlog.cardDensity === "compact" ? "comfortable" : "compact",
+      ),
+  });
+  const palette = tasksPalette.palette;
+
   return (
     <TaskProvider
       assignableUsers={assignableUsers}
@@ -553,6 +577,12 @@ export default function Tasks() {
             if (confirmDialog.onConfirm) confirmDialog.onConfirm();
           }}
           onCancel={closeConfirm}
+        />
+
+        <TasksOverlays
+          palette={palette}
+          shortcutHelpOpen={tasksPalette.shortcutHelpOpen}
+          onCloseShortcutHelp={tasksPalette.closeShortcutHelp}
         />
       </div>
     </TaskProvider>
