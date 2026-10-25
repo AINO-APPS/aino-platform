@@ -34,6 +34,7 @@ import { endUserSessions, signOutRevokedSessions } from "../services/sessionSign
 import { sessionTokenTerms, sessionUsesRotation, wantsRotatingRefresh } from "../services/refreshTokens"; import { requireAdminSecondFactor, requireStepUpForAdmins } from "../services/adminMfaGate";
 import { consoleHost } from "../platform/reservedHosts";
 import { createHandoff, createPlatformLoginHandoff, consumeHandoff, createLoginChoice, consumeLoginChoice } from "../services/realmHandoff";
+import { createWebviewRouter } from "./auth/webview";
 import { availablePlatformPrincipal, findLinkedPrincipal, linkedPrincipals, platformConsoleUrl, tenantAppUrl } from "../services/realmPrincipals";
 import { webauthnConfig } from "../utils/webauthnConfig";
 import { registerDeviceToken } from "../platform/pushNotifications/deviceTokens";
@@ -399,7 +400,6 @@ async function finishLogin(req: Request, res: Response, { user, db, tenantId, is
             },
         });
 
-
     }
 
     const reportsRes = await db.query(
@@ -475,6 +475,11 @@ router.post("/handoff", async (req: Request, res: Response) => {
         ? finishLogin(req, res, { user: pair.platform, db: { query: masterQuery }, tenantId: null, isPlatformUser: true })
         : finishLogin(req, res, { user: pair.tenantUser, db: pair.tenantDb, tenantId: handoff.tenant_id, isPlatformUser: false });
 });
+
+// Native webview session exchange: a native client trades its bearer token for
+// a short-lived single-use code, and the webview redeems it for a cookie
+// session. The bearer token never enters the web page. See auth/webview.ts.
+router.use("/webview", createWebviewRouter({ auth, getTenantDb, finishLogin }));
 
 // Step-up realm switch for an already-authenticated linked principal. The
 // platform password is always required; this prevents a stolen tenant session
@@ -971,18 +976,11 @@ router.post("/device-token", auth, async (req: Request, res: Response) => {
 // BiometricPrompt / WebAuthn) performs the biometric match LOCALLY on the
 // device. It unlocks a high-entropy device secret that the client keeps in
 // its secure enclave / keystore. The server only ever sees (and stores a
-// bcrypt HASH of) that secret — no face/biometric data ever leaves the
-// device.
+// bcrypt HASH of) that secret — no face/biometric data ever leaves the device.
 //
 // credentialId format: "<tenantId>.<uuid>"  (tenantId 0 = platform/master).
 // Embedding the tenant id lets the PUBLIC /biometric/login endpoint resolve
 // the correct tenant DB without the client having to send a username first.
-//
-// Endpoints:
-//   POST   /auth/biometric/enroll   (auth)   — mint + store a device secret
-//   POST   /auth/biometric/login    (public) — exchange secret for a session
-//   GET    /auth/biometric          (auth)   — list this user's devices
-//   DELETE /auth/biometric/:id      (auth)   — revoke a device credential
 // ─────────────────────────────────────────────────────────────────────────
 
 const BIOMETRIC_PLATFORMS = ["ios", "android", "desktop", "web"];

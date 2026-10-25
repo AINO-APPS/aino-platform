@@ -132,6 +132,8 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "POST   /api/auth/webauthn/login/verify",
   "POST   /api/auth/webauthn/register/options",
   "POST   /api/auth/webauthn/register/verify",
+  "POST   /api/auth/webview/code",
+  "POST   /api/auth/webview/session",
   "GET    /api/branding",
   "PUT    /api/branding",
   "GET    /api/branding/email-templates",

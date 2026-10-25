@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 34,
-    "concreteEndpoints": 503,
-    "openApiOperations": 232
+    "concreteEndpoints": 505,
+    "openApiOperations": 234
   },
   "standaloneRoutes": [
     {
@@ -50,7 +50,7 @@
       "mountPath": "/api/auth",
       "source": "server/routes/auth.ts",
       "coverage": "baseline",
-      "endpointCount": 28
+      "endpointCount": 30
     },
     {
       "id": "sessions",
@@ -921,6 +921,16 @@
     {
       "method": "POST",
       "path": "/api/auth/webauthn/register/verify",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webview/code",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/webview/session",
       "coverage": "operation"
     },
     {
