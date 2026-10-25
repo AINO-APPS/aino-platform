@@ -14,6 +14,17 @@ interface KanbanBoardProps {
     onDragEnd: (e: React.DragEvent, id: number | string) => void;
     onOpenDetail: (task: any) => void;
     onOpenComments: (id: number | string) => void;
+    /** Accessible drag: keyboard lift/move/drop and touch, shared with backlog. */
+    boardDrag?: {
+        draggingId: number | string | null;
+        overColumn: number | string | null;
+        onKeyDown: (event: React.KeyboardEvent, taskId: number | string) => void;
+        onDragStart: (taskId: number | string) => void;
+        onDragOver: (column: any) => void;
+        onDrop: (column: any) => void;
+    };
+    wipWarning?: string | null;
+    announcement?: string;
 }
 
 export default function KanbanBoard({
@@ -27,6 +38,9 @@ export default function KanbanBoard({
     onDragEnd,
     onOpenDetail,
     onOpenComments,
+    boardDrag,
+    wipWarning,
+    announcement,
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
     // Match a task to a column either by workflow_state_id (preferred) or by the
@@ -42,6 +56,14 @@ export default function KanbanBoard({
 
     return (
         <div className={s["kanban-board"]}>
+            {wipWarning && (
+                <div className={s["wip-warning"]} role="status">
+                    {wipWarning}
+                </div>
+            )}
+            <div className="sr-only" role="status" aria-live="polite">
+                {announcement}
+            </div>
             {workflowStates.map((col: any) => {
                 const colTasks = getColTasks(col);
                 // Drag-over compares against either id or key — useDragDrop passes whichever it has
@@ -57,9 +79,15 @@ export default function KanbanBoard({
                         key={col.id || col.key}
                         className={`${s["kanban-column"]} ${isDragOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""}`}
                         style={{ "--col-color": col.color } as React.CSSProperties}
-                        onDragOver={(e) => onDragOver(e, col.id || col.key, col)}
+                        onDragOver={(e) => {
+                            onDragOver(e, col.id || col.key, col);
+                            boardDrag?.onDragOver(col);
+                        }}
                         onDragLeave={onDragLeave}
-                        onDrop={(e) => onDrop(e, col.id || col.key, col)}
+                        onDrop={(e) => {
+                            onDrop(e, col.id || col.key, col);
+                            boardDrag?.onDrop(col);
+                        }}
                     >
                         <div className={s["column-header"]}>
                             <div className={s["column-header-left"]}>
@@ -90,15 +118,24 @@ export default function KanbanBoard({
                                 </div>
                             )}
                             {colTasks.map((task) => (
-                                <TaskCard
+                                <div
                                     key={task.id}
-                                    task={task}
-                                    sprintMode={sprintMode}
-                                    onOpenDetail={onOpenDetail}
-                                    onOpenComments={onOpenComments}
-                                    onDragStart={onDragStart}
-                                    onDragEnd={onDragEnd}
-                                />
+                                    tabIndex={boardDrag ? 0 : undefined}
+                                    role={boardDrag ? "listitem" : undefined}
+                                    aria-roledescription={boardDrag ? "draggable card" : undefined}
+                                    aria-grabbed={boardDrag ? boardDrag.draggingId === task.id : undefined}
+                                    onKeyDown={(event) => boardDrag?.onKeyDown(event, task.id)}
+                                    onDragStart={() => boardDrag?.onDragStart(task.id)}
+                                >
+                                    <TaskCard
+                                        task={task}
+                                        sprintMode={sprintMode}
+                                        onOpenDetail={onOpenDetail}
+                                        onOpenComments={onOpenComments}
+                                        onDragStart={onDragStart}
+                                        onDragEnd={onDragEnd}
+                                    />
+                                </div>
                             ))}
                         </div>
                     </div>

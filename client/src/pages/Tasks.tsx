@@ -38,6 +38,8 @@ import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
+import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
+import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 
 import s from "./Tasks.module.css";
 
@@ -195,6 +197,16 @@ export default function Tasks() {
     closeConfirm,
     setError,
   }) as any;
+
+  // Accessible board drag: keyboard and touch route through the same move as
+  // the mouse, and entering done with open blockers asks first.
+  const { boardDrag, announcement: boardAnnouncement } = useBoardDragWiring({
+    tasks,
+    columns: (useAgileConfig() as any)?.workflowStates || [],
+    fetchTasks,
+    showConfirm,
+    closeConfirm,
+  });
 
   // Keep a valid sprint selected once the sprint list resolves: preserve the
   // current pick if it still exists, otherwise default to the active sprint
@@ -457,6 +469,9 @@ export default function Tasks() {
                 onDragEnd={drag.onDragEnd}
                 onOpenDetail={detail.openTaskDetail}
                 onOpenComments={comments.openComments}
+                boardDrag={boardDrag}
+                wipWarning={boardDrag.wipWarning}
+                announcement={boardAnnouncement}
               />
             )}
 

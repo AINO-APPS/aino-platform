@@ -18,6 +18,16 @@
   overflow-x: auto;
   align-items: stretch;
 }
+
+.wip-warning {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  border: 1px solid var(--warning, #f59e0b);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
+  color: var(--text);
+  font-size: var(--font-meta-size);
+}
 .kanban-column {
   background: var(--glass);
   border: 1px solid var(--glass-border);
