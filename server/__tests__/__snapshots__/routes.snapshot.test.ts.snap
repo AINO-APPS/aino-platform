@@ -416,6 +416,8 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "POST   /api/sprints",
   "DELETE /api/sprints/:id",
   "PUT    /api/sprints/:id",
+  "GET    /api/sprints/:id/baseline",
+  "POST   /api/sprints/:id/baseline",
   "GET    /api/sprints/:id/burndown",
   "GET    /api/sprints/:id/carried-over",
   "POST   /api/sprints/:id/complete",

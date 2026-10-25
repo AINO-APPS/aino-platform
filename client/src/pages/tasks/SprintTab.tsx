@@ -132,6 +132,7 @@ export default function SprintTab({
                     epics={epics}
                     selectedEpicId={selectedEpicId}
                     onSelectEpic={onSelectEpic}
+                    scope={sprintPlan.scope}
                 />
             ) : (
                 <KanbanBoard

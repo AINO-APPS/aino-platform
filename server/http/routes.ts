@@ -17,6 +17,7 @@ import taskRoutes from "../routes/tasks";
 import profileRoutes from "../routes/profile";
 import userPreferencesRoutes from "../routes/userPreferences";
 import sprintCompletionRoutes from "../routes/sprintCompletion";
+import sprintBaselineRoutes from "../routes/sprintBaseline";
 import organizationRoutes from "../routes/organization";
 import adminRoutes from "../routes/admin";
 import internalRoutes from "../routes/internal";
@@ -85,6 +86,7 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/profile", apiLimiter, profileRoutes);
     app.use("/api/user/preferences", apiLimiter, userPreferencesRoutes);
     app.use("/api/sprints", apiLimiter, sprintCompletionRoutes);
+    app.use("/api/sprints", apiLimiter, sprintBaselineRoutes);
     // Organization-page structure edits (departments / teams) stay on the app;
     // the Admin → My Organization operations below are web-only.
     app.use("/api/org", apiLimiter, webOnlyExcept((req) => !(

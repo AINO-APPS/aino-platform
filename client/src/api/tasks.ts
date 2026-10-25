@@ -117,6 +117,7 @@ export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIC
 export const getEpics = () => API.get("/tasks/epics");
 export const getSprintCompletionPreview = (id: number | string) =>
     API.get(`/sprints/${id}/completion-preview`);
+export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

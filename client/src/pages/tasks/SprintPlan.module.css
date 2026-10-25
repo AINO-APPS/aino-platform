@@ -132,6 +132,10 @@
     color: var(--text-muted);
 }
 
+.plan-scope {
+    font-variant-numeric: tabular-nums;
+}
+
 .plan-goal {
     display: flex;
     align-items: center;

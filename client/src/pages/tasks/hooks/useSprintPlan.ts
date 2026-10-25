@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
     assignTaskToSprint,
     getRecentVelocity,
+    getSprintBaseline,
     getSprintBurndown,
     updateSprint,
 } from "../../../api/tasks";
@@ -28,6 +29,10 @@ export function useSprintPlan({
         average: 0,
     });
     const [burndown, setBurndown] = useState<any[]>([]);
+    const [scope, setScope] = useState<{ addedPoints: number; removedPoints: number }>({
+        addedPoints: 0,
+        removedPoints: 0,
+    });
 
     useEffect(() => {
         let cancelled = false;
@@ -50,6 +55,16 @@ export function useSprintPlan({
         getSprintBurndown(sprintId)
             .then((res) => {
                 if (!cancelled) setBurndown(res.data?.snapshots || res.data || []);
+            })
+            .catch(() => {});
+        getSprintBaseline(sprintId)
+            .then((res) => {
+                if (!cancelled) {
+                    setScope({
+                        addedPoints: res.data?.delta?.addedPoints ?? 0,
+                        removedPoints: res.data?.delta?.removedPoints ?? 0,
+                    });
+                }
             })
             .catch(() => {});
         return () => {
@@ -97,5 +112,5 @@ export function useSprintPlan({
         [sprintId, onError],
     );
 
-    return { velocity, burndown, moveToSprint, moveToBacklog, saveGoal };
+    return { velocity, burndown, scope, moveToSprint, moveToBacklog, saveGoal };
 }

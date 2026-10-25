@@ -5,7 +5,8 @@ const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
-const { listSprintTasks } = require("../modules/tasks/tasks.collection");
+const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
+const { captureBaseline } = require("../modules/tasks/tasks.baseline");
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
@@ -356,7 +357,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
 //
 // Transitions a sprint from 'planned' → 'active'. Enforces:
 //   - Only one active sprint per team at a time (auto-completes existing).
-//   - Captures starting velocity baseline as the day-0 burndown snapshot.
+//   - Captures the scope baseline and the day-0 burndown snapshot.
 router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -368,31 +369,32 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
         if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "active") return res.status(400).json({ error: "Sprint is already active" });
         if (sprint.status === "completed") return res.status(400).json({ error: "Cannot restart a completed sprint" });
-
         // Auto-complete any other active sprint on the same team
         await req.db!.query(
-            `UPDATE sprints SET status = 'completed', completed_at = NOW()
-              WHERE team_id = $1 AND status = 'active' AND id != $2`,
+            `UPDATE sprints SET status = 'completed', completed_at = NOW() WHERE team_id = $1 AND status = 'active' AND id != $2`,
             [sprint.team_id, id]
         );
-
         await req.db!.query(
             "UPDATE sprints SET status = 'active', started_at = COALESCE(started_at, NOW()) WHERE id = $1",
             [id]
         );
-
+        // Record what the sprint committed when it started, so scope added or
+        // removed later can be reported against it.
+        const committed = (await req.db!.query("SELECT id, story_points FROM tasks WHERE sprint_id = $1", [id])).rows;
+        const baseline = captureBaseline(committed);
+        await req.db!.query(
+            `INSERT INTO sprint_baselines (sprint_id, committed_points, committed_task_ids, reason) VALUES ($1, $2, $3::jsonb, 'start')`,
+            [id, baseline.committed_points, JSON.stringify(baseline.committed_task_ids)],
+        );
         await snapshotBurndown(req.db, parseInt(String(id), 10));
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
-
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
-        res.json({ sprint: updated });
+        return res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error starting sprint");
         res.status(500).json({ error: "Failed to start sprint" });
     }
-});
-
-// ─── Sprint lifecycle: COMPLETE (with optional rollover) ────────────────────
+});// ─── Sprint lifecycle: COMPLETE (with optional rollover) ────────────────────
 //
 // Body: { rolloverTo?: <sprintId or "backlog"> }
 //   - "backlog" (default) — moves any incomplete tickets to the backlog

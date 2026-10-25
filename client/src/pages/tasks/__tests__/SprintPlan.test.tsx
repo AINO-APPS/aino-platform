@@ -79,4 +79,14 @@ describe("SprintPlan", () => {
         renderPlan({ sprintTasks: [] });
         expect(screen.getByText("Pull work in from the backlog.")).toBeTruthy();
     });
+
+    test("scope added and removed are shown in points", () => {
+        renderPlan({ scope: { addedPoints: 8, removedPoints: 3 } });
+        expect(screen.getByText("+8 / −3 scope")).toBeTruthy();
+    });
+
+    test("a sprint with no scope change shows zero, not a blank", () => {
+        renderPlan();
+        expect(screen.getByText("+0 / −0 scope")).toBeTruthy();
+    });
 });

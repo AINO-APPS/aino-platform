@@ -18,6 +18,7 @@ interface SprintPlanProps {
     epics?: any[];
     selectedEpicId?: number | string | null;
     onSelectEpic?: (id: number | string | null) => void;
+    scope?: { addedPoints: number; removedPoints: number };
 }
 
 function points(tasks: any[]): number {
@@ -46,6 +47,7 @@ export default function SprintPlan({
     epics = [],
     selectedEpicId,
     onSelectEpic,
+    scope = { addedPoints: 0, removedPoints: 0 },
 }: SprintPlanProps) {
     const [goal, setGoal] = useState(sprint?.goal ?? "");
     const [editingGoal, setEditingGoal] = useState(false);
@@ -119,6 +121,10 @@ export default function SprintPlan({
                     </div>
                     <span className={s["plan-capacity-text"]}>
                         {committed} committed of {capacity || "unestimated"} {unitLabel}
+                        {" · "}
+                        <span className={s["plan-scope"]}>
+                            +{scope.addedPoints} / −{scope.removedPoints} scope
+                        </span>
                     </span>
                 </div>
 
