@@ -46,12 +46,22 @@ const DECISION = /^D[0-9]+$/;
  *
  * Desktop is the web bundle, so its tests live in the platform repo alongside
  * web's. Android and iOS are separate repositories.
+ *
+ * A sibling repo is only present in a multi-repo checkout. CI checks out this
+ * repository alone, so a missing sibling means "cannot verify", not "the test
+ * is missing" — otherwise the gate fails for a reason unrelated to the change.
  */
 const CLIENT_ROOTS = {
   web: root,
   desktop: root,
   android: path.join(repoRoot, "aino-android"),
   ios: path.join(repoRoot, "aino-ios"),
+};
+
+/** True when the client's repository is checked out beside this one. */
+const clientRepoPresent = (client) => {
+  const base = CLIENT_ROOTS[client];
+  return base === root || fs.existsSync(base);
 };
 
 const fail = [];
@@ -100,8 +110,10 @@ for (const feature of matrix.features ?? []) {
         typeof test === "string" && test.trim().length > 0 && !/shared with web/i.test(test),
         `${label}/${client}: shipped requires a concrete owner_test`
       );
-      // Rule 12 — a shipped feature must name a test that exists.
-      if (typeof test === "string" && test.trim().length > 0) {
+      // Rule 12 — a shipped feature must name a test that exists. Only
+      // verifiable when that client's repository is checked out beside this
+      // one; a single-repo CI checkout cannot see a sibling's files.
+      if (typeof test === "string" && test.trim().length > 0 && clientRepoPresent(client)) {
         const base = CLIENT_ROOTS[client];
         const resolved = path.resolve(base, test);
         check(

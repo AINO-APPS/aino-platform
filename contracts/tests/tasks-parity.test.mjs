@@ -114,10 +114,36 @@ test("accepts a shipped feature whose owning test exists", () => {
     const owner = "contracts/tests/tasks-parity.test.mjs";
     matrix.features[0].web = { status: "shipped", owner_test: owner };
     matrix.features[0].desktop = { status: "shipped", owner_test: owner };
-    matrix.features[0].android = { status: "shipped", owner_test: "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt" };
+    // Android's owning test lives in a sibling repository. When that repo is
+    // not checked out (single-repo CI) the path cannot be verified, so the
+    // gate must not fail on it — use a waived entry to keep this test about
+    // the web/desktop rule.
+    matrix.features[0].android = { status: "waived", waiver: "Native Compose implementation covers this behaviour elsewhere." };
     matrix.features[0].ios = { status: "waived", waiver: "Scoped webview shares the web implementation by construction." };
   });
   assert.equal(result.code, 0, result.stderr);
+});
+
+test("a sibling client's owner_test is only checked when that repo is present", () => {
+  // The platform repo is checked out alone in CI, so an Android path cannot be
+  // resolved. The gate must treat that as "cannot verify", not "missing".
+  const androidRepo = path.resolve(root, "..", "aino-android");
+  const result = withMatrix(matrix => {
+    const owner = "contracts/tests/tasks-parity.test.mjs";
+    matrix.features[0].web = { status: "shipped", owner_test: owner };
+    matrix.features[0].desktop = { status: "shipped", owner_test: owner };
+    matrix.features[0].android = {
+      status: "shipped",
+      owner_test: "app/src/test/java/app/aino/mobile/feature/tasks/DoesNotExist.kt",
+    };
+    matrix.features[0].ios = { status: "waived", waiver: "Scoped webview shares the web implementation by construction." };
+  });
+  if (fs.existsSync(androidRepo)) {
+    assert.equal(result.code, 1, "a present sibling repo must be verified");
+    assert.match(result.stderr, /does not exist/);
+  } else {
+    assert.equal(result.code, 0, "an absent sibling repo cannot be verified and must not fail the gate");
+  }
 });
 
 test("desktop is tracked as the web bundle, never an independent client", () => {
