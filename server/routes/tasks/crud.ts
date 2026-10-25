@@ -19,6 +19,7 @@ const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require('./_helpers/access');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
+const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -40,108 +41,32 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search } = req.query as Record<string, string>;
 
-        const conditions: string[] = [];
-        const params: unknown[] = [];
-        let pi = 1;
+        const isOrgAdmin = req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin');
+        const visibility = scope === 'personal'
+            ? { kind: 'personal' as const, userId: req.userId }
+            : isOrgAdmin
+                ? { kind: 'org-admin' as const }
+                : req.userTeamId
+                    ? { kind: 'team' as const, userId: req.userId, teamId: req.userTeamId }
+                    : { kind: 'personal' as const, userId: req.userId };
 
-        if (req.userOrgId) {
-            conditions.push(`t.org_id = $${pi++}`);
-            params.push(req.userOrgId);
-        } else {
-            conditions.push('t.org_id IS NULL');
-        }
-
-        if (sprint_id) {
-            conditions.push(`t.sprint_id = $${pi++}`);
-            params.push(parseInt(sprint_id, 10));
-        } else if (start_date && end_date) {
-            conditions.push(`t.date >= $${pi++} AND t.date <= $${pi++}`);
-            params.push(start_date, end_date);
-        } else if (date) {
-            if (include_due === '1') {
-                conditions.push(`(t.sprint_id IS NULL AND t.date IS NOT NULL AND (t.date = $${pi} OR t.due_date = $${pi}))`);
-                params.push(date);
-                pi++;
-            } else {
-                conditions.push(`t.date = $${pi++}`);
-                params.push(date);
-            }
-        } else {
-            const targetDate = getLocalToday(req);
-            conditions.push(`t.date = $${pi++}`);
-            params.push(targetDate);
-        }
-
-        if (scope === 'personal') {
-            conditions.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi})`);
-            params.push(req.userId);
-            pi++;
-        } else if (req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin')) {
-            // Org-wide visibility for org admins (covers service desk tickets created by/for any team)
-            // No additional creator/assignee constraint beyond the org filter already added above.
-        } else {
-            if (req.userTeamId) {
-                conditions.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi} OR t.user_id IN (SELECT id FROM users WHERE team_id = $${pi + 1}))`);
-                params.push(req.userId, req.userTeamId);
-                pi += 2;
-            } else {
-                conditions.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi})`);
-                params.push(req.userId);
-                pi++;
-            }
-        }
-
-        if (assignee) {
-            if (assignee === 'me') {
-                // "My tasks" = tasks assigned to me, OR tasks I created that are still unassigned.
-                // Tasks I created but reassigned to someone else should NOT appear under "me".
-                conditions.push(`(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`);
-                params.push(req.userId);
-                pi++;
-            } else {
-                const assigneeId = parseInt(assignee, 10);
-                conditions.push(`(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`);
-                params.push(assigneeId);
-                pi++;
-            }
-        }
-
-        if (priority && ['low', 'medium', 'high'].includes(priority)) {
-            conditions.push(`t.priority = $${pi++}`);
-            params.push(priority);
-        }
-
-        if (status && ['pending', 'in_progress', 'in_review', 'done'].includes(status)) {
-            conditions.push(`t.status = $${pi++}`);
-            params.push(status);
-        }
-
-        if (label) {
-            const labelId = parseInt(label, 10);
-            if (!isNaN(labelId)) {
-                conditions.push(`EXISTS (SELECT 1 FROM task_label_map tlm WHERE tlm.task_id = t.id AND tlm.label_id = $${pi++})`);
-                params.push(labelId);
-            }
-        }
-
-        if (search && search.trim()) {
-            // Bug #17 (Stage 2): include explicit ESCAPE clause so the `\`
-            // we use to escape `%` / `_` is actually honoured by Postgres.
-            const escaped = search.trim().replace(/[\\%_]/g, c => `\\${c}`);
-            conditions.push(`(t.title ILIKE $${pi} ESCAPE '\\' OR t.description ILIKE $${pi} ESCAPE '\\')`);
-            params.push(`%${escaped}%`);
-            pi++;
-        }
+        const collection = buildTaskCollection({
+            scope: 'schedule',
+            orgId: req.userOrgId || null,
+            visibility,
+            sprintId: sprint_id ? parseInt(sprint_id, 10) : undefined,
+            startDate: start_date,
+            endDate: end_date,
+            date: date || (sprint_id || (start_date && end_date) ? undefined : getLocalToday(req)),
+            filters: { assignee, label, priority, status, search, includeDue: include_due === '1' },
+        });
 
         const tasks = (await req.db!.query(`
             SELECT t.* FROM tasks t
-            WHERE ${conditions.join(' AND ')}
-            ORDER BY
-                CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
-                CASE t.status WHEN 'in_progress' THEN 1 WHEN 'in_review' THEN 2 WHEN 'pending' THEN 3 WHEN 'done' THEN 4 END,
-                t.created_at ASC
+            WHERE ${collection.whereSql}
+            ORDER BY ${collection.orderSql}
             LIMIT 500
-        `, params)).rows;
+        `, collection.params)).rows;
 
         const enriched = await enrichTasks(tasks, req.db);
         const total = enriched.length;

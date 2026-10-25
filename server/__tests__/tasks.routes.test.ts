@@ -153,7 +153,8 @@ describe("GET /api/tasks", () => {
         expect(res.status).toBe(200);
         const tasksCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT t.* FROM tasks t"));
         expect(tasksCall).toBeTruthy();
-        expect(tasksCall[0]).toContain("t.org_id = $1");
+        expect(tasksCall[0]).toMatch(/t\.org_id = \$\d+/);
+        expect(tasksCall[1]).toContain(1);
     });
 });
 

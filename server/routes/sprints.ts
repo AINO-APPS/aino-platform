@@ -5,6 +5,7 @@ const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
+const { listSprintTasks } = require("../modules/tasks/tasks.collection");
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
@@ -184,16 +185,13 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
 router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-
         const sprint = (await req.db!.query(
             "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
-
-        const tasks = (await req.db!.query("SELECT * FROM tasks WHERE sprint_id = $1 ORDER BY created_at ASC", [id])).rows;
-        res.json({ tasks });
+        return res.json({ tasks: await listSprintTasks(req.db!, req.userOrgId || null, Number(id)) });
     } catch (err) {
         req.log.error({ err }, "Error fetching sprint tasks:");
         res.status(500).json({ error: "Failed to fetch sprint tasks" });

@@ -9,6 +9,7 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
+const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask } = require('./_helpers/access');
@@ -48,72 +49,22 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
-        const conditions = ['t.date IS NULL', 't.sprint_id IS NULL'];
-        const params: unknown[] = [];
-        let pi = 1;
-
-        if (req.userOrgId) {
-            conditions.push(`t.org_id = $${pi++}`);
-            params.push(req.userOrgId);
-        } else {
-            conditions.push('t.org_id IS NULL');
-        }
-
         const isOrgAdmin = req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin');
-        if (isOrgAdmin) {
-            // Org-wide backlog visibility (covers service desk tickets across teams)
-        } else if (req.userTeamId) {
-            conditions.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi} OR t.user_id IN (SELECT id FROM users WHERE team_id = $${pi + 1}))`);
-            params.push(req.userId, req.userTeamId);
-            pi += 2;
-        } else {
-            conditions.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi})`);
-            params.push(req.userId);
-            pi++;
-        }
+        const visibility = isOrgAdmin
+            ? { kind: 'org-admin' as const }
+            : req.userTeamId
+                ? { kind: 'team' as const, userId: req.userId, teamId: req.userTeamId }
+                : { kind: 'personal' as const, userId: req.userId };
 
-        if (assignee) {
-            if (assignee === 'me') {
-                // "My backlog" = tickets assigned to me, OR tickets I created that are still unassigned.
-                // A ticket I created and reassigned to someone else should NOT show under "me".
-                conditions.push(`(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`);
-                params.push(req.userId);
-                pi++;
-            } else {
-                const assigneeId = parseInt(assignee, 10);
-                conditions.push(`(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`);
-                params.push(assigneeId);
-                pi++;
-            }
-        }
-
-        if (priority && ['low', 'medium', 'high'].includes(priority)) {
-            conditions.push(`t.priority = $${pi++}`);
-            params.push(priority);
-        }
-
-        if (status && ['pending', 'in_progress', 'in_review', 'done'].includes(status)) {
-            conditions.push(`t.status = $${pi++}`);
-            params.push(status);
-        }
-
-        if (search && search.trim()) {
-            const escaped = search.trim().replace(/[%_]/g, c => `\\${c}`);
-            conditions.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
-            params.push(`%${escaped}%`);
-            pi++;
-        }
-
-        // Bug #10: push label filter into SQL (EXISTS) instead of JS post-filter.
-        if (label) {
-            const labelId = parseInt(label, 10);
-            if (!isNaN(labelId)) {
-                conditions.push(`EXISTS (SELECT 1 FROM task_label_map tlm WHERE tlm.task_id = t.id AND tlm.label_id = $${pi++})`);
-                params.push(labelId);
-            }
-        }
-
-        const whereSql = conditions.join(' AND ');
+        const collection = buildTaskCollection({
+            scope: 'backlog',
+            orgId: req.userOrgId || null,
+            visibility,
+            filters: { assignee, label, priority, status, search, excludeScheduled: true },
+        });
+        const whereSql = collection.whereSql;
+        const params = collection.params;
+        const pi = params.length + 1;
 
         // Bug #9: include a parallel COUNT(*) so the client can render
         // pagination / totals without a second round-trip.
@@ -121,9 +72,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
             req.db!.query(
                 `SELECT t.* FROM tasks t
                   WHERE ${whereSql}
-                  ORDER BY
-                    CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END,
-                    t.created_at DESC
+                  ORDER BY ${collection.orderSql}
                   LIMIT $${pi} OFFSET $${pi + 1}`,
                 [...params, limit, offset]
             ),

@@ -12,6 +12,7 @@ const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask } = require('./_helpers/access');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
+const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 
 const router = express.Router();
 
