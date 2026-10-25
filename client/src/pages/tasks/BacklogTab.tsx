@@ -90,6 +90,8 @@ interface BacklogTabProps {
     reorderAnnouncement: string;
     onQuickAdd: (title: string) => Promise<void> | void;
     onInlineEdit: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
+    selection: any;
+    bulkBar: React.ReactNode;
     scheduleTaskId: number | string | null;
     setScheduleTaskId: (v: number | string | null) => void;
     scheduleDate: string;
@@ -156,6 +158,8 @@ export default function BacklogTab({
     reorderAnnouncement,
     onQuickAdd,
     onInlineEdit,
+    selection,
+    bulkBar,
     scheduleTaskId,
     setScheduleTaskId,
     scheduleDate,
@@ -240,6 +244,8 @@ export default function BacklogTab({
 
             {/* Quick-add: capture without a modal, keeping focus for the next one. */}
             <QuickAdd onCreate={onQuickAdd} />
+
+            {bulkBar}
 
             {/* Add Backlog Form */}
             {backlogFormOpen && (
@@ -444,6 +450,7 @@ export default function BacklogTab({
                             onScheduleTask={onScheduleTask}
                             reorder={reorder}
                             onInlineEdit={onInlineEdit}
+                            selection={selection}
                         />
                     ))}
                     <div className="sr-only" role="status" aria-live="polite">

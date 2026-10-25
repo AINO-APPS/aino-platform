@@ -35,6 +35,11 @@ interface BacklogCardProps {
     };
     /** Patch one field without opening the detail view. */
     onInlineEdit?: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
+    /** Multi-select for bulk actions. */
+    selection?: {
+        isSelected: (id: number | string) => boolean;
+        toggle: (id: number | string) => void;
+    };
 }
 
 /** One backlog row. Extracted so the tab stays within the file-size ratchet. */
@@ -49,6 +54,7 @@ export default function BacklogCard({
     onScheduleTask,
     reorder,
     onInlineEdit,
+    selection,
 }: BacklogCardProps) {
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(task.title ?? "");
@@ -92,6 +98,16 @@ export default function BacklogCard({
             />
             <div className={s["backlog-card-body"]}>
                 <div className={s["backlog-card-header"]}>
+                    {selection && (
+                        <input
+                            type="checkbox"
+                            className={s["backlog-select"]}
+                            checked={selection.isSelected(task.id)}
+                            aria-label={`Select ${task.title}`}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={() => selection.toggle(task.id)}
+                        />
+                    )}
                     <span className={s["backlog-ticket-id"]}>
                         {task.issue_key || `#${task.id}`}
                     </span>

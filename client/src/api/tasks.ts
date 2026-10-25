@@ -108,6 +108,11 @@ export const rankTask = (
     id: number | string,
     neighbours: { beforeId: number | string | null; afterId: number | string | null },
 ) => API.patch(`/tasks/${id}/rank`, neighbours);
+export const bulkTaskAction = (data: {
+    ids: Array<number | string>;
+    action: "move_to_sprint" | "status" | "assign" | "delete";
+    value?: unknown;
+}) => API.post("/tasks/bulk", data);
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

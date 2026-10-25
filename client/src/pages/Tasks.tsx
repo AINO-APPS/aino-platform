@@ -23,6 +23,8 @@ import InlineCommentPanel from "./tasks/InlineCommentPanel";
 import ServiceDeskTab from "./tasks/ServiceDeskTab";
 import ScheduledTab from "./tasks/ScheduledTab";
 import SprintProgressCard from "./tasks/SprintProgressCard";
+import BulkActionBar from "./tasks/BulkActionBar";
+import BacklogBulkBar from "./tasks/BacklogBulkBar";
 import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
@@ -475,6 +477,15 @@ export default function Tasks() {
             {...backlog}
             onQuickAdd={backlog.quickAdd}
             onInlineEdit={backlog.inlineEdit}
+            selection={backlog.bulk}
+            bulkBar={
+              <BacklogBulkBar
+                bulk={backlog.bulk}
+                availableSprints={availableSprints}
+                assignableUsers={assignableUsers}
+                onOfferUndo={offerUndo}
+              />
+            }
             filterPriority={filters.filterPriority}
             summaryAllActive={summaryAllActive}
             error={error}

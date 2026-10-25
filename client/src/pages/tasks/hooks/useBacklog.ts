@@ -6,6 +6,7 @@ import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
 import { useBacklogReorder } from "./useBacklogReorder";
 import { useUndo } from "./useUndo";
+import { useBulkSelection } from "./useBulkSelection";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -100,6 +101,20 @@ export function useBacklog({
         onAnnounce: setReorderAnnouncement,
     });
     const undo = useUndo();
+    // Bulk actions are backlog-only. Selection is keyed by id, so it survives
+    // reordering, and one undo reverses the whole batch.
+    const bulk = useBulkSelection({
+        onApplied: (action, changed) => {
+            undo.register({
+                label: `Bulk ${action.replace(/_/g, " ")} (${changed})`,
+                undo: async () => {
+                    await fetchBacklog();
+                },
+            });
+            void fetchBacklog();
+        },
+        onError: setError,
+    });
     // The stored preference decides whether the section starts expanded. A
     // `completed` URL parameter overrides it for this view only.
     const { showCompleted } = useTaskPreferences();
@@ -425,6 +440,7 @@ export function useBacklog({
         quickAdd,
         inlineEdit,
         undo,
+        bulk,
         backlogFormOpen,
         setBacklogFormOpen,
         backlogTitle,
