@@ -584,8 +584,8 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
         // board mirrors the main backlog order. Plain `ORDER BY priority DESC`
         // would sort alphabetically and put 'medium' before 'low' before 'high'.
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, ws.key AS status, t.priority, t.assigned_to,
-                    u.full_name AS assignee_name
+            `SELECT t.id, t.title, ws.key AS status, ws.category AS status_category,
+                    t.priority, t.assigned_to, u.full_name AS assignee_name
              FROM tasks t
              LEFT JOIN users u ON u.id = t.assigned_to
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
@@ -600,12 +600,16 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
             [sprint.id],
         )).rows;
 
-        // Calculate burndown-style stats
+        // Stats bucket by workflow-state category (D6) rather than by key: the
+        // key is org-configurable, so matching on it silently reported zero
+        // once the legacy `tasks.status` column was dropped.
         const total = tasks.length;
-        const done = tasks.filter((t: { status: string }) => t.status === "done").length;
-        const inProgress = tasks.filter((t: { status: string }) => t.status === "in_progress").length;
-        const inReview = tasks.filter((t: { status: string }) => t.status === "in_review").length;
-        const pending = tasks.filter((t: { status: string }) => t.status === "pending").length;
+        const bucket = (category: string) =>
+            tasks.filter((t: { status_category: string | null }) => t.status_category === category).length;
+        const done = bucket("done");
+        const inProgress = bucket("in_progress");
+        const inReview = bucket("in_review");
+        const pending = bucket("open");
 
         res.json({
             sprint,

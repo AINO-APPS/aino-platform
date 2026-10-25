@@ -209,6 +209,9 @@ export default function ScheduleCalendar({
                     role="grid"
                     aria-label={mode === "week" ? "Week" : "Month"}
                 >
+                    {/* A grid needs a row between it and its cells. The row uses
+                        `display: contents` so the CSS grid layout is unchanged. */}
+                    <div role="row" className={s["grid-row"]}>
                     {days.map((day) => {
                         const dayTasks = byDay.get(day.date) ?? [];
                         const totals = dayTotals(dayTasks);
@@ -261,6 +264,7 @@ export default function ScheduleCalendar({
                             </div>
                         );
                     })}
+                    </div>
                 </div>
                 )}
 

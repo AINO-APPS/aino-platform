@@ -13,7 +13,7 @@ const { canAccessTask } = require('./_helpers/access');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { taskAudience, taskNotificationLink } = require('../../modules/tasks/tasks.notifications');
+const { taskNotificationLink, describeSprintTaskAdded } = require('../../modules/tasks/tasks.notifications');
 const { notifyUser } = require('../../realtime/fanout');
 const {
     findTask, findSprintName, findSprintInOrg, setSprintAndDueDate, clearSprint,
@@ -28,15 +28,15 @@ const router = express.Router();
  * board, and a notification per ticket would be noise.
  */
 async function notifySprintTaskAdded(req: Request, task: any, sprint: any): Promise<void> {
-    const audience = taskAudience(task, req.userId);
+    const { title, body, audience } = describeSprintTaskAdded({ task, sprint, actorId: req.userId });
     for (const userId of audience) {
         await notifyUser(
             req.db,
             req.tenantId,
             userId,
             "sprint",
-            `Added to ${sprint.name}`,
-            `${task.title} was added to ${sprint.name}.`,
+            title,
+            body,
             { link: taskNotificationLink(task.id), linkTaskId: task.id, actorId: req.userId },
         ).catch(() => undefined);
     }

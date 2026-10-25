@@ -93,7 +93,7 @@ export default function SprintImportPanel({
                                                 style={
                                                     {
                                                         "--badge-bg": pri.color + "20",
-                                                        "--badge-color": pri.color,
+                                                        "--badge-color": pri.ink,
                                                     } as React.CSSProperties
                                                 }
                                             >

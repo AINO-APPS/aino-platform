@@ -82,6 +82,12 @@
     gap: 4px;
 }
 
+/* The ARIA row wrapper must not add a layout box: the cells stay direct
+   children of the CSS grid. */
+.grid-row {
+    display: contents;
+}
+
 .grid-week {
     grid-template-columns: repeat(7, minmax(120px, 1fr));
     overflow-x: auto;

@@ -14,6 +14,9 @@ const { resolveWorkflowState } = require("./_helpers/agile");
 const {
     findManyInOrg, setSprint, setWorkflowState, setAssignee, deleteTask,
 } = require("../../modules/tasks/tasks.repository");
+const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
+const { describeSprintTaskAdded, taskNotificationLink } = require("../../modules/tasks/tasks.notifications");
+const { notifyUser } = require("../../realtime/fanout");
 
 const router = express.Router();
 
@@ -32,6 +35,27 @@ function parseIds(raw: unknown): number[] {
     return [...new Set(raw
         .map((value) => Number.parseInt(String(value), 10))
         .filter((value) => !Number.isNaN(value)))];
+}
+
+/**
+ * A bulk move into a sprint is the same event as a single one, so it uses the
+ * same notifier. Never throws: a failed notification must not lose the move.
+ */
+async function notifyBulkSprintAdded(req: Request, task: any, sprintId: number): Promise<void> {
+    const sprint = await findSprintInOrg(req.db!, sprintId, req.userOrgId);
+    if (!sprint) return;
+    const { title, body, audience } = describeSprintTaskAdded({ task, sprint, actorId: req.userId });
+    for (const userId of audience) {
+        await notifyUser(
+            req.db!,
+            req.tenantId,
+            userId,
+            "sprint",
+            title,
+            body,
+            { link: taskNotificationLink(task.id), linkTaskId: task.id, actorId: req.userId },
+        ).catch(() => undefined);
+    }
 }
 
 router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -57,6 +81,9 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     const sprintId = value === null || value === "" ? null : Number.parseInt(String(value), 10);
                     await setSprint(req.db!, task.id, sprintId);
                     await logHistory(task.id, req.userId, "updated", "sprint", task.sprint_id, sprintId, null, req.db);
+                    if (sprintId !== null) {
+                        await notifyBulkSprintAdded(req, task, sprintId);
+                    }
                     results.push({ id: task.id, ok: true, previous: { sprint_id: task.sprint_id } });
                 } else if (action === "status") {
                     const target = await resolveWorkflowState(value, req.userOrgId, req.db);

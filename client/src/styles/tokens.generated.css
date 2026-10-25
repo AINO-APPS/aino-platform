@@ -15,6 +15,11 @@
   --warning-glow: rgba(203, 145, 47, 0.18);
   --danger: #e03e3e;
   --danger-glow: rgba(224, 62, 62, 0.18);
+  --primary-ink: #4093e6;
+  --primary-light-ink: #529cca;
+  --success-ink: #4daa57;
+  --warning-ink: #cb912f;
+  --danger-ink: #e66363;
   --bg: #131314;
   --bg-secondary: #1b1b1c;
   --bg-hover: rgba(255, 255, 255, 0.055);
@@ -86,6 +91,11 @@
   --warning-glow: rgba(203, 145, 47, 0.18);
   --danger: #e03e3e;
   --danger-glow: rgba(224, 62, 62, 0.18);
+  --primary-ink: #1d6bb9;
+  --primary-light-ink: #356fa3;
+  --success-ink: #377a3f;
+  --warning-ink: #8e6621;
+  --danger-ink: #c13535;
   --bg: #fbfbfa;
   --bg-secondary: #f5f4f1;
   --bg-hover: rgba(55, 53, 47, 0.06);
@@ -96,7 +106,7 @@
   --glass-border: rgba(55, 53, 47, 0.12);
   --text: #37352f;
   --text-primary: #37352f;
-  --text-secondary: rgba(55, 53, 47, 0.65);
+  --text-secondary: rgba(55, 53, 47, 0.68);
   --text-muted: rgba(55, 53, 47, 0.45);
   --input-bg: #f7f6f3;
   --input-border: rgba(55, 53, 47, 0.16);

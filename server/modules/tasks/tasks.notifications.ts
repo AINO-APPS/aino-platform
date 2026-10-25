@@ -91,3 +91,35 @@ export function isDueDateApproaching(
     );
     return diff === 0 || diff === 1;
 }
+
+/** The slice of a task and a sprint an "added to sprint" notification needs. */
+export interface SprintTaskAddedInput {
+    task: {
+        id: number | string;
+        title: string;
+        assigned_to?: number | string | null;
+        user_id?: number | string | null;
+    };
+    sprint: { name: string };
+    actorId: number | string | null | undefined;
+}
+
+/**
+ * Tell the assignee they were added to a sprint.
+ *
+ * Only the assignee — the rest of the team already sees the sprint on their
+ * board, and a notification per ticket would be noise. Lives here rather than
+ * in a route so every path that moves work into a sprint (single assign and
+ * bulk move) emits the same event.
+ */
+export function describeSprintTaskAdded(input: SprintTaskAddedInput): {
+    title: string;
+    body: string;
+    audience: number[];
+} {
+    return {
+        title: `Added to ${input.sprint.name}`,
+        body: `${input.task.title} was added to ${input.sprint.name}.`,
+        audience: taskAudience(input.task, input.actorId),
+    };
+}

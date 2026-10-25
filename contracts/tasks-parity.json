@@ -787,20 +787,20 @@
       "decision": "D45",
       "phase": 3,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/a11y-wcag-aa.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/a11y/tasksA11y.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/a11y/tasksA11y.test.tsx"
       },
       "android": {
         "status": "shipped",
         "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TaskComponents.kt"
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/a11y-wcag-aa.swift"
+        "status": "waived",
+        "waiver": "iOS renders the Tasks area in a WKWebView over the web bundle, so it inherits the audited web surfaces rather than shipping its own."
       }
     },
     {
@@ -832,20 +832,20 @@
       "decision": "D44",
       "phase": 3,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/parity-ci-gate.spec.ts"
-      },
-      "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
-      },
-      "android": {
         "status": "shipped",
         "owner_test": "contracts/tests/tasks-parity.test.mjs"
       },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "contracts/tests/tasks-parity.test.mjs"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "The gate is a platform-repo CI step that validates this matrix for every client; there is no Android-side implementation to ship."
+      },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/parity-ci-gate.swift"
+        "status": "waived",
+        "waiver": "The gate is a platform-repo CI step that validates this matrix for every client; there is no iOS-side implementation to ship."
       }
     }
   ],

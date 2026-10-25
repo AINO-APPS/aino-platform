@@ -82,7 +82,24 @@ test("the sprint start and complete routes emit their notifications", () => {
 test("being added to a sprint notifies the assignee", () => {
   const source = read("server/routes/tasks/sprints.ts");
   assert.ok(source.includes("notifySprintTaskAdded"), "assign-sprint does not notify");
-  assert.ok(source.includes("taskAudience"), "assign-sprint must scope the audience");
+  // The audience and the copy live in one place so both the single assign and
+  // the bulk move emit the identical event.
+  const notifications = read("server/modules/tasks/tasks.notifications.ts");
+  assert.ok(
+    notifications.includes("export function describeSprintTaskAdded"),
+    "the added-to-sprint event must be declared once, in the notifications module",
+  );
+  assert.ok(notifications.includes("taskAudience"), "added-to-sprint must scope the audience");
+});
+
+test("bulk move-to-sprint emits the same added-to-sprint event", () => {
+  const source = read("server/routes/tasks/bulk.ts");
+  assert.ok(source.includes("describeSprintTaskAdded"), "bulk move does not notify");
+  // Moving work OUT of a sprint is not "added to a sprint".
+  assert.ok(
+    /sprintId !== null[\s\S]{0,120}notifyBulkSprintAdded/.test(source),
+    "bulk move must only notify when a sprint is actually set",
+  );
 });
 
 test("a due-date reminder sweep exists and is scheduled", () => {

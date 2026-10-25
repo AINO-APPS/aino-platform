@@ -31,6 +31,12 @@ jobs:
       - name: Validate HTTP, realtime, and push contracts
         run: npm run contracts:validate
 
+      # D44: "same features everywhere" is a build step. The matrix fails the
+      # build when a feature ships on web with no counterpart or waiver, when a
+      # shipped feature names no owning test, or when desktop diverges from web.
+      - name: Enforce cross-client Tasks parity
+        run: node scripts/validate-tasks-parity.mjs
+
       # GR5 (static half): stops anyone reintroducing an in-process Map for
       # cross-replica state. The dynamic half runs in the server test suite.
       - name: Enforce statelessness guard
@@ -144,6 +150,12 @@ jobs:
       - name: Run tests
         working-directory: client
         run: npm test
+
+      # D45 release gate: axe clean on Backlog, Board, Plan and Schedule, plus
+      # the WCAG 2.1 AA contrast assertions on every status/priority/epic chip.
+      - name: Accessibility audit (WCAG 2.1 AA)
+        working-directory: client
+        run: npx vitest run src/pages/tasks/__tests__/a11y
 
       - name: Build
         working-directory: client

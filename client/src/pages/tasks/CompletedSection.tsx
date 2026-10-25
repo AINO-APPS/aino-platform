@@ -44,7 +44,9 @@ export default function CompletedSection({
                 className={s["completed-toggle"]}
                 onClick={onToggle}
                 aria-expanded={open}
-                aria-controls="backlog-completed-list"
+                // Only reference the list while it exists: `aria-controls` must
+                // point at a real element, and the list is not rendered closed.
+                {...(open ? { "aria-controls": "backlog-completed-list" } : {})}
             >
                 <Chevron size={16} aria-hidden="true" />
                 <CheckCircle2 size={16} aria-hidden="true" />

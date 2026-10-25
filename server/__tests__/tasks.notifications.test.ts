@@ -1,5 +1,6 @@
 import {
     describeSprintCompletion,
+    describeSprintTaskAdded,
     isDueDateApproaching,
     isSilentAction,
     sprintLink,
@@ -78,4 +79,30 @@ describe("task notification events", () => {
         expect(taskNotificationLink(42).startsWith("/")).toBe(true);
         expect(sprintLink(7).startsWith("/")).toBe(true);
     });
-});
+
+        /**
+         * "Added to a sprint" is one of the five events. It has to be reachable
+         * from every path that moves work into a sprint — the single assign route
+         * and the bulk move — so the copy and the audience live here rather than
+         * being re-written in each route.
+         */
+        test("being added to a sprint names the sprint and the ticket", () => {
+            const added = describeSprintTaskAdded({
+                task: { id: 412, title: "Refund webhook retries", assigned_to: 3, user_id: 2 },
+                sprint: { name: "Sprint 24" },
+                actorId: 88,
+            });
+            expect(added.title).toBe("Added to Sprint 24");
+            expect(added.body).toBe("Refund webhook retries was added to Sprint 24.");
+            expect(added.audience).toEqual([3, 2]);
+        });
+
+        test("adding your own ticket to a sprint notifies nobody", () => {
+            const added = describeSprintTaskAdded({
+                task: { id: 412, title: "Self-assigned", assigned_to: 88, user_id: 88 },
+                sprint: { name: "Sprint 24" },
+                actorId: 88,
+            });
+            expect(added.audience).toEqual([]);
+        });
+    });

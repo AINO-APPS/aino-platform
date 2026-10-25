@@ -29,7 +29,7 @@ export default function TaskStatusControl({ task, currentUser, onChange }: Props
                         key={option.key}
                         type="button"
                         className={`${s["detail-status-btn"]} ${active ? s["detail-status-active"] : ""}`}
-                        style={{ "--col-color": option.color } as React.CSSProperties}
+                        style={{ "--col-color": option.color, "--col-ink": option.ink } as React.CSSProperties}
                         disabled={active || !allowed}
                         aria-pressed={active}
                         onClick={() => onChange(task, { id: option.key, label: option.label })}

@@ -49,14 +49,14 @@
 .detail-status-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; padding: 0.75rem 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
 .detail-status-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
 .detail-status-btn { padding: 0.35rem 0.75rem; font-size: 0.78rem; font-weight: 600; font-family: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--glass); color: var(--text); cursor: pointer; transition: var(--transition-fast); }
-.detail-status-btn:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--col-color, var(--primary)); color: var(--col-color, var(--primary)); }
+.detail-status-btn:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--col-color, var(--primary)); color: var(--col-ink, var(--primary-ink)); }
 .detail-status-active { background: var(--col-color, var(--primary)); color: #fff; border-color: var(--col-color, var(--primary)); }
 .detail-status-btn:disabled { opacity: 0.5; cursor: default; }
 
 .detail-actions-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem 0; border-top: 1px solid var(--border); margin-bottom: 1rem; flex-wrap: wrap; }
 .detail-schedule-row { display: flex; gap: 0.5rem; align-items: center; }
-.backlog-badge { font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
-.detail-date-badge { font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary); }
+.backlog-badge { font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning-ink); }
+.detail-date-badge { font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 99px; background: color-mix(in srgb, var(--primary) 15%, transparent); color: var(--primary-ink); }
 
 .detail-comments { border-top: 1px solid var(--border); padding-top: 1rem; }
 .detail-comments h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; }

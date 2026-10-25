@@ -23,6 +23,15 @@
   /* Notion Red */
   --danger-glow: rgba(224, 62, 62, 0.18);
 
+  /* Chip ink: the tone darkened/lightened until it clears 4.5:1 against its
+     own 12.5% tint. Chips use these for text; the tone stays for the rail,
+     dot and border. */
+  --primary-ink: #4093e6;
+  --primary-light-ink: #529cca;
+  --success-ink: #4daa57;
+  --warning-ink: #cb912f;
+  --danger-ink: #e66363;
+
   --bg: #131314;
   --bg-secondary: #1b1b1c;
   --bg-hover: rgba(255, 255, 255, 0.055);
@@ -93,7 +102,7 @@
   --glass-border: rgba(55, 53, 47, 0.12);
   --text: #37352f;
   --text-primary: #37352f;
-  --text-secondary: rgba(55, 53, 47, 0.65);
+  --text-secondary: rgba(55, 53, 47, 0.68);
   --text-muted: rgba(55, 53, 47, 0.45);
   --input-bg: #f7f6f3;
   --input-border: rgba(55, 53, 47, 0.16);

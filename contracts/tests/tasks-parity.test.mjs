@@ -39,8 +39,8 @@ test("committed matrix is valid", () => {
 test("rejects a client silently drifting when web is shipped", () => {
   const result = withMatrix(matrix => {
     const feature = matrix.features[0];
-    feature.web = { status: "shipped", owner_test: "e2e/tasks/smoke.spec.ts" };
-    feature.desktop = { status: "shipped", owner_test: "e2e/tasks/smoke.spec.ts" };
+    feature.web = { status: "shipped", owner_test: "contracts/tests/tasks-parity.test.mjs" };
+    feature.desktop = { status: "shipped", owner_test: "contracts/tests/tasks-parity.test.mjs" };
     feature.android = { status: "planned" };
   });
   assert.equal(result.code, 1);
@@ -50,8 +50,8 @@ test("rejects a client silently drifting when web is shipped", () => {
 test("accepts a client explicitly waived while web ships", () => {
   const result = withMatrix(matrix => {
     const feature = matrix.features[0];
-    feature.web = { status: "shipped", owner_test: "e2e/tasks/smoke.spec.ts" };
-    feature.desktop = { status: "shipped", owner_test: "e2e/tasks/smoke.spec.ts" };
+    feature.web = { status: "shipped", owner_test: "contracts/tests/tasks-parity.test.mjs" };
+    feature.desktop = { status: "shipped", owner_test: "contracts/tests/tasks-parity.test.mjs" };
     feature.android = { status: "waived", waiver: "Native Compose implementation covers this behaviour elsewhere." };
     feature.ios = { status: "waived", waiver: "Scoped webview shares the web implementation by construction." };
   });
@@ -68,8 +68,8 @@ test("rejects shipping without a concrete owning test", () => {
 
 test("rejects desktop diverging from web", () => {
   const result = withMatrix(matrix => {
-    matrix.features[0].web = { status: "shipped", owner_test: "e2e/tasks/smoke.spec.ts" };
-    matrix.features[0].desktop = { status: "planned", owner_test: "e2e/tasks/smoke.spec.ts" };
+    matrix.features[0].web = { status: "shipped", owner_test: "contracts/tests/tasks-parity.test.mjs" };
+    matrix.features[0].desktop = { status: "planned", owner_test: "contracts/tests/tasks-parity.test.mjs" };
   });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /must match web/);
@@ -98,4 +98,35 @@ test("rejects duplicate feature ids", () => {
   });
   assert.equal(result.code, 1);
   assert.match(result.stderr, /duplicate feature id/);
+});
+
+test("rejects a shipped feature whose owning test does not exist", () => {
+  const result = withMatrix(matrix => {
+    matrix.features[0].web = { status: "shipped", owner_test: "e2e/tasks/does-not-exist.spec.ts" };
+    matrix.features[0].desktop = { status: "shipped", owner_test: "e2e/tasks/does-not-exist.spec.ts" };
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /does not exist/);
+});
+
+test("accepts a shipped feature whose owning test exists", () => {
+  const result = withMatrix(matrix => {
+    const owner = "contracts/tests/tasks-parity.test.mjs";
+    matrix.features[0].web = { status: "shipped", owner_test: owner };
+    matrix.features[0].desktop = { status: "shipped", owner_test: owner };
+    matrix.features[0].android = { status: "shipped", owner_test: "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt" };
+    matrix.features[0].ios = { status: "waived", waiver: "Scoped webview shares the web implementation by construction." };
+  });
+  assert.equal(result.code, 0, result.stderr);
+});
+
+test("desktop is tracked as the web bundle, never an independent client", () => {
+  const matrix = JSON.parse(fs.readFileSync(matrixPath, "utf8"));
+  for (const feature of matrix.features) {
+    assert.equal(
+      feature.desktop.status,
+      feature.web.status,
+      `${feature.id}: desktop must mirror web`,
+    );
+  }
 });

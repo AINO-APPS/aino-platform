@@ -37,7 +37,7 @@
 .task-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
 .task-action-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 2px; transition: all 0.2s; -webkit-text-fill-color: initial; background-clip: initial; -webkit-background-clip: initial; line-height: 1; }
 .task-action-btn:hover { background: var(--surface-hover); transform: scale(1.1); }
-.task-action-btn.delete-btn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
+.task-action-btn.delete-btn { color: var(--danger-ink); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
 .task-action-btn.delete-btn:hover { background: var(--danger-glow); border-color: var(--danger); }
 .task-card-footer { margin-top: auto; padding-top: 0.5rem; display: flex; justify-content: space-between; align-items: flex-end; gap: 0.5rem; }
 .drag-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.5; letter-spacing: 0.02em; }

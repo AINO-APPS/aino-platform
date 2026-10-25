@@ -23,6 +23,8 @@
  *      regression gets "fixed" by editing the matrix.
  *  10. `updated` must be a real ISO date.
  *  11. A feature must not regress to a status this script cannot reason about.
+ *  12. Every `shipped` owner_test must exist on disk (ticket 29). A feature with
+ *      no owning test is a claim, not a guarantee — the build fails instead.
  *
  * Exit code 0 = valid. Exit code 1 = violations printed to stderr.
  */
@@ -31,12 +33,26 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(root, "..");
 const MATRIX = "contracts/tasks-parity.json";
 const SPEC = "docs/TASKS_DESIGN_SPEC.md";
 const CLIENTS = ["web", "desktop", "android", "ios"];
 const STATUSES = new Set(["shipped", "planned", "n/a", "waived"]);
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DECISION = /^D[0-9]+$/;
+
+/**
+ * Where each client's owner_test paths are rooted.
+ *
+ * Desktop is the web bundle, so its tests live in the platform repo alongside
+ * web's. Android and iOS are separate repositories.
+ */
+const CLIENT_ROOTS = {
+  web: root,
+  desktop: root,
+  android: path.join(repoRoot, "aino-android"),
+  ios: path.join(repoRoot, "aino-ios"),
+};
 
 const fail = [];
 const check = (condition, message) => { if (!condition) fail.push(message); };
@@ -84,6 +100,15 @@ for (const feature of matrix.features ?? []) {
         typeof test === "string" && test.trim().length > 0 && !/shared with web/i.test(test),
         `${label}/${client}: shipped requires a concrete owner_test`
       );
+      // Rule 12 — a shipped feature must name a test that exists.
+      if (typeof test === "string" && test.trim().length > 0) {
+        const base = CLIENT_ROOTS[client];
+        const resolved = path.resolve(base, test);
+        check(
+          fs.existsSync(resolved),
+          `${label}/${client}: owner_test "${test}" does not exist (looked in ${path.relative(repoRoot, base) || "."})`
+        );
+      }
     }
     if (entry.status === "n/a") {
       check(typeof entry.waiver === "string" && entry.waiver.length > 20, `${label}/${client}: n/a requires waiver text explaining why`);

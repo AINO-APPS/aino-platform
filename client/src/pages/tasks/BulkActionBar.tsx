@@ -49,12 +49,15 @@ export default function BulkActionBar({
                     defaultValue=""
                     onChange={(event) => {
                         const value = event.target.value;
-                        onMoveToSprint(value === "" ? null : value);
+                        // "backlog" is a distinct choice from the placeholder, so
+                        // moving work out of a sprint is reachable from the bar.
+                        if (value === "") return;
+                        onMoveToSprint(value === "backlog" ? null : value);
                         event.target.value = "";
                     }}
                 >
                     <option value="">Move to…</option>
-                    <option value="">Backlog</option>
+                    <option value="backlog">Backlog</option>
                     {sprints.map((sprint) => (
                         <option key={sprint.id} value={sprint.id}>
                             {sprint.name}
@@ -91,12 +94,13 @@ export default function BulkActionBar({
                     defaultValue=""
                     onChange={(event) => {
                         const value = event.target.value;
-                        onAssign(value === "" ? null : value);
+                        if (value === "") return;
+                        onAssign(value === "unassigned" ? null : value);
                         event.target.value = "";
                     }}
                 >
                     <option value="">Assign to…</option>
-                    <option value="">Unassigned</option>
+                    <option value="unassigned">Unassigned</option>
                     {users.map((user) => (
                         <option key={user.id} value={user.id}>
                             {user.full_name || user.username}

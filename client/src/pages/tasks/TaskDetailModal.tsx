@@ -240,7 +240,7 @@ export default function TaskDetailModal({
                         style={
                             {
                                 "--badge-bg": pri.color + "20",
-                                "--badge-color": pri.color,
+                                "--badge-color": pri.ink,
                             } as React.CSSProperties
                         }
                     >
@@ -251,7 +251,7 @@ export default function TaskDetailModal({
                         style={
                             {
                                 "--badge-bg": colInfo.color + "20",
-                                "--badge-color": colInfo.color,
+                                "--badge-color": colInfo.ink,
                             } as React.CSSProperties
                         }
                     >

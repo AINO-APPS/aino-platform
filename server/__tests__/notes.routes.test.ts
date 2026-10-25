@@ -256,3 +256,55 @@ describe("GET /api/notes/history/snapshot/:id", () => {
         expect(res.body.snapshot.id).toBe(10);
     });
 });
+
+        // ─── GET /api/notes/sprint-embed ─────────────────────────────────────────────
+
+        describe("GET /api/notes/sprint-embed", () => {
+            beforeEach(() => {
+                mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+            });
+
+            /**
+             * Regression: the stats used to filter on `t.status === "done"` etc. But the
+             * query selects `ws.key AS status`, and `tasks.status` was dropped in
+             * migration 0015. Every counter therefore compared against a property that
+             * did not exist and reported zero for a sprint of any size.
+             *
+             * The bucket must come from the workflow-state *category* (D6), which is the
+             * one definition of complete, not from an org-configurable key.
+             */
+            test("stats bucket by workflow-state category, never by a key", async () => {
+                                setupAuth();
+                                // The auth middleware issues its own lookups, so route the mocks by the
+                                // SQL the route actually sends rather than by call order.
+                                mockQuery.mockImplementation(async (sql: string) => {
+                                    if (/FROM users WHERE id/.test(sql)) return { rows: [{ team_id: 3 }], rowCount: 1 };
+                                    if (/FROM sprints/.test(sql)) {
+                        return { rows: [{ id: 24, name: "Sprint 24", goal: null, status: "active" }], rowCount: 1 };
+                                    }
+                                    if (/FROM tasks t/.test(sql)) {
+                        return {
+                            rows: [
+                                { id: 1, title: "Done one", status: "done", status_category: "done", priority: "high" },
+                                { id: 2, title: "Done two", status: "shipped", status_category: "done", priority: "high" },
+                                { id: 3, title: "Wip", status: "in_progress", status_category: "in_progress", priority: "medium" },
+                                { id: 4, title: "Review", status: "in_review", status_category: "in_review", priority: "medium" },
+                                { id: 5, title: "New", status: "pending", status_category: "open", priority: "low" },
+                            ],
+                            rowCount: 5,
+                        };
+                                    }
+                                    return { rows: [], rowCount: 0 };
+                                });
+
+                                const res = await request(app)
+                                    .get("/api/notes/sprint-embed")
+                                    .set("Cookie", authCookie());
+
+                                expect(res.status).toBe(200);
+                                // `shipped` is a custom key in the done category and must still count.
+                                expect(res.body.stats).toEqual({
+                                    total: 5, done: 2, inProgress: 1, inReview: 1, pending: 1,
+                                });
+            });
+        });
