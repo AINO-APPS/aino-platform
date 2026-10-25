@@ -25,6 +25,8 @@ import ScheduledTab from "./tasks/ScheduledTab";
 import SprintProgressCard from "./tasks/SprintProgressCard";
 import BulkActionBar from "./tasks/BulkActionBar";
 import BacklogBulkBar from "./tasks/BacklogBulkBar";
+import SprintPlan from "./tasks/SprintPlan";
+import SprintTab from "./tasks/SprintTab";
 import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
@@ -40,6 +42,7 @@ import { useTasksRouteSync, useTaskDeepLink } from "./tasks/hooks/useTasksRouteS
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
 import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
+import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 
 import s from "./Tasks.module.css";
 
@@ -206,6 +209,13 @@ export default function Tasks() {
     fetchTasks,
     showConfirm,
     closeConfirm,
+  });
+
+  const sprintPlan = useSprintPlan({
+    sprintId: selectedSprintId,
+    fetchTasks,
+    fetchBacklog: backlog.fetchBacklog,
+    onError: setError,
   });
 
   // Keep a valid sprint selected once the sprint list resolves: preserve the
@@ -401,90 +411,42 @@ export default function Tasks() {
         />
 
         {activeTab === "sprint" && (
-          <>
-            <SprintProgressCard
-              stats={stats}
-              sprintStats={sprintStats}
-              features={features}
-              unitLabel={unitLabel}
-              availableSprints={availableSprints}
-              selectedSprintId={selectedSprintId}
-              currentUser={currentUser}
-              getColTasks={getColTasks}
-              onSprintChanged={() => {
-                queryClient.invalidateQueries({ queryKey: ["tasks", "availableSprints"] });
-                fetchTasks();
-                if (selectedSprintId) {
-                  getSprintStats(selectedSprintId).then((r) => setSprintStats(r.data)).catch(() => {});
-                }
-              }}
-            />
-
-            {carriedCount > 0 && (
-              <div className={s["carry-banner"]}>
-                <ArrowDownCircle
-                  size={14}
-                  style={{ marginRight: 5, verticalAlign: "middle" }}
-                />
-                {carriedCount} incomplete item{carriedCount > 1 ? "s" : ""} from
-                yesterday carried forward automatically.
-              </div>
-            )}
-            {error && <div className="error-msg error-msg-mb">{error}</div>}
-
-            {sprintImportOpen && (
-              <SprintImportPanel
-                backlogTasks={backlog.backlogTasks}
-                backlogLoading={backlog.backlogLoading}
-                selectedSprintId={selectedSprintId}
-                availableSprints={availableSprints}
-                assignableUsers={assignableUsers}
-                importConfigTask={backlog.importConfigTask}
-                importAssignedTo={backlog.importAssignedTo}
-                importDueDate={backlog.importDueDate}
-                onSetImportConfigTask={backlog.setImportConfigTask}
-                onSetImportAssignedTo={backlog.setImportAssignedTo}
-                onSetImportDueDate={backlog.setImportDueDate}
-                onImportToSprint={backlog.handleImportToSprint}
-                onClose={() => {
-                  setSprintImportOpen(false);
-                  backlog.setImportConfigTask(null);
-                }}
-              />
-            )}
-
-            {loading ? (
-              <div className="loading-spinner">
-                <div className="spinner" />
-              </div>
-            ) : (
-              <KanbanBoard
-                tasks={tasks}
-                dragOverCol={drag.dragOverCol}
-                sprintMode={sprintMode}
-                onDragOver={drag.onDragOver}
-                onDragLeave={drag.onDragLeave}
-                onDrop={drag.onDrop}
-                onDragStart={drag.onDragStart}
-                onDragEnd={drag.onDragEnd}
-                onOpenDetail={detail.openTaskDetail}
-                onOpenComments={comments.openComments}
-                boardDrag={boardDrag}
-                wipWarning={boardDrag.wipWarning}
-                announcement={boardAnnouncement}
-              />
-            )}
-
-            {tasks.length === 0 && !loading && (
-              <div className={s["tasks-empty"]}>
-                <div className={s["tasks-empty-icon"]}>
-                  <ClipboardList size={36} strokeWidth={1.5} />
-                </div>
-                <p>No items in this sprint</p>
-                <span>Assign tickets from the Backlog to this sprint.</span>
-              </div>
-            )}
-          </>
+          <SprintTab
+            stats={stats}
+            sprintStats={sprintStats}
+            features={features}
+            unitLabel={unitLabel}
+            availableSprints={availableSprints}
+            selectedSprintId={selectedSprintId}
+            currentUser={currentUser}
+            getColTasks={getColTasks}
+            onSprintChanged={() => {
+              queryClient.invalidateQueries({ queryKey: ["tasks", "availableSprints"] });
+              fetchTasks();
+              if (selectedSprintId) {
+                getSprintStats(selectedSprintId).then((r) => setSprintStats(r.data)).catch(() => {});
+              }
+            }}
+            carriedCount={carriedCount}
+            error={error}
+            sprintImportOpen={sprintImportOpen}
+            backlog={backlog}
+            assignableUsers={assignableUsers}
+            onCloseImport={() => {
+              setSprintImportOpen(false);
+              backlog.setImportConfigTask(null);
+            }}
+            loading={loading}
+            tasks={tasks}
+            drag={drag}
+            sprintMode={sprintMode}
+            onOpenDetail={detail.openTaskDetail}
+            onOpenComments={comments.openComments}
+            boardDrag={boardDrag}
+            boardAnnouncement={boardAnnouncement}
+            plan={tasksRoute.route.plan}
+            sprintPlan={sprintPlan}
+          />
         )}
 
         {activeTab === "backlog" && (
