@@ -19,6 +19,11 @@ interface TaskDetailSheetProps {
  * layout does not change shape between devices. Escape closes it, focus moves
  * in on open and returns on close, and there is no keyboard trap: Tab can
  * leave the sheet.
+ *
+ * The header is deliberately slim: the task key, the actions and the close
+ * control. The full title lives once, in the content, where it can wrap to any
+ * length — repeating it in the header only truncated it and pushed the actions
+ * around. `title` still names the dialog for assistive technology.
  */
 export default function TaskDetailSheet({
     open,
@@ -63,10 +68,7 @@ export default function TaskDetailSheet({
                 onClick={(event) => event.stopPropagation()}
             >
                 <header className={s["sheet-header"]}>
-                    <div className={s["sheet-heading"]}>
-                        {badges}
-                        <h2 className={s["sheet-title"]}>{title}</h2>
-                    </div>
+                    <div className={s["sheet-heading"]}>{badges}</div>
                     <div className={s["sheet-actions"]}>
                         {actions}
                         <button

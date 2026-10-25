@@ -1,15 +1,16 @@
 import React, { useState } from "react";
-import { CalendarDays, MessageSquare, X } from "../../constants/icons";
+import { CalendarDays, MessageSquare, X, Ban, Clock } from "../../constants/icons";
 import {
     StoryPointBadge,
     WorkItemTypeBadge,
-    BlockerBadge,
 } from "../../components/agile/AgilePickers";
 import { PRIORITIES, type PriorityOption } from "./constants";
 import { currentStatusOption, statusOptions } from "./taskStatus";
-import { formatDueDate, formatRelativeTime, isDueOverdue, stripHtml, getAvatarUrl } from "./utils";
+import { formatDate, formatDueDate, isDueOverdue, getAvatarUrl } from "./utils";
 import { getLocalToday } from "../../api/client";
+import { useAgileConfig } from "../../AgileConfigContext";
 import IssueKey from "./IssueKey";
+import TaskCardMenu from "./TaskCardMenu";
 import { useCardDensity } from "./TaskContext";
 import s from "./BacklogTab.module.css";
 
@@ -66,16 +67,20 @@ export default function BacklogCard({
 }: BacklogCardProps) {
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(task.title ?? "");
-    // Compact keeps key, title and points; comfortable adds assignee, priority,
-    // status, labels and the description preview.
+    const [labelsExpanded, setLabelsExpanded] = useState(false);
+    // Compact keeps key, title, points and the exception flags; comfortable adds
+    // status, priority, labels, assignee and due date.
     const compact = useCardDensity() === "compact";
+    const { features } = useAgileConfig() as any;
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && !task.completed_at;
     const colInfo =
         currentStatusOption(task, workflowStates, statusOptions(workflowStates)) ||
         statusOptions(workflowStates)[0];
-    const descPreview = stripHtml(task.description);
+    const labels: any[] = task.labels ?? [];
+    const visibleLabels = labelsExpanded ? labels : labels.slice(0, 2);
+    const hiddenLabels = labels.length - visibleLabels.length;
 
     return (
         <div
@@ -126,53 +131,15 @@ export default function BacklogCard({
                     <span className={s["backlog-ticket-id"]}>
                         <IssueKey task={task} />
                     </span>
-                    {!compact && (
-                        <span
-                            className={s["backlog-status-badge"]}
-                            style={
-                                {
-                                    "--badge-bg": colInfo.color + "20",
-                                    "--badge-color": colInfo.ink,
-                                } as React.CSSProperties
-                            }
-                        >
-                            {colInfo.icon ? `${colInfo.icon} ` : ""}
-                            {colInfo.label}
-                        </span>
-                    )}
-                    {!compact && (
-                        <span
-                            className={s["task-priority-badge"]}
-                            style={
-                                {
-                                    "--badge-bg": pri.color + "20",
-                                    "--badge-color": pri.ink,
-                                } as React.CSSProperties
-                            }
-                        >
-                            {pri.icon} {pri.label}
-                        </span>
-                    )}
                     {!compact && <WorkItemTypeBadge value={task.work_item_type_id} />}
                     {!compact && task.parent_task_id && (
                         <span className={s["epic-indicator"]} title="Part of an epic">
                             Epic
                         </span>
                     )}
-                    <StoryPointBadge value={task.story_points} />
-                    {!compact && <BlockerBadge task={task} />}
-                    {!compact &&
-                        task.labels &&
-                        task.labels.length > 0 &&
-                        task.labels.map((l: any) => (
-                            <span
-                                key={l.id}
-                                className={s["label-pill"]}
-                                style={{ "--label-color": l.color } as React.CSSProperties}
-                            >
-                                {l.name}
-                            </span>
-                        ))}
+                    {/* Compact keeps the points on the quiet line so the row
+                        stays two lines tall instead of three. */}
+                    {compact && <StoryPointBadge value={task.story_points} />}
                 </div>
                 <span className={s["backlog-card-title"]}>
                     {editingTitle ? (
@@ -217,8 +184,67 @@ export default function BacklogCard({
                         </span>
                     )}
                 </span>
-                {!compact && descPreview && (
-                    <div className={s["backlog-desc-preview"]}>{descPreview}</div>
+                {!compact && (
+                    <div className={s["backlog-card-meta"]}>
+                        <span className={s["backlog-status"]}>
+                            <span
+                                className={s["backlog-status-dot"]}
+                                style={{ background: colInfo.color }}
+                            />
+                            {colInfo.label}
+                        </span>
+                        <span
+                            className={s["task-priority-badge"]}
+                            style={
+                                {
+                                    "--badge-bg": pri.color + "20",
+                                    "--badge-color": pri.ink,
+                                } as React.CSSProperties
+                            }
+                        >
+                            {pri.icon} {pri.label}
+                        </span>
+                        <StoryPointBadge value={task.story_points} />
+                    </div>
+                )}
+                {task.is_blocked && features?.blockers !== false && (
+                    <span
+                        className={s["backlog-exception"]}
+                        title={task.blocked_reason || "Blocked"}
+                    >
+                        <Ban size={12} aria-hidden="true" /> Blocked
+                    </span>
+                )}
+                {overdue && (
+                    <span className={`${s["backlog-exception"]} ${s["backlog-exception-overdue"]}`}>
+                        <Clock size={12} aria-hidden="true" /> Overdue · {formatDate(task.due_date)}
+                    </span>
+                )}
+                {!compact && labels.length > 0 && (
+                    <div className={s["backlog-labels"]}>
+                        {visibleLabels.map((l: any) => (
+                            <span
+                                key={l.id}
+                                className={s["label-pill"]}
+                                style={{ "--label-color": l.color } as React.CSSProperties}
+                            >
+                                {l.name}
+                            </span>
+                        ))}
+                        {hiddenLabels > 0 && (
+                            <button
+                                type="button"
+                                className={s["label-overflow"]}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setLabelsExpanded(true);
+                                }}
+                                aria-label={`Show all ${labels.length} labels`}
+                            >
+                                +{hiddenLabels}
+                            </button>
+                        )}
+                    </div>
                 )}
                 <div className={s["backlog-card-footer"]}>
                     {!compact && task.assignee && (
@@ -241,10 +267,8 @@ export default function BacklogCard({
                             {task.assignee.full_name || task.assignee.username}
                         </span>
                     )}
-                    {!compact && dueFmt && (
-                        <span
-                            className={`${s["backlog-meta-chip"]} ${overdue ? s["overdue"] : ""}`}
-                        >
+                    {!compact && dueFmt && !overdue && (
+                        <span className={s["backlog-meta-chip"]}>
                             <CalendarDays
                                 size={11}
                                 style={{ marginRight: 3, verticalAlign: "middle" }}
@@ -255,15 +279,10 @@ export default function BacklogCard({
                     {!compact && task.comment_count > 0 && (
                         <span className={s["backlog-meta-chip"]}>
                             <MessageSquare
-                                size={11}
+                                size={12}
                                 style={{ marginRight: 3, verticalAlign: "middle" }}
                             />
                             {task.comment_count}
-                        </span>
-                    )}
-                    {!compact && (
-                        <span className={s["backlog-meta-time"]}>
-                            {formatRelativeTime(task.created_at)}
                         </span>
                     )}
                     {attribution && (
@@ -272,6 +291,22 @@ export default function BacklogCard({
                         </span>
                     )}
                     <div className={s["backlog-actions"]}>
+                        {/* Schedule stays inline: it is the backlog's primary
+                            action. The menu repeats it so the row has the same
+                            top-right control as a board card. */}
+                        <TaskCardMenu
+                            label={`Actions for ${task.issue_key || `#${task.id}`}`}
+                            items={[
+                                { label: "Open task", onSelect: () => onOpenDetail(task) },
+                                {
+                                    label: "Schedule to a day",
+                                    onSelect: () => {
+                                        setScheduleTaskId(task.id);
+                                        setScheduleDate(getLocalToday());
+                                    },
+                                },
+                            ]}
+                        />
                         {scheduleTaskId === task.id ? (
                             <div className={s["schedule-popover"]}>
                                 <input

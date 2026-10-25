@@ -1,26 +1,17 @@
-import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, CheckSquare as InlineCheckSquare, Square as InlineSquare, Ban as GlyphBan, X, Package, CalendarDays, Save, Pencil, MessageSquare, Clock, Trash2, Folder } from "../../constants/icons";
+import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, X, Package, CalendarDays, Save, Pencil, MessageSquare, Clock, Trash2, Folder } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import CommentSection from "../../components/profile/CommentSection";
 import SprintSelector from "../../components/common/SprintSelector";
 import LabelSelector from "./LabelSelector";
-import TaskStatusControl from "./TaskStatusControl";
 import { PRIORITIES } from "./constants";
 import { currentStatusOption, statusOptions } from "./taskStatus";
-import {
-    HighlightedHtml,
-    formatDueDate,
-    isDueOverdue,
-    getAvatarUrl,
-} from "./utils";
+import { formatDueDate, isDueOverdue, getAvatarUrl } from "./utils";
 import { useTaskCtx } from "./TaskContext";
 import {
     StoryPointPicker,
     WorkItemTypePicker,
-    StoryPointBadge,
-    WorkItemTypeBadge,
-    BlockerBadge,
 } from "../../components/agile/AgilePickers";
 import AcceptanceCriteria from "../../components/agile/AcceptanceCriteria";
 import {
@@ -28,18 +19,13 @@ import {
     DependenciesPanel,
     ParentChildPanel,
 } from "../../components/agile/AgileWorkflowPanels";
-import {
-    CustomFieldsEditor,
-    CustomFieldsSummary,
-} from "../../components/customFields/CustomFieldRenderer";
+import { CustomFieldsEditor } from "../../components/customFields/CustomFieldRenderer";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useCustomFields } from "../../CustomFieldsContext";
 import { getTaskDetail, getTaskCustomFieldValues } from "../../api/tasks";
 import TaskDetailSheet from "./TaskDetailSheet";
-import TaskTimePanel from "./TaskTimePanel";
-import TaskGitRefs from "./TaskGitRefs";
 import TaskHistoryList from "./TaskHistoryList";
-import TaskMetaGrid from "./TaskMetaGrid";
+import TaskDetailView from "./TaskDetailView";
 import s from "./TaskDetailModal.module.css";
 
 interface TaskDetailModalProps {
@@ -235,6 +221,21 @@ export default function TaskDetailModal({
             onClose={onClose}
             badges={
                 <>
+                    {/* The key is the one identifier that must survive scrolling:
+                        it is how people refer to the ticket in chat and commits. */}
+                    <span
+                        className={s["backlog-ticket-id"]}
+                        title={detailTask.project?.name || "Project issue key"}
+                        style={{
+                            background: detailTask.project?.color
+                                ? `${detailTask.project.color}22`
+                                : undefined,
+                            color: detailTask.project?.color || undefined,
+                            fontWeight: 700,
+                        }}
+                    >
+                        {detailTask.issue_key || `#${detailTask.id}`}
+                    </span>
                     <span
                         className={s["task-priority-badge"]}
                         style={
@@ -563,176 +564,63 @@ export default function TaskDetailModal({
                         </div>
                     ) : (
                         /* ─── VIEW MODE ─── */
-                        <>
-                            <div className={s["detail-title-row"]}>
-                                {detailTask.issue_key ? (
-                                    <span
-                                        className={s["backlog-ticket-id"]}
-                                        title={detailTask.project?.name || "Project issue key"}
-                                        style={{
-                                            background: detailTask.project?.color
-                                                ? `${detailTask.project.color}22`
-                                                : undefined,
-                                            color: detailTask.project?.color || undefined,
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        {detailTask.issue_key}
-                                    </span>
-                                ) : (
-                                    <span className={s["backlog-ticket-id"]}>
-                                        #{detailTask.id}
-                                    </span>
-                                )}
-                                <WorkItemTypeBadge value={detailTask.work_item_type_id} />
-                                <h2 className={s["detail-title"]}>{detailTask.title}</h2>
-                                <StoryPointBadge value={detailTask.story_points} />
-                                <BlockerBadge task={detailTask} />
-                                {detailTask.labels && detailTask.labels.length > 0 && (
-                                    <div className={s["detail-labels"]}>
-                                        {detailTask.labels.map((l: any) => (
-                                            <span
-                                                key={l.id}
-                                                className={s["label-pill"]}
-                                                style={
-                                                    {
-                                                        "--label-color": l.color,
-                                                    } as React.CSSProperties
-                                                }
-                                            >
-                                                {l.name}
+                        <TaskDetailView
+                            task={detailTask}
+                            availableSprints={availableSprints}
+                            customFields={customFields}
+                            customValues={customValues}
+                            currentUser={currentUser}
+                            onStatusChange={onStatusChange}
+                            activity={
+                                <div className={s["detail-comments"]}>
+                                    <div className={s["detail-tab-switcher"]}>
+                                        <button
+                                            className={`${s["detail-tab-btn"]} ${detailTab === "comments" ? s.active : ""}`}
+                                            onClick={() => setDetailTab("comments")}
+                                        >
+                                            <MessageSquare
+                                                size={13}
+                                                style={{ marginRight: 4, verticalAlign: "middle" }}
+                                            />
+                                            Comments{" "}
+                                            <span className={s["detail-tab-count"]}>
+                                                {detailComments.length}
                                             </span>
-                                        ))}
+                                        </button>
+                                        <button
+                                            className={`${s["detail-tab-btn"]} ${detailTab === "history" ? s.active : ""}`}
+                                            onClick={() => setDetailTab("history")}
+                                        >
+                                            <Clock
+                                                size={13}
+                                                style={{ marginRight: 4, verticalAlign: "middle" }}
+                                            />
+                                            History{" "}
+                                            <span className={s["detail-tab-count"]}>
+                                                {detailHistory.length}
+                                            </span>
+                                        </button>
                                     </div>
-                                )}
-                            </div>
 
-                            {detailTask.description && (
-                                <HighlightedHtml
-                                    html={detailTask.description}
-                                    className={s["detail-description"]}
-                                />
-                            )}
+                                    {detailTab === "comments" && (
+                                        <CommentSection
+                                            comments={detailComments}
+                                            loading={detailLoading}
+                                            currentUserId={currentUser?.id}
+                                            users={assignableUsers}
+                                            onAdd={onAddComment}
+                                            onEdit={onEditComment}
+                                            onDelete={onDeleteComment}
+                                        />
+                                    )}
 
-                            {/* Read-only summaries of Pass 2 fields. Editing these (toggle
-                  blocker, change criteria/dependencies) is gated to Edit mode
-                  so users batch their changes and the view stays scannable. */}
-                            {detailTask.is_blocked && (
-                                <div style={{ marginTop: 8 }}>
-                                    <span
-                                        className={s["detail-blocker-readonly"]}
-                                        title={detailTask.blocked_reason || "Blocked"}
-                                    >
-                                        <GlyphBan size="1em" style={{ verticalAlign: "middle" }} /> Blocked
-                                        {detailTask.blocked_reason
-                                            ? `: ${detailTask.blocked_reason}`
-                                            : ""}
-                                    </span>
+                                    {detailTab === "history" && (
+                                        <TaskHistoryList history={detailHistory as any} />
+                                    )}
                                 </div>
-                            )}
-                            {customFields.length > 0 &&
-                                Object.keys(customValues).length > 0 && (
-                                    <CustomFieldsSummary values={customValues} />
-                                )}
-
-                            {Array.isArray(detailTask.acceptance_criteria) &&
-                                detailTask.acceptance_criteria.length > 0 && (
-                                    <div className={s["detail-readonly-section"]}>
-                                        <div className={s["detail-readonly-title"]}>
-                                            Acceptance Criteria{" "}
-                                            <span className={s["detail-readonly-progress"]}>
-                                                (
-                                                {
-                                                    detailTask.acceptance_criteria.filter(
-                                                        (c: any) => c.done,
-                                                    ).length
-                                                }
-                                                /{detailTask.acceptance_criteria.length})
-                                            </span>
-                                        </div>
-                                        <ul className={s["detail-readonly-list"]}>
-                                            {detailTask.acceptance_criteria.map(
-                                                (c: any, i: number) => (
-                                                    <li
-                                                        key={c.id || i}
-                                                        className={c.done ? s["ac-done"] : ""}
-                                                    >
-                                                        <span className={s["ac-check"]}>
-                                                            {c.done ? <><InlineCheckSquare size="1em" style={{ verticalAlign: "middle" }} /></> : <><InlineSquare size="1em" style={{ verticalAlign: "middle" }} /></>}
-                                                        </span>{" "}
-                                                        {c.text}
-                                                    </li>
-                                                ),
-                                            )}
-                                        </ul>
-                                    </div>
-                                )}
-
-                            <TaskMetaGrid
-                                task={detailTask}
-                                availableSprints={availableSprints}
-                            />
-
-                            {/* Logged time against estimate, with the timer startable
-                                from this task. Stopping it attributes the minutes to
-                                this task and rolls them into the timesheet. */}
-                            <TaskTimePanel task={detailTask} />
-
-                            <TaskGitRefs taskId={detailTask.id} />
-
-                            {/* Status — every ticket, including backlog and scheduled ones */}
-                            <TaskStatusControl task={detailTask} currentUser={currentUser} onChange={onStatusChange} />
-
-                        </>
+                            }
+                        />
                     )}
-
-                    {/* Comments & History tabs */}
-                    <div className={s["detail-comments"]}>
-                        <div className={s["detail-tab-switcher"]}>
-                            <button
-                                className={`${s["detail-tab-btn"]} ${detailTab === "comments" ? s.active : ""}`}
-                                onClick={() => setDetailTab("comments")}
-                            >
-                                <MessageSquare
-                                    size={13}
-                                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                                />
-                                Comments{" "}
-                                <span className={s["detail-tab-count"]}>
-                                    {detailComments.length}
-                                </span>
-                            </button>
-                            <button
-                                className={`${s["detail-tab-btn"]} ${detailTab === "history" ? s.active : ""}`}
-                                onClick={() => setDetailTab("history")}
-                            >
-                                <Clock
-                                    size={13}
-                                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                                />
-                                History{" "}
-                                <span className={s["detail-tab-count"]}>
-                                    {detailHistory.length}
-                                </span>
-                            </button>
-                        </div>
-
-                        {detailTab === "comments" && (
-                            <CommentSection
-                                comments={detailComments}
-                                loading={detailLoading}
-                                currentUserId={currentUser?.id}
-                                users={assignableUsers}
-                                onAdd={onAddComment}
-                                onEdit={onEditComment}
-                                onDelete={onDeleteComment}
-                            />
-                        )}
-
-                        {detailTab === "history" && (
-                            <TaskHistoryList history={detailHistory as any} />
-                        )}
-                    </div>
             </div>
         </TaskDetailSheet>
     );
