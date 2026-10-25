@@ -38,6 +38,10 @@
 .detail-meta-item { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.65rem 0.85rem; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px; }
 .detail-meta-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 600; }
 .detail-meta-value { font-size: 0.88rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; }
+/* Planned vs due are distinct fields, so each carries a one-line explanation of
+   what it actually does. */
+.detail-meta-hint { font-size: 0.7rem; line-height: 1.35; color: var(--text-muted); }
+.detail-meta-empty { color: var(--text-muted); font-style: italic; }
 .detail-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
 .detail-avatar-placeholder { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; }
 .detail-labels { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
@@ -106,6 +110,8 @@
 .form-extra-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
 .form-extra-group select, .form-extra-group input[type="date"] { padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text); font-size: 0.85rem; font-family: inherit; }
 .form-extra-group select:focus, .form-extra-group input[type="date"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
+/* Planned vs due are separate fields, so each explains its own effect. */
+.form-extra-hint { font-size: 0.68rem; line-height: 1.35; color: var(--text-muted); }
 .quill-wrapper { margin-bottom: 1rem; }
 .quill-wrapper :global(.ql-toolbar) { border-top-left-radius: 8px; border-top-right-radius: 8px; background: var(--surface); border-color: var(--border) !important; }
 .quill-wrapper :global(.ql-toolbar .ql-stroke) { stroke: var(--text-secondary); }

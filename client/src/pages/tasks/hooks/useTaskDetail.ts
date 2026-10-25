@@ -15,6 +15,7 @@ interface DetailEditData {
     priority?: string;
     assignedTo?: number | string | null;
     dueDate?: string | null;
+    plannedDate?: string | null;
     sprintId?: number | string | null;
     labels?: (number | string)[];
     storyPoints?: number | null;
@@ -126,6 +127,7 @@ export function useTaskDetail({
                         priority: editData.priority,
                         assigned_to: editData.assignedTo || null,
                         due_date: editData.dueDate || null,
+                        planned_date: editData.plannedDate || null,
                         sprint_id: editData.sprintId || null,
                         label_ids: editData.labels,
                         story_points: editData.storyPoints,

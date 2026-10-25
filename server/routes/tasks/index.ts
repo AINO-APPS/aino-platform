@@ -29,6 +29,7 @@ const bulkRouter = require('./bulk');
 const byKeyRouter = require('./byKey');
 const epicsRouter = require('./epics');
 const scheduleOverlaysRouter = require('./scheduleOverlays');
+const timerRouter = require('./timer');
 const crudRouter = require('./crud');
 
 const router = express.Router();
@@ -60,6 +61,7 @@ router.use('/', bulkRouter);          // /bulk
 router.use('/', byKeyRouter);         // /by-key/:key
 router.use('/', epicsRouter);         // /epics
 router.use('/', scheduleOverlaysRouter); // /schedule-overlays
+router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
 
 // Generic CRUD last (owns GET /, POST /, PUT /:id, DELETE /:id, PATCH /:id/status)
 router.use('/', crudRouter);

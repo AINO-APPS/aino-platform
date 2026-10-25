@@ -1,0 +1,73 @@
+.git-refs {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--glass);
+}
+
+.git-title {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.git-group + .git-group {
+    margin-top: 8px;
+}
+
+.git-group-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+    margin-bottom: 3px;
+}
+
+.git-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.git-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    min-width: 0;
+}
+
+.git-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--primary);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.git-link:hover {
+    text-decoration: underline;
+}
+
+.git-link:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.git-repo,
+.git-status {
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}

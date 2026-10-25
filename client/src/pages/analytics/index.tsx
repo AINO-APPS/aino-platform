@@ -25,6 +25,7 @@ import WorkBreakChart from "./WorkBreakChart";
 import TrendChart from "./TrendChart";
 import { TimeDistributionChart, WorkModeChart } from "./DistributionCharts";
 import HistoryTable from "./HistoryTable";
+import TaskTimeTable from "./TaskTimeTable";
 import s from "./Analytics.module.css";
 
 ChartJS.register(
@@ -282,6 +283,7 @@ export default function Analytics() {
             />
             <WorkModeChart officeDays={officeDays} remoteDays={remoteDays} />
             <HistoryTable history={history} />
+            <TaskTimeTable from={fromDate} to={toDate} />
           </div>
         </>
       )}

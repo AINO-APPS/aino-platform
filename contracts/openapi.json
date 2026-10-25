@@ -16414,6 +16414,279 @@
         }
       }
     },
+    "/api/tasks/{id}/timer": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Read the task timer state",
+        "operationId": "get_api_tasks_id_timer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTimerState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/timer/start": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Start a timer attributed to a task",
+        "operationId": "post_api_tasks_id_timer_start",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTimerState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/timer/stop": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Stop the task timer and log the elapsed minutes",
+        "operationId": "post_api_tasks_id_timer_stop",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTimerStopResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{id}/unschedule": {
       "patch": {
         "tags": [
@@ -19104,6 +19377,86 @@
         }
       }
     },
+    "/api/tracker/task-time": {
+      "get": {
+        "tags": [
+          "tracker"
+        ],
+        "summary": "Time logged against tasks, grouped by local day",
+        "operationId": "get_api_tracker_task_time",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTimeDayList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tracker/theme": {
       "get": {
         "tags": [
@@ -20772,6 +21125,19 @@
               "null"
             ]
           },
+          "estimated_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Planned effort in minutes. Shown against logged_minutes."
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Minutes logged by timers started from this task. Rolls into the timesheet."
+          },
           "assigned_to": {
             "type": [
               "integer",
@@ -21343,6 +21709,159 @@
           "logs"
         ],
         "additionalProperties": false
+      },
+      "TaskTimeSummary": {
+        "type": "object",
+        "properties": {
+          "estimated": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Planned minutes. 0 when the task is unestimated."
+          },
+          "logged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Logged as a percentage of estimated; 0 when unestimated."
+          },
+          "over": {
+            "type": "boolean",
+            "description": "True when logged exceeds estimated."
+          }
+        },
+        "required": [
+          "estimated",
+          "logged",
+          "remaining",
+          "percent",
+          "over"
+        ],
+        "additionalProperties": false
+      },
+      "TaskTimerState": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "time": {
+            "$ref": "#/components/schemas/TaskTimeSummary"
+          }
+        },
+        "required": [
+          "taskId",
+          "running",
+          "startedAt",
+          "time"
+        ],
+        "additionalProperties": false
+      },
+      "TaskTimerStopResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "integer"
+          },
+          "running": {
+            "const": false
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Minutes added to the task by this stop."
+          },
+          "time": {
+            "$ref": "#/components/schemas/TaskTimeSummary"
+          }
+        },
+        "required": [
+          "taskId",
+          "running",
+          "minutes",
+          "time"
+        ],
+        "additionalProperties": false
+      },
+      "TaskTimeEntry": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "task_id",
+          "title",
+          "issue_key",
+          "date",
+          "minutes"
+        ],
+        "additionalProperties": false
+      },
+      "TaskTimeDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskTimeEntry"
+            }
+          }
+        },
+        "required": [
+          "date",
+          "minutes",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "TaskTimeDayList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TaskTimeDay"
+        }
       },
       "TrackerStatus": {
         "type": "object",

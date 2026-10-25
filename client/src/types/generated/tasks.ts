@@ -21,6 +21,8 @@ export interface Task {
   project_id?: number | null;
   work_item_type_id?: number | null;
   story_points?: number | null;
+  estimated_minutes?: number | null;
+  logged_minutes?: number;
   assigned_to?: number | null;
   user_id?: number;
   org_id?: number | null;

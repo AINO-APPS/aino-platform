@@ -24,6 +24,6 @@
   "pages/chat/useMessageActions.ts": 750,
   "pages/integrations/GitHubIntegration.tsx": 705,
   "pages/meeting/useMeetingState.ts": 2971,
-  "pages/tasks/TaskDetailModal.tsx": 925,
+  "pages/tasks/TaskDetailModal.tsx": 856,
   "pages/tenants/TenantDetail.tsx": 572
 }

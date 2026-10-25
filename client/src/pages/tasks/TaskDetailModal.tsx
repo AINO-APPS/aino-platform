@@ -35,6 +35,10 @@ import {
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useCustomFields } from "../../CustomFieldsContext";
 import { getTaskDetail, getTaskCustomFieldValues } from "../../api/tasks";
+import TaskDetailSheet from "./TaskDetailSheet";
+import TaskTimePanel from "./TaskTimePanel";
+import TaskGitRefs from "./TaskGitRefs";
+import TaskHistoryList from "./TaskHistoryList";
 import s from "./TaskDetailModal.module.css";
 
 interface TaskDetailModalProps {
@@ -160,6 +164,7 @@ export default function TaskDetailModal({
     const [editPriority, setEditPriority] = useState("medium");
     const [editAssignedTo, setEditAssignedTo] = useState("");
     const [editDueDate, setEditDueDate] = useState("");
+    const [editPlannedDate, setEditPlannedDate] = useState("");
     const [editSprintId, setEditSprintId] = useState<number | string>("");
     const [editLabels, setEditLabels] = useState<Array<number | string>>([]);
     const [editLabelDropdownOpen, setEditLabelDropdownOpen] = useState(false);
@@ -175,6 +180,7 @@ export default function TaskDetailModal({
             setEditPriority(detailTask.priority || "medium");
             setEditAssignedTo(String(detailTask.assigned_to || ""));
             setEditDueDate(detailTask.due_date || "");
+            setEditPlannedDate(detailTask.planned_date || detailTask.date || "");
             setEditSprintId(detailTask.sprint_id || "");
             setEditLabels(detailTask.labels?.map((l: any) => l.id) || []);
             setEditLabelDropdownOpen(false);
@@ -191,6 +197,7 @@ export default function TaskDetailModal({
             priority: editPriority,
             assignedTo: editAssignedTo,
             dueDate: editDueDate,
+            plannedDate: editPlannedDate,
             sprintId: editSprintId,
             labels: editLabels,
             storyPoints: editStoryPoints,
@@ -213,112 +220,105 @@ export default function TaskDetailModal({
     const dueFmt = formatDueDate(detailTask.due_date);
     const overdue =
         isDueOverdue(detailTask.due_date) && detailTask.status !== "done";
+    // `planned_date` is the scheduling field; `date` is the legacy column the
+    // server still mirrors it into until the contract migration lands.
+    const plannedDate = detailTask.planned_date || detailTask.date || null;
     // A task is "backlog" only if it has neither a scheduled date nor a sprint
     // assignment. Sprint tickets without a daily-planner date are NOT backlog.
     const isBacklogItem = !detailTask.date && !detailTask.sprint_id;
 
     return (
-        <div className={s["detail-overlay"]} onClick={onClose}>
-            <div className={s["detail-modal"]} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
-                <div className={s["detail-modal-header"]}>
-                    <div className={s["detail-badges"]}>
-                        <span
-                            className={s["task-priority-badge"]}
-                            style={
-                                {
-                                    "--badge-bg": pri.color + "20",
-                                    "--badge-color": pri.color,
-                                } as React.CSSProperties
-                            }
-                        >
-                            {pri.icon} {pri.label}
+        <TaskDetailSheet
+            open
+            title={detailTask.title}
+            onClose={onClose}
+            badges={
+                <>
+                    <span
+                        className={s["task-priority-badge"]}
+                        style={
+                            {
+                                "--badge-bg": pri.color + "20",
+                                "--badge-color": pri.color,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {pri.icon} {pri.label}
+                    </span>
+                    <span
+                        className={s["backlog-status-badge"]}
+                        style={
+                            {
+                                "--badge-bg": colInfo.color + "20",
+                                "--badge-color": colInfo.color,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {colInfo.icon ? `${colInfo.icon} ` : ""}{colInfo.label}
+                    </span>
+                    {isBacklogItem && (
+                        <span className={s["backlog-badge"]}>
+                            <Package
+                                size={12}
+                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                            />
+                            Backlog
                         </span>
-                        <span
-                            className={s["backlog-status-badge"]}
-                            style={
-                                {
-                                    "--badge-bg": colInfo.color + "20",
-                                    "--badge-color": colInfo.color,
-                                } as React.CSSProperties
-                            }
-                        >
-                            {colInfo.icon ? `${colInfo.icon} ` : ""}{colInfo.label}
-                        </span>
-                        {isBacklogItem && (
-                            <span className={s["backlog-badge"]}>
-                                <Package
-                                    size={12}
-                                    style={{ marginRight: 3, verticalAlign: "middle" }}
+                    )}
+                </>
+            }
+            actions={
+                <>
+                    {!detailEditing && (
+                        <>
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={onStartEdit}
+                            >
+                                <Pencil
+                                    size={13}
+                                    style={{ marginRight: 4, verticalAlign: "middle" }}
                                 />
-                                Backlog
-                            </span>
-                        )}
-                        {detailTask.date && (
-                            <span className={s["detail-date-badge"]}>
-                                <CalendarDays
-                                    size={12}
-                                    style={{ marginRight: 3, verticalAlign: "middle" }}
-                                />
-                                {detailTask.date}
-                            </span>
-                        )}
-                    </div>
-                    <div className={s["detail-header-actions"]}>
-                        {!detailEditing && (
-                            <>
+                                Edit
+                            </button>
+                            {currentUser?.id === detailTask?.user_id && (
                                 <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={onStartEdit}
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => onDelete(detailTask)}
                                 >
-                                    <Pencil
+                                    <Trash2
                                         size={13}
                                         style={{ marginRight: 4, verticalAlign: "middle" }}
                                     />
-                                    Edit
+                                    Delete
                                 </button>
-                                {currentUser?.id === detailTask?.user_id && (
-                                    <button
-                                        className="btn btn-danger btn-sm"
-                                        onClick={() => onDelete(detailTask)}
-                                    >
-                                        <Trash2
-                                            size={13}
-                                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                                        />
-                                        Delete
-                                    </button>
-                                )}
-                            </>
-                        )}
-                        {detailEditing && (
-                            <>
-                                <button
-                                    className="btn btn-primary btn-sm"
-                                    onClick={handleSaveEdit}
-                                >
-                                    <Save
-                                        size={13}
-                                        style={{ marginRight: 4, verticalAlign: "middle" }}
-                                    />
-                                    Save Changes
-                                </button>
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={onCancelEdit}
-                                >
-                                    Cancel Edit
-                                </button>
-                            </>
-                        )}
-                        <button className={s["close-form-btn"]} onClick={onClose}>
-                            <X size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div className={s["detail-modal-body"]}>
+                            )}
+                        </>
+                    )}
+                    {detailEditing && (
+                        <>
+                            <button
+                                className="btn btn-primary btn-sm"
+                                onClick={handleSaveEdit}
+                            >
+                                <Save
+                                    size={13}
+                                    style={{ marginRight: 4, verticalAlign: "middle" }}
+                                />
+                                Save Changes
+                            </button>
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={onCancelEdit}
+                            >
+                                Cancel Edit
+                            </button>
+                        </>
+                    )}
+                </>
+            }
+        >
+            <div className={s["detail-modal-body"]}>
                     {detailEditing ? (
                         /* ─── EDIT MODE ─── */
                         <div className={s["detail-edit-section"]}>
@@ -370,16 +370,40 @@ export default function TaskDetailModal({
                                     </select>
                                 </div>
                                 <div className={s["form-extra-group"]}>
-                                    <label>
-                                        {isBacklogItem || activeTab === "backlog"
-                                            ? "Due date / Schedule to"
-                                            : "Due date"}
+                                    <label htmlFor="task-planned-date">
+                                        Planned date
                                     </label>
                                     <input
+                                        id="task-planned-date"
+                                        type="date"
+                                        value={editPlannedDate}
+                                        onChange={(e) => setEditPlannedDate(e.target.value)}
+                                        aria-describedby="task-planned-date-hint"
+                                    />
+                                    <small
+                                        id="task-planned-date-hint"
+                                        className={s["form-extra-hint"]}
+                                    >
+                                        When this is scheduled to be worked on. Does not
+                                        remove it from the backlog.
+                                    </small>
+                                </div>
+                                <div className={s["form-extra-group"]}>
+                                    <label htmlFor="task-due-date">Due date</label>
+                                    <input
+                                        id="task-due-date"
                                         type="date"
                                         value={editDueDate}
                                         onChange={(e) => setEditDueDate(e.target.value)}
+                                        aria-describedby="task-due-date-hint"
                                     />
+                                    <small
+                                        id="task-due-date-hint"
+                                        className={s["form-extra-hint"]}
+                                    >
+                                        The deadline. Drives overdue warnings and due-date
+                                        reminders.
+                                    </small>
                                 </div>
                                 <SprintSelector
                                     sprints={availableSprints}
@@ -645,6 +669,65 @@ export default function TaskDetailModal({
 
                             {/* Meta grid */}
                             <div className={s["detail-meta-grid"]}>
+                                {/* Planned and due dates are separate fields with
+                                    separate effects: the planned date is when the
+                                    work is scheduled, the due date is the deadline. */}
+                                <div className={s["detail-meta-item"]}>
+                                    <span className={s["detail-meta-label"]}>
+                                        Planned date
+                                    </span>
+                                    <span className={s["detail-meta-value"]}>
+                                        {plannedDate ? (
+                                            <>
+                                                <CalendarDays
+                                                    size={12}
+                                                    style={{
+                                                        marginRight: 3,
+                                                        verticalAlign: "middle",
+                                                    }}
+                                                />
+                                                {plannedDate}
+                                            </>
+                                        ) : (
+                                            <span className={s["detail-meta-empty"]}>
+                                                Not scheduled
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className={s["detail-meta-hint"]}>
+                                        When this is scheduled to be worked on. Does
+                                        not remove it from the backlog.
+                                    </span>
+                                </div>
+                                <div className={s["detail-meta-item"]}>
+                                    <span className={s["detail-meta-label"]}>
+                                        Due date
+                                    </span>
+                                    <span
+                                        className={`${s["detail-meta-value"]} ${overdue ? s["overdue"] : ""}`}
+                                    >
+                                        {dueFmt ? (
+                                            <>
+                                                <CalendarDays
+                                                    size={12}
+                                                    style={{
+                                                        marginRight: 3,
+                                                        verticalAlign: "middle",
+                                                    }}
+                                                />
+                                                {dueFmt}
+                                            </>
+                                        ) : (
+                                            <span className={s["detail-meta-empty"]}>
+                                                No deadline
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className={s["detail-meta-hint"]}>
+                                        The deadline. Drives overdue warnings and due-date
+                                        reminders.
+                                    </span>
+                                </div>
                                 {detailTask.assignee && (
                                     <div className={s["detail-meta-item"]}>
                                         <span className={s["detail-meta-label"]}>
@@ -701,20 +784,6 @@ export default function TaskDetailModal({
                                             </span>
                                         </div>
                                     )}
-                                {dueFmt && (
-                                    <div className={s["detail-meta-item"]}>
-                                        <span className={s["detail-meta-label"]}>Due date</span>
-                                        <span
-                                            className={`${s["detail-meta-value"]} ${overdue ? s["overdue"] : ""}`}
-                                        >
-                                            <CalendarDays
-                                                size={12}
-                                                style={{ marginRight: 3, verticalAlign: "middle" }}
-                                            />
-                                            {dueFmt}
-                                        </span>
-                                    </div>
-                                )}
                                 {detailTask.created_at && (
                                     <div className={s["detail-meta-item"]}>
                                         <span className={s["detail-meta-label"]}>Created</span>
@@ -747,6 +816,13 @@ export default function TaskDetailModal({
                                     </div>
                                 )}
                             </div>
+
+                            {/* Logged time against estimate, with the timer startable
+                                from this task. Stopping it attributes the minutes to
+                                this task and rolls them into the timesheet. */}
+                            <TaskTimePanel task={detailTask} />
+
+                            <TaskGitRefs taskId={detailTask.id} />
 
                             {/* Status — every ticket, including backlog and scheduled ones */}
                             <TaskStatusControl task={detailTask} currentUser={currentUser} onChange={onStatusChange} />
@@ -798,128 +874,10 @@ export default function TaskDetailModal({
                         )}
 
                         {detailTab === "history" && (
-                            <div className={s["history-list"]}>
-                                {detailHistory.length === 0 && (
-                                    <div className={s["history-empty"]}>
-                                        No history recorded yet.
-                                    </div>
-                                )}
-                                {detailHistory.map((h) => {
-                                    const actionIcons: Record<string, IconComponent> = {
-                                        created: ActivityPlus,
-                                        status_change: ActivitySwap,
-                                        updated: ActivityEdit,
-                                        scheduled: ActivityCalendar,
-                                        unscheduled: ActivityCalendar,
-                                        comment_added: ActivityMessage,
-                                        comment_edited: ActivityEdit,
-                                        comment_deleted: ActivityDelete,
-                                        deleted: ActivityDelete,
-                                    };
-                                    const ActivityIcon = actionIcons[h.action] || ActivityEdit;
-                                    const fieldLabels: Record<string, string> = {
-                                        status: "status",
-                                        title: "title",
-                                        description: "description",
-                                        priority: "priority",
-                                        assigned_to: "assignee",
-                                        due_date: "due date",
-                                        date: "schedule",
-                                        labels: "labels",
-                                        story_points: "story points",
-                                        work_item_type: "work item type",
-                                        sprint: "sprint",
-                                        parent: "parent task",
-                                        is_blocked: "blocked status",
-                                        project: "project",
-                                    };
-                                    const actionText = () => {
-                                        if (h.action === "created") {
-                                            if (h.field === "date" && h.old_value)
-                                                return (
-                                                    <>
-                                                        carried forward from{" "}
-                                                        <span className={s["history-old"]}>
-                                                            {h.old_value}
-                                                        </span>
-                                                    </>
-                                                );
-                                            return "created this task";
-                                        }
-                                        if (h.action === "comment_added")
-                                            return "added a comment";
-                                        if (h.action === "comment_edited")
-                                            return "edited a comment";
-                                        if (h.action === "comment_deleted")
-                                            return "deleted a comment";
-                                        if (h.action === "status_change")
-                                            return (
-                                                <>
-                                                    changed status from{" "}
-                                                    <span className={s["history-old"]}>
-                                                        {h.old_value}
-                                                    </span>{" "}
-                                                    →{" "}
-                                                    <span className={s["history-new"]}>
-                                                        {h.new_value}
-                                                    </span>
-                                                </>
-                                            );
-                                        if (h.action === "scheduled")
-                                            return (
-                                                <>
-                                                    scheduled to{" "}
-                                                    <span className={s["history-new"]}>
-                                                        {h.new_value}
-                                                    </span>
-                                                </>
-                                            );
-                                        if (h.action === "unscheduled")
-                                            return "moved to backlog";
-                                        if (h.action === "updated" && h.field) {
-                                            const label = fieldLabels[h.field] || h.field;
-                                            if (h.field === "description")
-                                                return `updated ${label}`;
-                                            return (
-                                                <>
-                                                    {`updated ${label}: `}
-                                                    <span className={s["history-old"]}>
-                                                        {h.old_value || "—"}
-                                                    </span>
-                                                    {" → "}
-                                                    <span className={s["history-new"]}>
-                                                        {h.new_value || "—"}
-                                                    </span>
-                                                </>
-                                            );
-                                        }
-                                        return h.action;
-                                    };
-
-                                    return (
-                                        <div key={h.id} className={s["history-item"]}>
-                                            <span className={s["history-icon"]}>
-                                                <ActivityIcon size={14} />
-                                            </span>
-                                            <div className={s["history-content"]}>
-                                                <span className={s["history-actor"]}>
-                                                    {h.full_name || h.username}
-                                                </span>{" "}
-                                                <span className={s["history-action"]}>
-                                                    {actionText()}
-                                                </span>
-                                            </div>
-                                            <span className={s["history-time"]}>
-                                                {new Date(h.created_at).toLocaleString()}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <TaskHistoryList history={detailHistory as any} />
                         )}
                     </div>
-                </div>
             </div>
-        </div>
+        </TaskDetailSheet>
     );
 }

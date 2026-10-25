@@ -123,6 +123,21 @@ router.get("/task-summary", auth, async (req: Request, res: Response) => {
     }
 });
 
+// Time logged against tasks — the timesheet's task-time view.
+router.get("/task-time", auth, async (req: Request, res: Response) => {
+    try {
+        const { from, to } = req.query as { from?: string; to?: string };
+        const offset = getOffsetMin(req);
+        const toDate = to || getLocalToday(req);
+        const fromDate = from || new Date(Date.now() - offset * 60000 - 30 * 86400000)
+            .toISOString().slice(0, 10);
+        res.json(await service.getTaskTime(db(req), req.userId!, fromDate, toDate, offset));
+    } catch (err) {
+        req.log.error({ err }, "Task time error");
+        res.status(500).json({ error: "Failed to fetch task time" });
+    }
+});
+
 router.get("/history", auth, async (req: Request, res: Response) => {
     try {
         const { from, to } = req.query as { from?: string; to?: string };

@@ -12,6 +12,7 @@ import { computeDaySummary, endOfLocalDayMs } from "../../utils/timeCalc";
 import { computeStatus } from "../../utils/timeCalc";
 import { parseWorkDays, isJsDowWorkDay } from "../../utils/workDays";
 import { approvalLink } from "../../utils/notificationLinks";
+import { getTaskTime } from "./attendance.taskTime";
 
 interface AttendanceDependencies {
     findApprover: (
@@ -259,6 +260,15 @@ export function createAttendanceService(deps: AttendanceDependencies) {
                 ),
             }));
         },
+
+        /**
+         * Time logged against tasks, grouped by local day.
+         *
+         * This is the timesheet's task-time view: a timer started from a task
+         * lands here once it stops, so the day's attendance and the day's task
+         * time are read from the same place.
+         */
+        getTaskTime,
 
         async getAnalytics(
             db: AttendanceDb,

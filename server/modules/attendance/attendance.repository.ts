@@ -515,3 +515,32 @@ export async function insertWorkModeChangeRequest(
     );
     return result?.rows?.[0]?.id ?? null;
 }
+
+/**
+ * Stopped task timers in a local date range, for the timesheet.
+ *
+ * `timezoneModifier` is a Postgres interval string (e.g. `-330 minutes`) so the
+ * day bucket matches the member's local day rather than UTC.
+ */
+export async function listTaskTimersForDateRange(
+    db: AttendanceDb,
+    userId: number,
+    fromDate: string,
+    toDate: string,
+    timezoneModifier: string,
+): Promise<any[]> {
+    return (await db.query(
+        `SELECT tt.task_id, tt.started_at, tt.stopped_at, tt.minutes,
+                t.title AS task_title,
+                CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
+                     THEN p.key || '-' || t.task_number END AS issue_key
+           FROM task_timers tt
+           JOIN tasks t ON t.id = tt.task_id
+      LEFT JOIN projects p ON p.id = t.project_id
+          WHERE tt.user_id = $1
+            AND tt.stopped_at IS NOT NULL
+            AND (tt.started_at + $4::interval)::date BETWEEN $2::date AND $3::date
+          ORDER BY tt.started_at DESC`,
+        [userId, fromDate, toDate, timezoneModifier],
+    )).rows;
+}

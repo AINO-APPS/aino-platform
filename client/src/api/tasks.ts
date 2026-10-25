@@ -120,6 +120,11 @@ export const getSprintCompletionPreview = (id: number | string) =>
 export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
 export const getScheduleOverlays = (from: string, to: string) =>
     API.get("/tasks/schedule-overlays", { params: { from, to } });
+export const startTaskTimer = (id: number | string) => API.post(`/tasks/${id}/timer/start`);
+export const stopTaskTimer = (id: number | string) => API.post(`/tasks/${id}/timer/stop`);
+export const getTaskTimer = (id: number | string) => API.get(`/tasks/${id}/timer`);
+export const getTaskTime = (from?: string, to?: string) =>
+    API.get("/tracker/task-time", { params: { from, to } });
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

@@ -369,3 +369,17 @@
   color: var(--success);
   -webkit-text-fill-color: var(--success);
 }
+/* Task time — the timesheet's per-task view. */
+.task-time-total {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.task-time-key {
+  font-family: monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+}

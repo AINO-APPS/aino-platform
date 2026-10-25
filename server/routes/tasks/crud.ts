@@ -360,7 +360,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
-        const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
+        const { title, description, priority, assigned_to, due_date, planned_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
@@ -440,6 +440,17 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // Bug #15: reject due_date earlier than the task date.
             if (newDueDate && task.date && newDueDate < task.date) {
                 return res.status(400).json({ error: 'Due date cannot be earlier than the task date' });
+            }
+        }
+
+        // `planned_date` is the scheduling field; `date` is the legacy column
+        // the contract migration will drop, so both are kept in step until then.
+        let newPlannedDate = task.planned_date ?? task.date ?? null;
+        if (planned_date !== undefined) {
+            newPlannedDate = (planned_date && /^\d{4}-\d{2}-\d{2}$/.test(planned_date))
+                ? planned_date : null;
+            if (newPlannedDate && newDueDate && newDueDate < newPlannedDate) {
+                return res.status(400).json({ error: 'Due date cannot be earlier than the planned date' });
             }
         }
 
@@ -536,12 +547,13 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
                 workflow_state_id = $9, status = $10, parent_task_id = $11,
                 acceptance_criteria = $12, is_blocked = $13, blocked_reason = $14,
-                project_id = $15, task_number = $16
-              WHERE id = $17`,
+                project_id = $15, task_number = $16, planned_date = $17, date = $17
+              WHERE id = $18`,
             [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
                 newStoryPoints, newWitId, newWsId, newStatusKey, newParentTaskId,
                 newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
-                newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
+                newIsBlocked, newBlockedReason, newProjectId, newTaskNumber,
+                newPlannedDate, id]
         );
 
         // Log a project assignment as a first-class history event so users
@@ -567,6 +579,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             await logHistory(id, req.userId, 'updated', 'assigned_to', oldLabel, newLabel, null, req.db);
         }
         if (newDueDate !== task.due_date) await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, newDueDate, null, req.db);
+        if (newPlannedDate !== (task.planned_date ?? task.date ?? null)) {
+            await logHistory(id, req.userId, 'updated', 'planned_date',
+                task.planned_date ?? task.date ?? null, newPlannedDate, null, req.db);
+        }
         if (String(newSprintId || '') !== String(task.sprint_id || '')) {
             const oldSprint = task.sprint_id ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [task.sprint_id])).rows[0] : null;
             const newSprint = newSprintId ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [newSprintId])).rows[0] : null;

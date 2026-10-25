@@ -1,0 +1,80 @@
+.time-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.time-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.time-label {
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+}
+
+.time-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.time-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.time-fill {
+    height: 100%;
+    background: var(--primary);
+}
+
+.time-over {
+    background: var(--danger, #ef4444);
+}
+
+.time-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.time-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.time-button:hover {
+    background: var(--surface-hover);
+}
+
+.time-button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.time-over-label {
+    font-size: var(--font-meta-size);
+    color: var(--danger, #ef4444);
+}
+
+.time-error {
+    margin: 0;
+    font-size: var(--font-meta-size);
+    color: var(--danger, #ef4444);
+}
