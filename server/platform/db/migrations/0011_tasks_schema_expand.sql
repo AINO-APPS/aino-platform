@@ -50,18 +50,20 @@ BEGIN
 END
 $do$;
 
+WITH task_team_assignments AS (
+    SELECT t.id,
+           COALESCE(s.team_id, creator.team_id, assignee.team_id) AS resolved_team_id
+      FROM tasks t
+      LEFT JOIN sprints s ON s.id = t.sprint_id
+      LEFT JOIN users creator ON creator.id = t.user_id
+      LEFT JOIN users assignee ON assignee.id = t.assigned_to
+     WHERE t.team_id IS NULL
+)
 UPDATE tasks t
-   SET team_id = COALESCE(
-       (SELECT s.team_id FROM sprints s WHERE s.id = t.sprint_id),
-       (SELECT creator.team_id FROM users creator WHERE creator.id = t.user_id),
-       (SELECT assignee.team_id FROM users assignee WHERE assignee.id = t.assigned_to)
-   )
- WHERE t.team_id IS NULL
-   AND COALESCE(
-       (SELECT s.team_id FROM sprints s WHERE s.id = t.sprint_id),
-       (SELECT creator.team_id FROM users creator WHERE creator.id = t.user_id),
-       (SELECT assignee.team_id FROM users assignee WHERE assignee.id = t.assigned_to)
-   ) IS NOT NULL;
+   SET team_id = task_team_assignments.resolved_team_id
+  FROM task_team_assignments
+ WHERE task_team_assignments.id = t.id
+   AND task_team_assignments.resolved_team_id IS NOT NULL;
 
 DO $do$
 DECLARE
