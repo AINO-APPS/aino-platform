@@ -265,13 +265,16 @@ async function runTenantMigrations(query: QueryFn, opts: MigrationOpts = {}): Pr
             applied.push(mig.name);
             logger.info({ migration: mig.name, label }, "Migration applied");
         } catch (err: unknown) {
+            const migrationError = new Error(
+                `Migration ${mig.name} failed for tenant "${label}": ${(err as Error).message}`,
+            );
             failed.push(mig.name);
             logger.error({
                 migration: mig.name,
                 label,
-                err: (err as Error).message,
+                err: migrationError.message,
             }, "Migration failed (non-fatal — will retry on next sweep)");
-            if (opts.failFast) throw err;
+            if (opts.failFast) throw migrationError;
         }
     }
 

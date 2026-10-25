@@ -232,6 +232,15 @@ describe("runTenantMigrations", () => {
             transaction,
         })).rejects.toThrow("ddl failed");
     });
+
+    it("includes migration and tenant context when fail-fast is enabled", async () => {
+        const { query } = makeQuery({ failOn: /device_tokens/i });
+
+        await expect(runTenantMigrations(query, {
+            label: "wp_unmappable_test",
+            failFast: true,
+        })).rejects.toThrow(/Migration 0002_migration_catchup failed for tenant "wp_unmappable_test": boom/);
+    });
 });
 
 /**

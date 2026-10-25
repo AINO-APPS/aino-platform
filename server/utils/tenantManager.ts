@@ -12,6 +12,7 @@
  */
 import { masterQuery, masterTransaction, initTenantSchema } from "../db";
 import { runTenantMigrations } from "../platform/db/migrations";
+import { seedAgileDefaults } from "../platform/db/agileDefaults";
 import { getTenantPool, destroyTenantPool, destroyAllPools, getPoolStats } from "../platform/db/tenantPools";
 import type { PoolEntry } from "../platform/db/tenantPools";
 import { logger } from "./logger";
@@ -212,6 +213,7 @@ async function createTenant(
          ON CONFLICT (id) DO NOTHING`,
         [orgName, slug]
     );
+    await seedAgileDefaults(db.query);
 
     logger.info({ tenantId: tenant.id, dbName, slug }, "Tenant created");
     return { tenant, db };

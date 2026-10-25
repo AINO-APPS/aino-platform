@@ -266,22 +266,27 @@ erDiagram
     }
 ```
 
-Ordered operations in the migration:
+The schema transition is expand–contract so the server and clients remain
+compatible while they move to the new fields:
 
-1. Add `tasks.planned_date DATE`; backfill from `date`; drop `date`.
+1. **Expand:** add `tasks.planned_date DATE` and backfill it from `date`;
+   retain `date` until all readers and writers have moved.
 2. Convert `due_date` to `DATE`.
 3. Backfill `workflow_state_id` from `status` via the team's default states
    (`pending→open`, `in_progress→in_progress`, `in_review→in_review`,
    `done→done`). Fail the migration loudly if any row cannot map.
 4. Backfill `completed_at` from the done mapping where it is null.
-5. Drop `tasks.status`.
-6. Add `tasks.rank TEXT`; seed LexoRank strings per team in
-   `(sprint_id NULLS FIRST, created_at)` order.
+5. Retain `tasks.status` as a compatibility field until the contract migration.
+6. Add `tasks.team_id` and `tasks.rank TEXT`; seed LexoRank strings per team in
+   creation order. Tasks without a team remain in an organization-scoped pool.
 7. Create `sprint_baselines`.
-8. Add a trigger maintaining `completed_at` on `workflow_state_id` change.
+8. Add a trigger maintaining `completed_at` from the workflow-state category;
+   direct writes to `completed_at` are ignored.
+9. **Contract:** after clients no longer read the legacy fields, drop
+   `date`, `status` and `rank_value` (ticket 28).
 
-`rank_value NUMERIC` is retained as a deprecated column for one release, written
-in parallel, then dropped. Nothing reads it.
+`rank_value NUMERIC` is retained as a deprecated column during the expand
+phase. Nothing reads it.
 
 ### 5.2 Invariants
 
@@ -630,6 +635,8 @@ exchange (D40), Android feature port (§8.4), parity CI gate (D44), a11y audit.
 ### Release gates (D45, every phase)
 
 1. **Migration test** — backfill correctness; zero done items in the incomplete list.
+   The tenant-schema integration test uses a disposable local PostgreSQL database
+   configured with `TASKS_SCHEMA_TEST_DATABASE_URL`.
 2. **API contract tests** — backlog pagination, completed split, rank endpoint.
 3. **E2E regression test** (non-negotiable) — *mark a task done → it disappears
    from the incomplete list → it appears under Completed → the toggle reveals it
