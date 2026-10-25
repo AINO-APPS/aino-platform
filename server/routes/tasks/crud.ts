@@ -17,6 +17,7 @@ const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require('./_helpers/access');
+const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
@@ -257,6 +258,9 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
         if (!canChangeTaskStatus(task, req.userId, req.userRole)) return res.status(403).json({ error: STATUS_FORBIDDEN });
 
+        const frozen = await frozenSprintError(req, task);
+        if (frozen) return res.status(409).json(frozen);
+
         // Resolve target workflow state. Accept either a numeric workflow_state_id
         // or a status key (back-compat with default 'pending'/'in_progress'/...).
         let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
@@ -362,6 +366,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+
+        // A completed sprint accepts no task writes.
+        const frozen = await frozenSprintError(req, task, sprint_id === undefined ? undefined : sprint_id);
+        if (frozen) return res.status(409).json(frozen);
 
         // Stage 3: allow assigning a task to a project *only if it has none
         // yet*. Re-keying an existing task (PROJ-12 → OTHER-7) would orphan
@@ -631,6 +639,9 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         if (!task) return res.status(404).json({ error: 'Task not found' });
         if (task.user_id !== req.userId) return res.status(403).json({ error: 'Only task creator can delete task' });
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+
+        const frozen = await frozenSprintError(req, task);
+        if (frozen) return res.status(409).json(frozen);
 
         await logHistory(id, req.userId, 'deleted', null, task.title, null, null, req.db);
         await req.db!.query('DELETE FROM tasks WHERE id = $1', [id]);

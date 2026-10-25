@@ -115,6 +115,8 @@ export const bulkTaskAction = (data: {
 }) => API.post("/tasks/bulk", data);
 export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIComponent(key)}`);
 export const getEpics = () => API.get("/tasks/epics");
+export const getSprintCompletionPreview = (id: number | string) =>
+    API.get(`/sprints/${id}/completion-preview`);
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

@@ -419,6 +419,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "GET    /api/sprints/:id/burndown",
   "GET    /api/sprints/:id/carried-over",
   "POST   /api/sprints/:id/complete",
+  "GET    /api/sprints/:id/completion-preview",
   "GET    /api/sprints/:id/cumulative-flow",
   "GET    /api/sprints/:id/cycle-time",
   "POST   /api/sprints/:id/pause",
