@@ -194,3 +194,19 @@
     clip-path: var(--sparkline);
     opacity: 0.7;
 }
+
+/* Compact density: key, title and points only — the assignee column drops out
+   and the row tightens so both panes stay readable side by side. */
+.plan-row-compact {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    padding: 0.3rem 0.4rem;
+}
+
+.plan-assignee {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 9rem;
+}

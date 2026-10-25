@@ -48,4 +48,22 @@ describe("task preferences", () => {
         resolveShowCompleted(stored, "1");
         expect(stored.show_completed).toBe(false);
     });
+
+    test("card density persists per user and survives an unrelated update", () => {
+        const stored = mergeTaskPreferences(DEFAULT_TASK_PREFERENCES, {
+            card_density: "compact",
+        });
+        expect(stored.card_density).toBe("compact");
+        // Toggling completed must not reset the density the user chose.
+        expect(mergeTaskPreferences(stored, { show_completed: true }).card_density).toBe(
+            "compact",
+        );
+    });
+
+    test("an unknown density falls back to the stored one, not the default", () => {
+        const stored = { ...DEFAULT_TASK_PREFERENCES, card_density: "compact" as const };
+        expect(mergeTaskPreferences(stored, { card_density: "enormous" }).card_density).toBe(
+            "compact",
+        );
+    });
 });

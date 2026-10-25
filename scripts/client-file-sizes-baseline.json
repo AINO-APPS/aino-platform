@@ -13,7 +13,7 @@
   "pages/AgileSettings.tsx": 871,
   "pages/Projects.tsx": 906,
   "pages/SprintInsights.tsx": 747,
-  "pages/Tasks.tsx": 557,
+  "pages/Tasks.tsx": 560,
   "pages/admin/AddPeopleWizard.tsx": 935,
   "pages/admin/AuditLogs.tsx": 665,
   "pages/admin/CompensationSetup.tsx": 1069,
@@ -24,6 +24,6 @@
   "pages/chat/useMessageActions.ts": 750,
   "pages/integrations/GitHubIntegration.tsx": 705,
   "pages/meeting/useMeetingState.ts": 2971,
-  "pages/tasks/TaskDetailModal.tsx": 856,
+  "pages/tasks/TaskDetailModal.tsx": 740,
   "pages/tenants/TenantDetail.tsx": 572
 }

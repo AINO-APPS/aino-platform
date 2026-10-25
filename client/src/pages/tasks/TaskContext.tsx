@@ -1,6 +1,10 @@
 import { createContext, useContext, useMemo } from "react";
 import type { User, TaskLabel, Sprint, Project } from "../../types";
 
+/** How much a card shows. Comfortable adds assignee and priority to the key,
+ *  title and points that compact keeps. */
+export type CardDensity = "comfortable" | "compact";
+
 /**
  * Shared context for the Tasks page.
  * Eliminates prop-drilling of static/rarely-changing reference data
@@ -14,6 +18,8 @@ interface TaskContextValue {
     availableProjects: Project[];
     currentUser: User | null;
     activeTab: string;
+    /** Per-user card density, applied consistently on every surface. */
+    cardDensity: CardDensity;
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null);
@@ -26,6 +32,7 @@ interface TaskProviderProps {
     availableProjects: Project[];
     currentUser: User | null;
     activeTab: string;
+    cardDensity?: CardDensity;
 }
 
 export function TaskProvider({
@@ -36,6 +43,7 @@ export function TaskProvider({
     availableProjects,
     currentUser,
     activeTab,
+    cardDensity = "comfortable",
 }: TaskProviderProps) {
     const value = useMemo(
         () => ({
@@ -45,6 +53,7 @@ export function TaskProvider({
             availableProjects,
             currentUser,
             activeTab,
+            cardDensity,
         }),
         [
             assignableUsers,
@@ -53,9 +62,15 @@ export function TaskProvider({
             availableProjects,
             currentUser,
             activeTab,
+            cardDensity,
         ],
     );
     return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 }
 
 export const useTaskCtx = () => useContext(TaskContext);
+
+/** The card density for the current Tasks view, defaulting to comfortable. */
+export function useCardDensity(): CardDensity {
+    return useTaskCtx()?.cardDensity ?? "comfortable";
+}

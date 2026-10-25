@@ -10,6 +10,7 @@ import { currentStatusOption, statusOptions } from "./taskStatus";
 import { formatDueDate, formatRelativeTime, isDueOverdue, stripHtml, getAvatarUrl } from "./utils";
 import { getLocalToday } from "../../api/client";
 import IssueKey from "./IssueKey";
+import { useCardDensity } from "./TaskContext";
 import s from "./BacklogTab.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {
@@ -59,6 +60,9 @@ export default function BacklogCard({
 }: BacklogCardProps) {
     const [editingTitle, setEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(task.title ?? "");
+    // Compact keeps key, title and points; comfortable adds assignee, priority,
+    // status, labels and the description preview.
+    const compact = useCardDensity() === "compact";
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && task.status !== "done";
@@ -69,7 +73,7 @@ export default function BacklogCard({
 
     return (
         <div
-            className={`${s["backlog-card"]} ${s.clickable} ${task.status === "done" ? s["backlog-card-done"] : ""} ${reorder?.draggingId === task.id ? s["backlog-card-dragging"] : ""} ${reorder?.overId === task.id ? s["backlog-card-over"] : ""}`}
+            className={`${s["backlog-card"]} ${s.clickable} ${compact ? s["backlog-card-compact"] : ""} ${task.status === "done" ? s["backlog-card-done"] : ""} ${reorder?.draggingId === task.id ? s["backlog-card-dragging"] : ""} ${reorder?.overId === task.id ? s["backlog-card-over"] : ""}`}
             draggable={Boolean(reorder)}
             onDragStart={() => reorder?.onDragStart(task.id)}
             onDragOver={(e) => {
@@ -112,38 +116,43 @@ export default function BacklogCard({
                     <span className={s["backlog-ticket-id"]}>
                         <IssueKey task={task} />
                     </span>
-                    <span
-                        className={s["backlog-status-badge"]}
-                        style={
-                            {
-                                "--badge-bg": colInfo.color + "20",
-                                "--badge-color": colInfo.color,
-                            } as React.CSSProperties
-                        }
-                    >
-                        {colInfo.icon ? `${colInfo.icon} ` : ""}
-                        {colInfo.label}
-                    </span>
-                    <span
-                        className={s["task-priority-badge"]}
-                        style={
-                            {
-                                "--badge-bg": pri.color + "20",
-                                "--badge-color": pri.color,
-                            } as React.CSSProperties
-                        }
-                    >
-                        {pri.icon} {pri.label}
-                    </span>
-                    <WorkItemTypeBadge value={task.work_item_type_id} />
-                    {task.parent_task_id && (
+                    {!compact && (
+                        <span
+                            className={s["backlog-status-badge"]}
+                            style={
+                                {
+                                    "--badge-bg": colInfo.color + "20",
+                                    "--badge-color": colInfo.color,
+                                } as React.CSSProperties
+                            }
+                        >
+                            {colInfo.icon ? `${colInfo.icon} ` : ""}
+                            {colInfo.label}
+                        </span>
+                    )}
+                    {!compact && (
+                        <span
+                            className={s["task-priority-badge"]}
+                            style={
+                                {
+                                    "--badge-bg": pri.color + "20",
+                                    "--badge-color": pri.color,
+                                } as React.CSSProperties
+                            }
+                        >
+                            {pri.icon} {pri.label}
+                        </span>
+                    )}
+                    {!compact && <WorkItemTypeBadge value={task.work_item_type_id} />}
+                    {!compact && task.parent_task_id && (
                         <span className={s["epic-indicator"]} title="Part of an epic">
                             Epic
                         </span>
                     )}
                     <StoryPointBadge value={task.story_points} />
-                    <BlockerBadge task={task} />
-                    {task.labels &&
+                    {!compact && <BlockerBadge task={task} />}
+                    {!compact &&
+                        task.labels &&
                         task.labels.length > 0 &&
                         task.labels.map((l: any) => (
                             <span
@@ -198,11 +207,11 @@ export default function BacklogCard({
                         </span>
                     )}
                 </span>
-                {descPreview && (
+                {!compact && descPreview && (
                     <div className={s["backlog-desc-preview"]}>{descPreview}</div>
                 )}
                 <div className={s["backlog-card-footer"]}>
-                    {task.assignee && (
+                    {!compact && task.assignee && (
                         <span className={s["backlog-meta-chip"]}>
                             {task.assignee.avatar ? (
                                 <img
@@ -222,7 +231,7 @@ export default function BacklogCard({
                             {task.assignee.full_name || task.assignee.username}
                         </span>
                     )}
-                    {dueFmt && (
+                    {!compact && dueFmt && (
                         <span
                             className={`${s["backlog-meta-chip"]} ${overdue ? s["overdue"] : ""}`}
                         >
@@ -233,7 +242,7 @@ export default function BacklogCard({
                             {dueFmt}
                         </span>
                     )}
-                    {task.comment_count > 0 && (
+                    {!compact && task.comment_count > 0 && (
                         <span className={s["backlog-meta-chip"]}>
                             <MessageSquare
                                 size={11}
@@ -242,9 +251,11 @@ export default function BacklogCard({
                             {task.comment_count}
                         </span>
                     )}
-                    <span className={s["backlog-meta-time"]}>
-                        {formatRelativeTime(task.created_at)}
-                    </span>
+                    {!compact && (
+                        <span className={s["backlog-meta-time"]}>
+                            {formatRelativeTime(task.created_at)}
+                        </span>
+                    )}
                     <div className={s["backlog-actions"]}>
                         {scheduleTaskId === task.id ? (
                             <div className={s["schedule-popover"]}>

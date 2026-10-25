@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ChevronRight, ChevronLeft } from "../../constants/icons";
 import IssueKey from "./IssueKey";
 import EpicPanel from "./EpicPanel";
+import { useCardDensity } from "./TaskContext";
 import s from "./SprintPlan.module.css";
 
 interface SprintPlanProps {
@@ -51,6 +52,9 @@ export default function SprintPlan({
 }: SprintPlanProps) {
     const [goal, setGoal] = useState(sprint?.goal ?? "");
     const [editingGoal, setEditingGoal] = useState(false);
+    // Compact plan rows drop the points column's neighbours and keep key, title
+    // and points — the same rule the backlog and board follow.
+    const compact = useCardDensity() === "compact";
 
     const committed = useMemo(() => points(sprintTasks), [sprintTasks]);
     const capacity = Number(sprint?.velocity_points) || velocity.average || 0;
@@ -78,7 +82,10 @@ export default function SprintPlan({
                 </header>
                 <ul className={s["plan-list"]}>
                     {backlogTasks.map((task) => (
-                        <li key={task.id} className={s["plan-row"]}>
+                        <li
+                            key={task.id}
+                            className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
+                        >
                             <IssueKey task={task} copyable={false} />
                             <button
                                 type="button"
@@ -88,6 +95,11 @@ export default function SprintPlan({
                                 {task.title}
                             </button>
                             <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
+                            {!compact && task.assignee && (
+                                <span className={s["plan-assignee"]}>
+                                    {task.assignee.full_name || task.assignee.username}
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 className={s["plan-move"]}
@@ -162,7 +174,10 @@ export default function SprintPlan({
 
                 <ul className={s["plan-list"]}>
                     {sprintTasks.map((task) => (
-                        <li key={task.id} className={s["plan-row"]}>
+                        <li
+                            key={task.id}
+                            className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
+                        >
                             <button
                                 type="button"
                                 className={s["plan-move"]}
@@ -180,6 +195,11 @@ export default function SprintPlan({
                                 {task.title}
                             </button>
                             <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
+                            {!compact && task.assignee && (
+                                <span className={s["plan-assignee"]}>
+                                    {task.assignee.full_name || task.assignee.username}
+                                </span>
+                            )}
                         </li>
                     ))}
                     {sprintTasks.length === 0 && (

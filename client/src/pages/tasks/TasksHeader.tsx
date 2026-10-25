@@ -20,6 +20,9 @@ interface TasksHeaderProps {
     backlogTasks: any[];
     filterCount: number;
     filtersOpen: boolean;
+    /** Per-user card density, applied on every Tasks surface. */
+    cardDensity: "comfortable" | "compact";
+    setCardDensity: (value: "comfortable" | "compact") => void;
     setFiltersOpen: (value: boolean | ((o: boolean) => boolean)) => void;
     filterAssignee: string;
     setFilterAssignee: (v: string) => void;
@@ -56,6 +59,8 @@ export default function TasksHeader({
     backlogTasks,
     filterCount,
     filtersOpen,
+    cardDensity,
+    setCardDensity,
     setFiltersOpen,
     filterAssignee,
     setFilterAssignee,
@@ -265,6 +270,25 @@ export default function TasksHeader({
                                 style={{ verticalAlign: "middle", marginRight: 4 }}
                             />
                             {filterCount > 0 ? `Filters (${filterCount})` : "Filters"}
+                        </button>
+                    )}
+
+                    {activeTab !== "service-desk" && (
+                        <button
+                            className={`btn btn-secondary ${s["density-toggle"]}`}
+                            onClick={() =>
+                                setCardDensity(
+                                    cardDensity === "compact" ? "comfortable" : "compact",
+                                )
+                            }
+                            aria-pressed={cardDensity === "compact"}
+                            title={
+                                cardDensity === "compact"
+                                    ? "Compact cards — switch to comfortable"
+                                    : "Comfortable cards — switch to compact"
+                            }
+                        >
+                            {cardDensity === "compact" ? "Compact" : "Comfortable"}
                         </button>
                     )}
 

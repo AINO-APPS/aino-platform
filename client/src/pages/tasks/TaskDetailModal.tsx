@@ -39,6 +39,7 @@ import TaskDetailSheet from "./TaskDetailSheet";
 import TaskTimePanel from "./TaskTimePanel";
 import TaskGitRefs from "./TaskGitRefs";
 import TaskHistoryList from "./TaskHistoryList";
+import TaskMetaGrid from "./TaskMetaGrid";
 import s from "./TaskDetailModal.module.css";
 
 interface TaskDetailModalProps {
@@ -667,155 +668,10 @@ export default function TaskDetailModal({
                                     </div>
                                 )}
 
-                            {/* Meta grid */}
-                            <div className={s["detail-meta-grid"]}>
-                                {/* Planned and due dates are separate fields with
-                                    separate effects: the planned date is when the
-                                    work is scheduled, the due date is the deadline. */}
-                                <div className={s["detail-meta-item"]}>
-                                    <span className={s["detail-meta-label"]}>
-                                        Planned date
-                                    </span>
-                                    <span className={s["detail-meta-value"]}>
-                                        {plannedDate ? (
-                                            <>
-                                                <CalendarDays
-                                                    size={12}
-                                                    style={{
-                                                        marginRight: 3,
-                                                        verticalAlign: "middle",
-                                                    }}
-                                                />
-                                                {plannedDate}
-                                            </>
-                                        ) : (
-                                            <span className={s["detail-meta-empty"]}>
-                                                Not scheduled
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className={s["detail-meta-hint"]}>
-                                        When this is scheduled to be worked on. Does
-                                        not remove it from the backlog.
-                                    </span>
-                                </div>
-                                <div className={s["detail-meta-item"]}>
-                                    <span className={s["detail-meta-label"]}>
-                                        Due date
-                                    </span>
-                                    <span
-                                        className={`${s["detail-meta-value"]} ${overdue ? s["overdue"] : ""}`}
-                                    >
-                                        {dueFmt ? (
-                                            <>
-                                                <CalendarDays
-                                                    size={12}
-                                                    style={{
-                                                        marginRight: 3,
-                                                        verticalAlign: "middle",
-                                                    }}
-                                                />
-                                                {dueFmt}
-                                            </>
-                                        ) : (
-                                            <span className={s["detail-meta-empty"]}>
-                                                No deadline
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className={s["detail-meta-hint"]}>
-                                        The deadline. Drives overdue warnings and due-date
-                                        reminders.
-                                    </span>
-                                </div>
-                                {detailTask.assignee && (
-                                    <div className={s["detail-meta-item"]}>
-                                        <span className={s["detail-meta-label"]}>
-                                            Assigned to
-                                        </span>
-                                        <span className={s["detail-meta-value"]}>
-                                            {detailTask.assignee.avatar ? (
-                                                <img
-                                                    src={getAvatarUrl(detailTask.assignee.avatar)}
-                                                    alt=""
-                                                    className={s["detail-avatar"]}
-                                                />
-                                            ) : (
-                                                <span className={s["detail-avatar-placeholder"]}>
-                                                    {(
-                                                        detailTask.assignee.full_name ||
-                                                        detailTask.assignee.username ||
-                                                        "?"
-                                                    )[0].toUpperCase()}
-                                                </span>
-                                            )}
-                                            {detailTask.assignee.full_name ||
-                                                detailTask.assignee.username}
-                                        </span>
-                                    </div>
-                                )}
-                                {detailTask.creator &&
-                                    detailTask.assigned_to &&
-                                    detailTask.user_id !== detailTask.assigned_to && (
-                                        <div className={s["detail-meta-item"]}>
-                                            <span className={s["detail-meta-label"]}>
-                                                Created by
-                                            </span>
-                                            <span className={s["detail-meta-value"]}>
-                                                {detailTask.creator.avatar ? (
-                                                    <img
-                                                        src={getAvatarUrl(detailTask.creator.avatar)}
-                                                        alt=""
-                                                        className={s["detail-avatar"]}
-                                                    />
-                                                ) : (
-                                                    <span
-                                                        className={s["detail-avatar-placeholder"]}
-                                                    >
-                                                        {(
-                                                            detailTask.creator.full_name ||
-                                                            detailTask.creator.username ||
-                                                            "?"
-                                                        )[0].toUpperCase()}
-                                                    </span>
-                                                )}
-                                                {detailTask.creator.full_name ||
-                                                    detailTask.creator.username}
-                                            </span>
-                                        </div>
-                                    )}
-                                {detailTask.created_at && (
-                                    <div className={s["detail-meta-item"]}>
-                                        <span className={s["detail-meta-label"]}>Created</span>
-                                        <span className={s["detail-meta-value"]}>
-                                            {new Date(detailTask.created_at).toLocaleString()}
-                                        </span>
-                                    </div>
-                                )}
-                                {detailTask.completed_at && (
-                                    <div className={s["detail-meta-item"]}>
-                                        <span className={s["detail-meta-label"]}>Completed</span>
-                                        <span className={s["detail-meta-value"]}>
-                                            {new Date(detailTask.completed_at).toLocaleString()}
-                                        </span>
-                                    </div>
-                                )}
-                                {detailTask.sprint_id && (
-                                    <div className={s["detail-meta-item"]}>
-                                        <span className={s["detail-meta-label"]}>Sprint</span>
-                                        <span className={s["detail-meta-value"]}>
-                                            <span
-                                                style={{ fontWeight: 600, fontSize: "0.85em" }}
-                                            >
-                                                Sprint
-                                            </span>{" "}
-                                            {availableSprints.find(
-                                                (sp: any) => sp.id === detailTask.sprint_id,
-                                            )?.name || `Sprint #${detailTask.sprint_id}`}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
+                            <TaskMetaGrid
+                                task={detailTask}
+                                availableSprints={availableSprints}
+                            />
 
                             {/* Logged time against estimate, with the timer startable
                                 from this task. Stopping it attributes the minutes to

@@ -378,6 +378,7 @@ export default function Tasks() {
       availableProjects={availableProjects}
       currentUser={currentUser}
       activeTab={activeTab}
+      cardDensity={backlog.cardDensity}
     >
       <div className={s["tasks-page"]}>
         <TasksHeader
@@ -391,6 +392,8 @@ export default function Tasks() {
           backlogTasks={backlog.backlogTasks}
           filterCount={filters.filterCount}
           filtersOpen={filters.filtersOpen}
+          cardDensity={backlog.cardDensity}
+          setCardDensity={backlog.setCardDensity}
           setFiltersOpen={filters.setFiltersOpen}
           filterAssignee={filters.filterAssignee}
           setFilterAssignee={filters.setFilterAssignee}

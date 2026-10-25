@@ -9,6 +9,7 @@ import {
     BlockerBadge,
 } from "../../components/agile/AgilePickers";
 import { useToast } from "../../components/common/Toast";
+import { useCardDensity } from "./TaskContext";
 import s from "./TaskCard.module.css";
 import type { Task } from "../../types";
 
@@ -65,6 +66,9 @@ export default function TaskCard({
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && task.status !== "done";
+    // Compact keeps key, title and points; comfortable adds priority, assignee,
+    // labels, description and due date.
+    const compact = useCardDensity() === "compact";
     const toast = useToast() as any;
     const [copied, setCopied] = useState(false);
 
@@ -97,7 +101,7 @@ export default function TaskCard({
         <div
             key={task.id}
             id={`task-${task.id}`}
-            className={`${s["task-card"]} ${s.clickable} ${task.status === "done" ? s["task-done"] : ""}`}
+            className={`${s["task-card"]} ${s.clickable} ${compact ? s["task-card-compact"] : ""} ${task.status === "done" ? s["task-done"] : ""}`}
             draggable
             onDragStart={(e) => onDragStart(e, task.id)}
             onDragEnd={(e) => onDragEnd(e, task.id)}
@@ -114,22 +118,26 @@ export default function TaskCard({
         >
             <div className={s["task-card-top"]}>
                 <div className={s["task-card-top-left"]}>
-                    <WorkItemTypeBadge
-                        value={task.work_item_type_id || task.work_item_type_key}
-                    />
-                    <span
-                        className={s["task-priority-badge"]}
-                        style={
-                            {
-                                "--badge-bg": pri.color + "20",
-                                "--badge-color": pri.color,
-                            } as React.CSSProperties
-                        }
-                    >
-                        {pri.icon} {pri.label}
-                    </span>
+                    {!compact && (
+                        <WorkItemTypeBadge
+                            value={task.work_item_type_id || task.work_item_type_key}
+                        />
+                    )}
+                    {!compact && (
+                        <span
+                            className={s["task-priority-badge"]}
+                            style={
+                                {
+                                    "--badge-bg": pri.color + "20",
+                                    "--badge-color": pri.color,
+                                } as React.CSSProperties
+                            }
+                        >
+                            {pri.icon} {pri.label}
+                        </span>
+                    )}
                     <StoryPointBadge value={task.story_points} />
-                    <BlockerBadge task={task} />
+                    {!compact && <BlockerBadge task={task} />}
                 </div>
                 <div className={s["task-actions"]}>
                     {/* Issue key chip — click to copy. Coloured with the project's
@@ -167,7 +175,7 @@ export default function TaskCard({
 
             <div className={s["task-title-row"]}>
                 <div className={s["task-title"]}>{task.title}</div>
-                {task.labels && task.labels.length > 0 && (
+                {!compact && task.labels && task.labels.length > 0 && (
                     <div className={s["task-labels"]}>
                         {task.labels.map((l: any) => (
                             <span
@@ -182,13 +190,13 @@ export default function TaskCard({
                 )}
             </div>
 
-            {task.description && (
+            {!compact && task.description && (
                 <HighlightedHtml html={task.description} className={s["task-desc"]} />
             )}
 
             <div className={s["task-card-footer"]}>
                 <div className={s["task-meta"]}>
-                    {task.assignee && (
+                    {!compact && task.assignee && (
                         <span
                             className={s["task-assignee"]}
                             title={`Assigned to ${task.assignee.full_name || task.assignee.username}`}
@@ -200,7 +208,8 @@ export default function TaskCard({
                             {task.assignee.full_name || task.assignee.username}
                         </span>
                     )}
-                    {task.creator &&
+                    {!compact &&
+                        task.creator &&
                         task.assigned_to &&
                         task.user_id !== task.assigned_to && (
                             <span
@@ -214,7 +223,7 @@ export default function TaskCard({
                                 {task.creator.full_name || task.creator.username}
                             </span>
                         )}
-                    {dueFmt && (
+                    {!compact && dueFmt && (
                         <span className={`${s["task-due"]} ${overdue ? s["overdue"] : ""}`}>
                             <CalendarDays
                                 size={12}
@@ -224,7 +233,7 @@ export default function TaskCard({
                         </span>
                     )}
                 </div>
-                <span className={s["drag-hint"]}>⠿ drag to move</span>
+                {!compact && <span className={s["drag-hint"]}>⠿ drag to move</span>}
             </div>
         </div>
     );

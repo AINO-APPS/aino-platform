@@ -117,7 +117,7 @@ export function useBacklog({
     });
     // The stored preference decides whether the section starts expanded. A
     // `completed` URL parameter overrides it for this view only.
-    const { showCompleted } = useTaskPreferences();
+    const { showCompleted, preferences, setCardDensity } = useTaskPreferences();
     useEffect(() => {
         setCompletedOpen(showCompleted);
     }, [showCompleted]);
@@ -435,6 +435,8 @@ export function useBacklog({
         completedShowingAll,
         toggleCompleted,
         showAllCompleted,
+        cardDensity: preferences.card_density,
+        setCardDensity,
         reorder,
         reorderAnnouncement,
         quickAdd,
