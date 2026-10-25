@@ -44,6 +44,7 @@ import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
+import { useTeamMode } from "./tasks/hooks/useTeamMode";
 
 import s from "./Tasks.module.css";
 
@@ -221,6 +222,7 @@ export default function Tasks() {
 
   // Epics: the rollup list and the URL-backed epic filter.
   const epics = useEpics(tasksRoute.filters.epic);
+  const teamMode = useTeamMode(currentUser?.team_id);
 
   // Keep a valid sprint selected once the sprint list resolves: preserve the
   // current pick if it still exists, otherwise default to the active sprint
@@ -453,6 +455,7 @@ export default function Tasks() {
             epics={epics.epics}
             selectedEpicId={epics.selectedEpicId}
             onSelectEpic={(id) => tasksRoute.setFilters({ epic: id ? String(id) : "" })}
+            teamMode={teamMode.mode}
           />
         )}
 

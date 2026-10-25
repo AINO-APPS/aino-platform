@@ -35,6 +35,7 @@ interface SprintTabProps {
     epics: any[];
     selectedEpicId: number | string | null;
     onSelectEpic: (id: number | string | null) => void;
+    teamMode?: "sprints" | "continuous";
 }
 
 /**
@@ -71,9 +72,16 @@ export default function SprintTab({
     epics,
     selectedEpicId,
     onSelectEpic,
+    teamMode = "sprints",
 }: SprintTabProps) {
     return (
         <>
+            {teamMode === "continuous" && (
+                <div className={s["carry-banner"]} role="status">
+                    Continuous mode: this sprint rolls forward automatically. The backlog still
+                    means work that is not in a sprint.
+                </div>
+            )}
             <SprintProgressCard
                 stats={stats}
                 sprintStats={sprintStats}

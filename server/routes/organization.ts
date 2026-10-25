@@ -6,6 +6,7 @@ const redisClient = require("../redis");
 const { logAction } = require("../utils/audit");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
+const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -689,7 +690,7 @@ router.get("/teams/:id/sprint-config", requireSameOrg, async (req: Request, res:
             currentSprint = { number: sprintNumber, startDate: fmt(sprintStartMs), endDate: fmt(sprintEndMs), daysRemaining: Math.max(0, Math.ceil((sprintEndMs - todayMs) / 86400000)), durationWeeks: team.sprint_duration_weeks };
         }
 
-        res.json({ teamId: team.id, teamName: team.name, sprintDurationWeeks: team.sprint_duration_weeks, sprintStartDate: team.sprint_start_date, sprintMode: team.sprint_mode || "manual", sprintPaused: !!team.sprint_paused, currentSprint });
+        res.json({ teamId: team.id, teamName: team.name, sprintDurationWeeks: team.sprint_duration_weeks, sprintStartDate: team.sprint_start_date, sprintMode: team.sprint_mode || "manual", teamMode: resolveTeamMode(team), sprintPaused: !!team.sprint_paused, currentSprint });
     } catch (err) {
         req.log.error({ err }, "GET /teams/:id/sprint-config error");
         res.status(500).json({ error: "Failed to fetch sprint config" });
