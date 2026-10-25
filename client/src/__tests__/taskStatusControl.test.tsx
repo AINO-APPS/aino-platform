@@ -7,7 +7,7 @@ vi.mock("../AgileConfigContext", () => ({ useAgileConfig: () => ({ workflowState
 import TaskStatusControl from "../pages/tasks/TaskStatusControl";
 import { canChangeTaskStatus, currentStatusOption, statusOptions } from "../pages/tasks/taskStatus";
 
-const backlogTicket = { id: 5, title: "Fix login", status: "pending", user_id: 1, assigned_to: 2, sprint_id: null, date: null };
+const backlogTicket = { id: 5, title: "Fix login", workflow_state_key: "pending", user_id: 1, assigned_to: 2, sprint_id: null, planned_date: null };
 
 describe("canChangeTaskStatus", () => {
     test("assignee, reporter and org admins may change status; others may not", () => {
@@ -31,7 +31,7 @@ describe("status options", () => {
         ];
         const opts = statusOptions(states);
         expect(opts.map((o) => o.label)).toEqual(["To do", "QA"]);
-        expect(currentStatusOption({ status: "todo", workflow_state_id: 12 }, states, opts)?.key).toBe("qa");
+        expect(currentStatusOption({ workflow_state_key: "todo", workflow_state_id: 12 }, states, opts)?.key).toBe("qa");
     });
 });
 

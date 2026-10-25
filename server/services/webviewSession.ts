@@ -113,3 +113,16 @@ export async function consumeWebviewCode(
 }
 
 export { WEBVIEW_CODE_TTL_SECONDS };
+
+/** Database port for the webview session lookup. */
+export interface WebviewDb {
+    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
+}
+
+/** The active account a redeemed code belongs to, or null when it is gone. */
+export async function findActiveUser(db: WebviewDb, userId: number) {
+    return (await db.query(
+        "SELECT * FROM users WHERE id = $1 AND is_active = TRUE",
+        [userId],
+    )).rows[0] || null;
+}

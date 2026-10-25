@@ -15,6 +15,9 @@ const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { taskAudience, taskNotificationLink } = require('../../modules/tasks/tasks.notifications');
 const { notifyUser } = require('../../realtime/fanout');
+const {
+    findTask, findSprintName, findSprintInOrg, setSprintAndDueDate, clearSprint,
+} = require('../../modules/tasks/tasks.sprintRepository');
 
 const router = express.Router();
 
@@ -114,12 +117,12 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
         const { id } = req.params;
         const { sprint_id } = req.body;
 
-        const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
+        const task = await findTask(req.db!, id);
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
         if (sprint_id === null || sprint_id === undefined || sprint_id === '') {
-            const oldSprint = task.sprint_id ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [task.sprint_id])).rows[0] : null;
-            await req.db!.query('UPDATE tasks SET sprint_id = NULL WHERE id = $1', [id]);
+            const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
+            await clearSprint(req.db!, task.id);
             await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', 'none', null, req.db);
         } else {
             // Org admins can assign to any sprint within their org; others limited to own team.
@@ -128,26 +131,23 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
             // tenants you could in theory attach to another org's sprint. Join
             // through teams in both branches so the org filter is always applied.
             const isOrgAdmin = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
-            const sprint = (await req.db!.query(
-                'SELECT s.id, s.team_id, s.name, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
-                [sprint_id, req.userOrgId]
-            )).rows[0];
+            const sprint = await findSprintInOrg(req.db!, sprint_id, req.userOrgId);
             if (!sprint || (!isOrgAdmin && sprint.team_id !== req.userTeamId)) {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
-            const oldSprint = task.sprint_id ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [task.sprint_id])).rows[0] : null;
+            const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
             if (task.due_date !== sprint.end_date) {
                 await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, sprint.end_date, null, req.db);
             }
-            await req.db!.query('UPDATE tasks SET sprint_id = $1, due_date = $2 WHERE id = $3', [sprint.id, sprint.end_date, id]);
+            await setSprintAndDueDate(req.db!, task.id, sprint.id, sprint.end_date);
             await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', sprint.name, null, req.db);
             // Being added to a sprint is one of the five events worth telling
             // people about; the assignee hears it unless they did it themselves.
-            const assigned = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
+            const assigned = await findTask(req.db!, id);
             await notifySprintTaskAdded(req, assigned, sprint);
         }
 
-        const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
+        const updated = await findTask(req.db!, id);
         const enriched = await enrichTasks([updated], req.db);
         res.json(enriched[0]);
     } catch (err) {

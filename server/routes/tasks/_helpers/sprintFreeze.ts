@@ -6,11 +6,7 @@
  * guard.
  */
 import type { Request } from "express";
-
-interface SprintRow {
-    id: number;
-    status?: string | null;
-}
+const { findFrozenSprintIds } = require("../../../modules/tasks/tasks.sprintLifecycle");
 
 /**
  * Returns a 409 payload when the task's sprint is completed, otherwise null.
@@ -28,12 +24,8 @@ export async function frozenSprintError(
     );
     if (sprintIds.length === 0) return null;
 
-    const rows = (await req.db!.query(
-        `SELECT id, status FROM sprints WHERE id = ANY($1::int[]) AND status = 'completed'`,
-        [sprintIds],
-    )).rows as SprintRow[];
-
-    if (rows.length === 0) return null;
+    const frozen = await findFrozenSprintIds(req.db!, sprintIds);
+    if (frozen.length === 0) return null;
     return {
         error: "This sprint is completed and no longer accepts task changes.",
         code: "SPRINT_FROZEN",

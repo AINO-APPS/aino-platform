@@ -1,4 +1,9 @@
 -- Expand the task schema before clients move off the legacy columns.
+--
+-- Ticket 28 removed `date`, `status` and `rank_value` from the base tenant
+-- schema, so a freshly created tenant reaches this migration without them.
+-- Every legacy-dependent block below is therefore guarded on the column
+-- existing: on an upgraded tenant it backfills, on a fresh one it is a no-op.
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS planned_date DATE;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rank TEXT;
@@ -7,6 +12,13 @@ DO $do$
 DECLARE
     invalid_value RECORD;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'tasks' AND column_name = 'date'
+    ) THEN
+        RETURN;
+    END IF;
+
     FOR invalid_value IN
         SELECT id, date AS value, 'date' AS column_name
           FROM tasks
@@ -25,11 +37,24 @@ BEGIN
 END
 $do$;
 
-UPDATE tasks
-   SET planned_date = NULLIF(date, '')::DATE
- WHERE planned_date IS NULL
-   AND date IS NOT NULL
-   AND date <> '';
+DO $do$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'tasks' AND column_name = 'date'
+    ) THEN
+        RETURN;
+    END IF;
+
+    EXECUTE $sql$
+        UPDATE tasks
+           SET planned_date = NULLIF(date, '')::DATE
+         WHERE planned_date IS NULL
+           AND date IS NOT NULL
+           AND date <> ''
+    $sql$;
+END
+$do$;
 
 DO $do$
 DECLARE
@@ -69,6 +94,13 @@ DO $do$
 DECLARE
     unmapped RECORD;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'tasks' AND column_name = 'status'
+    ) THEN
+        RETURN;
+    END IF;
+
     SELECT t.id, t.status, COALESCE(t.org_id, creator.org_id) AS org_id
       INTO unmapped
       FROM tasks t
@@ -94,12 +126,25 @@ BEGIN
 END
 $do$;
 
-UPDATE tasks t
-   SET workflow_state_id = ws.id
-  FROM users creator, workflow_states ws
- WHERE creator.id = t.user_id
-   AND ws.org_id = COALESCE(t.org_id, creator.org_id)
-   AND ws.key = t.status;
+DO $do$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'tasks' AND column_name = 'status'
+    ) THEN
+        RETURN;
+    END IF;
+
+    EXECUTE $sql$
+        UPDATE tasks t
+           SET workflow_state_id = ws.id
+          FROM users creator, workflow_states ws
+         WHERE creator.id = t.user_id
+           AND ws.org_id = COALESCE(t.org_id, creator.org_id)
+           AND ws.key = t.status
+    $sql$;
+END
+$do$;
 
 UPDATE tasks t
    SET completed_at = CASE

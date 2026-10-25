@@ -45,13 +45,13 @@ function dayLabel(day: string, today: string): string {
  * Android's `groupScheduled`.
  */
 export function groupScheduled(tasks: any[], today: string): ScheduledGroup[] {
-  const dated = tasks.filter((t) => typeof t.date === "string" && t.date.length >= 10);
+  const dated = tasks.filter((t) => typeof t.planned_date === "string" && t.planned_date.length >= 10);
   const overdue = dated
-    .filter((t) => t.date.slice(0, 10) < today && t.status !== "done")
-    .sort((a, b) => a.date.localeCompare(b.date) || rank(a) - rank(b));
+    .filter((t) => t.planned_date.slice(0, 10) < today && !t.completed_at)
+    .sort((a, b) => a.planned_date.localeCompare(b.planned_date) || rank(a) - rank(b));
   const byDay = new Map<string, any[]>();
   for (const t of dated) {
-    const d = t.date.slice(0, 10);
+    const d = t.planned_date.slice(0, 10);
     if (d < today) continue;
     if (!byDay.has(d)) byDay.set(d, []);
     byDay.get(d)!.push(t);
@@ -59,7 +59,7 @@ export function groupScheduled(tasks: any[], today: string): ScheduledGroup[] {
   const groups: ScheduledGroup[] = [];
   if (overdue.length) groups.push({ key: "overdue", label: "Overdue", date: null, tasks: overdue });
   [...byDay.keys()].sort().forEach((d) => {
-    const list = byDay.get(d)!.sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || rank(a) - rank(b));
+    const list = byDay.get(d)!.sort((a, b) => Number(!!a.completed_at) - Number(!!b.completed_at) || rank(a) - rank(b));
     groups.push({ key: d, label: dayLabel(d, today), date: d, tasks: list });
   });
   return groups;

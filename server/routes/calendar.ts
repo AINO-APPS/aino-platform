@@ -17,7 +17,8 @@ router.get("/", async (req: Request, res: Response) => {
         const { from, to } = req.query as { from?: string; to?: string };
         if (!from || !to) return res.status(400).json({ error: "from and to query params required" });
         const result = await req.db!.query(
-            `SELECT ce.*, t.title AS task_title, t.status AS task_status, t.priority AS task_priority,
+            `SELECT ce.*, t.title AS task_title, t.workflow_state_id AS task_workflow_state_id,
+                    t.priority AS task_priority,
                     m.meeting_code, m.status AS meeting_status, m.conversation_id AS meeting_conversation_id,
                     m.created_by AS meeting_created_by
              FROM calendar_events ce

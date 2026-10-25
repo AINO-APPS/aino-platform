@@ -85,7 +85,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const overdueCount = groups.find((g) => g.date === null)?.tasks.length ?? 0;
   const countByDay = useMemo(() => {
     const m: Record<string, number> = {};
-    tasks.forEach((t) => { const d = t.date?.slice(0, 10); if (d) m[d] = (m[d] || 0) + 1; });
+    tasks.forEach((t) => { const d = t.planned_date?.slice(0, 10); if (d) m[d] = (m[d] || 0) + 1; });
     return m;
   }, [tasks]);
 
@@ -102,7 +102,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   }, [focusDate, loading, groups, jumpTo, onFocusConsumed]);
 
   const doReschedule = async (task: any, date: string) => {
-    const previous = task.date?.slice(0, 10);
+    const previous = task.planned_date?.slice(0, 10);
     try {
       await scheduleTask(task.id, date);
       setRescheduleId(null);
@@ -122,7 +122,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   };
 
   const doUnschedule = async (task: any) => {
-    const previous = task.date?.slice(0, 10);
+    const previous = task.planned_date?.slice(0, 10);
     try {
       await unscheduleTask(task.id);
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -220,7 +220,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
                     onDragEnd={noopDrag}
                   />
                   <div className={s.actions}>
-                    {g.date === null && <span className={s["was-date"]}>Planned {formatDate(task.date)}</span>}
+                    {g.date === null && <span className={s["was-date"]}>Planned {formatDate(task.planned_date)}</span>}
                     {rescheduleId === task.id ? (
                       <span className={s.popover}>
                         <input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
@@ -229,7 +229,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
                       </span>
                     ) : (
                       <>
-                        <button className={s.action} onClick={() => { setRescheduleId(task.id); setRescheduleDate(task.date?.slice(0, 10) || today); }}>
+                        <button className={s.action} onClick={() => { setRescheduleId(task.id); setRescheduleDate(task.planned_date?.slice(0, 10) || today); }}>
                           <CalendarDays size={13} /> Reschedule
                         </button>
                         <button className={s.action} onClick={() => doUnschedule(task)}>

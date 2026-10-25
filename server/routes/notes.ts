@@ -5,6 +5,7 @@ const auth = require("../middleware/auth");
 const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
+const { findLinkedTask, searchTasksForLinking } = require("../modules/tasks/tasks.notes");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -250,11 +251,7 @@ router.get("/links/:pageId", async (req: Request, res: Response) => {
             let detail = null;
             try {
                 if (link.entity_type === "task") {
-                    const r = (await req.db!.query(
-                        `SELECT id, title, status, priority, date, due_date, sprint_id FROM tasks WHERE id = $1`,
-                        [link.entity_id],
-                    )).rows[0];
-                    detail = r || null;
+                    detail = await findLinkedTask(req.db!, link.entity_id);
                 } else if (link.entity_type === "calendar_event") {
                     const r = (await req.db!.query(
                         `SELECT id, title, description, start_time, end_time, all_day, color FROM calendar_events WHERE id = $1`,
@@ -290,10 +287,11 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
 
         // Tasks completed today
         const tasks = (await req.db!.query(
-            `SELECT id, title, status, priority FROM tasks
-             WHERE (user_id = $1 OR assigned_to = $1)
-               AND (date = $2 OR (completed_at >= $3 AND completed_at <= $4))
-             ORDER BY completed_at DESC NULLS LAST, created_at DESC
+            `SELECT t.id, t.title, ws.key AS status, t.priority FROM tasks t
+             LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+             WHERE (t.user_id = $1 OR t.assigned_to = $1)
+               AND (t.planned_date = $2 OR (t.completed_at >= $3 AND t.completed_at <= $4))
+             ORDER BY t.completed_at DESC NULLS LAST, t.created_at DESC
              LIMIT 30`,
             [req.userId, dateStr, startOfDay.toISOString(), endOfDay.toISOString()],
         )).rows;
@@ -383,10 +381,12 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Recent tasks (last 2 weeks)
         const tasks = (await req.db!.query(
-            `SELECT id, title, status, priority, date, completed_at FROM tasks
-             WHERE (user_id = $1 OR assigned_to = $1)
-               AND created_at >= $2
-             ORDER BY created_at DESC LIMIT 20`,
+            `SELECT t.id, t.title, ws.key AS status, t.priority, t.planned_date AS date, t.completed_at
+             FROM tasks t
+             LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+             WHERE (t.user_id = $1 OR t.assigned_to = $1)
+               AND t.created_at >= $2
+             ORDER BY t.created_at DESC LIMIT 20`,
             [reportId, twoWeeksAgo.toISOString()],
         )).rows;
 
@@ -408,9 +408,10 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
             )).rows[0];
             if (activeSprint) {
                 const sprintTasks = (await req.db!.query(
-                    `SELECT status, COUNT(*)::int AS count FROM tasks
-                     WHERE sprint_id = $1 AND (user_id = $2 OR assigned_to = $2)
-                     GROUP BY status`,
+                    `SELECT ws.key AS status, COUNT(*)::int AS count FROM tasks t
+                     LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+                     WHERE t.sprint_id = $1 AND (t.user_id = $2 OR t.assigned_to = $2)
+                     GROUP BY ws.key`,
                     [activeSprint.id, reportId],
                 )).rows;
                 sprint = { ...activeSprint, taskBreakdown: sprintTasks };
@@ -537,9 +538,13 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
         }
 
         const result = await req.db!.query(
-            `INSERT INTO tasks (user_id, org_id, title, date, status, priority, sprint_id)
-             VALUES ($1, $2, $3, $4, 'pending', 'medium', $5)
-             RETURNING id, title, date, status, priority, sprint_id`,
+            `INSERT INTO tasks (user_id, org_id, title, planned_date, workflow_state_id, priority, sprint_id)
+             VALUES ($1, $2, $3, $4,
+                     (SELECT id FROM workflow_states
+                       WHERE org_id = $2 AND is_active = TRUE
+                       ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
+                     'medium', $5)
+             RETURNING id, title, planned_date AS date, priority, sprint_id`,
             [req.userId, userRow?.org_id || null, title.trim(), dateStr, sprintId],
         );
         const task = result.rows[0];
@@ -579,10 +584,11 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
         // board mirrors the main backlog order. Plain `ORDER BY priority DESC`
         // would sort alphabetically and put 'medium' before 'low' before 'high'.
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, t.status, t.priority, t.assigned_to,
+            `SELECT t.id, t.title, ws.key AS status, t.priority, t.assigned_to,
                     u.full_name AS assignee_name
              FROM tasks t
              LEFT JOIN users u ON u.id = t.assigned_to
+             LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE t.sprint_id = $1
              ORDER BY CASE t.priority
                           WHEN 'high'   THEN 1
@@ -620,27 +626,7 @@ router.get("/search-tasks", async (req: Request, res: Response) => {
 
         // Include tasks the user owns, is assigned to, OR belong to same org
         const userRow = (await req.db!.query("SELECT org_id FROM users WHERE id = $1", [req.userId])).rows[0];
-        const orgId = userRow?.org_id || null;
-
-        let rows;
-        if (!q || !q.trim()) {
-            // Return recent tasks when no query
-            rows = (await req.db!.query(
-                `SELECT id, title, status, priority, date FROM tasks
-                 WHERE (user_id = $1 OR assigned_to = $1${orgId ? " OR org_id = $2" : ""})
-                 ORDER BY created_at DESC LIMIT 20`,
-                orgId ? [req.userId, orgId] : [req.userId],
-            )).rows;
-        } else {
-            const ilikePat = `%${q.trim().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-            rows = (await req.db!.query(
-                `SELECT id, title, status, priority, date FROM tasks
-                 WHERE (user_id = $1 OR assigned_to = $1${orgId ? " OR org_id = $3" : ""})
-                   AND title ILIKE $2
-                 ORDER BY created_at DESC LIMIT 20`,
-                orgId ? [req.userId, ilikePat, orgId] : [req.userId, ilikePat],
-            )).rows;
-        }
+        const rows = await searchTasksForLinking(req.db!, req.userId, userRow?.org_id || null, q);
         res.json({ tasks: rows });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/search-tasks error");

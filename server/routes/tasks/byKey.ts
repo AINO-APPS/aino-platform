@@ -10,6 +10,7 @@ const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { canAccessTask } = require("./_helpers/access");
 const { enrichTasks } = require("./_helpers/enrich");
+const { findByIssueKey } = require("../../modules/tasks/tasks.repository");
 
 const router = express.Router();
 
@@ -20,12 +21,12 @@ router.get("/by-key/:key", auth, loadUserContext, async (req: Request, res: Resp
         const match = String(req.params.key).match(KEY_PATTERN);
         if (!match) return res.status(400).json({ error: "Invalid issue key" });
 
-        const task = (await req.db!.query(
-            `SELECT t.* FROM tasks t
-               JOIN projects p ON p.id = t.project_id
-              WHERE p.org_id = $1 AND p.key = $2 AND t.task_number = $3`,
-            [req.userOrgId, match[1].toUpperCase(), Number.parseInt(match[2], 10)],
-        )).rows[0];
+        const task = await findByIssueKey(
+            req.db!,
+            req.userOrgId,
+            match[1].toUpperCase(),
+            Number.parseInt(match[2], 10),
+        );
 
         if (!task) return res.status(404).json({ error: "Task not found" });
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {

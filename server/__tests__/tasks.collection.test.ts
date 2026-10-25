@@ -56,7 +56,7 @@ describe("task collection builder", () => {
 
         expect(backlog.whereSql).toContain("t.sprint_id IS NULL");
         expect(board.whereSql).toMatch(/t\.sprint_id = \$\d+/);
-        expect(schedule.whereSql).toMatch(/t\.date = \$\d+/);
+        expect(schedule.whereSql).toMatch(/t\.planned_date = \$\d+/);
 
         const shared = "t.org_id = $? AND (t.user_id = $? OR t.assigned_to = $? OR t.user_id IN (SELECT id FROM users WHERE team_id = $?))";
         expect(withoutParamNumbers(backlog.whereSql)).toContain(shared);
@@ -93,23 +93,33 @@ describe("task collection builder", () => {
             scope: "backlog",
             orgId: 1,
             visibility,
-            filters: { priority: "urgent", status: "archived", label: "abc", projectId: "x" },
+            filters: { priority: "urgent", status: "not a key!", label: "abc", projectId: "x" },
         });
 
         expect(collection.whereSql).not.toContain("t.priority");
-        expect(collection.whereSql).not.toContain("t.status");
+        expect(collection.whereSql).not.toContain("workflow_states");
         expect(collection.whereSql).not.toContain("task_label_map");
         expect(collection.whereSql).not.toContain("t.project_id");
     });
 
-    test("keeps the legacy scheduled-task exclusion opt-in", () => {
-        const withoutLegacy = buildTaskCollection({ scope: "backlog", orgId: 1, visibility });
-        const withLegacy = buildTaskCollection({
-            scope: "backlog", orgId: 1, visibility, filters: { excludeScheduled: true },
+    test("filters by workflow-state key, never by a status column", () => {
+        const collection = buildTaskCollection({
+            scope: "backlog", orgId: 1, visibility, filters: { status: "in_review" },
         });
 
-        expect(withoutLegacy.whereSql).not.toContain("t.date IS NULL");
-        expect(withLegacy.whereSql).toContain("t.date IS NULL");
+        expect(collection.whereSql).toContain("workflow_states");
+        expect(collection.whereSql).not.toContain("t.status");
+        expect(collection.params).toContain("in_review");
+    });
+
+    test("never reads the legacy date column", () => {
+        const backlog = buildTaskCollection({ scope: "backlog", orgId: 1, visibility });
+        const schedule = buildTaskCollection({ scope: "schedule", orgId: 1, visibility, date: "2026-10-25" });
+
+        for (const collection of [backlog, schedule]) {
+            expect(collection.whereSql).not.toMatch(/t\.date\b/);
+            expect(collection.orderSql).not.toMatch(/t\.date\b/);
+        }
     });
 
     test("orders each scope deterministically", () => {

@@ -28,10 +28,10 @@ function Avatar({ user }: { user: any }) {
  */
 export default function TaskMetaGrid({ task, availableSprints }: TaskMetaGridProps) {
     const dueFmt = formatDueDate(task.due_date);
-    const overdue = isDueOverdue(task.due_date) && task.status !== "done";
+    const overdue = isDueOverdue(task.due_date) && !task.completed_at;
     // `planned_date` is the scheduling field; `date` is the legacy column the
     // server still mirrors it into until the contract migration lands.
-    const plannedDate = task.planned_date || task.date || null;
+    const plannedDate = task.planned_date || null;
     const sprintName = availableSprints.find((sp: any) => sp.id === task.sprint_id)?.name;
 
     return (

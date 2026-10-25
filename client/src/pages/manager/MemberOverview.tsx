@@ -245,7 +245,7 @@ export default function MemberOverview({ data }: MemberOverviewProps) {
                                         <PriorityBadge priority={t.priority} />
                                     </td>
                                     <td>
-                                        <StatusBadge status={t.status} />
+                                        <StatusBadge status={t.workflow_state_key} />
                                     </td>
                                 </tr>
                             ))}

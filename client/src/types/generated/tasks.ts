@@ -6,7 +6,6 @@ export interface Task {
   title: string;
   description?: string | null;
   priority: string;
-  status?: string | null;
   workflow_state_id: number | null;
   workflow_state_key?: string | null;
   workflow_state_name?: string | null;

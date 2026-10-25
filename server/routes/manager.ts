@@ -77,7 +77,7 @@ router.get("/team-attendance", async (req: Request, res: Response) => {
         leaves.forEach((l: any) => { leaveMap[l.user_id] = l; });
 
         const tasks = (await req.db!.query(
-            `SELECT user_id, title, status FROM tasks WHERE user_id = ANY($1) AND date = $2 AND status IN ('in_progress', 'in_review') ORDER BY priority DESC`,
+            `SELECT t.user_id, t.title, ws.key AS status FROM tasks t LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id WHERE t.user_id = ANY($1) AND t.planned_date = $2 AND ws.category IN ('in_progress', 'in_review') ORDER BY t.priority DESC`,
             [visibleIds, targetDate]
         )).rows;
         const taskMap: Record<number, any> = {};
@@ -179,8 +179,8 @@ router.get("/team-analytics", async (req: Request, res: Response) => {
         )).rows;
 
         const taskCounts = (await req.db!.query(
-            `SELECT user_id, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done, COUNT(*) as total
-             FROM tasks WHERE user_id = ANY($1) AND date BETWEEN $2 AND $3 GROUP BY user_id`,
+            `SELECT t.user_id, SUM(CASE WHEN t.completed_at IS NOT NULL THEN 1 ELSE 0 END) as done, COUNT(*) as total
+             FROM tasks t WHERE t.user_id = ANY($1) AND t.planned_date BETWEEN $2 AND $3 GROUP BY t.user_id`,
             [visibleIds, fromDate, toDate]
         )).rows;
         const taskMap: Record<number, { done: number; total: number }> = {};
@@ -759,7 +759,7 @@ router.get("/member/:userId/tasks", async (req: Request, res: Response) => {
 
         const targetDate = (req.query as { date?: string }).date || getLocalToday(req);
         const tasks = (await req.db!.query(
-            "SELECT * FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND date = $2 ORDER BY priority DESC, created_at ASC",
+            "SELECT * FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND planned_date = $2 ORDER BY priority DESC, created_at ASC",
             [targetUserId, targetDate]
         )).rows;
 
@@ -869,7 +869,7 @@ router.get("/member/:userId/overview", async (req: Request, res: Response) => {
         )).rows[0];
 
         const todayTasks = (await req.db!.query(
-            "SELECT * FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND date = $2 ORDER BY priority DESC, created_at ASC",
+            "SELECT * FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND planned_date = $2 ORDER BY priority DESC, created_at ASC",
             [targetUserId, today]
         )).rows;
 
@@ -947,9 +947,10 @@ router.get("/member/:userId/overview", async (req: Request, res: Response) => {
         });
 
         const monthTaskStats = (await req.db!.query(
-            `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done,
-                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress
-             FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND date >= $2 AND date <= $3`,
+            `SELECT COUNT(*) as total, SUM(CASE WHEN t.completed_at IS NOT NULL THEN 1 ELSE 0 END) as done,
+                    SUM(CASE WHEN ws.category = 'in_progress' THEN 1 ELSE 0 END) as in_progress
+             FROM tasks t LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+             WHERE (t.user_id = $1 OR t.assigned_to = $1) AND t.planned_date >= $2 AND t.planned_date <= $3`,
             [targetUserId, monthStart, monthEnd]
         )).rows[0];
 

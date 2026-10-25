@@ -192,7 +192,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
         if (!isOrgAdmin && sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
 
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, t.status, t.workflow_state_id, t.work_item_type_id,
+            `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
                     t.story_points, t.assigned_to, t.is_blocked, t.completed_at, t.priority
                FROM tasks t
               WHERE t.sprint_id = $1`,
@@ -239,7 +239,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
         // Task / point rollup by workflow state
         const byState: Record<string, any> = {};
         for (const t of tasks) {
-            const s = stateById[t.workflow_state_id] || { id: 0, key: t.status || "unknown", name: t.status || "Unknown", category: "open", color: "#6b7280", is_terminal: false };
+            const s = stateById[t.workflow_state_id] || { id: 0, key: "unknown", name: "Unknown", category: "open", color: "#6b7280", is_terminal: false };
             const k = String(s.id);
             if (!byState[k]) {
                 byState[k] = { state: s, taskCount: 0, points: 0 };
@@ -553,11 +553,12 @@ router.get("/:id/carried-over", auth, loadUserContext, async (req: Request, res:
         if (!sprint) return;
 
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, t.status, t.story_points, t.assigned_to,
+            `SELECT t.id, t.title, ws.key AS status, t.story_points, t.assigned_to,
                     t.carried_over_from_sprint_id,
                     os.name AS origin_sprint_name, os.id AS origin_sprint_id
                FROM tasks t
           LEFT JOIN sprints os ON os.id = t.carried_over_from_sprint_id
+          LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
               WHERE t.sprint_id = $1 AND t.carried_over_from_sprint_id IS NOT NULL
               ORDER BY t.created_at ASC`,
             [id]

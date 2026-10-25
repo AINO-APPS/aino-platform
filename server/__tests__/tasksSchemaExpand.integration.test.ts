@@ -110,6 +110,20 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
         return files.map((file) => file.replace(/\.sql$/, ""));
     }
 
+    /**
+     * Recreate the pre-ticket-28 task columns.
+     *
+     * The base tenant schema no longer declares `date`, `status` or
+     * `rank_value`, so an "upgraded tenant" has to be simulated explicitly:
+     * this is exactly the shape a database created before the contract step
+     * still has when the new migrations run against it.
+     */
+    async function addLegacyColumns(query: SchemaQuery & QueryFn): Promise<void> {
+        await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS date TEXT`);
+        await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`);
+        await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rank_value NUMERIC(20,10)`);
+    }
+
     async function seedLegacyTasks(query: SchemaQuery & QueryFn): Promise<{ pendingId: number; doneId: number }> {
         await query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date) VALUES (1, 2, 'Sprint', '2026-10-01', '2026-10-14')",
@@ -194,26 +208,26 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
             await initializeBase(query);
             await createOrganization(query);
             const oldMigrations = await applyExistingMigrations(query);
+            await addLegacyColumns(query);
             await seedDefaults(query);
             const { pendingId, doneId } = await seedLegacyTasks(query);
 
             const result = await runTenantMigrations(query, { label: "tasks-upgraded-test", failFast: true });
             expect(result.failed).toEqual([]);
             expect(result.applied).toContain("0011_tasks_schema_expand");
+            expect(result.applied).toContain("0015_drop_legacy_task_columns");
 
             const tasks = await query<{
                 id: number;
-                date: string | null;
                 planned_date: string | null;
                 due_date: string | null;
                 title: string;
-                status: string;
                 category: string;
                 team_id: number | null;
                 rank: string;
                 completed_at: Date | null;
             }>(`
-                SELECT t.id, t.date, t.planned_date, t.due_date, t.status, ws.category,
+                SELECT t.id, t.planned_date, t.due_date, ws.category,
                        t.team_id, t.rank, t.completed_at
                   FROM tasks t
                   JOIN workflow_states ws ON ws.id = t.workflow_state_id
@@ -225,17 +239,15 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
             const assigneeFallback = tasks.rows.find((task) => task.title === "Assignee team fallback")!;
             const teamless = tasks.rows.find((task) => task.title === "Teamless task")!;
             expect(pending).toMatchObject({
-                date: "2026-10-02",
                 planned_date: "2026-10-02",
                 due_date: "2026-10-12",
-                status: "pending",
                 category: "open",
                 team_id: 1,
             });
-            expect(done).toMatchObject({ status: "done", category: "done", team_id: 2 });
+            expect(done).toMatchObject({ category: "done", team_id: 2 });
             expect(done.completed_at).toBeInstanceOf(Date);
             expect(assigneeFallback.team_id).toBe(2);
-            expect(teamless).toMatchObject({ status: "in_review", category: "in_review", team_id: null });
+            expect(teamless).toMatchObject({ category: "in_review", team_id: null });
 
             const ranksByTeam = new Map<string, string[]>();
             for (const task of tasks.rows) {
@@ -281,13 +293,16 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
                  WHERE table_schema = current_schema() AND table_name = 'tasks'
             `);
             const typeByColumn = Object.fromEntries(taskColumns.rows.map((column) => [column.column_name, column.data_type]));
+
+            // Ticket 28: the legacy columns are gone, so there is exactly one
+            // status (the workflow state) and one planned date.
+            expect(typeByColumn).not.toHaveProperty("date");
+            expect(typeByColumn).not.toHaveProperty("status");
+            expect(typeByColumn).not.toHaveProperty("rank_value");
             expect(typeByColumn).toMatchObject({
-                date: "text",
                 planned_date: "date",
                 due_date: "date",
-                status: "text",
                 rank: "text",
-                rank_value: "numeric",
                 team_id: "integer",
             });
 
@@ -316,6 +331,7 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
             await initializeBase(query);
             await createOrganization(query);
             await applyExistingMigrations(query);
+            await addLegacyColumns(query);
             await seedDefaults(query);
             await query(`
                 INSERT INTO tasks (user_id, title, status, org_id)
@@ -329,6 +345,36 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
 
             const applied = await query<{ name: string }>("SELECT name FROM _migrations WHERE name = '0011_tasks_schema_expand'");
             expect(applied.rows).toHaveLength(0);
+        });
+    });
+
+    it("keeps every task categorised after the legacy columns are dropped", async () => {
+        const { runTenantMigrations } = require("../platform/db/migrations");
+
+        await withTenantSchema(async (query) => {
+            await initializeBase(query);
+            await createOrganization(query);
+            await applyExistingMigrations(query);
+            await addLegacyColumns(query);
+            await seedDefaults(query);
+            const { pendingId, doneId } = await seedLegacyTasks(query);
+
+            const result = await runTenantMigrations(query, { label: "tasks-contract-test", failFast: true });
+            expect(result.failed).toEqual([]);
+
+            const rows = await query<{ id: number; category: string; planned_date: string | null }>(`
+                SELECT t.id, ws.category, t.planned_date
+                  FROM tasks t
+                  JOIN workflow_states ws ON ws.id = t.workflow_state_id
+                 ORDER BY t.id
+            `);
+            expect(rows.rows).toHaveLength(5);
+            expect(rows.rows.find((row) => row.id === pendingId)).toMatchObject({
+                category: "open",
+                planned_date: "2026-10-02",
+            });
+            expect(rows.rows.find((row) => row.id === doneId)).toMatchObject({ category: "done" });
+            expect(rows.rows.every((row) => row.category !== null)).toBe(true);
         });
     });
 });

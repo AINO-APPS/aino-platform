@@ -12,6 +12,7 @@ const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
 const { canAccessTask } = require("./_helpers/access");
 const { rankForMove } = require("../../modules/tasks/tasks.rank");
+const { findRank, setRank, findTask } = require("../../modules/tasks/tasks.repository");
 
 const router = express.Router();
 
@@ -19,11 +20,7 @@ async function rankOf(req: Request, id: unknown): Promise<string | null> {
     if (id === null || id === undefined || id === "") return null;
     const parsed = Number.parseInt(String(id), 10);
     if (Number.isNaN(parsed)) return null;
-    const row = (await req.db!.query(
-        "SELECT rank FROM tasks WHERE id = $1 AND org_id = $2",
-        [parsed, req.userOrgId],
-    )).rows[0];
-    return row?.rank ?? null;
+    return findRank(req.db!, parsed, req.userOrgId);
 }
 
 router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -31,7 +28,7 @@ router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Respo
         const { id } = req.params;
         const { beforeId, afterId } = req.body as { beforeId?: unknown; afterId?: unknown };
 
-        const task = (await req.db!.query("SELECT * FROM tasks WHERE id = $1", [id])).rows[0];
+        const task = await findTask(req.db!, id);
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
             return res.status(404).json({ error: "Task not found" });
         }
@@ -49,7 +46,7 @@ router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Respo
             });
         }
 
-        await req.db!.query("UPDATE tasks SET rank = $1 WHERE id = $2", [rank, id]);
+        await setRank(req.db!, id, rank);
         await logHistory(id, req.userId, "ranked", "rank", task.rank, rank, null, req.db);
 
         res.json({ id: Number(id), rank });

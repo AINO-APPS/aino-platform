@@ -35,8 +35,8 @@ function TaskChip({ task }: { task: any }) {
         <div className={s.entityChip}>
             <CheckSquare size={12} />
             <span className={s.entityTitle}>{task.title}</span>
-            <span className={s.statusDot} style={{ background: STATUS_COLORS[task.status] || "#94a3b8" }}
-                title={task.status} />
+            <span className={s.statusDot} style={{ background: STATUS_COLORS[task.workflow_state_key] || "#94a3b8" }}
+                title={task.workflow_state_key} />
             <span className={s.priorityTag}>{PRIORITY_ICONS[task.priority] || ""}</span>
         </div>
     );

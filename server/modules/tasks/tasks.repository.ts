@@ -62,7 +62,7 @@ export const deleteGitRef = async (db: TasksDb, taskId: number, refId: number) =
     (await db.query("DELETE FROM task_git_refs WHERE id = $1 AND task_id = $2 RETURNING id", [refId, taskId])).rowCount;
 
 export const findChildren = async (db: TasksDb, taskId: number) => (await db.query(
-    `SELECT t.id, t.title, t.status, t.workflow_state_id, t.is_blocked,
+    `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked,
             t.story_points, t.work_item_type_id, t.priority, t.assigned_to,
             u.full_name AS assignee_name, u.username AS assignee_username,
             ws.name AS state_name, ws.color AS state_color, ws.is_terminal,
@@ -77,7 +77,7 @@ export const findChildren = async (db: TasksDb, taskId: number) => (await db.que
 )).rows;
 
 export const findParent = async (db: TasksDb, taskId: number) => (await db.query(
-    `SELECT t.id, t.title, t.status, t.workflow_state_id, t.is_blocked, t.story_points,
+    `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
             t.work_item_type_id, ws.name AS state_name, ws.color AS state_color,
             wit.name AS type_name, wit.color AS type_color, wit.is_epic
        FROM tasks t
@@ -92,3 +92,35 @@ export const findParentId = async (db: TasksDb, id: number) =>
     (await db.query("SELECT parent_task_id FROM tasks WHERE id = $1", [id])).rows[0]?.parent_task_id || null;
 export const setParent = async (db: TasksDb, id: number, parentId: number | null) =>
     db.query("UPDATE tasks SET parent_task_id = $1 WHERE id = $2", [parentId, id]);
+
+/** Resolve a canonical issue key (PROJ-123) inside one org. */
+export const findByIssueKey = async (db: TasksDb, orgId: number | null, projectKey: string, taskNumber: number) =>
+    (await db.query(
+        `SELECT t.* FROM tasks t
+           JOIN projects p ON p.id = t.project_id
+          WHERE p.org_id = $1 AND p.key = $2 AND t.task_number = $3`,
+        [orgId, projectKey, taskNumber],
+    )).rows[0];
+
+/** The stored LexoRank of one task, scoped to the org. */
+export const findRank = async (db: TasksDb, id: number, orgId: number | null): Promise<string | null> =>
+    (await db.query("SELECT rank FROM tasks WHERE id = $1 AND org_id = $2", [id, orgId])).rows[0]?.rank ?? null;
+
+export const setRank = async (db: TasksDb, id: number | string, rank: string) =>
+    db.query("UPDATE tasks SET rank = $1 WHERE id = $2", [rank, id]);
+
+/** Tasks in one org, for a bulk action. */
+export const findManyInOrg = async (db: TasksDb, ids: number[], orgId: number | null) =>
+    (await db.query("SELECT * FROM tasks WHERE id = ANY($1::int[]) AND org_id = $2", [ids, orgId])).rows;
+
+export const setSprint = async (db: TasksDb, id: number, sprintId: number | null) =>
+    db.query("UPDATE tasks SET sprint_id = $1 WHERE id = $2", [sprintId, id]);
+
+export const setWorkflowState = async (db: TasksDb, id: number, workflowStateId: number | null) =>
+    db.query("UPDATE tasks SET workflow_state_id = $1 WHERE id = $2", [workflowStateId, id]);
+
+export const setAssignee = async (db: TasksDb, id: number, assignee: number | null) =>
+    db.query("UPDATE tasks SET assigned_to = $1 WHERE id = $2", [assignee, id]);
+
+export const deleteTask = async (db: TasksDb, id: number) =>
+    db.query("DELETE FROM tasks WHERE id = $1", [id]);

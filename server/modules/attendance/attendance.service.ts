@@ -225,16 +225,16 @@ export function createAttendanceService(deps: AttendanceDependencies) {
 
         async getTaskSummary(db: AttendanceDb, userId: number, date: string) {
             const tasks = await repository.listTasksForDate(db, userId, date);
-            const count = (status: string) => tasks.filter((task) => task.status === status).length;
+            const count = (category: string) => tasks.filter((task) => task.workflow_state_category === category).length;
             return {
                 total: tasks.length,
                 done: count("done"),
-                pending: count("pending"),
+                pending: count("open"),
                 inProgress: count("in_progress"),
                 inReview: count("in_review"),
                 activeTasks: tasks
-                    .filter((task) => ["in_progress", "in_review", "pending"].includes(task.status))
-                    .map((task) => ({ title: task.title, priority: task.priority, status: task.status })),
+                    .filter((task) => ["in_progress", "in_review", "open"].includes(task.workflow_state_category))
+                    .map((task) => ({ title: task.title, priority: task.priority, workflow_state_key: task.workflow_state_key })),
             };
         },
 

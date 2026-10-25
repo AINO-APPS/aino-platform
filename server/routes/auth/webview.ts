@@ -17,7 +17,7 @@ import type { Request, Response } from "express";
 import { masterQuery } from "../../db";
 import { PLATFORM_REALM, TENANT_REALM, expectedRealm, type Realm } from "../../platform/realm";
 import { availablePlatformPrincipal } from "../../services/realmPrincipals";
-import { createWebviewCode, consumeWebviewCode, isNativeClient } from "../../services/webviewSession";
+import { createWebviewCode, consumeWebviewCode, isNativeClient, findActiveUser } from "../../services/webviewSession";
 
 interface WebviewRouterDeps {
     auth: any;
@@ -97,10 +97,7 @@ export function createWebviewRouter({ auth, getTenantDb, finishLogin }: WebviewR
                 code: "TENANT_UNAVAILABLE",
             });
         }
-        const user = (await tenantDb.query(
-            "SELECT * FROM users WHERE id = $1 AND is_active = TRUE",
-            [claims.user_id],
-        )).rows[0];
+        const user = await findActiveUser(tenantDb, claims.user_id);
         if (!user) {
             return res.status(403).json({
                 error: "Account is no longer available",

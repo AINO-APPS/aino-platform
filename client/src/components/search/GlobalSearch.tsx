@@ -100,8 +100,8 @@ export default function GlobalSearch({ onClose }: GlobalSearchProps) {
                                                     <span className={s.snippet} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t.snippet) }} />
                                                 )}
                                             </div>
-                                            <span className={`${s.badge} ${(s as Record<string, string>)[`status-${t.status}`] || s.badgeDefault}`}>
-                                                {t.status?.replace(/_/g, " ")}
+                                            <span className={`${s.badge} ${(s as Record<string, string>)[`status-${t.workflow_state_key}`] || s.badgeDefault}`}>
+                                                {t.workflow_state_key?.replace(/_/g, " ")}
                                             </span>
                                         </button>
                                     );

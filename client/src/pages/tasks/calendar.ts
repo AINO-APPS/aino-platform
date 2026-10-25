@@ -77,16 +77,15 @@ export interface ScheduledTask {
     id: number | string;
     title?: string;
     planned_date?: string | null;
-    date?: string | null;
     due_date?: string | null;
     story_points?: number | null;
     completed_at?: string | null;
     [key: string]: unknown;
 }
 
-/** The planned day of a task, preferring the new column. */
+/** The planned day of a task. `planned_date` is the only scheduling field (D2). */
 export function plannedDay(task: ScheduledTask): string | null {
-    return task.planned_date || task.date || null;
+    return task.planned_date || null;
 }
 
 /** Group tasks by their planned day. */

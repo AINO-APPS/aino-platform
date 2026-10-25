@@ -243,23 +243,18 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
         CREATE TABLE IF NOT EXISTS tasks (
             id           SERIAL PRIMARY KEY,
             user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            date         TEXT,
             title        TEXT NOT NULL,
             description  TEXT,
             priority     TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low','medium','high')),
-            status       TEXT NOT NULL DEFAULT 'pending'
-                             CHECK(status IN ('pending','in_progress','in_review','done')),
             created_at   TIMESTAMPTZ DEFAULT NOW(),
             completed_at TIMESTAMPTZ,
             assigned_to  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-            due_date     TEXT,
+            due_date     DATE,
             sprint_id    INTEGER
         )
     `);
-    await q(`
-        CREATE INDEX IF NOT EXISTS idx_tasks_user_date   ON tasks(user_id, date);
-        CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to, date);
-    `);
+    // The planner-day indexes are created by migration 0015, after
+    // `planned_date` exists. The legacy `date` column is gone (ticket 28).
     // Migration: add org_id to tasks for tenant isolation
     await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL`);
     await q(`CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(org_id)`);
@@ -274,30 +269,6 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
             ALTER TABLE users ADD CONSTRAINT users_role_check
                 CHECK(role IN ('employee','team_lead','manager','hr_admin','super_admin','platform_admin'));
-        EXCEPTION WHEN others THEN NULL;
-        END $do$
-    `);
-
-    // Migration: drop the hard-coded tasks.status CHECK so tenants can introduce
-    // custom workflow state keys via workflow_states. Status is now a mirror of
-    // the workflow state key; integrity is enforced at the application layer
-    // (the value must match an existing workflow_states.key for the org).
-    await q(`
-        DO $do$
-        DECLARE r record;
-        BEGIN
-            FOR r IN
-                SELECT con.conname
-                FROM   pg_constraint con
-                JOIN   pg_class       rel ON rel.oid = con.conrelid
-                JOIN   pg_attribute   att ON att.attrelid = rel.oid
-                                         AND att.attnum   = ANY(con.conkey)
-                WHERE  rel.relname = 'tasks'
-                  AND  con.contype = 'c'
-                  AND  att.attname = 'status'
-            LOOP
-                EXECUTE 'ALTER TABLE tasks DROP CONSTRAINT ' || quote_ident(r.conname);
-            END LOOP;
         EXCEPTION WHEN others THEN NULL;
         END $do$
     `);

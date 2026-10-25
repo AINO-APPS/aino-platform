@@ -63,7 +63,7 @@ export default function SprintImportPanel({
             ) : (
                 (() => {
                     const importable = backlogTasks.filter(
-                        (t) => t.sprint_id !== selectedSprintId && t.status !== "done",
+                        (t) => t.sprint_id !== selectedSprintId && !t.completed_at,
                     );
 
                     if (importable.length === 0) {

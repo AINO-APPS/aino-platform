@@ -6,7 +6,8 @@ import s from "./TasksSummary.module.css";
 interface TaskItem {
     title: string;
     priority: string;
-    status?: string;
+    /** The workflow state is the only status (D4). */
+    workflow_state_key?: string | null;
     [key: string]: unknown;
 }
 
@@ -94,7 +95,7 @@ const TasksSummary = memo(function TasksSummary({ taskSummary }: { taskSummary?:
                         {taskSummary.activeTasks.map((task, i) => (
                             <div key={i} className={s["carousel-item"]}>
                                 <span className={s["next-task-label"]}>
-                                    {task.status === "in_progress" ? "Doing:" : task.status === "in_review" ? "Review:" : "Next:"}
+                                    {task.workflow_state_key === "in_progress" ? "Doing:" : task.workflow_state_key === "in_review" ? "Review:" : "Next:"}
                                 </span>
                                 <span className={s["next-task-title"]}>{task.title}</span>
                                 <span className={`${s["next-task-priority"]} ${s[task.priority]}`}>{task.priority}</span>

@@ -12,7 +12,10 @@ const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 interface SprintTask {
     id: number | string;
     title: string;
-    status: string;
+    /** The workflow state is the only status (D4). */
+    workflow_state_key?: string | null;
+    workflow_state_category?: string | null;
+    completed_at?: string | null;
     priority?: string;
     assigned_to?: number | string;
     [key: string]: unknown;
@@ -46,7 +49,7 @@ const SprintProgressCard = memo(function SprintProgressCard() {
             const blRes = await getBacklog({ assignee: "me" });
             if (!cancelledRef.current) {
                 const myBacklog = ((blRes.data.tasks as SprintTask[]) || [])
-                    .filter((t) => t.status !== "done")
+                    .filter((t) => !t.completed_at)
                     .sort((a, b) => (PRIORITY_ORDER[a.priority || ""] ?? 3) - (PRIORITY_ORDER[b.priority || ""] ?? 3))
                     .slice(0, 5);
                 setBacklogTasks(myBacklog);
@@ -139,8 +142,8 @@ const SprintProgressCard = memo(function SprintProgressCard() {
                             <div key={t.id} className={s["backlog-item"]}>
                                 <span className={`${s["backlog-priority"]} ${s[`p-${t.priority}`]}`} />
                                 <span className={s["backlog-title"]}>{t.title}</span>
-                                <span className={`${s["backlog-status"]} ${s[`s-${t.status}`]}`}>
-                                    {t.status === "in_progress" ? "In Progress" : t.status === "in_review" ? "Review" : "Pending"}
+                                <span className={`${s["backlog-status"]} ${s[`s-${t.workflow_state_key}`]}`}>
+                                    {t.workflow_state_category === "in_progress" ? "In Progress" : t.workflow_state_category === "in_review" ? "Review" : "Pending"}
                                 </span>
                             </div>
                         ))}
@@ -160,12 +163,12 @@ const SprintProgressCard = memo(function SprintProgressCard() {
 
     // Task stats
     const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
+    const done = tasks.filter((t) => t.completed_at).length;
     const completionPercent = total > 0 ? Math.round((done / total) * 100) : 0;
 
     // User's assigned tasks
     const myTasks = tasks.filter((t) => t.assigned_to === user?.id);
-    const myDone = myTasks.filter((t) => t.status === "done").length;
+    const myDone = myTasks.filter((t) => t.completed_at).length;
 
     const goToSprintBoard = () => navigate(`/tasks?tab=sprint&sprint_id=${sprint!.id}`);
 

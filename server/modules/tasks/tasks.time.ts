@@ -57,3 +57,51 @@ export function elapsedMinutes(startedAt: string | Date, stoppedAt: string | Dat
     if (!Number.isFinite(start) || !Number.isFinite(stop) || stop <= start) return 0;
     return Math.max(1, Math.round((stop - start) / 60_000));
 }
+
+/** Database port for the timer queries. */
+export interface TimerDb {
+    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
+}
+
+/** The timer currently running for this task and user, if any. */
+export async function findRunningTimer(db: TimerDb, taskId: unknown, userId: number) {
+    return (await db.query(
+        `SELECT id, started_at FROM task_timers
+          WHERE task_id = $1 AND user_id = $2 AND stopped_at IS NULL
+          ORDER BY started_at DESC LIMIT 1`,
+        [taskId, userId],
+    )).rows[0] || null;
+}
+
+/**
+ * Start a timer. The partial unique index makes this idempotent: starting an
+ * already running timer keeps the original start rather than resetting it.
+ */
+export async function startTimer(db: TimerDb, taskId: unknown, userId: number, startedAt: string): Promise<void> {
+    await db.query(
+        `INSERT INTO task_timers (task_id, user_id, started_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (task_id, user_id) WHERE stopped_at IS NULL DO NOTHING`,
+        [taskId, userId, startedAt],
+    );
+}
+
+/** Close a timer and add its minutes to the task's logged total. */
+export async function stopTimer(
+    db: TimerDb,
+    timerId: number,
+    taskId: unknown,
+    stoppedAt: string,
+    minutes: number,
+) {
+    await db.query(
+        "UPDATE task_timers SET stopped_at = $1, minutes = $2 WHERE id = $3",
+        [stoppedAt, minutes, timerId],
+    );
+    return (await db.query(
+        `UPDATE tasks SET logged_minutes = COALESCE(logged_minutes, 0) + $1
+          WHERE id = $2
+          RETURNING estimated_minutes, logged_minutes`,
+        [minutes, taskId],
+    )).rows[0];
+}

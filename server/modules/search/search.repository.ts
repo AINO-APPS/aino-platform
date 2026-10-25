@@ -3,13 +3,15 @@ import type { SearchDb } from "./search.types";
 
 export async function searchTasks(db: SearchDb, userId: number, tsQuery: string) {
     return (await db.query(
-        `SELECT id, title, description, status, priority, date, due_date, sprint_id,
-                ts_headline('english', title || ' ' || COALESCE(description, ''),
+        `SELECT t.id, t.title, t.description, ws.key AS workflow_state_key, t.priority,
+                t.planned_date, t.due_date, t.sprint_id,
+                ts_headline('english', t.title || ' ' || COALESCE(t.description, ''),
                     to_tsquery('english', $2), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet
-         FROM tasks
-         WHERE (user_id = $1 OR assigned_to = $1)
-           AND to_tsvector('english', title || ' ' || COALESCE(description, '')) @@ to_tsquery('english', $2)
-         ORDER BY created_at DESC LIMIT 20`, [userId, tsQuery],
+         FROM tasks t
+         LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+         WHERE (t.user_id = $1 OR t.assigned_to = $1)
+           AND to_tsvector('english', t.title || ' ' || COALESCE(t.description, '')) @@ to_tsquery('english', $2)
+         ORDER BY t.created_at DESC LIMIT 20`, [userId, tsQuery],
     )).rows;
 }
 

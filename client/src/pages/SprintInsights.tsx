@@ -508,7 +508,7 @@ function SprintTicketsPanel({ tasks }: { tasks: any[] }) {
                   {t.title}
                 </a>
               </td>
-              <td>{STATUS_LABELS[t.status] || t.status}</td>
+              <td>{STATUS_LABELS[t.workflow_state_key] || t.workflow_state_key || "—"}</td>
               <td>
                 <span
                   style={{

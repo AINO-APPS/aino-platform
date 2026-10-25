@@ -13,12 +13,13 @@ const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { canAccessTask } = require("./_helpers/access");
 const { logHistory } = require("./_helpers/logHistory");
-const { elapsedMinutes, summariseTime } = require("../../modules/tasks/tasks.time");
+const { elapsedMinutes, summariseTime, findRunningTimer, startTimer, stopTimer } = require("../../modules/tasks/tasks.time");
+const { findTask } = require("../../modules/tasks/tasks.repository");
 
 const router = express.Router();
 
 async function loadTask(req: Request, res: Response) {
-    const task = (await req.db!.query("SELECT * FROM tasks WHERE id = $1", [req.params.id])).rows[0];
+    const task = await findTask(req.db!, req.params.id);
     if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
         res.status(404).json({ error: "Task not found" });
         return null;
@@ -31,12 +32,7 @@ router.get("/:id/timer", auth, loadUserContext, async (req: Request, res: Respon
         const task = await loadTask(req, res);
         if (!task) return;
 
-        const running = (await req.db!.query(
-            `SELECT started_at FROM task_timers
-              WHERE task_id = $1 AND user_id = $2 AND stopped_at IS NULL
-              ORDER BY started_at DESC LIMIT 1`,
-            [task.id, req.userId],
-        )).rows[0];
+        const running = await findRunningTimer(req.db!, task.id, req.userId);
 
         res.json({
             taskId: task.id,
@@ -56,21 +52,8 @@ router.post("/:id/timer/start", auth, loadUserContext, async (req: Request, res:
         if (!task) return;
 
         const startedAt = new Date().toISOString();
-        // The partial unique index makes this idempotent: starting an already
-        // running timer keeps the original start rather than resetting it.
-        await req.db!.query(
-            `INSERT INTO task_timers (task_id, user_id, started_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (task_id, user_id) WHERE stopped_at IS NULL DO NOTHING`,
-            [task.id, req.userId, startedAt],
-        );
-
-        const running = (await req.db!.query(
-            `SELECT started_at FROM task_timers
-              WHERE task_id = $1 AND user_id = $2 AND stopped_at IS NULL
-              ORDER BY started_at DESC LIMIT 1`,
-            [task.id, req.userId],
-        )).rows[0];
+        await startTimer(req.db!, task.id, req.userId, startedAt);
+        const running = await findRunningTimer(req.db!, task.id, req.userId);
 
         res.json({
             taskId: task.id,
@@ -89,27 +72,12 @@ router.post("/:id/timer/stop", auth, loadUserContext, async (req: Request, res: 
         const task = await loadTask(req, res);
         if (!task) return;
 
-        const running = (await req.db!.query(
-            `SELECT id, started_at FROM task_timers
-              WHERE task_id = $1 AND user_id = $2 AND stopped_at IS NULL
-              ORDER BY started_at DESC LIMIT 1`,
-            [task.id, req.userId],
-        )).rows[0];
+        const running = await findRunningTimer(req.db!, task.id, req.userId);
         if (!running) return res.status(409).json({ error: "No timer is running for this task" });
 
         const stoppedAt = new Date();
         const minutes = elapsedMinutes(running.started_at, stoppedAt);
-
-        await req.db!.query(
-            "UPDATE task_timers SET stopped_at = $1, minutes = $2 WHERE id = $3",
-            [stoppedAt.toISOString(), minutes, running.id],
-        );
-        const updated = (await req.db!.query(
-            `UPDATE tasks SET logged_minutes = COALESCE(logged_minutes, 0) + $1
-              WHERE id = $2
-              RETURNING estimated_minutes, logged_minutes`,
-            [minutes, task.id],
-        )).rows[0];
+        const updated = await stopTimer(req.db!, running.id, task.id, stoppedAt.toISOString(), minutes);
 
         await logHistory(task.id, req.userId, "time_logged", "logged_minutes",
             task.logged_minutes, updated.logged_minutes, null, req.db);

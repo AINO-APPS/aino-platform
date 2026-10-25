@@ -20,7 +20,7 @@ router.get('/:id/dependencies', auth, loadUserContext, async (req: Request, res:
         if (!task) return;
 
         const blocking = (await req.db!.query(
-            `SELECT d.id AS link_id, d.type, t.id, t.title, t.status, t.workflow_state_id, t.is_blocked
+            `SELECT d.id AS link_id, d.type, t.id, t.title, t.workflow_state_id, t.is_blocked
                FROM task_dependencies d JOIN tasks t ON t.id = d.depends_on_id
               WHERE d.task_id = $1
               ORDER BY t.id`,
@@ -28,7 +28,7 @@ router.get('/:id/dependencies', auth, loadUserContext, async (req: Request, res:
         )).rows;
 
         const blockedBy = (await req.db!.query(
-            `SELECT d.id AS link_id, d.type, t.id, t.title, t.status, t.workflow_state_id, t.is_blocked
+            `SELECT d.id AS link_id, d.type, t.id, t.title, t.workflow_state_id, t.is_blocked
                FROM task_dependencies d JOIN tasks t ON t.id = d.task_id
               WHERE d.depends_on_id = $1
               ORDER BY t.id`,

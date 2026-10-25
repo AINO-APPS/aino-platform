@@ -21138,17 +21138,21 @@
               "null"
             ]
           },
-          "status": {
-            "type": "string"
-          },
-          "priority": {
-            "type": "string"
-          },
-          "date": {
+          "workflow_state_key": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "priority": {
+            "type": "string"
+          },
+          "planned_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           },
           "due_date": {
             "type": [
@@ -21170,9 +21174,8 @@
           "id",
           "title",
           "description",
-          "status",
           "priority",
-          "date",
+          "planned_date",
           "due_date",
           "sprint_id",
           "snippet"
@@ -21208,13 +21211,6 @@
               "medium",
               "high"
             ]
-          },
-          "status": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Deprecated compatibility mirror of the workflow state key. Removed in ticket 28."
           },
           "workflow_state_id": {
             "type": [

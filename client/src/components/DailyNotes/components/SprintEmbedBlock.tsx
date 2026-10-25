@@ -146,7 +146,7 @@ export default function SprintEmbedBlock({ onRemove }: SprintEmbedBlockProps) {
             {!collapsed && (
                 <div className={s.taskList}>
                     {["pending", "in_progress", "in_review", "done"].map(status => {
-                        const group = tasks.filter((t: any) => t.status === status);
+                        const group = tasks.filter((t: any) => t.workflow_state_key === status);
                         if (group.length === 0) return null;
                         return (
                             <div key={status} className={s.taskGroup}>

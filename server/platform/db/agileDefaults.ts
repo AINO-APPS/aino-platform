@@ -5,8 +5,9 @@ import type { SchemaQuery } from "./schemaTypes";
  * every org in the tenant DB that doesn't yet have org_agile_settings.
  * Idempotent — safe to run on every boot.
  *
- * Also backfills tasks.workflow_state_id from the legacy tasks.status column
- * by matching the seeded workflow state keys.
+ * The workflow state is the only status (D4), so there is no legacy status
+ * column to backfill from: migration 0011 maps existing rows and the trigger
+ * keeps `completed_at` in step.
  */
 async function seedAgileDefaults(q: SchemaQuery): Promise<void> {
     const orgs = (await q(
@@ -55,16 +56,6 @@ async function seedAgileDefaults(q: SchemaQuery): Promise<void> {
             );
         }
     }
-
-    // Backfill tasks.workflow_state_id from tasks.status (matching by key within the same org)
-    await q(`
-        UPDATE tasks t
-           SET workflow_state_id = ws.id
-          FROM workflow_states ws
-         WHERE t.workflow_state_id IS NULL
-           AND ws.org_id = t.org_id
-           AND ws.key   = t.status
-    `);
 
     // Backfill tasks.work_item_type_id with the default 'story' type for tasks that
     // don't have one yet, scoped to the same org.

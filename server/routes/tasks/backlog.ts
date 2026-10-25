@@ -109,9 +109,9 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
 
         const enriched = await enrichTasks(tasks, req.db);
         const summary: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> } = { total, byStatus: {}, byPriority: { high: 0, medium: 0, low: 0 } };
-        for (const col of ['pending', 'in_progress', 'in_review', 'done']) summary.byStatus[col] = 0;
         for (const t of enriched) {
-            if (summary.byStatus[t.status] !== undefined) summary.byStatus[t.status]++;
+            const key = t.workflow_state_key;
+            if (key) summary.byStatus[key] = (summary.byStatus[key] || 0) + 1;
             if (summary.byPriority[t.priority] !== undefined) summary.byPriority[t.priority]++;
         }
 
@@ -201,7 +201,6 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
         const wsId = initialState ? initialState.id : null;
-        const statusKey = initialState ? initialState.key : 'pending';
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
@@ -233,13 +232,13 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             }
             const insertRes = await client.query(
                 `INSERT INTO tasks
-                    (user_id, date, title, description, priority, status, assigned_to, due_date,
+                    (user_id, planned_date, title, description, priority, assigned_to, due_date,
                      sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
                  VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
                  RETURNING id`,
-                [req.userId, title.trim(), description?.trim() || null, validPriority, statusKey,
+                [req.userId, title.trim(), description?.trim() || null, validPriority,
                     assignedTo, validDueDate, validSprintId, req.userOrgId || null,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
@@ -280,8 +279,8 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
-        await req.db!.query('UPDATE tasks SET planned_date = $1, date = $1 WHERE id = $2', [date, id]);
-        await logHistory(id, req.userId, 'scheduled', 'planned_date', task.planned_date || task.date || 'backlog', date, null, req.db);
+        await req.db!.query('UPDATE tasks SET planned_date = $1 WHERE id = $2', [date, id]);
+        await logHistory(id, req.userId, 'scheduled', 'planned_date', task.planned_date || 'backlog', date, null, req.db);
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
@@ -300,8 +299,8 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
-        await req.db!.query('UPDATE tasks SET planned_date = NULL, date = NULL WHERE id = $1', [id]);
-        await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date || task.date, 'backlog', null, req.db);
+        await req.db!.query('UPDATE tasks SET planned_date = NULL WHERE id = $1', [id]);
+        await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date, 'backlog', null, req.db);
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);

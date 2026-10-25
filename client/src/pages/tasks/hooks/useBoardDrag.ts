@@ -13,8 +13,9 @@ export interface BoardColumn {
 export interface BoardTask {
     id: number | string;
     title?: string;
-    status?: string;
+    /** The workflow state is the only status (D4). */
     workflow_state_id?: number | string | null;
+    workflow_state_key?: string | null;
     is_blocked?: boolean;
     acceptance_criteria?: unknown[] | null;
     [key: string]: unknown;
@@ -33,7 +34,7 @@ function columnOf(task: BoardTask, columns: BoardColumn[]): BoardColumn | undefi
     return columns.find(
         (column) =>
             (task.workflow_state_id && column.id && task.workflow_state_id === column.id) ||
-            (task.status && column.key && task.status === column.key),
+            (task.workflow_state_key && column.key && task.workflow_state_key === column.key),
     );
 }
 

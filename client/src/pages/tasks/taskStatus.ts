@@ -28,14 +28,14 @@ export function statusOptions(workflowStates: Array<{ key?: string; name?: strin
     return states.map((state) => ({ key: String(state.key), label: state.name || String(state.key), color: state.color || "var(--primary)" }));
 }
 
-/** The option a task is currently in, by workflow state id first, then by legacy status key. */
+/** The option a task is currently in, by workflow state id first, then by state key. */
 export function currentStatusOption(
-    task: { status?: string | null; workflow_state_id?: number | null } | null | undefined,
+    task: { workflow_state_key?: string | null; workflow_state_id?: number | null } | null | undefined,
     workflowStates: Array<{ id?: number; key?: string }> | undefined,
     options: StatusOption[],
 ): StatusOption | undefined {
     if (!task) return undefined;
     const byId = (workflowStates || []).find((s) => s.id != null && s.id === task.workflow_state_id);
-    const key = byId?.key ?? task.status;
+    const key = byId?.key ?? task.workflow_state_key;
     return options.find((o) => o.key === key) ?? options[0];
 }

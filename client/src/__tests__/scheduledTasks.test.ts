@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { groupScheduled, nextDays, scheduledWindow } from "../pages/tasks/scheduled";
 
-const t = (id: number, date: string | null, extra: Record<string, unknown> = {}) => ({ id, date, status: "pending", priority: "medium", ...extra });
+const t = (id: number, planned_date: string | null, extra: Record<string, unknown> = {}) => ({ id, planned_date, priority: "medium", ...extra });
 
 describe("Scheduled tab grouping", () => {
   const today = "2026-10-06";
@@ -15,7 +15,7 @@ describe("Scheduled tab grouping", () => {
     const groups = groupScheduled(
       [
         t(1, "2026-10-04"),
-        t(2, "2026-10-03", { status: "done" }),
+        t(2, "2026-10-03", { completed_at: "2026-10-03T10:00:00Z" }),
         t(3, "2026-10-06", { priority: "low" }),
         t(4, "2026-10-06", { priority: "high" }),
         t(5, "2026-10-07"),
@@ -31,7 +31,7 @@ describe("Scheduled tab grouping", () => {
   });
 
   it("lists done tasks after open ones within a day", () => {
-    const [day] = groupScheduled([t(1, today, { status: "done", priority: "high" }), t(2, today, { priority: "low" })], today);
+    const [day] = groupScheduled([t(1, today, { completed_at: "2026-10-06T10:00:00Z", priority: "high" }), t(2, today, { priority: "low" })], today);
     expect(day.tasks.map((x) => x.id)).toEqual([2, 1]);
   });
 });

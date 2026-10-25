@@ -1,19 +1,20 @@
 // Helpers that hydrate raw task rows with labels, comment counts, assignee
 // info, creator info and sprint summaries. Batched to avoid N+1 queries.
+const {
+    findLabelsForTasks,
+    findCommentCounts,
+    findUsersByIds,
+    findSprintsByIds,
+    findProjectsByIds,
+    findWorkflowStatesByIds,
+} = require("../../../modules/tasks/tasks.enrich");
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
 
 async function getLabelsForTasks(taskIds: number[], db: DbLike): Promise<Record<number, any[]>> {
-    if (!taskIds.length) return {};
-    const rows = (await db.query(
-        `SELECT tlm.task_id, tl.id, tl.name, tl.color
-         FROM task_label_map tlm
-         JOIN task_labels tl ON tl.id = tlm.label_id
-         WHERE tlm.task_id = ANY($1)`,
-        [taskIds]
-    )).rows;
+    const rows = await findLabelsForTasks(db, taskIds);
     const map: Record<number, any[]> = {};
     for (const r of rows) {
         if (!map[r.task_id]) map[r.task_id] = [];
@@ -23,13 +24,7 @@ async function getLabelsForTasks(taskIds: number[], db: DbLike): Promise<Record<
 }
 
 async function getCommentCounts(taskIds: number[], db: DbLike): Promise<Record<number, number>> {
-    if (!taskIds.length) return {};
-    const rows = (await db.query(
-        `SELECT task_id, COUNT(*) as count FROM task_comments
-         WHERE task_id = ANY($1)
-         GROUP BY task_id`,
-        [taskIds]
-    )).rows;
+    const rows = await findCommentCounts(db, taskIds);
     const map: Record<number, number> = {};
     for (const r of rows) map[r.task_id] = parseInt(r.count, 10);
     return map;
@@ -51,17 +46,15 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
     // and the lightweight project summary on every enriched task.
     const projectIds = [...new Set(tasks.map(t => t.project_id).filter(Boolean))];
     const allUserIds = [...new Set([...assigneeIds, ...creatorIds])];
+    // The workflow state is the only status (D4), so every task carries its
+    // key, name and category. Clients read these instead of a status column.
+    const stateIds = [...new Set(tasks.map(t => t.workflow_state_id).filter(Boolean))];
 
-    const [userRows, sprintRows, projectRows] = await Promise.all([
-        allUserIds.length
-            ? db.query('SELECT id, username, full_name, avatar FROM users WHERE id = ANY($1)', [allUserIds]).then(r => r.rows)
-            : [],
-        sprintIds.length
-            ? db.query('SELECT id, name, status, start_date, end_date FROM sprints WHERE id = ANY($1)', [sprintIds]).then(r => r.rows)
-            : [],
-        projectIds.length
-            ? db.query('SELECT id, key, name, color FROM projects WHERE id = ANY($1)', [projectIds]).then(r => r.rows)
-            : [],
+    const [userRows, sprintRows, projectRows, stateRows] = await Promise.all([
+        findUsersByIds(db, allUserIds),
+        findSprintsByIds(db, sprintIds),
+        findProjectsByIds(db, projectIds),
+        findWorkflowStatesByIds(db, stateIds),
     ]);
 
     const userMap: Record<number, any> = {};
@@ -70,6 +63,8 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
     for (const s of sprintRows) sprintMap[s.id] = s;
     const projectMap: Record<number, any> = {};
     for (const p of projectRows) projectMap[p.id] = p;
+    const stateMap: Record<number, any> = {};
+    for (const s of stateRows) stateMap[s.id] = s;
 
     return tasks.map(t => {
         const project = t.project_id ? (projectMap[t.project_id] || null) : null;
@@ -77,8 +72,12 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
         // task_number (legacy tasks remain key-less even if they get a
         // project assigned, until a number is generated for them).
         const issueKey = project && t.task_number ? `${project.key}-${t.task_number}` : null;
+        const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
             ...t,
+            workflow_state_key: state?.key ?? null,
+            workflow_state_name: state?.name ?? null,
+            workflow_state_category: state?.category ?? null,
             labels: labelsMap[t.id] || [],
             comment_count: commentMap[t.id] || 0,
             assignee: t.assigned_to

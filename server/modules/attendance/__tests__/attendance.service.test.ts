@@ -121,11 +121,11 @@ describe("attendance service", () => {
         expect(sendToUser).toHaveBeenCalledWith(3, 1, "theme_changed", { theme: "dark" });
     });
 
-    it("summarises tasks by status", async () => {
+    it("summarises tasks by workflow-state category", async () => {
         const db = makeDb([
-            { title: "A", status: "done", priority: "high" },
-            { title: "B", status: "pending", priority: "low" },
-            { title: "C", status: "in_progress", priority: "medium" },
+            { title: "A", workflow_state_key: "done", workflow_state_category: "done", priority: "high" },
+            { title: "B", workflow_state_key: "pending", workflow_state_category: "open", priority: "low" },
+            { title: "C", workflow_state_key: "in_progress", workflow_state_category: "in_progress", priority: "medium" },
         ]);
         const service = createAttendanceService({ notifyUser: jest.fn(async () => undefined), findApprover: jest.fn(), sendToUser: jest.fn() });
         const result = await service.getTaskSummary(db as any, 1, "2026-08-21");

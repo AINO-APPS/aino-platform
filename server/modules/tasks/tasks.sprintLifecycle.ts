@@ -35,6 +35,20 @@ export interface CarryoverTask {
     completed?: boolean;
 }
 
+/** Database port for the sprint lifecycle queries. */
+export interface SprintDb {
+    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
+}
+
+/** The ids among `sprintIds` that are completed, i.e. frozen. */
+export async function findFrozenSprintIds(db: SprintDb, sprintIds: number[]): Promise<number[]> {
+    if (sprintIds.length === 0) return [];
+    return (await db.query(
+        `SELECT id FROM sprints WHERE id = ANY($1::int[]) AND status = 'completed'`,
+        [sprintIds],
+    )).rows.map((row: { id: number }) => row.id);
+}
+
 export interface CarryoverPlan {
     /** Unfinished work that will move. */
     moving: CarryoverTask[];

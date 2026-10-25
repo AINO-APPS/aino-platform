@@ -29,7 +29,7 @@ const todayISO = () => {
 };
 
 interface JournalPrefill {
-    tasks?: Array<{ status?: string; title?: string }>;
+    tasks?: Array<{ workflow_state_key?: string | null; completed_at?: string | null; title?: string }>;
     hoursWorked?: number | null;
     meetings?: Array<{ title?: string; scheduled_start?: string }>;
     events?: Array<{ title?: string; all_day?: boolean; start_time?: string }>;
@@ -38,7 +38,7 @@ interface JournalPrefill {
 
 interface OneOnOnePrefill {
     report?: { fullName?: string } | null;
-    tasks?: Array<{ status?: string; title?: string }>;
+    tasks?: Array<{ workflow_state_key?: string | null; completed_at?: string | null; title?: string }>;
     leaves?: Array<{ date?: string; leave_type?: string; duration?: string; status?: string }>;
     sprint?: {
         name?: string;
@@ -69,8 +69,8 @@ export function buildJournalPrefillHtml(prefill: JournalPrefill): string {
     // Tasks
     parts.push(`<h3>What I worked on</h3>`);
     if (prefill.tasks && prefill.tasks.length > 0) {
-        const done = prefill.tasks.filter((t) => t.status === "done");
-        const other = prefill.tasks.filter((t) => t.status !== "done");
+        const done = prefill.tasks.filter((t) => t.completed_at);
+        const other = prefill.tasks.filter((t) => !t.completed_at);
         // Quill check-list format requires the <li data-list="…"> nodes to live
         // inside a <ul>; otherwise they render as plain bullets without checkboxes.
         if (done.length > 0 || other.length > 0) {
@@ -80,7 +80,7 @@ export function buildJournalPrefillHtml(prefill: JournalPrefill): string {
             });
             other.forEach((t) => {
                 parts.push(
-                    `<li data-list="unchecked">${escHtml(t.title)} <em>(${escHtml(t.status)})</em></li>`
+                    `<li data-list="unchecked">${escHtml(t.title)} <em>(${escHtml(t.workflow_state_key ?? "")})</em></li>`
                 );
             });
             parts.push(`</ul>`);
@@ -144,9 +144,9 @@ export function buildOneOnOnePrefillHtml(prefill: OneOnOnePrefill): string {
     // Recent task activity
     parts.push(`<h3>Recent task activity</h3>`);
     if (prefill.tasks && prefill.tasks.length > 0) {
-        const done = prefill.tasks.filter((t) => t.status === "done");
-        const inProgress = prefill.tasks.filter((t) => t.status === "in_progress");
-        const pending = prefill.tasks.filter((t) => t.status === "pending");
+        const done = prefill.tasks.filter((t) => t.completed_at);
+        const inProgress = prefill.tasks.filter((t) => t.workflow_state_key === "in_progress");
+        const pending = prefill.tasks.filter((t) => t.workflow_state_key === "pending");
         if (done.length > 0) {
             parts.push(`<p><strong>Completed (${done.length}):</strong></p>`);
             // Wrap checked-list items in a <ul> so Quill renders proper checkboxes.

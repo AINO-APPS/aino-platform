@@ -20,6 +20,7 @@ const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { logger } = require("../utils/logger");
 const { getTenantPool } = require("../utils/tenantManager");
+const { createServiceDeskBacklogTask } = require("../modules/tasks/tasks.serviceDesk");
 
 const router = express.Router();
 router.use(auth, loadUserContext);
@@ -321,11 +322,14 @@ router.post("/tickets", async (req: Request, res: Response) => {
                 }
 
                 if (creatorId) {
-                    await defaultTenant.db.query(
-                        `INSERT INTO tasks (user_id, date, title, description, priority, org_id, status, service_desk_ticket_id)
-                         VALUES ($1, NULL, $2, $3, $4, $5, 'pending', $6)`,
-                        [creatorId, taskTitle.substring(0, 200), taskDesc.substring(0, 5000), taskPriority, orgId, ticket.id]
-                    );
+                    await createServiceDeskBacklogTask(defaultTenant.db, {
+                        creatorId,
+                        orgId,
+                        title: taskTitle.substring(0, 200),
+                        description: taskDesc.substring(0, 5000),
+                        priority: taskPriority,
+                        ticketId: ticket.id,
+                    });
                 }
             }
         } catch (backlogErr) {

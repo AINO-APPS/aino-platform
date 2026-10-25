@@ -600,7 +600,7 @@ function ProjectTasksPanel({ projectId, onClose }: ProjectTasksPanelProps) {
                       {t.title}
                     </Link>
                   </td>
-                  <td style={styles.td}>{t.status}</td>
+                  <td style={styles.td}>{t.workflow_state_key || "—"}</td>
                   <td style={styles.td}>
                     {t.assignee?.full_name || t.assignee?.username || "—"}
                   </td>

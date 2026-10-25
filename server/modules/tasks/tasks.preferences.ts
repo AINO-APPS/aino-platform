@@ -94,3 +94,28 @@ export function resolveShowCompleted(
     if (urlValue === "0" || urlValue === "false") return false;
     return stored.show_completed;
 }
+
+/** Database port for the preference record. */
+export interface PreferencesDb {
+    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
+}
+
+/** The stored preference record, or the defaults when none has been written. */
+export async function readTaskPreferences(db: PreferencesDb, userId: number): Promise<unknown> {
+    const row = (await db.query(
+        "SELECT task_prefs FROM users WHERE id = $1",
+        [userId],
+    )).rows[0];
+    return row?.task_prefs ?? DEFAULT_TASK_PREFERENCES;
+}
+
+export async function writeTaskPreferences(
+    db: PreferencesDb,
+    userId: number,
+    preferences: TaskPreferences,
+): Promise<void> {
+    await db.query(
+        "UPDATE users SET task_prefs = $1::jsonb WHERE id = $2",
+        [JSON.stringify(preferences), userId],
+    );
+}

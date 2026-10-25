@@ -124,7 +124,7 @@ export default function Tasks() {
     }
   }, [hasFeature, activeTab]);
   const [sprintStats, setSprintStats] = useState<any>(null);
-  const { unitLabel, features } = useAgileConfig() as any;
+  const { unitLabel, features, initialState, terminalStates } = useAgileConfig() as any;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
   const { confirmDialog, showConfirm, closeConfirm } =
@@ -334,22 +334,20 @@ export default function Tasks() {
   };
 
   const handleToggleDone = (task: any) => {
-    const newStatus = task.status === "done" ? "pending" : "done";
-    const label = newStatus === "done" ? "Mark as done" : "Mark as incomplete";
-    showConfirm(
-      label,
-      `${label}: "${task.title}"?`,
-      async () => {
-        closeConfirm();
-        try {
-          await updateTaskStatus(task.id, newStatus);
-          fetchTasks();
-        } catch {
-          setError("Failed to update task");
-        }
-      },
-      { confirmText: label },
-    );
+    // The workflow state is the only status (D4): toggling completion moves to
+    // the org's terminal state, or back to its initial one.
+    const newStatus = task.completed_at ? initialState?.key : terminalStates?.[0]?.key;
+    if (!newStatus) return;
+    const label = task.completed_at ? "Mark as incomplete" : "Mark as done";
+    showConfirm(label, `${label}: "${task.title}"?`, async () => {
+      closeConfirm();
+      try {
+        await updateTaskStatus(task.id, newStatus);
+        fetchTasks();
+      } catch {
+        setError("Failed to update task");
+      }
+    }, { confirmText: label });
   };
 
   const handleSummaryTotal = () => {
@@ -368,7 +366,7 @@ export default function Tasks() {
         : [...prev, labelId],
     );
   };
-  const getColTasks = (colId: string) => tasks.filter((t) => t.status === colId);
+  const getColTasks = (colId: string) => tasks.filter((t) => t.workflow_state_key === colId);
   const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
   const summaryAllActive = !filters.filterPriority;

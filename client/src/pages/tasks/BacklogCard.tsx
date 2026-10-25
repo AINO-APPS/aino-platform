@@ -71,7 +71,7 @@ export default function BacklogCard({
     const compact = useCardDensity() === "compact";
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
-    const overdue = isDueOverdue(task.due_date) && task.status !== "done";
+    const overdue = isDueOverdue(task.due_date) && !task.completed_at;
     const colInfo =
         currentStatusOption(task, workflowStates, statusOptions(workflowStates)) ||
         statusOptions(workflowStates)[0];
@@ -79,7 +79,7 @@ export default function BacklogCard({
 
     return (
         <div
-            className={`${s["backlog-card"]} ${s.clickable} ${compact ? s["backlog-card-compact"] : ""} ${task.status === "done" ? s["backlog-card-done"] : ""} ${reorder?.draggingId === task.id ? s["backlog-card-dragging"] : ""} ${reorder?.overId === task.id ? s["backlog-card-over"] : ""}`}
+            className={`${s["backlog-card"]} ${s.clickable} ${compact ? s["backlog-card-compact"] : ""} ${task.completed_at ? s["backlog-card-done"] : ""} ${reorder?.draggingId === task.id ? s["backlog-card-dragging"] : ""} ${reorder?.overId === task.id ? s["backlog-card-over"] : ""}`}
             draggable={Boolean(reorder)}
             onDragStart={() => reorder?.onDragStart(task.id)}
             onDragOver={(e) => {

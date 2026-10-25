@@ -32,16 +32,6 @@ export interface TaskCollectionFilters {
      * not adopted the completed rule yet keep their existing behaviour.
      */
     completed?: "all" | "incomplete" | "completed";
-    /**
-     * Legacy backlog behaviour: a task with a planned date was excluded from
-     * the backlog. Ticket 05 removes this; until then it stays opt-in.
-     */
-    excludeScheduled?: boolean;
-    /**
-     * Schedule scope: which column holds the planned day. Defaults to the
-     * legacy `date` column so behaviour is unchanged until ticket 05.
-     */
-    dateColumn?: "date" | "planned_date";
     /** Schedule scope: also match tasks whose due date is the requested day. */
     includeDue?: boolean;
 }
@@ -77,7 +67,10 @@ export const COMPLETED_PREDICATE = "t.completed_at IS NOT NULL";
 export const INCOMPLETE_PREDICATE = "t.completed_at IS NULL";
 
 const PRIORITY_ORDER = `CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END`;
-const STATUS_ORDER = `CASE t.status WHEN 'in_progress' THEN 1 WHEN 'in_review' THEN 2 WHEN 'pending' THEN 3 WHEN 'done' THEN 4 END`;
+// Schedule ordering groups by workflow-state category, which is the only
+// status the schema has (D4). A scalar subquery keeps the ordering usable by
+// every caller without forcing a join into the collection SQL.
+const STATUS_ORDER = `CASE (SELECT ws.category FROM workflow_states ws WHERE ws.id = t.workflow_state_id) WHEN 'in_progress' THEN 1 WHEN 'in_review' THEN 2 WHEN 'open' THEN 3 WHEN 'done' THEN 4 END`;
 
 const ORDER_BY: Record<TaskCollectionScope, string> = {
     // Manual rank is the stored order; priority is a temporary sort the client
@@ -88,7 +81,8 @@ const ORDER_BY: Record<TaskCollectionScope, string> = {
 };
 
 const VALID_PRIORITIES = ["low", "medium", "high"];
-const VALID_STATUSES = ["pending", "in_progress", "in_review", "done"];
+/** Workflow-state keys are tenant-defined, so only the shape is validated. */
+const STATUS_KEY_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
 
 function parseId(value: string | undefined): number | null {
     if (value === undefined || value === null || value === "") return null;
@@ -121,25 +115,21 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
         // Backlog is the only container dimension: not in a sprint. A planned
         // date is metadata and never removes a task from the backlog.
         conditions.push("t.sprint_id IS NULL");
-        if (input.filters?.excludeScheduled) {
-            conditions.push("t.date IS NULL");
-        }
     } else if (input.scope === "board") {
         push(`t.sprint_id = $${pi}`, input.sprintId);
     } else {
-        const dateColumn = input.filters?.dateColumn === "planned_date" ? "t.planned_date" : "t.date";
         if (input.sprintId !== undefined) {
             push(`t.sprint_id = $${pi}`, input.sprintId);
         } else if (input.startDate && input.endDate) {
-            push(`${dateColumn} >= $${pi} AND ${dateColumn} <= $${pi + 1}`, input.startDate, input.endDate);
+            push(`t.planned_date >= $${pi} AND t.planned_date <= $${pi + 1}`, input.startDate, input.endDate);
         } else if (input.date) {
             if (input.filters?.includeDue) {
                 push(
-                    `(t.sprint_id IS NULL AND ${dateColumn} IS NOT NULL AND (${dateColumn} = $${pi} OR t.due_date = $${pi}))`,
+                    `(t.sprint_id IS NULL AND t.planned_date IS NOT NULL AND (t.planned_date = $${pi} OR t.due_date = $${pi}))`,
                     input.date,
                 );
             } else {
-                push(`${dateColumn} = $${pi}`, input.date);
+                push(`t.planned_date = $${pi}`, input.date);
             }
         }
     }
@@ -181,8 +171,11 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
         push(`t.priority = $${pi}`, filters.priority);
     }
 
-    if (filters.status && VALID_STATUSES.includes(filters.status)) {
-        push(`t.status = $${pi}`, filters.status);
+    if (filters.status && STATUS_KEY_PATTERN.test(filters.status)) {
+        push(
+            `t.workflow_state_id IN (SELECT id FROM workflow_states WHERE org_id = t.org_id AND key = $${pi})`,
+            filters.status,
+        );
     }
 
     if (filters.search && filters.search.trim()) {
@@ -248,7 +241,7 @@ export interface CollectionDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>;
 }
 
-/** Every task in one sprint, in board order. */
+/** Every task in one sprint, in board order, with its workflow state. */
 export async function listSprintTasks(db: CollectionDb, orgId: number | null, sprintId: number) {
     const collection = buildTaskCollection({
         scope: "board",
@@ -257,7 +250,12 @@ export async function listSprintTasks(db: CollectionDb, orgId: number | null, sp
         sprintId,
     });
     return (await db.query(
-        `SELECT t.* FROM tasks t WHERE ${collection.whereSql} ORDER BY ${collection.orderSql}`,
+        `SELECT t.*, ws.key AS workflow_state_key, ws.name AS workflow_state_name,
+                ws.category AS workflow_state_category
+           FROM tasks t
+           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+          WHERE ${collection.whereSql}
+          ORDER BY ${collection.orderSql}`,
         collection.params,
     )).rows;
 }

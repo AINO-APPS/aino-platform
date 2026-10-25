@@ -280,10 +280,23 @@ describe("Tenant Isolation - Tasks", () => {
 
 describe("task realtime fan-out (task_updated)", () => {
     const ws = require("../utils/ws");
-    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, status: "pending", title: "Ship it" };
+    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, workflow_state_id: 10, title: "Ship it" };
+    const states = [
+        { id: 10, key: "pending", category: "open", is_initial: true, is_terminal: false },
+        { id: 11, key: "in_progress", category: "in_progress", is_initial: false, is_terminal: false },
+        { id: 12, key: "done", category: "done", is_initial: false, is_terminal: true },
+    ];
 
     function routeQueries(routes: Array<[RegExp, any[]]>) {
-        mockQuery.mockImplementation(async (sql: string) => {
+        mockQuery.mockImplementation(async (sql: string, params?: any[]) => {
+            // The workflow state is the only status (D4), so every status
+            // change resolves a real `workflow_states` row. Honour the id/key
+            // the caller asked for so a state change is actually detected.
+            if (/FROM workflow_states/.test(sql)) {
+                const wanted = params?.[0];
+                const match = states.filter((state) => state.id === wanted || state.key === wanted);
+                return { rows: match, rowCount: match.length };
+            }
             for (const [re, rows] of routes) if (re.test(sql)) return { rows, rowCount: rows.length };
             return { rows: [], rowCount: 0 };
         });
@@ -336,7 +349,7 @@ describe("task realtime fan-out (task_updated)", () => {
 
         expect(res.status).toBe(403);
         expect(res.body.error).toMatch(/assignee or reporter/);
-        const updated = mockQuery.mock.calls.some(([sql]: any[]) => typeof sql === "string" && sql.includes("UPDATE tasks SET status"));
+        const updated = mockQuery.mock.calls.some(([sql]: any[]) => typeof sql === "string" && sql.includes("UPDATE tasks SET workflow_state_id"));
         expect(updated).toBe(false);
     });
 

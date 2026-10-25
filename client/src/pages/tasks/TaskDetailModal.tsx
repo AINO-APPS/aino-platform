@@ -181,7 +181,7 @@ export default function TaskDetailModal({
             setEditPriority(detailTask.priority || "medium");
             setEditAssignedTo(String(detailTask.assigned_to || ""));
             setEditDueDate(detailTask.due_date || "");
-            setEditPlannedDate(detailTask.planned_date || detailTask.date || "");
+            setEditPlannedDate(detailTask.planned_date || "");
             setEditSprintId(detailTask.sprint_id || "");
             setEditLabels(detailTask.labels?.map((l: any) => l.id) || []);
             setEditLabelDropdownOpen(false);
@@ -220,13 +220,13 @@ export default function TaskDetailModal({
     const colInfo = currentStatusOption(detailTask, workflowStates, statusOpts) || statusOpts[0];
     const dueFmt = formatDueDate(detailTask.due_date);
     const overdue =
-        isDueOverdue(detailTask.due_date) && detailTask.status !== "done";
+        isDueOverdue(detailTask.due_date) && !detailTask.completed_at;
     // `planned_date` is the scheduling field; `date` is the legacy column the
     // server still mirrors it into until the contract migration lands.
-    const plannedDate = detailTask.planned_date || detailTask.date || null;
+    const plannedDate = detailTask.planned_date || null;
     // A task is "backlog" only if it has neither a scheduled date nor a sprint
     // assignment. Sprint tickets without a daily-planner date are NOT backlog.
-    const isBacklogItem = !detailTask.date && !detailTask.sprint_id;
+    const isBacklogItem = !detailTask.sprint_id;
 
     return (
         <TaskDetailSheet

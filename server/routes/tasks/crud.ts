@@ -72,8 +72,8 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         const enriched = await enrichTasks(tasks, req.db);
         const total = enriched.length;
-        const done = enriched.filter((t: any) => t.status === 'done').length;
-        const inProgress = enriched.filter((t: any) => t.status === 'in_progress').length;
+        const done = enriched.filter((t: any) => t.workflow_state_category === 'done').length;
+        const inProgress = enriched.filter((t: any) => t.workflow_state_category === 'in_progress').length;
 
         res.json({ tasks: enriched, stats: { total, done, inProgress, percent: total > 0 ? Math.round((done / total) * 100) : 0 } });
     } catch (err) {
@@ -161,7 +161,6 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
         const wsId = initialState ? initialState.id : null;
-        const statusKey = initialState ? initialState.key : 'pending';
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
@@ -199,14 +198,14 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             }
             const insertRes = await client.query(
                 `INSERT INTO tasks
-                    (user_id, date, title, description, priority, status, assigned_to, due_date,
+                    (user_id, planned_date, title, description, priority, assigned_to, due_date,
                      sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19)
                  RETURNING id`,
                 [req.userId, targetDate, title.trim(), description?.trim() || null, validPriority,
-                    statusKey, assignedTo, validDueDate, validSprintId, req.userOrgId || null,
+                    assignedTo, validDueDate, validSprintId, req.userOrgId || null,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
@@ -242,13 +241,12 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
 // ─── Update task status ──────────────────────────────────────────────────
 //
-// Status can be supplied as either:
-//   - { status: <workflow_state.key> }   (legacy + tenants on default workflow)
-//   - { workflow_state_id: <id> }        (new tenant-customisable workflow)
+// The workflow state is the only status (D4). A caller may supply either:
+//   - { workflow_state_id: <id> }
+//   - { status: <workflow_state.key> }
 //
-// We resolve to the matching workflow_states row in the requester's org and
-// keep both `tasks.status` (key) and `tasks.workflow_state_id` (id) in sync.
-// The is_terminal flag drives `completed_at`.
+// Both resolve to a `workflow_states` row in the requester's org. The state's
+// category drives `completed_at`, which the database trigger maintains.
 router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
@@ -263,22 +261,11 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         if (frozen) return res.status(409).json(frozen);
 
         // Resolve target workflow state. Accept either a numeric workflow_state_id
-        // or a status key (back-compat with default 'pending'/'in_progress'/...).
+        // or a state key (the default keys are pending/in_progress/in_review/done).
         let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
         if (!target && status) target = await resolveWorkflowState(status, req.userOrgId, req.db);
-        // Bug #4 (Stage 2): if the org has *any* configured workflow_states, an
-        // unknown key is invalid — don't save an inconsistent (status, NULL
-        // workflow_state_id) pair that the Kanban UI then can't render.
-        // Only fall through to the legacy hard-coded keys when no states
-        // exist at all for the org (brand-new tenants pre-seed).
-        if (!target && status && ['pending', 'in_progress', 'in_review', 'done'].includes(status)) {
-            const anyStateRow = req.userOrgId
-                ? (await req.db!.query('SELECT 1 FROM workflow_states WHERE org_id = $1 AND is_active = TRUE LIMIT 1', [req.userOrgId])).rowCount
-                : 0;
-            if (!anyStateRow) {
-                target = { id: null, key: status, is_terminal: status === 'done' };
-            }
-        }
+        // An unknown key is invalid: there is no status column to fall back to,
+        // so a task must always point at a real workflow state.
         if (!target) return res.status(400).json({ error: 'Invalid status / workflow state' });
 
         // ── Phase 3: WIP enforcement ────────────────────────────────────────
@@ -317,33 +304,30 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         // (i.e. work actually begins). This stamp is what we use later to
         // compute cycle time = completed_at - cycle_started_at.
         //
-        // Bug #2 (Stage 2): the old check used `target.key !== 'pending'` —
-        // but a tenant that renamed/added an initial state would never start
-        // the cycle. Use `is_initial` + `category === 'open'` from the
-        // workflow_states row so custom workflows work too. We still fall
-        // back to the legacy key when no state row was resolved (very old
-        // tenants where the catalog isn't seeded).
-        // `completed_at` is derived by the database from the workflow-state
-        // category (migration 0011), so the server never writes it. The trigger
-        // sets it on entering a done state and clears it on leaving.
+        // Use `is_initial` + `category === 'open'` from the workflow_states row
+        // so a tenant that renamed or added an initial state still starts the
+        // cycle. `completed_at` is derived by the database from the
+        // workflow-state category (migration 0011), so the server never writes
+        // it: the trigger sets it on entering a done state and clears it on
+        // leaving.
         let cycleStartedAtClause = '';
         const wasOpen = !task.cycle_started_at;
-        const targetIsStartOfWork = target.id
-            ? (!target.is_terminal && !target.is_initial && (target.category ? target.category !== 'open' : true))
-            : (!target.is_terminal && target.key !== 'pending');
+        const targetIsStartOfWork = !target.is_terminal
+            && !target.is_initial
+            && (target.category ? target.category !== 'open' : true);
         const startsCycle = wasOpen && targetIsStartOfWork;
         if (startsCycle) cycleStartedAtClause = ', cycle_started_at = NOW()';
 
         await req.db!.query(
-            `UPDATE tasks SET status = $1, workflow_state_id = $2${cycleStartedAtClause}
-              WHERE id = $3`,
-            [target.key, target.id, id]
+            `UPDATE tasks SET workflow_state_id = $1${cycleStartedAtClause}
+              WHERE id = $2`,
+            [target.id, id]
         );
 
-        if (task.status !== target.key) {
-            await logHistory(id, req.userId, 'status_change', 'status', task.status, target.key, null, req.db);
+        if (String(task.workflow_state_id ?? '') !== String(target.id ?? '')) {
+            await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, target.id, null, req.db);
             // Bug #16: audit status transitions too.
-            logAction(req, 'update', 'task', id, { from: task.status, to: target.key, field: 'status' });
+            logAction(req, 'update', 'task', id, { from: task.workflow_state_id, to: target.id, field: 'workflow_state' });
         }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
@@ -442,15 +426,14 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         let newDueDate = task.due_date;
         if (due_date !== undefined) {
             newDueDate = (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) ? due_date : null;
-            // Bug #15: reject due_date earlier than the task date.
-            if (newDueDate && task.date && newDueDate < task.date) {
+            // Bug #15: reject due_date earlier than the planned date.
+            if (newDueDate && task.planned_date && newDueDate < task.planned_date) {
                 return res.status(400).json({ error: 'Due date cannot be earlier than the task date' });
             }
         }
 
-        // `planned_date` is the scheduling field; `date` is the legacy column
-        // the contract migration will drop, so both are kept in step until then.
-        let newPlannedDate = task.planned_date ?? task.date ?? null;
+        // `planned_date` is the only scheduling field (D2).
+        let newPlannedDate = task.planned_date ?? null;
         if (planned_date !== undefined) {
             newPlannedDate = (planned_date && /^\d{4}-\d{2}-\d{2}$/.test(planned_date))
                 ? planned_date : null;
@@ -500,7 +483,6 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
         }
         let newWsId = task.workflow_state_id;
-        let newStatusKey = task.status;
         let newWsRow = null;
         if (workflow_state_id !== undefined) {
             if (workflow_state_id === null || workflow_state_id === '') {
@@ -511,12 +493,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 if (!newWsRow) return res.status(400).json({ error: 'Invalid workflow_state' });
             }
             newWsId = newWsRow ? newWsRow.id : null;
-            newStatusKey = newWsRow ? newWsRow.key : task.status;
             // Bug #13 (Stage 2): only check permission when the state actually
             // changed. `completed_at` is derived by the database trigger, so
             // this route never writes it.
-            const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '')
-                || String(newStatusKey || '') !== String(task.status || '');
+            const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '');
             if (stateChanged && !canChangeTaskStatus(task, req.userId, req.userRole)) {
                 return res.status(403).json({ error: STATUS_FORBIDDEN });
             }
@@ -550,12 +530,12 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         await req.db!.query(
             `UPDATE tasks SET title = $1, description = $2, priority = $3, assigned_to = $4,
                 due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
-                workflow_state_id = $9, status = $10, parent_task_id = $11,
-                acceptance_criteria = $12, is_blocked = $13, blocked_reason = $14,
-                project_id = $15, task_number = $16, planned_date = $17, date = $17
-              WHERE id = $18`,
+                workflow_state_id = $9, parent_task_id = $10,
+                acceptance_criteria = $11, is_blocked = $12, blocked_reason = $13,
+                project_id = $14, task_number = $15, planned_date = $16
+              WHERE id = $17`,
             [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
-                newStoryPoints, newWitId, newWsId, newStatusKey, newParentTaskId,
+                newStoryPoints, newWitId, newWsId, newParentTaskId,
                 newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                 newIsBlocked, newBlockedReason, newProjectId, newTaskNumber,
                 newPlannedDate, id]
@@ -584,9 +564,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             await logHistory(id, req.userId, 'updated', 'assigned_to', oldLabel, newLabel, null, req.db);
         }
         if (newDueDate !== task.due_date) await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, newDueDate, null, req.db);
-        if (newPlannedDate !== (task.planned_date ?? task.date ?? null)) {
+        if (newPlannedDate !== (task.planned_date ?? null)) {
             await logHistory(id, req.userId, 'updated', 'planned_date',
-                task.planned_date ?? task.date ?? null, newPlannedDate, null, req.db);
+                task.planned_date ?? null, newPlannedDate, null, req.db);
         }
         if (String(newSprintId || '') !== String(task.sprint_id || '')) {
             const oldSprint = task.sprint_id ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [task.sprint_id])).rows[0] : null;
@@ -611,8 +591,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const newWit = newWitId ? (newWitRow || (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [newWitId])).rows[0]) : null;
             await logHistory(id, req.userId, 'updated', 'work_item_type', oldWit?.name || 'none', newWit?.name || 'none', null, req.db);
         }
-        if (String(newStatusKey || '') !== String(task.status || '')) {
-            await logHistory(id, req.userId, 'status_change', 'status', task.status, newStatusKey, null, req.db);
+        if (String(newWsId ?? '') !== String(task.workflow_state_id ?? '')) {
+            await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, newWsId, null, req.db);
         }
         if (String(newParentTaskId ?? '') !== String(task.parent_task_id ?? '')) {
             await logHistory(id, req.userId, 'updated', 'parent', task.parent_task_id || 'none', newParentTaskId || 'none', null, req.db);

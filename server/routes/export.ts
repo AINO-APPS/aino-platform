@@ -141,17 +141,18 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
         let dateFilter = "";
         const params: unknown[] = [req.userId];
         if (from && to) {
-            dateFilter = " AND t.date BETWEEN $2 AND $3";
+            dateFilter = " AND t.planned_date BETWEEN $2 AND $3";
             params.push(from, to);
         }
 
         const tasks = (await req.db!.query(`
-            SELECT t.date, t.title, t.status, t.priority, t.due_date,
+            SELECT t.planned_date AS date, t.title, ws.key AS status, t.priority, t.due_date,
                    u.full_name AS assigned_to_name
             FROM tasks t
             LEFT JOIN users u ON u.id = t.assigned_to
+            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
             WHERE t.user_id = $1${dateFilter}
-            ORDER BY t.date DESC, t.id DESC
+            ORDER BY t.planned_date DESC, t.id DESC
         `, params)).rows;
 
         const fields = [
@@ -247,7 +248,7 @@ router.get("/team-analytics", requireRole("team_lead"), async (req: Request, res
             });
 
             const tasksDone = (await req.db!.query(
-                "SELECT COUNT(*) AS c FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND status = 'done' AND date BETWEEN $2 AND $3",
+                "SELECT COUNT(*) AS c FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND completed_at IS NOT NULL AND planned_date BETWEEN $2 AND $3",
                 [member.id, from, to]
             )).rows[0].c;
 

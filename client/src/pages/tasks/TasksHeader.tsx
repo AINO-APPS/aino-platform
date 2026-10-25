@@ -361,7 +361,7 @@ export default function TasksHeader({
                                         PRIORITIES.find((pr) => pr.value === task.priority) ||
                                         PRIORITIES[1];
                                     const colInfo =
-                                        COLUMNS.find((c) => c.id === task.status) || COLUMNS[0];
+                                        COLUMNS.find((c) => c.id === task.workflow_state_key) || COLUMNS[0];
                                     return (
                                         <div
                                             key={task.id}
@@ -402,7 +402,7 @@ export default function TasksHeader({
                                                 >
                                                     {pri.icon} {pri.label}
                                                 </span>
-                                                {task.date ? (
+                                                {task.planned_date ? (
                                                     <span className={s["global-search-date"]}>
                                                         <CalendarDays
                                                             size={11}
@@ -411,7 +411,7 @@ export default function TasksHeader({
                                                                 verticalAlign: "middle",
                                                             }}
                                                         />
-                                                        {task.date}
+                                                        {task.planned_date}
                                                     </span>
                                                 ) : (
                                                     <span className={s["global-search-date"]}>

@@ -7,6 +7,7 @@
  */
 import { notifyUser } from "../../realtime/fanout";
 import { describeSprintCompletion, sprintLink } from "../../modules/tasks/tasks.notifications";
+import { findTeamMemberIds } from "../../modules/tasks/tasks.sprintRepository";
 
 interface SprintLike {
     id: number | string;
@@ -31,13 +32,9 @@ async function sprintAudience(
     teamId: number,
     actorId: number | null | undefined,
 ): Promise<number[]> {
-    const rows = (await req.db.query(
-        "SELECT id FROM users WHERE team_id = $1 AND is_active = TRUE",
-        [teamId],
-    )).rows;
+    const rows = await findTeamMemberIds(req.db, teamId);
     const actor = Number(actorId);
     return rows
-        .map((row: any) => Number(row.id))
         .filter((id: number) => Number.isFinite(id) && id > 0 && id !== actor);
 }
 

@@ -24,12 +24,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         const today = getLocalToday(req);
 
         const lastTaskDay = (await req.db!.query(`
-            SELECT date FROM tasks
+            SELECT planned_date AS date FROM tasks
             WHERE (user_id = $1 OR assigned_to = $1)
-              AND date::date < $2::date
-              AND date::date >= $2::date - INTERVAL '7 days'
+              AND planned_date < $2::date
+              AND planned_date >= $2::date - INTERVAL '7 days'
               AND ((org_id = $3) OR (org_id IS NULL AND $3::integer IS NULL))
-            ORDER BY date DESC LIMIT 1
+            ORDER BY planned_date DESC LIMIT 1
         `, [req.userId, today, req.userOrgId || null])).rows[0];
 
         if (!lastTaskDay) return res.json({ message: 'No tasks to carry forward', carried: 0 });
@@ -42,12 +42,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         // labels.
         const incomplete = (await req.db!.query(`
             SELECT id, title, description, priority, assigned_to, due_date,
-                   story_points, work_item_type_id, workflow_state_id, status,
+                   story_points, work_item_type_id, workflow_state_id,
                    parent_task_id, acceptance_criteria, is_blocked, blocked_reason
               FROM tasks
              WHERE (user_id = $1 OR assigned_to = $1)
-               AND date = $2
-               AND status != 'done'
+               AND planned_date = $2
+               AND completed_at IS NULL
                AND ((org_id = $3) OR (org_id IS NULL AND $3::integer IS NULL))
         `, [req.userId, lastTaskDay.date, req.userOrgId || null])).rows;
 
@@ -62,7 +62,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                 const exists = (await client.query(
                     `SELECT id FROM tasks
                       WHERE (user_id = $1 OR assigned_to = $1)
-                        AND date = $2
+                        AND planned_date = $2
                         AND LOWER(TRIM(title)) = LOWER(TRIM($3))
                         AND ((org_id = $4) OR (org_id IS NULL AND $4::integer IS NULL))`,
                     [req.userId, today, t.title, req.userOrgId || null]
@@ -74,13 +74,13 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                     // fresh "queued" copy for today.
                     const insertRes = await client.query(
                         `INSERT INTO tasks
-                            (user_id, date, title, description, priority, assigned_to, due_date, org_id,
-                             story_points, work_item_type_id, workflow_state_id, status,
+                            (user_id, planned_date, title, description, priority, assigned_to, due_date, org_id,
+                             story_points, work_item_type_id, workflow_state_id,
                              parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
                          RETURNING id`,
                         [req.userId, today, t.title, t.description, t.priority, t.assigned_to, dueDate, req.userOrgId || null,
-                        t.story_points, t.work_item_type_id, t.workflow_state_id, t.status,
+                        t.story_points, t.work_item_type_id, t.workflow_state_id,
                         t.parent_task_id,
                         t.acceptance_criteria ? JSON.stringify(t.acceptance_criteria) : null,
                         !!t.is_blocked, t.blocked_reason]
@@ -96,7 +96,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                             [newTaskId, lbl.label_id]
                         );
                     }
-                    await logHistory(newTaskId, req.userId, 'created', 'date', lastTaskDay.date, today, client, req.db);
+                    await logHistory(newTaskId, req.userId, 'created', 'planned_date', lastTaskDay.date, today, client, req.db);
                     count++;
                 }
             }

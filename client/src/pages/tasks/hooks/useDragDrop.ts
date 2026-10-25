@@ -80,7 +80,7 @@ export function useDragDrop({
         const task = tasks.find((t) => t.id === taskId);
         if (!task) return;
         const targetKey = col?.key || colId;
-        if (task.status === targetKey || task.workflow_state_id === col?.id)
+        if (task.workflow_state_key === targetKey || task.workflow_state_id === col?.id)
             return;
 
         const colLabel = col?.name || targetKey;
@@ -94,7 +94,7 @@ export function useDragDrop({
                         t.id === taskId
                             ? {
                                   ...t,
-                                  status: targetKey as string,
+                                  workflow_state_key: targetKey as string,
                                   workflow_state_id:
                                       col?.id || t.workflow_state_id,
                               }
@@ -102,11 +102,11 @@ export function useDragDrop({
                     ),
                 );
                 // Optimistic snapshot — restore on failure (e.g. WIP limit hit).
-                const previousStatus = task.status;
+                const previousStatus = task.workflow_state_key;
                 const previousStateId = task.workflow_state_id;
                 try {
                     // Send by key (back-compat with default workflow); server resolves to
-                    // workflow_state_id and writes both columns.
+                    // workflow_state_id.
                     await updateTaskStatus(taskId, String(targetKey));
                 } catch (err) {
                     // Roll back the optimistic move so the card snaps back to its
@@ -118,7 +118,7 @@ export function useDragDrop({
                             t.id === taskId
                                 ? {
                                       ...t,
-                                      status: previousStatus,
+                                      workflow_state_key: previousStatus,
                                       workflow_state_id: previousStateId,
                                   }
                                 : t,

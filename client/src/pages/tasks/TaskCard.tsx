@@ -68,7 +68,7 @@ export default function TaskCard({
 }: TaskCardProps) {
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
-    const overdue = isDueOverdue(task.due_date) && task.status !== "done";
+    const overdue = isDueOverdue(task.due_date) && !task.completed_at;
     // Compact keeps key, title and points; comfortable adds priority, assignee,
     // labels, description and due date.
     const compact = useCardDensity() === "compact";
@@ -104,7 +104,7 @@ export default function TaskCard({
         <div
             key={task.id}
             id={`task-${task.id}`}
-            className={`${s["task-card"]} ${s.clickable} ${compact ? s["task-card-compact"] : ""} ${task.status === "done" ? s["task-done"] : ""}`}
+            className={`${s["task-card"]} ${s.clickable} ${compact ? s["task-card-compact"] : ""} ${task.completed_at ? s["task-done"] : ""}`}
             draggable
             onDragStart={(e) => onDragStart(e, task.id)}
             onDragEnd={(e) => onDragEnd(e, task.id)}

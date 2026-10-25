@@ -80,7 +80,7 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         // on `t.org_id` directly. We still join users only to keep the column
         // list compatible for future enrichment, but it's no longer the gate.
         const rows = (await req.db!.query(
-            `SELECT t.id, t.title, t.status, t.workflow_state_id, t.is_blocked, t.story_points,
+            `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
                     t.work_item_type_id
                FROM tasks t
               WHERE t.org_id = $1
