@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] Every task ends with a workflow state whose category matches its former status; no row is skipped or guessed
 - [ ] Setting a workflow state in the done category sets the completion timestamp; moving it out clears it; the timestamp cannot be written directly by a client
@@ -13,3 +13,15 @@
 - [ ] A database seeded with an unmappable status fails the migration with a clear message naming the tenant and the offending value
 - [ ] The migration runs on an empty database without error
 - [ ] The test seam is a disposable Postgres applying the full tenant schema; run twice to prove idempotency
+
+## Comments
+
+### 2026-10-25
+
+Implementation is committed in `d35d6a36` and `556f49f8`. Server typecheck,
+build, and all 1,559 runnable tests pass. The two PostgreSQL integration tests
+were skipped because no local test database was available. Set
+`TASKS_SCHEMA_TEST_DATABASE_URL` to a disposable local PostgreSQL database
+whose name includes `test`, then run
+`npm test -- --runInBand __tests__/tasksSchemaExpand.integration.test.ts`
+from `server/` to complete the database verification.
