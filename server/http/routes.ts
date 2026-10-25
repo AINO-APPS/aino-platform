@@ -15,6 +15,7 @@ import trackerRoutes from "../routes/tracker";
 import leaveRoutes from "../routes/leaves";
 import taskRoutes from "../routes/tasks";
 import profileRoutes from "../routes/profile";
+import userPreferencesRoutes from "../routes/userPreferences";
 import organizationRoutes from "../routes/organization";
 import adminRoutes from "../routes/admin";
 import internalRoutes from "../routes/internal";
@@ -81,6 +82,7 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/agile", apiLimiter, webOnlyExcept((req) => !/^\/permissions\/(requests|grants)(\/|$)/.test(req.path)), agileRoutes);
     app.use("/api/profile/password", passwordLimiter);
     app.use("/api/profile", apiLimiter, profileRoutes);
+    app.use("/api/user/preferences", apiLimiter, userPreferencesRoutes);
     // Organization-page structure edits (departments / teams) stay on the app;
     // the Admin → My Organization operations below are web-only.
     app.use("/api/org", apiLimiter, webOnlyExcept((req) => !(

@@ -3,6 +3,7 @@ import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToS
 import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
+import { useTaskPreferences } from "./useTaskPreferences";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -88,6 +89,12 @@ export function useBacklog({
     const [completedOpen, setCompletedOpen] = useState(false);
     const [completedLoading, setCompletedLoading] = useState(false);
     const [completedShowingAll, setCompletedShowingAll] = useState(false);
+    // The stored preference decides whether the section starts expanded. A
+    // `completed` URL parameter overrides it for this view only.
+    const { showCompleted } = useTaskPreferences();
+    useEffect(() => {
+        setCompletedOpen(showCompleted);
+    }, [showCompleted]);
 
     // Resetting offset on filter/page-size change avoids landing on an empty
     // page when the filtered result set shrinks below the current offset.

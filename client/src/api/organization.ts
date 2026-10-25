@@ -34,6 +34,11 @@ export const getNotificationPrefs = () => API.get("/profile/notification-prefs")
 export const updateNotificationPrefs = (prefs: AnyData) =>
     API.put("/profile/notification-prefs", prefs);
 
+// Tasks preferences (shared by every client)
+export const getTaskPreferences = () => API.get("/user/preferences");
+export const updateTaskPreferences = (prefs: AnyData) =>
+    API.put("/user/preferences", prefs);
+
 // ==================== ENTERPRISE API ====================
 
 // Organization
