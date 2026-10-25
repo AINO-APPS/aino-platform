@@ -8,6 +8,9 @@ import TaskCard from "./TaskCard";
 import { formatDate, parseLocalDate } from "./utils";
 import { groupScheduled, nextDays, scheduledWindow, SCHEDULED_AHEAD_DAYS, SCHEDULED_PAST_DAYS } from "./scheduled";
 import { useVisiblePoll } from "./hooks/useVisiblePoll";
+import ScheduleCalendar from "./ScheduleCalendar";
+import type { CalendarMode } from "./calendar";
+import { getBacklog } from "../../api/tasks";
 import s from "./ScheduledTab.module.css";
 
 interface ScheduledTabProps {
@@ -37,6 +40,8 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const [error, setError] = useState("");
   const [rescheduleId, setRescheduleId] = useState<number | string | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState(today);
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>("month");
+  const [backlogTasks, setBacklogTasks] = useState<any[]>([]);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const load = useCallback(async () => {
@@ -55,6 +60,17 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   useEffect(() => { load(); }, [load, version]);
   useRealtimeEvent(["task_updated", "task_assigned"], () => { load(); });
   useVisiblePoll(load);
+
+  // The unscheduled tray is backlog work with no planned day.
+  const loadBacklog = useCallback(async () => {
+    try {
+      const res = await getBacklog({ limit: 200 });
+      setBacklogTasks(((res.data as any)?.tasks as any[]) || []);
+    } catch {
+      // The tray is supplementary; a failure must not block the calendar.
+    }
+  }, []);
+  useEffect(() => { void loadBacklog(); }, [loadBacklog, version]);
 
   const groups = useMemo(() => groupScheduled(tasks, today), [tasks, today]);
   const overdueCount = groups.find((g) => g.date === null)?.tasks.length ?? 0;
@@ -117,6 +133,26 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
 
   return (
     <div className={s.scheduled}>
+      <ScheduleCalendar
+        tasks={tasks}
+        backlogTasks={backlogTasks}
+        mode={calendarMode}
+        onModeChange={setCalendarMode}
+        onPlan={async (taskId, date) => {
+          await scheduleTask(taskId, date);
+          await load();
+          await loadBacklog();
+        }}
+        onUnschedule={async (taskId) => {
+          await unscheduleTask(taskId);
+          await load();
+          await loadBacklog();
+        }}
+        onOpenDetail={onOpenDetail}
+        today={today}
+      />
+      {calendarMode === "list" && (
+      <>
       <div className={s.toolbar}>
         <div className={s.week} role="list" aria-label="Jump to a day">
           {nextDays(today, 7).map((day) => {
@@ -202,6 +238,8 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         <p className={s.footnote}>
           Showing the past {SCHEDULED_PAST_DAYS} days (overdue) and the next {SCHEDULED_AHEAD_DAYS} days.
         </p>
+      )}
+      </>
       )}
     </div>
   );

@@ -1,0 +1,240 @@
+.schedule {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-control);
+}
+
+.schedule-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.schedule-nav,
+.schedule-modes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.schedule-nav button,
+.schedule-modes button {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.schedule-nav button:focus-visible,
+.schedule-modes button:focus-visible,
+.day-task:focus-visible,
+.tray-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.mode-active {
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+}
+
+.overdue-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border: 1px solid var(--danger, #ef4444);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent);
+    font-size: var(--font-meta-size);
+}
+
+.overdue-chip {
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.schedule-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: var(--space-gutter);
+}
+
+@media (max-width: 900px) {
+    .schedule-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.grid-week {
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+    overflow-x: auto;
+}
+
+.day {
+    min-height: 96px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.day-outside {
+    opacity: 0.5;
+}
+
+.day-today {
+    border-color: var(--primary);
+}
+
+.day-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.day-number {
+    font-size: var(--font-meta-size);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.day-totals {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.day-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.day-task {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    cursor: grab;
+}
+
+.day-task-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tray {
+    padding: var(--space-control);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.tray-title {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+}
+
+.tray-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.tray-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: grab;
+}
+
+.tray-item:hover {
+    background: var(--surface-hover);
+}
+
+.tray-item-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tray-points {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.tray-empty {
+    color: var(--text-muted);
+    font-size: var(--font-meta-size);
+}
+
+.list-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.list-day h4 {
+    margin: 0 0 4px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.list-day ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.list-day button {
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}

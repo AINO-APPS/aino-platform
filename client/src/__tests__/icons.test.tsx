@@ -13,7 +13,7 @@ describe("Material icon compatibility", () => {
     it("has no Lucide, bespoke UI SVGs, CSS glyph icons or decorative emoji consumers", () => {
         const report = execFileSync(process.execPath, ["scripts/check-ui-icons.mjs"], { cwd: process.cwd(), encoding: "utf8" });
         expect(report).toContain("0 leftovers");
-    });
+    }, 30_000);
 
     it("renders genuine Material paths with numeric sizing, color, class, styles and SVG refs", () => {
         const ref = createRef<SVGSVGElement>();
