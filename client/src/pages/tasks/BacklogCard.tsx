@@ -9,6 +9,7 @@ import { PRIORITIES, type PriorityOption } from "./constants";
 import { currentStatusOption, statusOptions } from "./taskStatus";
 import { formatDueDate, formatRelativeTime, isDueOverdue, stripHtml, getAvatarUrl } from "./utils";
 import { getLocalToday } from "../../api/client";
+import IssueKey from "./IssueKey";
 import s from "./BacklogTab.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {
@@ -109,7 +110,7 @@ export default function BacklogCard({
                         />
                     )}
                     <span className={s["backlog-ticket-id"]}>
-                        {task.issue_key || `#${task.id}`}
+                        <IssueKey task={task} />
                     </span>
                     <span
                         className={s["backlog-status-badge"]}

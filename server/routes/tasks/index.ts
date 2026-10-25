@@ -26,6 +26,7 @@ const hierarchyRouter = require('./hierarchy');
 const gitRouter = require('./git');
 const rankRouter = require('./rank');
 const bulkRouter = require('./bulk');
+const byKeyRouter = require('./byKey');
 const crudRouter = require('./crud');
 
 const router = express.Router();
@@ -54,6 +55,7 @@ router.use('/', hierarchyRouter);     // /:id/children, /:id/parent
 router.use('/', gitRouter);           // /:id/git
 router.use('/', rankRouter);          // /:id/rank
 router.use('/', bulkRouter);          // /bulk
+router.use('/', byKeyRouter);         // /by-key/:key
 
 // Generic CRUD last (owns GET /, POST /, PUT /:id, DELETE /:id, PATCH /:id/status)
 router.use('/', crudRouter);

@@ -113,6 +113,7 @@ export const bulkTaskAction = (data: {
     action: "move_to_sprint" | "status" | "assign" | "delete";
     value?: unknown;
 }) => API.post("/tasks/bulk", data);
+export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIComponent(key)}`);
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

@@ -7,7 +7,7 @@
  */
 import { useEffect } from "react";
 import type { NavigateFunction } from "react-router-dom";
-import { getTaskDetail } from "../../../api/tasks";
+import { getTaskByKey, getTaskDetail } from "../../../api/tasks";
 import { tasksViewPath, type TasksRoute } from "./useTasksRoute";
 
 const LEGACY_TABS = ["backlog", "sprint", "scheduled", "service-desk"];
@@ -55,7 +55,12 @@ export function useTaskDeepLink(
     useEffect(() => {
         const taskId = searchParams.get("task");
         if (!taskId) return;
-        getTaskDetail(taskId)
+        // A canonical key (PROJ-123) resolves through its own endpoint; a
+        // numeric id uses the detail endpoint.
+        const request = /^[A-Za-z][A-Za-z0-9_]{1,9}-\d+$/.test(taskId)
+            ? getTaskByKey(taskId)
+            : getTaskDetail(taskId);
+        request
             .then((res) => openTaskDetail(res.data))
             .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
