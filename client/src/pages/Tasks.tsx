@@ -22,6 +22,7 @@ import TaskDetailModal from "./tasks/TaskDetailModal";
 import InlineCommentPanel from "./tasks/InlineCommentPanel";
 import ServiceDeskTab from "./tasks/ServiceDeskTab";
 import ScheduledTab from "./tasks/ScheduledTab";
+import SprintProgressCard from "./tasks/SprintProgressCard";
 import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
@@ -34,6 +35,7 @@ import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink } from "./tasks/hooks/useTasksRouteSync";
+import { useUndoToast } from "./tasks/hooks/useUndoToast";
 
 import s from "./Tasks.module.css";
 
@@ -174,6 +176,10 @@ export default function Tasks() {
     fetchBacklog: backlog.fetchBacklog,
     setError,
   } as any) as any;
+
+  // Undo affordance: every destructive or moving action offers its inverse for
+  // ten seconds, reachable and operable by keyboard.
+  const offerUndo = useUndoToast(toast, () => backlog.undo.undo());
   const comments = useComments({
     showConfirm,
     closeConfirm,
@@ -330,12 +336,10 @@ export default function Tasks() {
         : [...prev, labelId],
     );
   };
-  const getColTasks = (colId: string) =>
-    tasks.filter((t) => t.status === colId);
+  const getColTasks = (colId: string) => tasks.filter((t) => t.status === colId);
   const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
   const summaryAllActive = !filters.filterPriority;
-
   return (
     <TaskProvider
       assignableUsers={assignableUsers}
@@ -384,92 +388,23 @@ export default function Tasks() {
 
         {activeTab === "sprint" && (
           <>
-            <div className={s["tasks-progress-card"]}>
-              <div className={s["tasks-progress-info"]}>
-                <span className={s["tasks-progress-label"]}>
-                  {stats.done}/{stats.total} completed
-                </span>
-                <span className={s["tasks-progress-pct"]}>
-                  {stats.percent}%
-                </span>
-              </div>
-              <div className={s["tasks-progress-bar"]}>
-                <div
-                  className={s["tasks-progress-fill"]}
-                  style={
-                    {
-                      "--fill-width": `${stats.percent}%`,
-                    } as React.CSSProperties
-                  }
-                />
-              </div>
-              <div className={s["tasks-progress-counts"]}>
-                {COLUMNS.map((col: any) => (
-                  <span key={col.id} style={{ color: col.color }}>
-                    {col.icon} {getColTasks(col.id).length} {col.label}
-                  </span>
-                ))}
-              </div>
-              {features.storyPoints &&
-                sprintStats &&
-                sprintStats.totals.points > 0 && (
-                  <div
-                    className={s["tasks-progress-counts"]}
-                    style={{ marginTop: 6, fontWeight: 600 }}
-                  >
-                    <span title="Story points: done / total">
-                      <StatsIcon size="1em" /> {sprintStats.totals.donePoints} /{" "}
-                      {sprintStats.totals.points} {unitLabel} (
-                      {sprintStats.totals.percentByPoints}%)
-                    </span>
-                    {sprintStats.totals.unestimatedTasks > 0 && (
-                      <span style={{ color: "var(--warning, #f59e0b)" }}>
-                        <GlyphAlertTriangle size="1em" style={{ verticalAlign: "middle" }} /> {sprintStats.totals.unestimatedTasks} unestimated
-                      </span>
-                    )}
-                    {sprintStats.totals.blockedTasks > 0 && (
-                      <span style={{ color: "var(--danger, #ef4444)" }}>
-                        <GlyphBan size="1em" style={{ verticalAlign: "middle" }} /> {sprintStats.totals.blockedTasks} blocked
-                      </span>
-                    )}
-                  </div>
-                )}
-              {/* Sprint lifecycle controls (Start / Complete) — Pass 2 */}
-              {(() => {
-                const sp = availableSprints.find(
-                  (x) => x.id === selectedSprintId,
-                );
-                if (!sp) return null;
-                const canManageSprint = [
-                  "team_lead",
-                  "manager",
-                  "super_admin",
-                  "hr_admin",
-                  "platform_admin",
-                ].includes(currentUser?.role);
-                return (
-                  <div style={{ marginTop: 10 }}>
-                    <SprintLifecycleControls
-                      sprint={sp}
-                      canEdit={canManageSprint}
-                      onChanged={() => {
-                        // Refresh the sprint list + active selection so the badge / lifecycle controls update.
-                        // Also force a fresh stats fetch.
-                        queryClient.invalidateQueries({
-                          queryKey: ["tasks", "availableSprints"],
-                        });
-                        fetchTasks();
-                        if (selectedSprintId) {
-                          getSprintStats(selectedSprintId)
-                            .then((r) => setSprintStats(r.data))
-                            .catch(() => {});
-                        }
-                      }}
-                    />
-                  </div>
-                );
-              })()}
-            </div>
+            <SprintProgressCard
+              stats={stats}
+              sprintStats={sprintStats}
+              features={features}
+              unitLabel={unitLabel}
+              availableSprints={availableSprints}
+              selectedSprintId={selectedSprintId}
+              currentUser={currentUser}
+              getColTasks={getColTasks}
+              onSprintChanged={() => {
+                queryClient.invalidateQueries({ queryKey: ["tasks", "availableSprints"] });
+                fetchTasks();
+                if (selectedSprintId) {
+                  getSprintStats(selectedSprintId).then((r) => setSprintStats(r.data)).catch(() => {});
+                }
+              }}
+            />
 
             {carriedCount > 0 && (
               <div className={s["carry-banner"]}>
@@ -538,6 +473,8 @@ export default function Tasks() {
         {activeTab === "backlog" && (
           <BacklogTab
             {...backlog}
+            onQuickAdd={backlog.quickAdd}
+            onInlineEdit={backlog.inlineEdit}
             filterPriority={filters.filterPriority}
             summaryAllActive={summaryAllActive}
             error={error}

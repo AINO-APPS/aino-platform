@@ -34,6 +34,7 @@ import { getLocalToday } from "../../api/client";
 import { useTaskCtx } from "./TaskContext";
 import CompletedSection from "./CompletedSection";
 import BacklogCard from "./BacklogCard";
+import QuickAdd from "./QuickAdd";
 import s from "./BacklogTab.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {
@@ -87,6 +88,8 @@ interface BacklogTabProps {
     onShowAllCompleted: () => void;
     reorder: any;
     reorderAnnouncement: string;
+    onQuickAdd: (title: string) => Promise<void> | void;
+    onInlineEdit: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
     scheduleTaskId: number | string | null;
     setScheduleTaskId: (v: number | string | null) => void;
     scheduleDate: string;
@@ -151,6 +154,8 @@ export default function BacklogTab({
     onShowAllCompleted,
     reorder,
     reorderAnnouncement,
+    onQuickAdd,
+    onInlineEdit,
     scheduleTaskId,
     setScheduleTaskId,
     scheduleDate,
@@ -232,6 +237,9 @@ export default function BacklogTab({
                     </span>
                 </div>
             )}
+
+            {/* Quick-add: capture without a modal, keeping focus for the next one. */}
+            <QuickAdd onCreate={onQuickAdd} />
 
             {/* Add Backlog Form */}
             {backlogFormOpen && (
@@ -435,6 +443,7 @@ export default function BacklogTab({
                             onOpenDetail={onOpenDetail}
                             onScheduleTask={onScheduleTask}
                             reorder={reorder}
+                            onInlineEdit={onInlineEdit}
                         />
                     ))}
                     <div className="sr-only" role="status" aria-live="polite">

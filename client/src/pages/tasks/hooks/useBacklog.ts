@@ -5,6 +5,7 @@ import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
 import { useBacklogReorder } from "./useBacklogReorder";
+import { useUndo } from "./useUndo";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -98,6 +99,7 @@ export function useBacklog({
         onError: setError,
         onAnnounce: setReorderAnnouncement,
     });
+    const undo = useUndo();
     // The stored preference decides whether the section starts expanded. A
     // `completed` URL parameter overrides it for this view only.
     const { showCompleted } = useTaskPreferences();
@@ -237,6 +239,51 @@ export function useBacklog({
         }
     };
 
+    /**
+     * Quick-add: create from a title alone and keep the list in place. The
+     * caller keeps focus, so consecutive entry never needs the mouse.
+     */
+    const quickAdd = useCallback(async (title: string) => {
+        try {
+            await addBacklogTask({ title, priority: "medium" });
+            await fetchBacklog();
+        } catch (err) {
+            const error = err as { response?: { data?: { error?: string } } };
+            setError(error.response?.data?.error || "Failed to create backlog item");
+        }
+    }, [fetchBacklog, setError]);
+
+    /**
+     * Inline edit: patch one field without opening the detail view. The prior
+     * value is registered for undo so a mis-click is reversible.
+     */
+    const inlineEdit = useCallback(async (
+        task: Task,
+        patch: Record<string, unknown>,
+    ) => {
+        const previous = Object.fromEntries(
+            Object.keys(patch).map((key) => [key, (task as any)[key]]),
+        );
+        setBacklogTasks((current) =>
+            current.map((item) => (item.id === task.id ? { ...item, ...patch } : item)),
+        );
+        try {
+            await updateTask(task.id, patch);
+            undo.register({
+                label: "Edited ticket",
+                undo: async () => {
+                    await updateTask(task.id, previous);
+                    await fetchBacklog();
+                },
+            });
+        } catch {
+            setBacklogTasks((current) =>
+                current.map((item) => (item.id === task.id ? { ...item, ...previous } : item)),
+            );
+            setError("Failed to save ticket");
+        }
+    }, [fetchBacklog, setError, undo, setBacklogTasks]);
+
     const handleScheduleTask = (
         taskId: number | string,
         taskTitle: string | undefined,
@@ -375,6 +422,9 @@ export function useBacklog({
         showAllCompleted,
         reorder,
         reorderAnnouncement,
+        quickAdd,
+        inlineEdit,
+        undo,
         backlogFormOpen,
         setBacklogFormOpen,
         backlogTitle,

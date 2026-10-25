@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { CalendarDays, MessageSquare, X } from "../../constants/icons";
 import {
     StoryPointBadge,
@@ -33,6 +33,8 @@ interface BacklogCardProps {
         onDragOver: (taskId: number | string) => void;
         onDrop: (taskId: number | string) => void;
     };
+    /** Patch one field without opening the detail view. */
+    onInlineEdit?: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
 }
 
 /** One backlog row. Extracted so the tab stays within the file-size ratchet. */
@@ -46,7 +48,10 @@ export default function BacklogCard({
     onOpenDetail,
     onScheduleTask,
     reorder,
+    onInlineEdit,
 }: BacklogCardProps) {
+    const [editingTitle, setEditingTitle] = useState(false);
+    const [titleDraft, setTitleDraft] = useState(task.title ?? "");
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && task.status !== "done";
@@ -128,7 +133,49 @@ export default function BacklogCard({
                             </span>
                         ))}
                 </div>
-                <span className={s["backlog-card-title"]}>{task.title}</span>
+                <span className={s["backlog-card-title"]}>
+                    {editingTitle ? (
+                        <input
+                            className={s["backlog-inline-input"]}
+                            value={titleDraft}
+                            autoFocus
+                            aria-label="Ticket title"
+                            onChange={(event) => setTitleDraft(event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
+                            onBlur={() => {
+                                setEditingTitle(false);
+                                const next = titleDraft.trim();
+                                if (next && next !== task.title) {
+                                    void onInlineEdit?.(task, { title: next });
+                                } else {
+                                    setTitleDraft(task.title ?? "");
+                                }
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    (event.target as HTMLInputElement).blur();
+                                }
+                                if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    setTitleDraft(task.title ?? "");
+                                    setEditingTitle(false);
+                                }
+                            }}
+                        />
+                    ) : (
+                        <span
+                            onDoubleClick={(event) => {
+                                if (!onInlineEdit) return;
+                                event.stopPropagation();
+                                setEditingTitle(true);
+                            }}
+                            title={onInlineEdit ? "Double-click to edit" : undefined}
+                        >
+                            {task.title}
+                        </span>
+                    )}
+                </span>
                 {descPreview && (
                     <div className={s["backlog-desc-preview"]}>{descPreview}</div>
                 )}
