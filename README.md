@@ -39,6 +39,7 @@ A multi-tenant, enterprise-grade workforce platform that combines **time trackin
 **Tasks**
 - **Kanban board** with **drag-and-drop**, optimistic updates, and column-by-column WIP limits.
 - **Backlog** view with filter, sort, bulk-import to active sprint, story-point planning poker style.
+- **Route-backed tabs** in web and desktop: `/tasks/backlog`, `/tasks/schedule`, `/tasks/desk`, and `/tasks/sprint/:id` (plus `/plan`). Nested Tasks URLs share the cached Tasks page; tab clicks and direct links stay in Tasks instead of redirecting home.
 - **Service Desk** tab — bug reports / feature requests / access issues that mirror into a triageable backlog for org admins.
 - Rich-text descriptions, **acceptance criteria checklists**, attachments, threaded comments with **@mentions** (notification + email), labels (org-wide), priority, due dates, assignment.
 - **Dependencies** (`blocks` / `relates` / `duplicates` / `clones`) and **parent-child links** for Epic → Story rollups.

@@ -135,11 +135,14 @@ const KEEP_ALIVE_PATHS = [
   "/leave-policy",
 ];
 
+function isKeepAlivePath(pathname: string) {
+  // Nested Tasks views share one cached page in both web and desktop.
+  return KEEP_ALIVE_PATHS.includes(pathname) || pathname.startsWith("/tasks/");
+}
+
 function KeepAliveRoutes() {
   const { pathname } = useLocation();
-  const isKeepAlivePath = KEEP_ALIVE_PATHS.includes(pathname);
-
-  return isKeepAlivePath ? <KeepAlive /> : null;
+  return isKeepAlivePath(pathname) ? <KeepAlive /> : null;
 }
 
 /**
@@ -153,7 +156,7 @@ function CatchAll() {
   const { isAuthenticated } = useAuth() as any;
   const { pathname } = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" />;
-  return KEEP_ALIVE_PATHS.includes(pathname) ? null : <Navigate to="/" replace />;
+  return isKeepAlivePath(pathname) ? null : <Navigate to="/" replace />;
 }
 
 function AppRoutes() {
