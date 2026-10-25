@@ -6,7 +6,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(4px);
   animation: fadeIn 0.15s ease;
 }
 
@@ -17,7 +16,7 @@
 
 .modal {
   background: var(--surface, #1e1e3a);
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  border: 1px solid var(--border);
   border-radius: 16px;
   max-width: 700px;
   width: 90vw;
@@ -32,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+  border-bottom: 1px solid var(--border);
 }
 
 .title {
@@ -126,13 +125,13 @@
   display: flex;
   justify-content: flex-end;
   padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--glass-border, rgba(255,255,255,0.08));
+  border-top: 1px solid var(--border);
 }
 
 .cancelBtn {
   background: transparent;
   color: var(--text-secondary, #999);
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.15));
+  border: 1px solid var(--border);
   padding: 0.4rem 1rem;
   border-radius: 8px;
   font-size: 0.8rem;

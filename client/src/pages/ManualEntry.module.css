@@ -43,7 +43,7 @@
 .work-mode-toggle {
   display: flex;
   background: var(--surface);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
   width: fit-content;
@@ -81,9 +81,8 @@
 }
 
 .manual-entry-card {
-  background: var(--glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem;
   box-shadow: var(--shadow);
@@ -511,7 +510,7 @@
 .overtime-section {
   margin-top: 3rem;
   padding-top: 2rem;
-  border-top: 1px solid var(--glass-border);
+  border-top: 1px solid var(--border);
 }
 
 .overtime-section h2 {

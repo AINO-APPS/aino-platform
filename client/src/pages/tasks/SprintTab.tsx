@@ -28,6 +28,8 @@ interface SprintTabProps {
     sprintMode: boolean;
     onOpenDetail: (task: any) => void;
     onOpenComments: (id: number | string) => void;
+    /** Opens the backlog create form from a column header "+". */
+    onAddTask?: () => void;
     boardDrag: any;
     boardAnnouncement: string;
     plan: boolean;
@@ -65,6 +67,7 @@ export default function SprintTab({
     sprintMode,
     onOpenDetail,
     onOpenComments,
+    onAddTask,
     boardDrag,
     boardAnnouncement,
     plan,
@@ -154,6 +157,7 @@ export default function SprintTab({
                     onDragEnd={drag.onDragEnd}
                     onOpenDetail={onOpenDetail}
                     onOpenComments={onOpenComments}
+                    onAddTask={onAddTask ? () => onAddTask() : undefined}
                     boardDrag={boardDrag}
                     wipWarning={boardDrag.wipWarning}
                     announcement={boardAnnouncement}

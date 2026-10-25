@@ -655,7 +655,6 @@ const styles: Record<string, React.CSSProperties> = {
     position: "fixed",
     inset: 0,
     background: "rgba(15,17,21,0.75)",
-    backdropFilter: "blur(2px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",

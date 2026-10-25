@@ -69,7 +69,7 @@
   width: 2px;
   flex: 1;
   min-height: 10px;
-  background: var(--glass-border);
+  background: var(--border);
   margin: 1px 0;
 }
 .timeline-content {

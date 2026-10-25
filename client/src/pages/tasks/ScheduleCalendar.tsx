@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "../../constants/icons";
 import IssueKey from "./IssueKey";
+import { useAgileConfig } from "../../AgileConfigContext";
+import { currentStatusOption, statusOptions } from "./taskStatus";
 import { useIsNarrowCalendar } from "../../hooks/useViewportWidth";
 import {
     addDays,
@@ -67,6 +69,10 @@ export default function ScheduleCalendar({
     const [selectedDay, setSelectedDay] = useState(today);
 
     const overlayList = useMemo<OverlayItem[]>(() => overlayItems(overlays), [overlays]);
+    const { workflowStates } = (useAgileConfig() as any) ?? {};
+    const options = useMemo(() => statusOptions(workflowStates), [workflowStates]);
+    const chipStyle = (task: any) =>
+        ({ "--chip-color": currentStatusOption(task, workflowStates, options)?.color } as React.CSSProperties);
 
     const days = useMemo(
         () => (mode === "week" ? weekDays(anchor, today) : monthGrid(anchor, today)),
@@ -187,7 +193,8 @@ export default function ScheduleCalendar({
                                 <button
                                     key={task.id}
                                     type="button"
-                                    className={s["day-task"]}
+                                    className={`${s["day-task"]} ${(task as any).completed_at ? s["day-task-done"] : ""}`}
+                                    style={chipStyle(task)}
                                     draggable
                                     onDragStart={() => setDraggingId(task.id)}
                                     onClick={() => onOpenDetail(task)}
@@ -251,7 +258,8 @@ export default function ScheduleCalendar({
                                         <button
                                             key={task.id}
                                             type="button"
-                                            className={s["day-task"]}
+                                            className={`${s["day-task"]} ${(task as any).completed_at ? s["day-task-done"] : ""}`}
+                                            style={chipStyle(task)}
                                             draggable
                                             onDragStart={() => setDraggingId(task.id)}
                                             onClick={() => onOpenDetail(task)}

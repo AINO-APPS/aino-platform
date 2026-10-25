@@ -52,7 +52,6 @@ import TasksOverlays from "./tasks/TasksOverlays";
 import s from "./Tasks.module.css";
 
 const EMPTY: any[] = [];
-
 export default function Tasks() {
   const { user: currentUser } = useAuth() as any;
   const { hasFeature } = useFeatures();
@@ -474,6 +473,7 @@ export default function Tasks() {
             sprintMode={sprintMode}
             onOpenDetail={detail.openTaskDetail}
             onOpenComments={comments.openComments}
+            onAddTask={() => backlog.setBacklogFormOpen(true)}
             boardDrag={boardDrag}
             boardAnnouncement={boardAnnouncement}
             plan={tasksRoute.route.plan}

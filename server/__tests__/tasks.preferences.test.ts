@@ -6,9 +6,10 @@ import {
 } from "../modules/tasks/tasks.preferences";
 
 describe("task preferences", () => {
-    test("defaults to hidden completed work and comfortable cards", () => {
+    test("defaults to hidden completed work and compact cards", () => {
         expect(normaliseTaskPreferences(undefined)).toEqual(DEFAULT_TASK_PREFERENCES);
         expect(DEFAULT_TASK_PREFERENCES.show_completed).toBe(false);
+        expect(DEFAULT_TASK_PREFERENCES.card_density).toBe("compact");
     });
 
     test("round-trips a stored preference unchanged", () => {

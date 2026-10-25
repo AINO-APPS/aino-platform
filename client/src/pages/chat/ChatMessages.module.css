@@ -78,8 +78,7 @@
   padding: 8px 14px;
   margin-bottom: 6px;
   background: var(--bg-secondary, rgba(20, 20, 24, 0.95));
-  border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
 }
 .pinnedBannerMain {
   flex: 1;
@@ -133,7 +132,7 @@
 .loadMore {
   align-self: center;
   background: transparent;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.3rem 1rem;
   border-radius: 4px;
@@ -156,7 +155,7 @@
   border-color: color-mix(
     in srgb,
     var(--danger, #ef4444) 55%,
-    var(--glass-border)
+    var(--border)
   );
   color: var(--danger, #ef4444);
   background: color-mix(in srgb, var(--danger, #ef4444) 8%, transparent);
@@ -357,14 +356,14 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--glass-border, rgba(255, 255, 255, 0.08));
+  background: var(--border);
   flex-shrink: 0;
   animation: msgShimmer 1.4s ease-in-out infinite;
 }
 .skeletonBubble {
   height: 36px;
   border-radius: 16px;
-  background: var(--glass-border, rgba(255, 255, 255, 0.08));
+  background: var(--border);
   animation: msgShimmer 1.4s ease-in-out infinite;
   min-width: 60px;
 }

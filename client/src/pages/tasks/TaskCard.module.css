@@ -1,139 +1,207 @@
-/* ============= TASK CARD ============= */
-/* One anatomy for board, schedule and (via BacklogCard) backlog: quiet key
-   line, title as the anchor, aligned metadata, exceptions, then the footer.
-   Spacing is a single rhythm so cards line up instead of drifting. */
+/* ============= PLAN CARD ============= */
+/* One anatomy for board, schedule and backlog (TaskCardParts.tsx):
+   key + priority line, title, then status · due · labels · avatar.
+   Solid surface, 1px border, a shadow only on hover. 4px grid. */
 .task-card {
-  background: var(--surface);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  padding: 0.9rem 1rem 0.75rem;
-  cursor: grab;
-  transition: box-shadow 0.2s, border-color 0.2s;
-  user-select: none;
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 6px;
   min-width: 0;
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
-.task-card:not(.editing) .task-title,
-.task-card:not(.editing) .task-card-top,
-.task-card:not(.editing) .task-card-footer,
-.task-card:not(.editing) .task-priority-badge { cursor: grab; }
-.task-card:hover { box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--primary) 35%, var(--glass-border)); }
+.task-card:hover { border-color: color-mix(in srgb, var(--text) 18%, var(--border)); box-shadow: var(--control-shadow-hover); }
 .task-card:active { cursor: grabbing; }
+.task-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .task-card.dragging { opacity: 0.4; }
-.task-card.task-done { opacity: 0.6; }
+.task-card-selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .task-card.task-done .task-title { text-decoration: line-through; color: var(--text-muted); }
-.task-card.editing { cursor: default; gap: 0.5rem; }
+.task-card.task-done .card-foot { opacity: 0.7; }
 .clickable { cursor: pointer; }
 
-.task-card-top { display: flex; justify-content: space-between; align-items: center; gap: 0.4rem; min-width: 0; }
-.task-card-top-left { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; flex: 1; min-width: 0; }
+.grow { flex: 1; }
 
-/* The title is the card's anchor: three lines before truncation, and it wraps
-   rather than pushing the metadata out of alignment. */
+/* ---- Top line ---- */
+.card-top { display: flex; align-items: center; gap: 6px; min-height: 20px; min-width: 0; font-size: 11px; color: var(--text-muted); }
+
+.issue-key-chip,
+.issue-key-plain :global(button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--key-color, var(--text-muted));
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 16px;
+  cursor: pointer;
+  max-width: 120px;
+  box-shadow: none !important;
+}
+.issue-key-plain :global(span) { font-family: inherit; font-size: inherit; }
+.issue-key-chip:hover, .issue-key-plain :global(button:hover) { background: var(--bg-hover); color: var(--text); }
+.issue-key-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.issue-key-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-ic, .issue-key-plain :global(svg) { display: none !important; }
+.issue-key-chip:hover .copy-ic, .issue-key-chip:focus-visible .copy-ic, .issue-key-plain :global(button:hover svg), .issue-key-plain :global(button:focus-visible svg) { display: inline-block !important; opacity: 0.7; }
+
+.epic-badge { display: inline-flex; align-items: center; height: 16px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary-ink); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+.pri-bars { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; flex-shrink: 0; }
+.pri-bars i { display: block; width: 3px; border-radius: 1px; background: var(--border); }
+.pri-bars i:nth-child(1) { height: 5px; }
+.pri-bars i:nth-child(2) { height: 8px; }
+.pri-bars i:nth-child(3) { height: 12px; }
+.pri-bars i.pri-on { background: var(--pri-color); }
+
+.task-actions { display: inline-flex; align-items: center; flex-shrink: 0; margin-right: -4px; }
+
+/* ---- Title ---- */
 .task-title {
-  font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
   color: var(--text);
-  line-height: 1.45;
-  letter-spacing: -0.01em;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
 }
 
-.task-priority-badge { padding: 0.1rem 0.4rem; border-radius: 5px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; flex-shrink: 0; background: var(--badge-bg); color: var(--badge-color); }
-.task-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
-.task-action-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 2px; transition: all 0.2s; -webkit-text-fill-color: initial; background-clip: initial; -webkit-background-clip: initial; line-height: 1; }
-.task-action-btn:hover { background: var(--surface-hover); }
-.task-action-btn.delete-btn { color: var(--danger-ink); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
-.task-action-btn.delete-btn:hover { background: var(--danger-glow); border-color: var(--danger); }
-.task-card-footer { margin-top: auto; padding-top: 0.55rem; border-top: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.card-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-.task-edit-input { padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.9rem; width: 100%; }
-.task-edit-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
-.task-edit-textarea { padding: 0.5rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text); font-family: inherit; font-size: 0.85rem; resize: vertical; width: 100%; }
-.task-edit-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-glow); }
-.task-edit-actions { display: flex; gap: 0.5rem; }
+/* ---- Footer ---- */
+.card-foot { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: nowrap; overflow: hidden; }
 
-.task-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
-/* Labels are neutral chips with a colour dot. A tenant picks the label colour,
-   so using it as text would make some labels unreadable; the dot carries the
-   identity and the text stays at body contrast. */
-.label-pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.68rem; font-weight: 500; background: var(--surface-hover); color: var(--text-secondary); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.label-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--label-color, #0ea5e9); flex-shrink: 0; }
-.label-overflow { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.68rem; font-weight: 600; padding: 0.1rem 0.2rem; border-radius: 4px; cursor: pointer; }
-.label-overflow:hover { background: var(--surface-hover); color: var(--text); }
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--status-ink, var(--text-secondary));
+  background: color-mix(in srgb, var(--status-color, var(--text-muted)) 14%, transparent);
+}
+.status-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--status-color, var(--text-muted)); }
+
+.due-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+.due-over { color: var(--danger-ink); font-weight: 600; }
+
+.task-labels { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+/* Neutral chip with a colour dot: tenant label colours can be unreadable as text. */
+.label-pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.label-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--label-color, var(--text-muted)); flex-shrink: 0; }
+.label-overflow { height: 20px; padding: 0 6px; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; cursor: pointer; box-shadow: none !important; }
+.label-overflow:hover { color: var(--text); background: var(--bg-hover); }
 .label-overflow:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
-.task-meta { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; min-width: 0; }
-.task-status { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
-.task-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.task-assignee, .task-due { font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.2rem; min-width: 0; }
-.task-due.overdue { color: var(--danger); font-weight: 600; }
-.overdue { color: var(--danger); font-weight: 600; }
-
-/* Blocked and overdue are exceptions, not decoration: they stay visible in
-   both densities and never tint the whole card. */
-.task-exception { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 600; color: var(--warning-ink); }
-.task-exception-overdue { color: var(--danger-ink); }
-
-/* A quiet count, not a floating badge: the number sits beside the icon so it
-   never overlaps the card edge or the neighbouring metadata. */
-.comment-icon { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.3rem; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.72rem; line-height: 1; cursor: pointer; transition: color 0.15s, background 0.15s; }
-.comment-icon:hover { color: var(--text); background: var(--surface-hover); }
+.comment-icon { display: inline-flex; align-items: center; gap: 3px; padding: 2px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; line-height: 1; cursor: pointer; box-shadow: none !important; flex-shrink: 0; }
+.comment-icon:hover { color: var(--text); background: var(--bg-hover); }
 .comment-icon:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .comment-count { font-variant-numeric: tabular-nums; }
 
-/* Issue-key chip. Sits in the quiet top line and copies the key (e.g. WEB-12). */
-.issue-key-chip {
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--on-accent, #fff);
+  background: color-mix(in srgb, var(--primary) 70%, var(--text-muted));
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Blocked/overdue are exceptions: visible in both densities, never tinting the card. */
+.task-exception { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--warning-ink); }
+
+/* ---- Schedule to a day (org themed via --primary) ---- */
+.schedule-wrap { position: relative; display: inline-flex; }
+.schedule-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  border: 1px solid var(--border, #2a2f3a);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted, #9ca3af);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  max-width: 110px;
+  white-space: nowrap;
+  box-shadow: none !important;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.issue-key-chip:hover { filter: brightness(1.1); }
-.issue-key-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.issue-key-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-[data-theme="light"] .task-card { background: rgba(255, 255, 255, 0.9); border-color: rgba(0, 0, 0, 0.07); }
-
-@media (max-width: 768px) {
-  .task-card { padding: 0.8rem 0.85rem 0.7rem; }
+.schedule-btn:hover, .schedule-btn[aria-expanded="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-accent, #fff); }
+.schedule-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.schedule-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 248px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dropdown-border);
+  background: var(--dropdown-bg);
+  box-shadow: var(--shadow-lg);
+  cursor: default;
 }
+.schedule-pop-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text); }
+.schedule-close { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 4px; background: none; color: var(--text-muted); cursor: pointer; box-shadow: none !important; }
+.schedule-close:hover { background: var(--bg-hover); color: var(--text); }
+.schedule-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.schedule-quick button { height: 28px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; box-shadow: none !important; }
+.schedule-quick button:hover, .schedule-quick .quick-on { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.schedule-date { height: 32px; padding: 0 10px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; color-scheme: dark; }
+[data-theme="light"] .schedule-date { color-scheme: light; }
+.schedule-date:focus { outline: none; border-color: var(--primary); }
+.schedule-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
-/* Compact density: key, title, points and the exception flags. Padding shrinks
-   but the title keeps its size so a narrow column stays legible. */
-.task-card-compact { padding: 0.6rem 0.7rem; gap: 0.35rem; }
-.task-card-compact .task-title { font-size: 0.86rem; line-height: 1.35; -webkit-line-clamp: 2; line-clamp: 2; }
-.task-card-compact .task-card-footer { padding-top: 0.35rem; }
+/* ---- Compact density ---- */
+.task-card-compact { gap: 5px; padding: 8px 10px; }
 
 /* Realtime attribution: a short, non-blocking note of who just changed the card. */
-.task-attribution {
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--primary);
-    animation: attribution-fade 4s ease forwards;
-}
+.task-attribution { display: block; font-size: 11px; font-weight: 600; color: var(--primary); animation: attribution-fade 4s ease forwards; }
+@keyframes attribution-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 
-@keyframes attribution-fade {
-    0%, 70% { opacity: 1; }
-    100% { opacity: 0; }
+@media (max-width: 768px) {
+  .schedule-btn-text { display: none; }
+  .schedule-pop { right: -8px; }
 }

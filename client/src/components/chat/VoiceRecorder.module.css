@@ -9,7 +9,6 @@
     border-radius: var(--radius-full);
     border: 1px solid rgba(239,68,68,.25);
     animation: recorderPulse 2s ease-in-out infinite;
-    backdrop-filter: blur(8px);
 }
 
 @keyframes recorderPulse {

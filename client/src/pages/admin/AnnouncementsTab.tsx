@@ -37,7 +37,7 @@ const DURATIONS = [
 const textareaStyle: React.CSSProperties = {
   width: "100%",
   padding: "0.75rem 1rem",
-  border: "1.5px solid var(--glass-border)",
+  border: "1.5px solid var(--border)",
   borderRadius: 12,
   fontSize: "0.9rem",
   fontFamily: "inherit",
@@ -52,7 +52,7 @@ const textareaStyle: React.CSSProperties = {
 
 const selectStyle: React.CSSProperties = {
   padding: "0.6rem 2.2rem 0.6rem 0.85rem",
-  border: "1.5px solid var(--glass-border)",
+  border: "1.5px solid var(--border)",
   borderRadius: 10,
   fontSize: "0.85rem",
   fontFamily: "inherit",
@@ -244,7 +244,7 @@ export default function AnnouncementsTab({ userRole }: AnnouncementsTabProps) {
               e.target.style.boxShadow = "0 0 0 3px var(--primary-glow)";
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = "var(--glass-border)";
+              e.target.style.borderColor = "var(--border)";
               e.target.style.boxShadow = "none";
             }}
           />
@@ -268,7 +268,7 @@ export default function AnnouncementsTab({ userRole }: AnnouncementsTabProps) {
                 e.target.style.boxShadow = "0 0 0 3px var(--primary-glow)";
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = "var(--glass-border)";
+                e.target.style.borderColor = "var(--border)";
                 e.target.style.boxShadow = "none";
               }}
             >
@@ -290,7 +290,7 @@ export default function AnnouncementsTab({ userRole }: AnnouncementsTabProps) {
                 e.target.style.boxShadow = "0 0 0 3px var(--primary-glow)";
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = "var(--glass-border)";
+                e.target.style.borderColor = "var(--border)";
                 e.target.style.boxShadow = "none";
               }}
             >
@@ -367,7 +367,7 @@ export default function AnnouncementsTab({ userRole }: AnnouncementsTabProps) {
                             "0 0 0 3px var(--primary-glow)";
                         }}
                         onBlur={(e) => {
-                          e.target.style.borderColor = "var(--glass-border)";
+                          e.target.style.borderColor = "var(--border)";
                           e.target.style.boxShadow = "none";
                         }}
                       />

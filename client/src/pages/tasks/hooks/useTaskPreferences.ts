@@ -12,7 +12,7 @@ export interface TaskPreferences {
 
 const DEFAULTS: TaskPreferences = {
     show_completed: false,
-    card_density: "comfortable",
+    card_density: "compact",
     default_team_id: null,
 };
 

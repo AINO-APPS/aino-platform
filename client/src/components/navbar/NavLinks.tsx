@@ -1,4 +1,4 @@
-import { Home as MaterialHome, Calendar as MaterialCalendar, ClipboardList as MaterialClipboardList, FileText as MaterialFileText, MessageSquare as MaterialMessageSquare, CalendarCheck as MaterialCalendarCheck, Menu as MaterialMenu } from "../../constants/icons";
+import { Home as MaterialHome, Calendar as MaterialCalendar, CalendarPlan as MaterialCalendarPlan, FileText as MaterialFileText, MessageSquare as MaterialMessageSquare, CalendarCheck as MaterialCalendarCheck, Menu as MaterialMenu } from "../../constants/icons";
 import { useState, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../AuthContext";
@@ -76,8 +76,8 @@ export default function NavLinks() {
                     className={p === "/tasks" ? s.active : ""}
                     onMouseEnter={() => prefetchPage("/tasks")}
                 >
-                    <MaterialClipboardList size="15" className={s["nav-link-icon"]} width="15" height="15" />
-                    Tasks
+                    <MaterialCalendarPlan size="15" className={s["nav-link-icon"]} width="15" height="15" />
+                    Plan
                 </NavLink>
             )}
             {hasFeature("notes") && (

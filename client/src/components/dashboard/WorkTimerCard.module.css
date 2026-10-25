@@ -1,8 +1,7 @@
 /* ============= WORK TIMER CARD — Dashboard Inline ============= */
 .card {
-    background: var(--glass);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--glass-border);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--shadow);
     overflow: hidden;
@@ -16,7 +15,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0.6rem 0.85rem;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--border);
 }
 
 .header-left {
@@ -218,7 +217,7 @@
 }
 
 .summary {
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
 }
 
 .stat {
@@ -232,7 +231,7 @@
 .stat-divider {
     width: 1px;
     height: 28px;
-    background: var(--glass-border);
+    background: var(--border);
     flex-shrink: 0;
 }
 
@@ -291,7 +290,7 @@
     gap: 4px;
     padding: 6px 12px;
     border-radius: 8px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     background: transparent;
     color: var(--text-secondary);
     font-size: 0.75rem;

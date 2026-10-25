@@ -71,38 +71,26 @@ describe("card density", () => {
         vi.clearAllMocks();
     });
 
-    test("comfortable backlog rows show key, title, points, assignee and priority", () => {
-        renderWithDensity("comfortable", backlogCard);
+    test.each([
+        ["backlog row", backlogCard],
+        ["board card", boardCard],
+    ])("compact %s keeps the full scannable anatomy", (_name, card) => {
+        renderWithDensity("compact", card);
         expect(screen.getByText("PAY-142")).toBeTruthy();
         expect(screen.getByText("Refund webhook retries")).toBeTruthy();
         expect(screen.getByText("5")).toBeTruthy();
-        expect(screen.getByText("Ada Lovelace")).toBeTruthy();
-        expect(screen.getByText(/High/)).toBeTruthy();
+        expect(screen.getByLabelText("Assigned to Ada Lovelace")).toBeTruthy();
+        expect(screen.getByLabelText("High priority")).toBeTruthy();
+        expect(screen.getByText("payments")).toBeTruthy();
+        expect(screen.queryByText(/A long description/)).toBeNull();
     });
 
-    test("compact backlog rows keep key, title and points only", () => {
-        renderWithDensity("compact", backlogCard);
-        expect(screen.getByText("PAY-142")).toBeTruthy();
-        expect(screen.getByText("Refund webhook retries")).toBeTruthy();
-        expect(screen.getByText("5")).toBeTruthy();
-        expect(screen.queryByText("Ada Lovelace")).toBeNull();
-        expect(screen.queryByText(/High/)).toBeNull();
-        expect(screen.queryByText("payments")).toBeNull();
-    });
-
-    test("comfortable board cards show assignee and priority", () => {
-        renderWithDensity("comfortable", boardCard);
-        expect(screen.getByText("Ada Lovelace")).toBeTruthy();
-        expect(screen.getByText(/High/)).toBeTruthy();
-    });
-
-    test("compact board cards keep key, title and points only", () => {
-        renderWithDensity("compact", boardCard);
-        expect(screen.getByText("PAY-142")).toBeTruthy();
-        expect(screen.getByText("Refund webhook retries")).toBeTruthy();
-        expect(screen.getByText("5")).toBeTruthy();
-        expect(screen.queryByText("Ada Lovelace")).toBeNull();
-        expect(screen.queryByText(/High/)).toBeNull();
+    test.each([
+        ["backlog row", backlogCard],
+        ["board card", boardCard],
+    ])("comfortable %s adds the description preview", (_name, card) => {
+        renderWithDensity("comfortable", card);
+        expect(screen.getByText(/A long description/)).toBeTruthy();
     });
 
     test("compact still renders the title at full contrast for legibility", () => {

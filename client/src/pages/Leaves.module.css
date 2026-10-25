@@ -58,8 +58,8 @@
   margin-bottom: 2rem;
 }
 .balanceCard {
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1.1rem 1.25rem;
   display: flex;
@@ -140,9 +140,8 @@
 
 /* -- Card -- */
 .card {
-  background: var(--glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 1.75rem;
   box-shadow: 0 2px 16px rgba(0,0,0,0.08);
@@ -253,8 +252,8 @@
 
 /* -- Stats Strip -- */
 .statsStrip {
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1rem 1.5rem;
   display: flex; align-items: center; flex-wrap: wrap;
@@ -285,7 +284,7 @@
 .leaveItem {
   display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 1rem 1.25rem;
-  background: var(--surface); border: 1px solid var(--glass-border); border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
   transition: background 0.18s, transform 0.18s;
 }
 .leaveItem:hover { background: var(--surface-hover); transform: translateX(2px); }

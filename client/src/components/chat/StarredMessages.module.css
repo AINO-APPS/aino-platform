@@ -64,7 +64,7 @@
     transition: box-shadow var(--transition-fast);
 }
 .searchInput:focus {
-    box-shadow: 0 0 0 1px var(--glass-border);
+    box-shadow: 0 0 0 1px var(--border);
 }
 
 /* ─── List ─── */
@@ -166,7 +166,7 @@
     cursor: pointer;
     transition: background var(--transition-fast), color var(--transition-fast);
 }
-.actionBtn:hover { background: var(--glass-border); color: var(--text); }
+.actionBtn:hover { background: var(--border); color: var(--text); }
 .danger { color: var(--danger); }
 .danger:hover { background: rgba(239,68,68,.1); color: var(--danger); }
 

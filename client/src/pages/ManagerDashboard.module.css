@@ -723,7 +723,7 @@
 .inline-input {
     padding: 0.5rem 1.8rem 0.5rem 0.5rem;
     border-radius: 8px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     background: var(--input-bg);
     color: var(--text-primary);
     font-family: inherit;

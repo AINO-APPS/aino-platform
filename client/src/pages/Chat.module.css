@@ -59,7 +59,7 @@
 .selectionIconButton,
 .selectionActions button {
   min-height: 34px;
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--surface);
   color: var(--text-secondary);
@@ -84,7 +84,7 @@
 }
 .selectionActions button:hover {
   color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--glass-border));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
 }
 .selectionActions .selectionDeleteForMe,
 .selectionActions .selectionDeleteEveryone {

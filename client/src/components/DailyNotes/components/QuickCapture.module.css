@@ -6,8 +6,6 @@
 .overlay {
     position: fixed; inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     z-index: 1400;
     display: flex; align-items: flex-start; justify-content: center;
     padding: clamp(2.5rem, 12vh, 5rem) 1rem 1rem;

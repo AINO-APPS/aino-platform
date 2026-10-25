@@ -37,7 +37,7 @@
     position: relative;
 }
 .inputBoxWrap:focus-within {
-    border-color: var(--glass-border);
+    border-color: var(--border);
 }
 /* ─── Inline emoji/keyboard toggle (Signal-style), left inside the pill ─── */
 .emojiToggle {
@@ -180,7 +180,7 @@
     margin-bottom: 2px;
 }
 .plusBtn:hover {
-    background: var(--glass-border);
+    background: var(--border);
     color: var(--text);
 }
 .plusBtnOpen {

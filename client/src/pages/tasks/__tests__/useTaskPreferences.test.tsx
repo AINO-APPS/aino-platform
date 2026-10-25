@@ -30,7 +30,7 @@ describe("useTaskPreferences", () => {
 
         await waitFor(() => expect(result.current.loaded).toBe(true));
         expect(result.current.showCompleted).toBe(false);
-        expect(result.current.preferences.card_density).toBe("comfortable");
+        expect(result.current.preferences.card_density).toBe("compact");
     });
 
     test("reads the stored preference", async () => {

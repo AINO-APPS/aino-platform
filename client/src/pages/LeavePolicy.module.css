@@ -219,8 +219,8 @@
 }
 
 .policyCard {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 1.5rem;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -294,7 +294,6 @@
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -449,8 +448,8 @@
 }
 
 .balanceDetailCard {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 1.5rem;
     border-top: 3px solid var(--bc, var(--primary));
@@ -643,8 +642,8 @@
 .holidayGridPast { opacity: 0.65; }
 
 .holidayCard {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 14px;
     padding: 1.1rem 1.25rem;
     display: flex;

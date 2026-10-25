@@ -7,7 +7,6 @@
     align-items: center;
     justify-content: center;
     animation: fadeIn 0.15s ease;
-    backdrop-filter: blur(2px);
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 

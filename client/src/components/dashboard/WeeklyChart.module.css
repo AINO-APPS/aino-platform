@@ -3,7 +3,7 @@
   align-items: center;
   gap: 0.65rem;
   background: var(--surface);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.55rem 0.85rem;
   margin-top: 0.5rem;

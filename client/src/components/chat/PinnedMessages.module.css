@@ -62,7 +62,7 @@
     transition: box-shadow var(--transition-fast);
 }
 .searchInput:focus {
-    box-shadow: 0 0 0 1px var(--glass-border);
+    box-shadow: 0 0 0 1px var(--border);
 }
 
 /* ─── List ─── */

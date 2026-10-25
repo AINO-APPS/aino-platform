@@ -21,10 +21,14 @@
 
 .schedule-nav button,
 .schedule-modes button {
-    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
+    border-radius: 6px;
+    background: var(--card-bg);
+    font-size: 12px;
     color: var(--text);
     font: inherit;
     cursor: pointer;
@@ -39,7 +43,8 @@
 }
 
 .mode-active {
-    border-color: var(--primary) !important;
+    border-color: color-mix(in srgb, var(--primary) 50%, var(--border)) !important;
+    background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
     color: var(--primary) !important;
 }
 
@@ -79,7 +84,11 @@
 .grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 /* The ARIA row wrapper must not add a layout box: the cells stay direct
@@ -94,14 +103,12 @@
 }
 
 .day {
-    min-height: 96px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
+    min-height: 108px;
+    padding: 6px;
+    background: var(--card-bg);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     position: relative;
 }
 
@@ -111,13 +118,12 @@
     display: flex;
     flex-direction: column;
     pointer-events: none;
-    border-radius: var(--radius-sm);
     overflow: hidden;
 }
 
 .overlay-band {
     flex: 1;
-    opacity: 0.18;
+    opacity: 0.1;
 }
 
 .overlay-leave {
@@ -133,11 +139,16 @@
 }
 
 .day-outside {
-    opacity: 0.5;
+    background: color-mix(in srgb, var(--card-bg) 50%, var(--bg));
 }
 
-.day-today {
-    border-color: var(--primary);
+.day-outside .day-number {
+    color: var(--text-muted);
+}
+
+.day-today .day-number {
+    background: var(--primary);
+    color: var(--on-accent, #fff);
 }
 
 .day-header {
@@ -148,9 +159,16 @@
 }
 
 .day-number {
-    font-size: var(--font-meta-size);
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
 }
 
 .day-totals {
@@ -162,23 +180,48 @@
 .day-tasks {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     overflow: hidden;
 }
 
 .day-task {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 4px;
+    gap: 6px;
+    height: 22px;
+    padding: 0 6px;
     border: 0;
-    border-radius: var(--radius-sm);
-    background: var(--surface-hover);
+    border-left: 3px solid var(--chip-color, var(--text-muted));
+    border-radius: 4px;
+    background: var(--bg-hover);
+    white-space: nowrap;
+    overflow: hidden;
+    box-shadow: none !important;
     color: var(--text);
     font: inherit;
     font-size: 11px;
     text-align: left;
     cursor: grab;
+}
+
+.day-task:hover {
+    background: color-mix(in srgb, var(--chip-color, var(--text-muted)) 14%, var(--bg-hover));
+}
+
+.day-task-done {
+    opacity: 0.6;
+}
+
+.day-task-done .day-task-title {
+    text-decoration: line-through;
+}
+
+.day-task > :first-child {
+    font-family: "Fira Code", ui-monospace, monospace;
+    font-size: 10px;
+    flex-shrink: 0;
 }
 
 .day-task-title {
@@ -188,10 +231,10 @@
 }
 
 .tray {
-    padding: var(--space-control);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
 }
 
 .tray-title {
@@ -343,8 +386,8 @@
     min-height: 160px;
     padding: 8px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--glass);
+    border-radius: 8px;
+    background: var(--card-bg);
 }
 
 .day-column-empty {

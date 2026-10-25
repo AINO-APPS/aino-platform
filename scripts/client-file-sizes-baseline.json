@@ -11,7 +11,7 @@
   "components/organization/OfficeLocationSettings.tsx": 914,
   "components/profile/EditProfileModal.tsx": 699,
   "pages/AgileSettings.tsx": 871,
-  "pages/Projects.tsx": 906,
+  "pages/Projects.tsx": 905,
   "pages/SprintInsights.tsx": 747,
   "pages/Tasks.tsx": 589,
   "pages/admin/AddPeopleWizard.tsx": 935,
@@ -22,7 +22,7 @@
   "pages/attendance/MySalarySlips.tsx": 663,
   "pages/chat/useChatState.ts": 751,
   "pages/chat/useMessageActions.ts": 750,
-  "pages/integrations/GitHubIntegration.tsx": 705,
+  "pages/integrations/GitHubIntegration.tsx": 704,
   "pages/meeting/useMeetingState.ts": 2971,
   "pages/tasks/TaskDetailModal.tsx": 628,
   "pages/tenants/TenantDetail.tsx": 572

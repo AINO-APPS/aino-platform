@@ -2,8 +2,8 @@
  * The card anatomy, locked down.
  *
  * The redesign's rules are structural, not cosmetic: the title is the anchor,
- * secondary detail moves to the fullscreen view, labels are capped, and the
- * exceptions (blocked, overdue) survive compact density. Each test below fails
+ * secondary detail (creator, timestamps) lives in the fullscreen view, labels
+ * are capped at two, and the exceptions (blocked, overdue) survive compact. Each test below fails
  * if one of those rules regresses.
  */
 import { describe, expect, test, vi } from "vitest";
@@ -77,8 +77,8 @@ const backlogCard = (task: any = baseTask) => (
 );
 
 describe("card anatomy", () => {
-    test("the description is not previewed on a card", () => {
-        wrap("comfortable", boardCard());
+    test("the description is not previewed on a compact card", () => {
+        wrap("compact", boardCard());
         expect(screen.queryByText(/A long description/)).toBeNull();
     });
 
@@ -146,9 +146,9 @@ describe("exceptions survive compact density", () => {
         expect(screen.getByText(/Overdue/)).toBeTruthy();
     });
 
-    test("compact still hides the ordinary metadata", () => {
+    test("compact shows the assignee as an avatar, not a name", () => {
         wrap("compact", boardCard());
         expect(screen.queryByText("Ada Lovelace")).toBeNull();
-        expect(screen.queryByText("payments")).toBeNull();
+        expect(screen.getByLabelText("Assigned to Ada Lovelace")).toBeTruthy();
     });
 });

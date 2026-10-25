@@ -61,7 +61,7 @@ export default function SignedInDevices() {
                 {devices.map((d) => (
                     <li
                         key={d.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", padding: "0.5rem 0", borderBottom: "1px solid var(--glass-border)" }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", padding: "0.5rem 0", borderBottom: "1px solid var(--border)" }}
                     >
                         <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
                             {d.clientClass === "mobile" ? <Smartphone size={14} /> : <Monitor size={14} />}

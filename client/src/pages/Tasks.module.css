@@ -2,7 +2,7 @@
 
 .tasks-page { width: 100%; max-width: none; margin: 0; padding: 0.75rem 1rem 3rem; animation: fadeInUp 0.3s ease; }
 
-.tasks-progress-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.tasks-progress-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .tasks-progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .tasks-progress-label { font-size: 0.85rem; color: var(--text-secondary); }
 .tasks-progress-pct { font-size: 1.1rem; font-weight: 700; color: var(--primary); }

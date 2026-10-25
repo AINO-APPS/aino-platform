@@ -10,7 +10,6 @@
     min-width: 220px;
     max-width: 300px;
     padding: 4px;
-    backdrop-filter: blur(12px);
 }
 
 .item {

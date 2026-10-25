@@ -19,11 +19,10 @@
   padding: 0.75rem 1rem;
   border-radius: 10px;
   background: var(--bg);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow);
   pointer-events: auto;
   animation: toastSlideIn 0.3s ease;
-  backdrop-filter: blur(12px);
   font-size: 0.85rem;
   color: var(--text);
 }

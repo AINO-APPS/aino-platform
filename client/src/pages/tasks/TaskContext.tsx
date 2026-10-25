@@ -43,7 +43,7 @@ export function TaskProvider({
     availableProjects,
     currentUser,
     activeTab,
-    cardDensity = "comfortable",
+    cardDensity = "compact",
 }: TaskProviderProps) {
     const value = useMemo(
         () => ({
@@ -70,7 +70,7 @@ export function TaskProvider({
 
 export const useTaskCtx = () => useContext(TaskContext);
 
-/** The card density for the current Tasks view, defaulting to comfortable. */
+/** The card density for the current Tasks view, defaulting to compact. */
 export function useCardDensity(): CardDensity {
-    return useTaskCtx()?.cardDensity ?? "comfortable";
+    return useTaskCtx()?.cardDensity ?? "compact";
 }

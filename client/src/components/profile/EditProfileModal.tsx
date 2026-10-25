@@ -513,7 +513,7 @@ export default function EditProfileModal({ onClose }: EditProfileModalProps) {
                                                     justifyContent: "space-between",
                                                     gap: "0.5rem",
                                                     padding: "0.5rem 0",
-                                                    borderBottom: "1px solid var(--glass-border)",
+                                                    borderBottom: "1px solid var(--border)",
                                                 }}
                                             >
                                                 <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
@@ -592,7 +592,7 @@ export default function EditProfileModal({ onClose }: EditProfileModalProps) {
                                                 justifyContent: "space-between",
                                                 gap: "0.5rem",
                                                 padding: "0.5rem 0",
-                                                borderBottom: "1px solid var(--glass-border)",
+                                                borderBottom: "1px solid var(--border)",
                                             }}
                                         >
                                             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>

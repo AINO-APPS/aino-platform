@@ -8,7 +8,7 @@ import { useClickOutside } from "../../hooks/useClickOutside";
 import {
     Home,
     Calendar,
-    ClipboardList,
+    CalendarPlan,
     MessageSquare,
     CalendarCheck,
     FileText,
@@ -83,9 +83,9 @@ export default function MobileTabBar() {
             {hasFeature("tasks") && (
                 <NavLink to="/tasks" className={p === "/tasks" ? s.active : ""}>
                     <span className={s["nav-icon"]}>
-                        <ClipboardList size={22} />
+                        <CalendarPlan size={22} />
                     </span>
-                    <span className={s["tab-label"]}>Tasks</span>
+                    <span className={s["tab-label"]}>Plan</span>
                 </NavLink>
             )}
             {hasFeature("chat") && (

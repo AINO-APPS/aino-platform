@@ -10,7 +10,7 @@
 .dialog {
     background: var(--bg-secondary);
     color: var(--text);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     border-radius: 16px;
     width: min(480px, 100%);
     max-height: 85dvh;
@@ -23,7 +23,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 20px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--border);
 }
 .header h2 { font-size: 1.1rem; margin: 0; }
 .body { overflow-y: auto; padding: 20px; min-height: 0; }
@@ -32,7 +32,7 @@
 .group {
     margin-top: 16px;
     padding: 16px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     border-radius: 12px;
 }
 .leading { border-color: var(--primary); }

@@ -29,6 +29,8 @@ interface KanbanBoardProps {
     announcement?: string;
     /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
     attribution?: Record<string, { name: string }>;
+    /** Adds a ticket straight into a column; the header "+" is hidden without it. */
+    onAddTask?: (column: any) => void;
 }
 
 export default function KanbanBoard({
@@ -45,6 +47,7 @@ export default function KanbanBoard({
     boardDrag,
     wipWarning,
     announcement,
+    onAddTask,
     attribution,
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
@@ -148,13 +151,23 @@ export default function KanbanBoard({
                                     ? ` / ${col.wip_limit}`
                                     : ""}
                             </span>
+                            {onAddTask && (
+                                <button
+                                    type="button"
+                                    className={s["column-add"]}
+                                    aria-label={`Add a ticket to ${col.name}`}
+                                    title={`Add a ticket to ${col.name}`}
+                                    onClick={() => onAddTask(col)}
+                                >
+                                    +
+                                </button>
+                            )}
                         </div>
 
-                        {isDragOver && (
-                            <div className={s["drop-indicator"]}>Drop here</div>
-                        )}
-
                         <div className={s["column-tasks"]}>
+                            {isDragOver && (
+                                <div className={s["drop-indicator"]}>Drop here</div>
+                            )}
                             {colTasks.length === 0 && !isDragOver && (
                                 <div className={s["column-empty"]}>
                                     <span>No items</span>
