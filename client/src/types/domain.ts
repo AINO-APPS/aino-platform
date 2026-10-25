@@ -43,22 +43,32 @@ export interface User {
 /* Tasks / agile                                                       */
 /* ------------------------------------------------------------------ */
 
-export interface Task {
-    id: number;
-    issue_key?: string;
-    title?: string;
-    description?: string | null;
-    status?: string;
-    priority?: string;
+// Canonical task and sprint shapes are generated from contracts/openapi.json.
+// A field rename or removal in the contract changes these types, so the build
+// fails instead of the running product. Legacy aliases stay optional here
+// until ticket 28 removes them.
+import type {
+    Task as GeneratedTask,
+    Sprint as GeneratedSprint,
+    SprintBaseline as GeneratedSprintBaseline,
+    TaskListResponse as GeneratedTaskListResponse,
+    BacklogResponse as GeneratedBacklogResponse,
+} from "./generated/tasks";
+
+export type {
+    GeneratedTask,
+    GeneratedSprint,
+    GeneratedSprintBaseline,
+    GeneratedTaskListResponse,
+    GeneratedBacklogResponse,
+};
+
+export interface Task extends GeneratedTask {
     type?: string;
     assignee_id?: number | null;
     reporter_id?: number | null;
-    sprint_id?: number | null;
     parent_id?: number | null;
-    project_id?: number | null;
-    story_points?: number | null;
     labels?: TaskLabel[];
-    created_at?: string;
     updated_at?: string;
     [key: string]: unknown;
 }
@@ -70,13 +80,7 @@ export interface TaskLabel {
     [key: string]: unknown;
 }
 
-export interface Sprint {
-    id: number;
-    name?: string;
-    goal?: string | null;
-    status?: string;
-    start_date?: string | null;
-    end_date?: string | null;
+export interface Sprint extends GeneratedSprint {
     project_id?: number | null;
     [key: string]: unknown;
 }

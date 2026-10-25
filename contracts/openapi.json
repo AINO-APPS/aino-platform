@@ -20048,6 +20048,404 @@
         ],
         "additionalProperties": false
       },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "issue_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Canonical PROJ-123 reference. Stable across sprint moves."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Deprecated compatibility mirror of the workflow state key. Removed in ticket 28."
+          },
+          "workflow_state_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workflow_state_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflow_state_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflow_state_category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "open",
+              "in_progress",
+              "in_review",
+              "done",
+              null
+            ]
+          },
+          "planned_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date-only planning metadata. Never affects backlog membership."
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Derived by the database from the workflow-state category. Clients never write it."
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rank": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "LexoRank string, unique per team."
+          },
+          "parent_task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "work_item_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "story_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "org_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_blocked": {
+            "type": "boolean"
+          },
+          "blocked_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acceptance_criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "priority",
+          "workflow_state_id",
+          "planned_date",
+          "due_date",
+          "completed_at",
+          "sprint_id",
+          "team_id",
+          "rank",
+          "is_blocked"
+        ],
+        "additionalProperties": false
+      },
+      "Sprint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "team_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "goal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "active",
+              "paused",
+              "completed"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "paused_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "velocity_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "auto_managed": {
+            "type": "boolean"
+          },
+          "sprint_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "carried_from_sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "team_id",
+          "name",
+          "status",
+          "auto_managed"
+        ],
+        "additionalProperties": false
+      },
+      "SprintBaseline": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "sprint_id": {
+            "type": "integer"
+          },
+          "committed_points": {
+            "type": "number"
+          },
+          "committed_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "start",
+              "scope_add",
+              "scope_remove"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sprint_id",
+          "committed_points",
+          "committed_task_ids",
+          "captured_at",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "TaskListResponse": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "tasks",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "BacklogResponse": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "completed_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "incomplete_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hasMore": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "limit",
+              "offset",
+              "total",
+              "hasMore"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "tasks",
+          "completed_count",
+          "incomplete_total",
+          "pagination"
+        ],
+        "additionalProperties": false
+      },
       "SearchNote": {
         "type": "object",
         "properties": {
