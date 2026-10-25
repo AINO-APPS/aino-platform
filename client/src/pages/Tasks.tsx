@@ -33,6 +33,7 @@ import { useBacklog } from "./tasks/hooks/useBacklog";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
+import { useTasksRouteSync, useTaskDeepLink } from "./tasks/hooks/useTasksRouteSync";
 
 import s from "./Tasks.module.css";
 
@@ -202,31 +203,16 @@ export default function Tasks() {
 
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
-  useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam && ["backlog", "sprint", "scheduled", "service-desk"].includes(tabParam)) {
-      const next = new URLSearchParams(searchParams);
-      next.delete("tab");
-      const query = next.toString();
-      navigate(`${tasksViewPath(tabParam as any, searchParams.get("sprint_id"))}${query ? `?${query}` : ""}`, { replace: true });
-      return;
-    }
-    setActiveTab(tasksRoute.route.view);
-    if (tasksRoute.route.sprintId) {
-      const parsed = Number(tasksRoute.route.sprintId);
-      setSelectedSprintId(Number.isNaN(parsed) ? tasksRoute.route.sprintId : parsed);
-    }
-  }, [tasksRoute.route.view, tasksRoute.route.sprintId, searchParams, navigate]);
+  useTasksRouteSync({
+    route: tasksRoute.route,
+    searchParams,
+    navigate,
+    setActiveTab,
+    setSelectedSprintId,
+  });
 
   // Deep links to a specific task open its detail on arrival.
-  useEffect(() => {
-    const taskId = searchParams.get("task");
-    if (!taskId) return;
-    getTaskDetail(taskId as any)
-      .then((res) => detail.openTaskDetail(res.data))
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  useTaskDeepLink(searchParams, detail.openTaskDetail);
 
   // Expose the detail-opener globally so deep-linked components (e.g. Epic
   // child-ticket links inside the task detail modal) can swap the modal
