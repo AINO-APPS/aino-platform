@@ -114,6 +114,7 @@ export const bulkTaskAction = (data: {
     value?: unknown;
 }) => API.post("/tasks/bulk", data);
 export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIComponent(key)}`);
+export const getEpics = () => API.get("/tasks/epics");
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

@@ -136,6 +136,11 @@ export default function BacklogCard({
                         {pri.icon} {pri.label}
                     </span>
                     <WorkItemTypeBadge value={task.work_item_type_id} />
+                    {task.parent_task_id && (
+                        <span className={s["epic-indicator"]} title="Part of an epic">
+                            Epic
+                        </span>
+                    )}
                     <StoryPointBadge value={task.story_points} />
                     <BlockerBadge task={task} />
                     {task.labels &&

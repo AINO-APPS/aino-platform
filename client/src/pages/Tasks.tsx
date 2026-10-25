@@ -43,6 +43,7 @@ import { useUndoToast } from "./tasks/hooks/useUndoToast";
 import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
+import { useEpics } from "./tasks/hooks/useEpics";
 
 import s from "./Tasks.module.css";
 
@@ -217,6 +218,9 @@ export default function Tasks() {
     fetchBacklog: backlog.fetchBacklog,
     onError: setError,
   });
+
+  // Epics: the rollup list and the URL-backed epic filter.
+  const epics = useEpics(tasksRoute.filters.epic);
 
   // Keep a valid sprint selected once the sprint list resolves: preserve the
   // current pick if it still exists, otherwise default to the active sprint
@@ -446,6 +450,9 @@ export default function Tasks() {
             boardAnnouncement={boardAnnouncement}
             plan={tasksRoute.route.plan}
             sprintPlan={sprintPlan}
+            epics={epics.epics}
+            selectedEpicId={epics.selectedEpicId}
+            onSelectEpic={(id) => tasksRoute.setFilters({ epic: id ? String(id) : "" })}
           />
         )}
 

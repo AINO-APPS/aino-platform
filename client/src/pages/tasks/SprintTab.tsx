@@ -32,6 +32,9 @@ interface SprintTabProps {
     boardAnnouncement: string;
     plan: boolean;
     sprintPlan: any;
+    epics: any[];
+    selectedEpicId: number | string | null;
+    onSelectEpic: (id: number | string | null) => void;
 }
 
 /**
@@ -65,6 +68,9 @@ export default function SprintTab({
     boardAnnouncement,
     plan,
     sprintPlan,
+    epics,
+    selectedEpicId,
+    onSelectEpic,
 }: SprintTabProps) {
     return (
         <>
@@ -123,6 +129,9 @@ export default function SprintTab({
                     onMoveToBacklog={sprintPlan.moveToBacklog}
                     onSaveGoal={sprintPlan.saveGoal}
                     onOpenDetail={onOpenDetail}
+                    epics={epics}
+                    selectedEpicId={selectedEpicId}
+                    onSelectEpic={onSelectEpic}
                 />
             ) : (
                 <KanbanBoard

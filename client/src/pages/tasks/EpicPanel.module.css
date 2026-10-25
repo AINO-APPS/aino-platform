@@ -1,0 +1,88 @@
+.epic-panel {
+    margin-top: var(--space-control);
+    padding: var(--space-control);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.epic-title {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+}
+
+.epic-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.epic-row {
+    display: grid;
+    grid-template-columns: auto minmax(80px, 1fr) minmax(60px, 2fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.epic-row:hover {
+    background: var(--surface-hover);
+}
+
+.epic-row:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.epic-row-selected {
+    background: var(--surface-hover);
+    box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.epic-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.epic-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.epic-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.epic-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--primary);
+}
+
+.epic-meta {
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.epic-empty {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--font-meta-size);
+}

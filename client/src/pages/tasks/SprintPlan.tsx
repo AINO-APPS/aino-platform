@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ChevronRight, ChevronLeft } from "../../constants/icons";
 import IssueKey from "./IssueKey";
+import EpicPanel from "./EpicPanel";
 import s from "./SprintPlan.module.css";
 
 interface SprintPlanProps {
@@ -14,6 +15,9 @@ interface SprintPlanProps {
     onMoveToBacklog: (taskId: number | string) => void;
     onSaveGoal: (goal: string) => void;
     onOpenDetail: (task: any) => void;
+    epics?: any[];
+    selectedEpicId?: number | string | null;
+    onSelectEpic?: (id: number | string | null) => void;
 }
 
 function points(tasks: any[]): number {
@@ -39,6 +43,9 @@ export default function SprintPlan({
     onMoveToBacklog,
     onSaveGoal,
     onOpenDetail,
+    epics = [],
+    selectedEpicId,
+    onSelectEpic,
 }: SprintPlanProps) {
     const [goal, setGoal] = useState(sprint?.goal ?? "");
     const [editingGoal, setEditingGoal] = useState(false);
@@ -198,6 +205,12 @@ export default function SprintPlan({
                         />
                     )}
                 </div>
+
+                <EpicPanel
+                    epics={epics}
+                    selectedEpicId={selectedEpicId}
+                    onSelectEpic={onSelectEpic}
+                />
             </section>
         </div>
     );
