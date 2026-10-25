@@ -80,7 +80,9 @@ const PRIORITY_ORDER = `CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 
 const STATUS_ORDER = `CASE t.status WHEN 'in_progress' THEN 1 WHEN 'in_review' THEN 2 WHEN 'pending' THEN 3 WHEN 'done' THEN 4 END`;
 
 const ORDER_BY: Record<TaskCollectionScope, string> = {
-    backlog: `${PRIORITY_ORDER}, t.created_at DESC`,
+    // Manual rank is the stored order; priority is a temporary sort the client
+    // applies without touching it.
+    backlog: "t.rank ASC NULLS LAST, t.created_at DESC",
     board: "t.created_at ASC",
     schedule: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
 };

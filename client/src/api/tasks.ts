@@ -104,6 +104,10 @@ export const searchTasks = (q: string) => API.get("/tasks/search", { params: { q
 export const getAvailableSprints = () => API.get("/tasks/available-sprints");
 export const assignTaskToSprint = (id: number | string, sprintId: number | string) =>
     API.patch(`/tasks/${id}/assign-sprint`, { sprint_id: sprintId });
+export const rankTask = (
+    id: number | string,
+    neighbours: { beforeId: number | string | null; afterId: number | string | null },
+) => API.patch(`/tasks/${id}/rank`, neighbours);
 
 // Sprints
 export const getSprints = () => API.get("/sprints");

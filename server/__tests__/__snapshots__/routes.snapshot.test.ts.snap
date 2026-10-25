@@ -453,6 +453,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "GET    /api/tasks/:id/history",
   "GET    /api/tasks/:id/parent",
   "PATCH  /api/tasks/:id/parent",
+  "PATCH  /api/tasks/:id/rank",
   "PATCH  /api/tasks/:id/schedule",
   "PATCH  /api/tasks/:id/status",
   "PATCH  /api/tasks/:id/unschedule",

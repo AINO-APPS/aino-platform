@@ -117,7 +117,9 @@ describe("task collection builder", () => {
         const board = buildTaskCollection({ scope: "board", orgId: 1, visibility, sprintId: 1 });
         const schedule = buildTaskCollection({ scope: "schedule", orgId: 1, visibility, date: "2026-10-25" });
 
-        expect(normalise(backlog.orderSql)).toContain("t.created_at DESC");
+        // The backlog uses the stored manual rank, so a temporary sort never
+        // rewrites it.
+        expect(normalise(backlog.orderSql)).toContain("t.rank ASC");
         expect(normalise(board.orderSql)).toBe("t.created_at ASC");
         expect(normalise(schedule.orderSql)).toContain("t.created_at ASC");
     });

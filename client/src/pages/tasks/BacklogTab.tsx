@@ -85,6 +85,8 @@ interface BacklogTabProps {
     completedShowingAll: boolean;
     onToggleCompleted: () => void;
     onShowAllCompleted: () => void;
+    reorder: any;
+    reorderAnnouncement: string;
     scheduleTaskId: number | string | null;
     setScheduleTaskId: (v: number | string | null) => void;
     scheduleDate: string;
@@ -147,6 +149,8 @@ export default function BacklogTab({
     completedShowingAll,
     onToggleCompleted,
     onShowAllCompleted,
+    reorder,
+    reorderAnnouncement,
     scheduleTaskId,
     setScheduleTaskId,
     scheduleDate,
@@ -430,8 +434,12 @@ export default function BacklogTab({
                             setScheduleDate={setScheduleDate}
                             onOpenDetail={onOpenDetail}
                             onScheduleTask={onScheduleTask}
+                            reorder={reorder}
                         />
                     ))}
+                    <div className="sr-only" role="status" aria-live="polite">
+                        {reorderAnnouncement}
+                    </div>
 
                     <CompletedSection
                         count={completedCount}

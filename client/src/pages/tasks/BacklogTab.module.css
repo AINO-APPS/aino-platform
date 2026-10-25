@@ -23,6 +23,9 @@
 .backlog-card { display: flex; align-items: stretch; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); transition: var(--transition-fast); overflow: hidden; }
 .backlog-card:hover { background: var(--surface-hover); border-color: var(--border); box-shadow: var(--shadow); }
 .backlog-card-done { opacity: 0.55; }
+.backlog-card-dragging { opacity: 0.4; }
+.backlog-card-over { outline: 2px dashed var(--primary); outline-offset: -2px; }
+.backlog-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .backlog-card-done .backlog-card-title { text-decoration: line-through; }
 .backlog-priority-bar { width: 4px; flex-shrink: 0; background: var(--pri-color, var(--text-muted)); border-radius: 4px 0 0 4px; }
 .backlog-card-body { flex: 1; min-width: 0; padding: 0.65rem 0.85rem; display: flex; flex-direction: column; gap: 0.3rem; }

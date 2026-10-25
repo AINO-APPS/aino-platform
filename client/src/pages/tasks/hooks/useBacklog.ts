@@ -4,6 +4,7 @@ import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
+import { useBacklogReorder } from "./useBacklogReorder";
 import type { Task } from "../../../types";
 
 interface BacklogSummary {
@@ -89,6 +90,14 @@ export function useBacklog({
     const [completedOpen, setCompletedOpen] = useState(false);
     const [completedLoading, setCompletedLoading] = useState(false);
     const [completedShowingAll, setCompletedShowingAll] = useState(false);
+    // Manual ordering: the client sends neighbours, the server computes rank.
+    const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+    const reorder = useBacklogReorder({
+        tasks: backlogTasks as any,
+        setTasks: (updater) => setBacklogTasks((current) => updater(current as any) as any),
+        onError: setError,
+        onAnnounce: setReorderAnnouncement,
+    });
     // The stored preference decides whether the section starts expanded. A
     // `completed` URL parameter overrides it for this view only.
     const { showCompleted } = useTaskPreferences();
@@ -364,6 +373,8 @@ export function useBacklog({
         completedShowingAll,
         toggleCompleted,
         showAllCompleted,
+        reorder,
+        reorderAnnouncement,
         backlogFormOpen,
         setBacklogFormOpen,
         backlogTitle,
