@@ -23,8 +23,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../PlannedDateTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -45,8 +45,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../StatusSourceContractTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -67,8 +67,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CompletedAtContractTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -89,8 +89,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../DesignTokensTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TaskDesign.kt"
       },
       "ios": {
         "status": "planned",
@@ -111,8 +111,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../ApiModelsContractTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/generated/TaskModelsGenerated.kt"
       },
       "ios": {
         "status": "planned",
@@ -133,8 +133,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../BacklogMembershipTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -155,8 +155,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CompletedSectionTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -177,8 +177,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../PreferencesSyncTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -199,8 +199,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CompletedDefaultTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -221,8 +221,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CompletedWindowTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -243,8 +243,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CompletedRuleTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -265,8 +265,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../DeepLinkRoutesTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -287,8 +287,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../RankContractTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -309,8 +309,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../RankEndpointTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -353,8 +353,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../FlatBacklogTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -375,8 +375,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../BulkActionsTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -397,8 +397,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../QuickAddTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -419,8 +419,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../IssueKeyTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -441,8 +441,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../NextGenFlagTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -463,8 +463,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../RealtimeDeltaTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -485,8 +485,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../BoardPlanToggleTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -507,8 +507,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../EpicsRollupTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -529,8 +529,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CalendarTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -551,8 +551,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CalendarOverlayTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -573,8 +573,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../DensityTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -595,8 +595,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CarryoverTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -617,8 +617,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../ImmutableSprintTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -639,8 +639,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../ScopeBaselineTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -661,8 +661,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../InlineInsightsTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/SprintInsightsScreen.kt"
       },
       "ios": {
         "status": "planned",
@@ -683,8 +683,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../TimeTrackingTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -705,8 +705,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../CommandPaletteTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TasksScreen.kt"
       },
       "ios": {
         "status": "planned",
@@ -727,8 +727,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../TaskNotificationTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskSyncTest.kt"
       },
       "ios": {
         "status": "planned",
@@ -795,8 +795,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../AccessibilityTest.kt"
+        "status": "shipped",
+        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TaskComponents.kt"
       },
       "ios": {
         "status": "planned",
@@ -840,8 +840,8 @@
         "owner_test": "shipped with web (same bundle)"
       },
       "android": {
-        "status": "planned",
-        "owner_test": "androidTest/.../ParityGateTest.kt"
+        "status": "shipped",
+        "owner_test": "contracts/tests/tasks-parity.test.mjs"
       },
       "ios": {
         "status": "planned",
