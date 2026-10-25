@@ -4,7 +4,7 @@
 
 **Blocked by:** 26, 27
 
-**Status:** done
+**Status:** ready-for-agent
 
 - [x] CI fails when a feature is shipped on web but neither shipped nor waived elsewhere
 - [x] CI fails when a shipped feature has no owning test
@@ -60,3 +60,26 @@
   `--danger-ink` to the token source (both themes), wired `PRIORITIES`,
   `COLUMNS`, `statusOptions` and the chip CSS to them, and raised the light
   theme's `--text-secondary` from 0.65 to 0.68 alpha (4.19:1 → 4.57:1).
+## Comments
+
+**2026-10-25 — reopened by review**
+
+Two criteria are not met.
+
+- **"Every Tasks surface passes an automated accessibility check."**
+  `tasksA11y.test.tsx` audits 11 surfaces (backlog card, board card, board,
+  sprint plan, schedule calendar, completed section, bulk action bar, command
+  palette, shortcut help, detail sheet, plus the live-region and undo
+  assertions). Unawarded: `EpicPanel`, `SprintCompletionDialog`, `TaskTimePanel`,
+  `QuickAdd`, `TasksHeader`, `ScheduledTab`, `BacklogTab`, `TaskGitRefs`,
+  `TaskStatusControl`, `SprintImportPanel`, `LabelSelector`, `InlineCommentPanel`.
+- **"Contrast requirements are met on all status, priority and epic
+  indicators."** `axe.ts` disables `color-contrast` and `target-size` because
+  jsdom cannot evaluate them, and `contrast.test.ts` asserts the token pairs
+  rather than the rendered chips. The token fix is real; the rendered
+  assertion is not.
+
+The parity gate itself is now correct: it was inert because the matrix had web
+`planned` everywhere, and rule 6 only fires when web is shipped. Web and
+desktop are now `shipped` against tests that exist, and Android/iOS are
+`waived` with reasons.

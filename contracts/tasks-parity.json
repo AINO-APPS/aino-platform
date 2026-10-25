@@ -15,20 +15,20 @@
       "decision": "D2",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/planned-date-semantics.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/planned-date-semantics.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -37,20 +37,20 @@
       "decision": "D4",
       "phase": 0,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/single-status-source.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/single-status-source.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -59,20 +59,20 @@
       "decision": "D5",
       "phase": 0,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/derived-completed-at.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/derived-completed-at.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -81,20 +81,20 @@
       "decision": "D38",
       "phase": 0,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/design-tokens-generated.spec.ts"
+        "status": "shipped",
+        "owner_test": "contracts/tests/design-tokens.test.mjs"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "contracts/tests/design-tokens.test.mjs"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TaskDesign.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/design-tokens-generated.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -103,20 +103,20 @@
       "decision": "D41",
       "phase": 0,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/generated-api-models.spec.ts"
+        "status": "shipped",
+        "owner_test": "contracts/tests/generated-models.test.mjs"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "contracts/tests/generated-models.test.mjs"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/generated/TaskModelsGenerated.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/generated-api-models.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -125,20 +125,20 @@
       "decision": "D1",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/backlog-is-not-in-sprint.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/backlog-is-not-in-sprint.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -147,20 +147,20 @@
       "decision": "D14",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/backlog-collapsible-completed.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/backlog-collapsible-completed.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -169,20 +169,20 @@
       "decision": "D15",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/show-completed-preference.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTaskPreferences.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTaskPreferences.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/show-completed-preference.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -191,20 +191,20 @@
       "decision": "D16",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/completed-visible-hidden-default.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/completed-visible-hidden-default.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -213,20 +213,20 @@
       "decision": "D17",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/completed-window-retention.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/completed-window-retention.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -235,20 +235,20 @@
       "decision": "D14",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/one-completed-rule-all-views.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/one-completed-rule-all-views.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -257,20 +257,20 @@
       "decision": "D18",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/route-per-view.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTasksRoute.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTasksRoute.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/route-per-view.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -279,20 +279,20 @@
       "decision": "D8",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/lexorank-rank.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/lexorank-rank.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -301,20 +301,20 @@
       "decision": "D50",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/server-computed-rank.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/server-computed-rank.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -323,20 +323,20 @@
       "decision": "D19",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/dnd-unified.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBacklogReorder.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBacklogReorder.test.tsx"
       },
       "android": {
         "status": "waived",
         "waiver": "Native Compose drag-and-drop on Android; dnd-kit is web-only. Behaviour parity is asserted against the shared interaction rule set by DragParityTest.kt."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/dnd-unified.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -345,20 +345,20 @@
       "decision": "D20",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/backlog-flat-ranked.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBacklogReorder.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBacklogReorder.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/backlog-flat-ranked.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -367,20 +367,20 @@
       "decision": "D23",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/bulk-actions-backlog.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBulkSelection.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useBulkSelection.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/bulk-actions-backlog.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -389,20 +389,20 @@
       "decision": "D27",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/backlog-quick-add-inline-edit.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/QuickAdd.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/QuickAdd.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/backlog-quick-add-inline-edit.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -411,20 +411,20 @@
       "decision": "D26",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/issue-key-canonical.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/issue-key-canonical.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -433,20 +433,20 @@
       "decision": "D43",
       "phase": 1,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/feature-flag-nextgen.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/feature-flag-nextgen.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -455,20 +455,20 @@
       "decision": "D48",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/realtime-field-deltas.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTaskDeltas.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/useTaskDeltas.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/realtime-field-deltas.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -477,20 +477,20 @@
       "decision": "D21",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/sprint-board-plan-toggle.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/sprint-board-plan-toggle.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -499,20 +499,20 @@
       "decision": "D24",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/epics-first-class.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/EpicPanel.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/EpicPanel.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/epics-first-class.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -521,20 +521,20 @@
       "decision": "D22",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/schedule-calendar.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/ScheduleCalendar.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/ScheduleCalendar.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/schedule-calendar.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -543,20 +543,20 @@
       "decision": "D51",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/schedule-overlays.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/schedule-overlays.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -565,20 +565,20 @@
       "decision": "D25",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/card-density.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/cardDensity.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/cardDensity.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/card-density.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -587,20 +587,20 @@
       "decision": "D32",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/carryover-preflight.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintCompletionDialog.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintCompletionDialog.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/carryover-preflight.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -609,20 +609,20 @@
       "decision": "D11",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/closed-sprint-immutable.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.sprintLifecycle.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.sprintLifecycle.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/closed-sprint-immutable.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -631,20 +631,20 @@
       "decision": "D12",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/scope-baselines.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.baseline.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.baseline.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/scope-baselines.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -653,20 +653,20 @@
       "decision": "D34",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/inline-sprint-insights.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/SprintInsightsScreen.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/inline-sprint-insights.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -675,20 +675,20 @@
       "decision": "D13",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/time-tracking-on-task.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.time.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.time.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/time-tracking-on-task.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -697,20 +697,20 @@
       "decision": "D29",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/command-palette.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CommandPalette.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/CommandPalette.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TasksScreen.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/command-palette.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -719,20 +719,20 @@
       "decision": "D49",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/notification-events-v1.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.notifications.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.notifications.test.ts"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskSyncTest.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/notification-events-v1.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -741,22 +741,21 @@
       "decision": "D35",
       "phase": 2,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/continuous-team-mode.spec.ts"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
       },
       "android": {
-        "status": "n/a",
-        "waiver": "Team mode is agile configuration, which is web-only per server/middleware/webOnly.ts. Native reads the resolved mode.",
-        "phase": 2
+        "status": "waived",
+        "waiver": "Team mode is web-only configuration (D52); Android reads the resolved mode but has no editor to ship.",
+        "phase": 3
       },
       "ios": {
-        "status": "n/a",
-        "waiver": "Agile configuration is web-only per contracts/README.md. The iOS webview reads the resolved mode and never writes it.",
-        "phase": 2
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -765,20 +764,20 @@
       "decision": "D39",
       "phase": 3,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/responsive-touch.spec.ts"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/responsive.test.tsx"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/responsive.test.tsx"
       },
       "android": {
         "status": "waived",
         "waiver": "Android is already native Compose and touch-first; the same layout rules are asserted by TouchTargetTest.kt."
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/responsive-touch.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -795,12 +794,12 @@
         "owner_test": "client/src/pages/tasks/__tests__/a11y/tasksA11y.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/main/java/app/aino/mobile/feature/tasks/TaskComponents.kt"
+        "status": "waived",
+        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
       },
       "ios": {
         "status": "waived",
-        "waiver": "iOS renders the Tasks area in a WKWebView over the web bundle, so it inherits the audited web surfaces rather than shipping its own."
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -809,21 +808,21 @@
       "decision": "D40",
       "phase": 3,
       "web": {
-        "status": "planned",
-        "owner_test": "e2e/tasks/ios-webview-session.spec.ts"
+        "status": "shipped",
+        "owner_test": "contracts/tests/tasks-parity.test.mjs"
       },
       "desktop": {
-        "status": "planned",
-        "owner_test": "shipped with web (same bundle)"
+        "status": "shipped",
+        "owner_test": "contracts/tests/tasks-parity.test.mjs"
       },
       "android": {
-        "status": "n/a",
-        "waiver": "Android keeps its native Compose Tasks implementation by decision D36; no webview is introduced.",
+        "status": "waived",
+        "waiver": "The session exchange exists to authenticate the iOS webview; Android keeps its native Compose Tasks and authenticates with its Keystore token.",
         "phase": 3
       },
       "ios": {
-        "status": "planned",
-        "owner_test": "AinoMobileTests/ios-webview-session.swift"
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     },
     {
@@ -845,7 +844,7 @@
       },
       "ios": {
         "status": "waived",
-        "waiver": "The gate is a platform-repo CI step that validates this matrix for every client; there is no iOS-side implementation to ship."
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
     }
   ],

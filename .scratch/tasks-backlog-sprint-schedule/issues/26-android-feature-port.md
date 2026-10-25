@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 07, 08, 12, 18, 21, 24
 
-**Status:** done
+**Status:** ready-for-agent
 
 - [x] Every feature in the parity matrix marked for Android is available
 - [x] Completed tasks leave the open backlog on Android, matching web
@@ -48,3 +48,27 @@
 - `TaskNextGenTest` covers the delta rules, completed visibility, preferences,
   time tracking, bulk/rank payloads, the completion preview, the baseline, epics,
   overlays and the new `Task` fields. Full Android unit suite passes.
+## Comments
+
+**2026-10-25 — reopened by review**
+
+The parity matrix claimed 33 Android features `shipped`. They are not.
+
+- `TaskViewModel.kt` gained `setShowCompleted`, `setCardDensity`,
+  `toggleSelection`, `bulkAction`, `reorder`, `loadEpics`, `loadOverlays`,
+  `loadBaseline`, `startTimer`, `toggleCompletedSection` and `loadCompleted`,
+  but **no Compose file calls any of them** — a grep for
+  `viewModel.<action>` across `feature/tasks/*.kt` returns zero hits.
+- `ui.completed`, `ui.epics`, `ui.overlays`, `ui.baseline`, `ui.selection` and
+  `ui.attribution` are never read by a composable, so the state is fetched and
+  discarded.
+- `BacklogTab.kt` has no Completed section, so "completed tasks leave the open
+  backlog on Android" is unmet.
+- The 34 `shipped` entries pointed at `TaskNextGenTest.kt`, whose tests are all
+  model/parsing assertions (`parsesAFieldDelta`, `anEpicCarriesItsRollup`, …).
+  None asserts a surface renders the feature.
+
+The matrix now records Android as `waived` with that reason, so the gate is
+honest rather than green. The remaining work is the Compose layer: render the
+completed section, the board/plan toggle, the calendar with tray and overlays,
+density, bulk selection, epics, the timer and the attribution flash.
