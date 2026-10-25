@@ -46,6 +46,10 @@ export function overlayItems(payload: any): OverlayItem[] {
     const items: OverlayItem[] = [];
 
     for (const leave of payload?.leave ?? []) {
+        // The server returns one row per leave day (`leaves` stores a single
+        // `date` plus a `duration` fraction), so each row is already a day.
+        // `end_date` is still honoured for older server builds that sent a
+        // range instead.
         const start = String(leave.date).slice(0, 10);
         const end = String(leave.end_date ?? leave.date).slice(0, 10);
         for (const date of eachDay(start, end)) {

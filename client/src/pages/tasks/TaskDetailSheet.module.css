@@ -1,35 +1,30 @@
+/* Above the sticky navbar (z-index 100) and its dropdowns (300/700): the
+   sheet covers the viewport, so anything layered above it would cover the
+   header — including the close button. Matches the other modal overlays. */
 .backdrop {
     position: fixed;
     inset: 0;
-    z-index: 55;
+    z-index: 1000;
     display: flex;
-    justify-content: flex-end;
+    align-items: stretch;
+    justify-content: stretch;
     background: rgba(0, 0, 0, 0.4);
 }
 
+/* Full-screen on every viewport: the detail surface is the deep view, and a
+   partial panel left the body cramped on wide screens and clipped on narrow
+   ones. An opaque surface, not `--surface` — that token is a 4% wash meant to
+   sit on top of a card, so using it here left the panel see-through and the
+   text unreadable over the page behind it. */
 .sheet {
     display: flex;
     flex-direction: column;
-    width: min(520px, 100%);
+    width: 100%;
     height: 100%;
-    background: var(--surface);
+    background: var(--modal-bg);
     color: var(--text);
-    box-shadow: var(--shadow-lg, -8px 0 32px rgba(0, 0, 0, 0.3));
+    box-shadow: none;
     outline: none;
-}
-
-/* Narrow viewports: a bottom sheet. */
-@media (max-width: 640px) {
-    .backdrop {
-        align-items: flex-end;
-        justify-content: center;
-    }
-
-    .sheet {
-        width: 100%;
-        height: min(85vh, 720px);
-        border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-    }
 }
 
 .sheet-header {

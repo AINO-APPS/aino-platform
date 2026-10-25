@@ -15,10 +15,10 @@ interface TaskDetailSheetProps {
 /**
  * The task detail surface.
  *
- * A bottom sheet on narrow viewports and a side panel on wide ones — the same
- * component, chosen by CSS so there is no viewport-detection flicker. Escape
- * closes it, focus moves in on open and returns on close, and there is no
- * keyboard trap: Tab can leave the sheet.
+ * Full-screen on every viewport, so the deep view has the whole canvas and the
+ * layout does not change shape between devices. Escape closes it, focus moves
+ * in on open and returns on close, and there is no keyboard trap: Tab can
+ * leave the sheet.
  */
 export default function TaskDetailSheet({
     open,

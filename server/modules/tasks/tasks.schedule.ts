@@ -28,14 +28,17 @@ export async function findScheduleOverlays(
     to: string,
 ): Promise<ScheduleOverlays> {
     const [leave, holidays, meetings] = await Promise.all([
+        // One row per leave day: `leaves` stores a single `date` plus a
+        // `duration` fraction, so a multi-day absence is several rows and the
+        // range filter is a plain BETWEEN on that day.
         db.query(
-            `SELECT l.id, l.user_id, l.date, l.end_date, l.leave_type, l.status,
+            `SELECT l.id, l.user_id, l.date, l.duration, l.leave_type, l.status,
                     u.full_name AS user_name
                FROM leaves l
                LEFT JOIN users u ON u.id = l.user_id
               WHERE l.status = 'approved'
-                AND l.date <= $2
-                AND COALESCE(l.end_date, l.date) >= $1`,
+                AND l.date >= $1
+                AND l.date <= $2`,
             [from, to],
         ),
         db.query(

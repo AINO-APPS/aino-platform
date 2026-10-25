@@ -35,6 +35,7 @@ import { useFilters } from "./tasks/hooks/useFilters";
 import { useGlobalSearch } from "./tasks/hooks/useGlobalSearch";
 import { useComments } from "./tasks/hooks/useComments";
 import { useBacklog } from "./tasks/hooks/useBacklog";
+import { backlogTabHandlers } from "./tasks/hooks/backlogTabProps";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
@@ -487,8 +488,7 @@ export default function Tasks() {
         {activeTab === "backlog" && (
           <BacklogTab
             {...backlog}
-            onQuickAdd={backlog.quickAdd}
-            onInlineEdit={backlog.inlineEdit}
+            {...backlogTabHandlers(backlog)}
             selection={backlog.bulk}
             attribution={backlog.attribution}
             bulkBar={

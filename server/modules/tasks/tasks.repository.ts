@@ -125,12 +125,20 @@ export const setAssignee = async (db: TasksDb, id: number, assignee: number | nu
 export const deleteTask = async (db: TasksDb, id: number) =>
     db.query("DELETE FROM tasks WHERE id = $1", [id]);
 
-/** Every epic in the org, with its work-item type for the badge colour. */
+/**
+ * Every epic in the org, with its work-item type for the badge colour.
+ *
+ * `issue_key` is not a column: it is the project key plus the per-project task
+ * number, so it is derived here the same way the task enrich step derives it.
+ */
 export const findEpics = async (db: TasksDb, orgId: number | null) => (await db.query(
-    `SELECT t.id, t.title, t.issue_key, t.workflow_state_id, t.story_points,
-            t.project_id, wit.name AS type_name, wit.color AS type_color
+    `SELECT t.id, t.title, t.workflow_state_id, t.story_points, t.project_id,
+            CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
+                 THEN p.key || '-' || t.task_number END AS issue_key,
+            wit.name AS type_name, wit.color AS type_color
        FROM tasks t
        JOIN work_item_types wit ON wit.id = t.work_item_type_id
+       LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.org_id = $1 AND wit.is_epic = TRUE
       ORDER BY t.created_at ASC`, [orgId],
 )).rows;

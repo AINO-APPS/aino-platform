@@ -162,10 +162,10 @@ export function useBacklog({
                 label: `Bulk ${action.replace(/_/g, " ")} (${changed})`,
                 undo: async () => {
                     await reverseBulkAction(action, applied);
-                    await fetchBacklog();
+                    await fetchBacklog(true);
                 },
             });
-            void fetchBacklog();
+            void fetchBacklog(true);
         },
         onError: setError,
     });
@@ -182,8 +182,17 @@ export function useBacklog({
         setBacklogOffset(0);
     }, [backlogFilters, backlogLimit]);
 
-    const fetchBacklog = useCallback(async () => {
-        setBacklogLoading(true);
+    /**
+     * Load the backlog page.
+     *
+     * `quiet` refreshes the rows in place without flipping `backlogLoading`.
+     * The visible-tab poll and realtime refreshes use it: the tab renders a
+     * full-panel spinner while loading, so a background refresh would blank
+     * the list every 30 seconds. Only a user-initiated load (first paint,
+     * filter/page change) shows the spinner.
+     */
+    const fetchBacklog = useCallback(async (quiet = false) => {
+        if (!quiet) setBacklogLoading(true);
         try {
             const res = await getBacklog({
                 ...(backlogFilters || {}),
@@ -214,7 +223,7 @@ export function useBacklog({
         } catch {
             setError("Failed to load backlog");
         } finally {
-            setBacklogLoading(false);
+            if (!quiet) setBacklogLoading(false);
         }
     }, [backlogFilters, backlogLimit, backlogOffset]);
 
@@ -296,7 +305,7 @@ export function useBacklog({
             setBacklogWorkItemType("");
             setBacklogProjectId("");
             setBacklogFormOpen(false);
-            fetchBacklog();
+            fetchBacklog(true);
             if (backlogSprintId && activeTab === "sprint") fetchTasks();
         } catch (err) {
             const error = err as {
@@ -315,7 +324,7 @@ export function useBacklog({
     const quickAdd = useCallback(async (title: string) => {
         try {
             await addBacklogTask({ title, priority: "medium" });
-            await fetchBacklog();
+            await fetchBacklog(true);
         } catch (err) {
             const error = err as { response?: { data?: { error?: string } } };
             setError(error.response?.data?.error || "Failed to create backlog item");
@@ -342,7 +351,7 @@ export function useBacklog({
                 label: "Edited ticket",
                 undo: async () => {
                     await updateTask(task.id, previous);
-                    await fetchBacklog();
+                    await fetchBacklog(true);
                 },
             });
         } catch {
@@ -369,7 +378,7 @@ export function useBacklog({
                 try {
                     await scheduleTask(taskId, dateToUse);
                     setScheduleTaskId(null);
-                    fetchBacklog();
+                    fetchBacklog(true);
                     if (dateToUse === date) fetchTasks();
                     if (closeAfter) closeAfter();
                     onScheduled?.(taskId, dateToUse);
@@ -394,7 +403,7 @@ export function useBacklog({
                 try {
                     await unscheduleTask(taskId);
                     fetchTasks();
-                    if (backlogOpen || activeTab === "backlog") fetchBacklog();
+                    if (backlogOpen || activeTab === "backlog") fetchBacklog(true);
                     if (closeAfter) closeAfter();
                 } catch {
                     setError("Failed to move task to backlog");
@@ -420,7 +429,7 @@ export function useBacklog({
             setImportAssignedTo("");
             setImportDueDate("");
             fetchTasks();
-            fetchBacklog();
+            fetchBacklog(true);
         } catch {
             setError("Failed to import task to sprint");
         }
@@ -428,8 +437,9 @@ export function useBacklog({
 
     // Live refresh of the Tasks page: edits/status moves/comments/assignments
     // made by other users or on other devices (server `task_updated`).
+    // Quiet: a background refresh must not blank the list behind a spinner.
     const refreshVisible = () => {
-        if (activeTab === "backlog") fetchBacklog();
+        if (activeTab === "backlog") fetchBacklog(true);
         else if (activeTab === "sprint") fetchTasks();
     };
     // Field deltas patch the rows already on screen, so a teammate's edit lands
