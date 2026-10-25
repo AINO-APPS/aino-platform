@@ -535,51 +535,11 @@ export default function Tasks() {
 
         {activeTab === "backlog" && (
           <BacklogTab
-            backlogTasks={backlog.backlogTasks}
-            sortedBacklogTasks={backlog.sortedBacklogTasks}
-            backlogLoading={backlog.backlogLoading}
-            backlogSummary={backlog.backlogSummary}
-            backlogSort={backlog.backlogSort}
-            setBacklogSort={backlog.setBacklogSort}
-            backlogFormOpen={backlog.backlogFormOpen}
-            setBacklogFormOpen={backlog.setBacklogFormOpen}
-            backlogTitle={backlog.backlogTitle}
-            setBacklogTitle={backlog.setBacklogTitle}
-            backlogDesc={backlog.backlogDesc}
-            setBacklogDesc={backlog.setBacklogDesc}
-            backlogPriority={backlog.backlogPriority}
-            setBacklogPriority={backlog.setBacklogPriority}
-            backlogAssignedTo={backlog.backlogAssignedTo}
-            setBacklogAssignedTo={backlog.setBacklogAssignedTo}
-            backlogDueDate={backlog.backlogDueDate}
-            setBacklogDueDate={backlog.setBacklogDueDate}
-            backlogLabels={backlog.backlogLabels}
-            setBacklogLabels={backlog.setBacklogLabels}
-            backlogLabelDropdownOpen={backlog.backlogLabelDropdownOpen}
-            setBacklogLabelDropdownOpen={backlog.setBacklogLabelDropdownOpen}
-            backlogSprintId={backlog.backlogSprintId}
-            setBacklogSprintId={backlog.setBacklogSprintId}
-            backlogStoryPoints={backlog.backlogStoryPoints}
-            setBacklogStoryPoints={backlog.setBacklogStoryPoints}
-            backlogWorkItemType={backlog.backlogWorkItemType}
-            setBacklogWorkItemType={backlog.setBacklogWorkItemType}
-            backlogProjectId={backlog.backlogProjectId}
-            setBacklogProjectId={backlog.setBacklogProjectId}
-            backlogLimit={backlog.backlogLimit}
-            setBacklogLimit={backlog.setBacklogLimit}
-            backlogOffset={backlog.backlogOffset}
-            setBacklogOffset={backlog.setBacklogOffset}
-            backlogTotal={backlog.backlogTotal}
-            scheduleTaskId={backlog.scheduleTaskId}
-            setScheduleTaskId={backlog.setScheduleTaskId}
-            scheduleDate={backlog.scheduleDate}
-            setScheduleDate={backlog.setScheduleDate}
+            {...backlog}
             filterPriority={filters.filterPriority}
             summaryAllActive={summaryAllActive}
             error={error}
-            onHandleAddBacklog={backlog.handleAddBacklog}
             onOpenDetail={detail.openTaskDetail}
-            onScheduleTask={backlog.handleScheduleTask}
             onHandleSummaryTotal={handleSummaryTotal}
             onHandleSummaryPriority={handleSummaryPriority}
             onToggleLabel={toggleLabel as any}

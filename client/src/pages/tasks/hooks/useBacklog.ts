@@ -80,6 +80,14 @@ export function useBacklog({
     const [backlogLimit, setBacklogLimit] = useState(25);
     const [backlogOffset, setBacklogOffset] = useState(0);
     const [backlogTotal, setBacklogTotal] = useState(0);
+    // Completed work is hidden by default. The count comes from the first
+    // backlog response; expanding loads the recent window, and "View all"
+    // removes the window.
+    const [completedCount, setCompletedCount] = useState(0);
+    const [completedTasks, setCompletedTasks] = useState<Task[]>([]);
+    const [completedOpen, setCompletedOpen] = useState(false);
+    const [completedLoading, setCompletedLoading] = useState(false);
+    const [completedShowingAll, setCompletedShowingAll] = useState(false);
 
     // Resetting offset on filter/page-size change avoids landing on an empty
     // page when the filtered result set shrinks below the current offset.
@@ -98,9 +106,13 @@ export function useBacklog({
             const data = res.data as {
                 tasks: Task[];
                 summary?: BacklogSummary;
+                completed_count?: number;
                 pagination?: { total?: number };
             };
             setBacklogTasks(data.tasks);
+            if (typeof data.completed_count === "number") {
+                setCompletedCount(data.completed_count);
+            }
             if (data.summary) setBacklogSummary(data.summary);
             // `pagination.total` is the authoritative count for the current
             // filter set; fall back to summary.total / list length for older
@@ -292,10 +304,59 @@ export function useBacklog({
     // Teammates' edits never reach this user's socket; poll while visible.
     useVisiblePoll(refreshVisible, 30_000, activeTab === "backlog" || activeTab === "sprint");
 
+    /**
+     * Load the completed window: the last 30 days, or the last closed sprint
+     * when that reaches further back. "View all" drops the window entirely.
+     */
+    const fetchCompleted = useCallback(async (showAll = false) => {
+        setCompletedLoading(true);
+        try {
+            const params: Record<string, unknown> = {
+                ...(backlogFilters || {}),
+                include_completed: 1,
+                completed_only: 1,
+                limit: 100,
+                offset: 0,
+            };
+            if (!showAll) {
+                const since = new Date();
+                since.setDate(since.getDate() - 30);
+                params.completed_since = since.toISOString().slice(0, 10);
+            }
+            const res = await getBacklog(params);
+            const data = res.data as { tasks?: Task[] };
+            setCompletedTasks(data.tasks || []);
+            setCompletedShowingAll(showAll);
+        } catch {
+            setError("Failed to load completed work");
+        } finally {
+            setCompletedLoading(false);
+        }
+    }, [backlogFilters, setError]);
+
+    const toggleCompleted = useCallback(() => {
+        setCompletedOpen((open) => {
+            const next = !open;
+            if (next && completedTasks.length === 0) void fetchCompleted(false);
+            return next;
+        });
+    }, [completedTasks.length, fetchCompleted]);
+
+    const showAllCompleted = useCallback(() => {
+        void fetchCompleted(true);
+    }, [fetchCompleted]);
+
     return {
         backlogTasks,
         setBacklogTasks,
         backlogLoading,
+        completedCount,
+        completedTasks,
+        completedOpen,
+        completedLoading,
+        completedShowingAll,
+        toggleCompleted,
+        showAllCompleted,
         backlogFormOpen,
         setBacklogFormOpen,
         backlogTitle,

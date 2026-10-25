@@ -9,7 +9,7 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
-const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
+const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask } = require('./_helpers/access');
@@ -45,7 +45,7 @@ const router = express.Router();
 // We push the label filter into SQL via EXISTS.
 router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { assignee, label, priority, status, search } = req.query as Record<string, string>;
+        const { assignee, label, priority, status, search, include_completed, completed_since } = req.query as Record<string, string>;
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
@@ -56,19 +56,40 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
                 ? { kind: 'team' as const, userId: req.userId, teamId: req.userTeamId }
                 : { kind: 'personal' as const, userId: req.userId };
 
+        // Completed work leaves the open list. `include_completed=1` reveals it
+        // (the collapsed Completed section), optionally windowed by
+        // `completed_since`. A planned date is metadata and never removes a
+        // task from the backlog.
+        const includeCompleted = include_completed === '1' || include_completed === 'true';
+        const completedOnly = req.query.completed_only === '1' || req.query.completed_only === 'true';
+        const filters = {
+            assignee, label, priority, status, search,
+            completed: completedOnly ? ('completed' as const) : includeCompleted ? ('all' as const) : ('incomplete' as const),
+            completedSince: completed_since || undefined,
+        };
+
         const collection = buildTaskCollection({
             scope: 'backlog',
             orgId: req.userOrgId || null,
             visibility,
-            filters: { assignee, label, priority, status, search, excludeScheduled: true },
+            filters,
         });
         const whereSql = collection.whereSql;
         const params = collection.params;
         const pi = params.length + 1;
 
+        // The completed count renders from the first response, so the section
+        // can be labelled while collapsed without a second request.
+        const completedCollection = buildCompletedQuery({
+            scope: 'backlog',
+            orgId: req.userOrgId || null,
+            visibility,
+            filters: { ...filters, completedSince: undefined },
+        });
+
         // Bug #9: include a parallel COUNT(*) so the client can render
         // pagination / totals without a second round-trip.
-        const [tasksRes, countRes] = await Promise.all([
+        const [tasksRes, countRes, completedCountRes] = await Promise.all([
             req.db!.query(
                 `SELECT t.* FROM tasks t
                   WHERE ${whereSql}
@@ -77,9 +98,14 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
                 [...params, limit, offset]
             ),
             req.db!.query(`SELECT COUNT(*)::int AS total FROM tasks t WHERE ${whereSql}`, params),
+            req.db!.query(
+                `SELECT COUNT(*)::int AS total FROM tasks t WHERE ${completedCollection.whereSql}`,
+                completedCollection.params,
+            ),
         ]);
         const tasks = tasksRes.rows;
         const total = countRes.rows[0]?.total ?? tasks.length;
+        const completedCount = completedCountRes.rows[0]?.total ?? 0;
 
         const enriched = await enrichTasks(tasks, req.db);
         const summary: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> } = { total, byStatus: {}, byPriority: { high: 0, medium: 0, low: 0 } };
@@ -92,6 +118,8 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         res.json({
             tasks: enriched,
             summary,
+            completed_count: completedCount,
+            incomplete_total: total,
             pagination: { limit, offset, total, hasMore: offset + enriched.length < total },
         });
     } catch (err) {
@@ -252,8 +280,8 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
-        await req.db!.query('UPDATE tasks SET date = $1 WHERE id = $2', [date, id]);
-        await logHistory(id, req.userId, 'scheduled', 'date', task.date || 'backlog', date, null, req.db);
+        await req.db!.query('UPDATE tasks SET planned_date = $1, date = $1 WHERE id = $2', [date, id]);
+        await logHistory(id, req.userId, 'scheduled', 'planned_date', task.planned_date || task.date || 'backlog', date, null, req.db);
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
@@ -272,8 +300,8 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
-        await req.db!.query('UPDATE tasks SET date = NULL WHERE id = $1', [id]);
-        await logHistory(id, req.userId, 'unscheduled', 'date', task.date, 'backlog', null, req.db);
+        await req.db!.query('UPDATE tasks SET planned_date = NULL, date = NULL WHERE id = $1', [id]);
+        await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date || task.date, 'backlog', null, req.db);
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);

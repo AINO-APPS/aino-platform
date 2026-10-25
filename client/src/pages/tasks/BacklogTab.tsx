@@ -32,6 +32,8 @@ import {
 } from "../../components/agile/AgilePickers";
 import { getLocalToday } from "../../api/client";
 import { useTaskCtx } from "./TaskContext";
+import CompletedSection from "./CompletedSection";
+import BacklogCard from "./BacklogCard";
 import s from "./BacklogTab.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {
@@ -76,6 +78,13 @@ interface BacklogTabProps {
     backlogOffset: number;
     setBacklogOffset: (v: number) => void;
     backlogTotal: number;
+    completedCount: number;
+    completedTasks: any[];
+    completedOpen: boolean;
+    completedLoading: boolean;
+    completedShowingAll: boolean;
+    onToggleCompleted: () => void;
+    onShowAllCompleted: () => void;
     scheduleTaskId: number | string | null;
     setScheduleTaskId: (v: number | string | null) => void;
     scheduleDate: string;
@@ -131,6 +140,13 @@ export default function BacklogTab({
     backlogOffset,
     setBacklogOffset,
     backlogTotal,
+    completedCount,
+    completedTasks,
+    completedOpen,
+    completedLoading,
+    completedShowingAll,
+    onToggleCompleted,
+    onShowAllCompleted,
     scheduleTaskId,
     setScheduleTaskId,
     scheduleDate,
@@ -403,184 +419,31 @@ export default function BacklogTab({
                             itemLabel="ticket"
                         />
                     )}
-                    {sortedBacklogTasks.map((task) => {
-                        const pri = getPriority(task.priority);
-                        const dueFmt = formatDueDate(task.due_date);
-                        const overdue =
-                            isDueOverdue(task.due_date) && task.status !== "done";
-                        const colInfo = currentStatusOption(task, workflowStates, statusOpts) || statusOpts[0];
-                        const descPreview = stripHtml(task.description);
+                    {sortedBacklogTasks.map((task) => (
+                        <BacklogCard
+                            key={task.id}
+                            task={task}
+                            workflowStates={workflowStates}
+                            scheduleTaskId={scheduleTaskId}
+                            scheduleDate={scheduleDate}
+                            setScheduleTaskId={setScheduleTaskId}
+                            setScheduleDate={setScheduleDate}
+                            onOpenDetail={onOpenDetail}
+                            onScheduleTask={onScheduleTask}
+                        />
+                    ))}
 
-                        return (
-                            <div
-                                key={task.id}
-                                className={`${s["backlog-card"]} ${s.clickable} ${task.status === "done" ? s["backlog-card-done"] : ""}`}
-                                onClick={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    if (target.closest(`.${s["backlog-actions"]}`)) return;
-                                    onOpenDetail(task);
-                                }}
-                            >
-                                <div
-                                    className={s["backlog-priority-bar"]}
-                                    style={{ "--pri-color": pri.color } as React.CSSProperties}
-                                />
-                                <div className={s["backlog-card-body"]}>
-                                    <div className={s["backlog-card-header"]}>
-                                        <span className={s["backlog-ticket-id"]}>
-                                            {task.issue_key || `#${task.id}`}
-                                        </span>
-                                        <span
-                                            className={s["backlog-status-badge"]}
-                                            style={
-                                                {
-                                                    "--badge-bg": colInfo.color + "20",
-                                                    "--badge-color": colInfo.color,
-                                                } as React.CSSProperties
-                                            }
-                                        >
-                                            {colInfo.icon ? `${colInfo.icon} ` : ""}{colInfo.label}
-                                        </span>
-                                        <span
-                                            className={s["task-priority-badge"]}
-                                            style={
-                                                {
-                                                    "--badge-bg": pri.color + "20",
-                                                    "--badge-color": pri.color,
-                                                } as React.CSSProperties
-                                            }
-                                        >
-                                            {pri.icon} {pri.label}
-                                        </span>
-                                        <WorkItemTypeBadge value={task.work_item_type_id} />
-                                        <StoryPointBadge value={task.story_points} />
-                                        <BlockerBadge task={task} />
-                                        {task.labels &&
-                                            task.labels.length > 0 &&
-                                            task.labels.map((l: any) => (
-                                                <span
-                                                    key={l.id}
-                                                    className={s["label-pill"]}
-                                                    style={
-                                                        {
-                                                            "--label-color": l.color,
-                                                        } as React.CSSProperties
-                                                    }
-                                                >
-                                                    {l.name}
-                                                </span>
-                                            ))}
-                                    </div>
-                                    <span className={s["backlog-card-title"]}>
-                                        {task.title}
-                                    </span>
-                                    {descPreview && (
-                                        <div className={s["backlog-desc-preview"]}>
-                                            {descPreview}
-                                        </div>
-                                    )}
-                                    <div className={s["backlog-card-footer"]}>
-                                        {task.assignee && (
-                                            <span className={s["backlog-meta-chip"]}>
-                                                {task.assignee.avatar ? (
-                                                    <img
-                                                        src={getAvatarUrl(task.assignee.avatar)}
-                                                        alt=""
-                                                        className={s["backlog-meta-avatar"]}
-                                                    />
-                                                ) : (
-                                                    <span
-                                                        className={s["backlog-meta-avatar-placeholder"]}
-                                                    >
-                                                        {(
-                                                            task.assignee.full_name ||
-                                                            task.assignee.username ||
-                                                            "?"
-                                                        )[0].toUpperCase()}
-                                                    </span>
-                                                )}
-                                                {task.assignee.full_name || task.assignee.username}
-                                            </span>
-                                        )}
-                                        {dueFmt && (
-                                            <span
-                                                className={`${s["backlog-meta-chip"]} ${overdue ? s["overdue"] : ""}`}
-                                            >
-                                                <CalendarDays
-                                                    size={11}
-                                                    style={{
-                                                        marginRight: 3,
-                                                        verticalAlign: "middle",
-                                                    }}
-                                                />
-                                                {dueFmt}
-                                            </span>
-                                        )}
-                                        {task.comment_count > 0 && (
-                                            <span className={s["backlog-meta-chip"]}>
-                                                <MessageSquare
-                                                    size={11}
-                                                    style={{
-                                                        marginRight: 3,
-                                                        verticalAlign: "middle",
-                                                    }}
-                                                />
-                                                {task.comment_count}
-                                            </span>
-                                        )}
-                                        <span className={s["backlog-meta-time"]}>
-                                            {formatRelativeTime(task.created_at)}
-                                        </span>
-                                        <div className={s["backlog-actions"]}>
-                                            {scheduleTaskId === task.id ? (
-                                                <div className={s["schedule-popover"]}>
-                                                    <input
-                                                        type="date"
-                                                        value={scheduleDate}
-                                                        onChange={(e) =>
-                                                            setScheduleDate(e.target.value)
-                                                        }
-                                                        className={s["date-input"]}
-                                                    />
-                                                    <button
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() =>
-                                                            onScheduleTask(task.id, task.title)
-                                                        }
-                                                    >
-                                                        Go
-                                                    </button>
-                                                    <button
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => setScheduleTaskId(null)}
-                                                    >
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        setScheduleTaskId(task.id);
-                                                        setScheduleDate(getLocalToday());
-                                                    }}
-                                                    title="Schedule to a day"
-                                                >
-                                                    <CalendarDays
-                                                        size={13}
-                                                        style={{
-                                                            marginRight: 4,
-                                                            verticalAlign: "middle",
-                                                        }}
-                                                    />
-                                                    Schedule
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    <CompletedSection
+                        count={completedCount}
+                        tasks={completedTasks}
+                        open={completedOpen}
+                        loading={completedLoading}
+                        showingAll={completedShowingAll}
+                        onToggle={onToggleCompleted}
+                        onShowAll={onShowAllCompleted}
+                        onOpenDetail={onOpenDetail}
+                        formatDate={formatDueDate}
+                    />
                 </div>
             )}
         </>

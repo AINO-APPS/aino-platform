@@ -1,0 +1,194 @@
+import React from "react";
+import { CalendarDays, MessageSquare, X } from "../../constants/icons";
+import {
+    StoryPointBadge,
+    WorkItemTypeBadge,
+    BlockerBadge,
+} from "../../components/agile/AgilePickers";
+import { PRIORITIES, type PriorityOption } from "./constants";
+import { currentStatusOption, statusOptions } from "./taskStatus";
+import { formatDueDate, formatRelativeTime, isDueOverdue, stripHtml, getAvatarUrl } from "./utils";
+import { getLocalToday } from "../../api/client";
+import s from "./BacklogTab.module.css";
+
+function getPriority(p: string | undefined): PriorityOption {
+    return PRIORITIES.find((pr) => pr.value === p) || PRIORITIES[1];
+}
+
+interface BacklogCardProps {
+    task: any;
+    workflowStates: any;
+    scheduleTaskId: number | string | null;
+    scheduleDate: string;
+    setScheduleTaskId: (v: number | string | null) => void;
+    setScheduleDate: (v: string) => void;
+    onOpenDetail: (task: any) => void;
+    onScheduleTask: (id: number | string, title: string) => void;
+}
+
+/** One backlog row. Extracted so the tab stays within the file-size ratchet. */
+export default function BacklogCard({
+    task,
+    workflowStates,
+    scheduleTaskId,
+    scheduleDate,
+    setScheduleTaskId,
+    setScheduleDate,
+    onOpenDetail,
+    onScheduleTask,
+}: BacklogCardProps) {
+    const pri = getPriority(task.priority);
+    const dueFmt = formatDueDate(task.due_date);
+    const overdue = isDueOverdue(task.due_date) && task.status !== "done";
+    const colInfo =
+        currentStatusOption(task, workflowStates, statusOptions(workflowStates)) ||
+        statusOptions(workflowStates)[0];
+    const descPreview = stripHtml(task.description);
+
+    return (
+        <div
+            className={`${s["backlog-card"]} ${s.clickable} ${task.status === "done" ? s["backlog-card-done"] : ""}`}
+            onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest(`.${s["backlog-actions"]}`)) return;
+                onOpenDetail(task);
+            }}
+        >
+            <div
+                className={s["backlog-priority-bar"]}
+                style={{ "--pri-color": pri.color } as React.CSSProperties}
+            />
+            <div className={s["backlog-card-body"]}>
+                <div className={s["backlog-card-header"]}>
+                    <span className={s["backlog-ticket-id"]}>
+                        {task.issue_key || `#${task.id}`}
+                    </span>
+                    <span
+                        className={s["backlog-status-badge"]}
+                        style={
+                            {
+                                "--badge-bg": colInfo.color + "20",
+                                "--badge-color": colInfo.color,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {colInfo.icon ? `${colInfo.icon} ` : ""}
+                        {colInfo.label}
+                    </span>
+                    <span
+                        className={s["task-priority-badge"]}
+                        style={
+                            {
+                                "--badge-bg": pri.color + "20",
+                                "--badge-color": pri.color,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {pri.icon} {pri.label}
+                    </span>
+                    <WorkItemTypeBadge value={task.work_item_type_id} />
+                    <StoryPointBadge value={task.story_points} />
+                    <BlockerBadge task={task} />
+                    {task.labels &&
+                        task.labels.length > 0 &&
+                        task.labels.map((l: any) => (
+                            <span
+                                key={l.id}
+                                className={s["label-pill"]}
+                                style={{ "--label-color": l.color } as React.CSSProperties}
+                            >
+                                {l.name}
+                            </span>
+                        ))}
+                </div>
+                <span className={s["backlog-card-title"]}>{task.title}</span>
+                {descPreview && (
+                    <div className={s["backlog-desc-preview"]}>{descPreview}</div>
+                )}
+                <div className={s["backlog-card-footer"]}>
+                    {task.assignee && (
+                        <span className={s["backlog-meta-chip"]}>
+                            {task.assignee.avatar ? (
+                                <img
+                                    src={getAvatarUrl(task.assignee.avatar)}
+                                    alt=""
+                                    className={s["backlog-meta-avatar"]}
+                                />
+                            ) : (
+                                <span className={s["backlog-meta-avatar-placeholder"]}>
+                                    {(
+                                        task.assignee.full_name ||
+                                        task.assignee.username ||
+                                        "?"
+                                    )[0].toUpperCase()}
+                                </span>
+                            )}
+                            {task.assignee.full_name || task.assignee.username}
+                        </span>
+                    )}
+                    {dueFmt && (
+                        <span
+                            className={`${s["backlog-meta-chip"]} ${overdue ? s["overdue"] : ""}`}
+                        >
+                            <CalendarDays
+                                size={11}
+                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                            />
+                            {dueFmt}
+                        </span>
+                    )}
+                    {task.comment_count > 0 && (
+                        <span className={s["backlog-meta-chip"]}>
+                            <MessageSquare
+                                size={11}
+                                style={{ marginRight: 3, verticalAlign: "middle" }}
+                            />
+                            {task.comment_count}
+                        </span>
+                    )}
+                    <span className={s["backlog-meta-time"]}>
+                        {formatRelativeTime(task.created_at)}
+                    </span>
+                    <div className={s["backlog-actions"]}>
+                        {scheduleTaskId === task.id ? (
+                            <div className={s["schedule-popover"]}>
+                                <input
+                                    type="date"
+                                    value={scheduleDate}
+                                    onChange={(e) => setScheduleDate(e.target.value)}
+                                    className={s["date-input"]}
+                                />
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => onScheduleTask(task.id, task.title)}
+                                >
+                                    Go
+                                </button>
+                                <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => setScheduleTaskId(null)}
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    setScheduleTaskId(task.id);
+                                    setScheduleDate(getLocalToday());
+                                }}
+                                title="Schedule to a day"
+                            >
+                                <CalendarDays
+                                    size={13}
+                                    style={{ marginRight: 4, verticalAlign: "middle" }}
+                                />
+                                Schedule
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -318,7 +318,9 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         // workflow_states row so custom workflows work too. We still fall
         // back to the legacy key when no state row was resolved (very old
         // tenants where the catalog isn't seeded).
-        const completedAt = target.is_terminal ? new Date().toISOString() : null;
+        // `completed_at` is derived by the database from the workflow-state
+        // category (migration 0011), so the server never writes it. The trigger
+        // sets it on entering a done state and clears it on leaving.
         let cycleStartedAtClause = '';
         const wasOpen = !task.cycle_started_at;
         const targetIsStartOfWork = target.id
@@ -328,9 +330,9 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         if (startsCycle) cycleStartedAtClause = ', cycle_started_at = NOW()';
 
         await req.db!.query(
-            `UPDATE tasks SET status = $1, workflow_state_id = $2, completed_at = $3${cycleStartedAtClause}
-              WHERE id = $4`,
-            [target.key, target.id, completedAt, id]
+            `UPDATE tasks SET status = $1, workflow_state_id = $2${cycleStartedAtClause}
+              WHERE id = $3`,
+            [target.key, target.id, id]
         );
 
         if (task.status !== target.key) {
@@ -475,7 +477,6 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         let newWsId = task.workflow_state_id;
         let newStatusKey = task.status;
-        let newCompletedAt = task.completed_at;
         let newWsRow = null;
         if (workflow_state_id !== undefined) {
             if (workflow_state_id === null || workflow_state_id === '') {
@@ -487,17 +488,13 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
             newWsId = newWsRow ? newWsRow.id : null;
             newStatusKey = newWsRow ? newWsRow.key : task.status;
-            // Bug #13 (Stage 2): only stamp/clear completed_at when the state
-            // actually changed. Previously, sending the same workflow_state_id
-            // (or null reset → already-initial state) would wipe a real
-            // completion timestamp. Compare against the existing row first.
+            // Bug #13 (Stage 2): only check permission when the state actually
+            // changed. `completed_at` is derived by the database trigger, so
+            // this route never writes it.
             const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '')
                 || String(newStatusKey || '') !== String(task.status || '');
             if (stateChanged && !canChangeTaskStatus(task, req.userId, req.userRole)) {
                 return res.status(403).json({ error: STATUS_FORBIDDEN });
-            }
-            if (stateChanged) {
-                newCompletedAt = newWsRow?.is_terminal ? new Date().toISOString() : null;
             }
         }
         let newParentTaskId = task.parent_task_id;
@@ -529,12 +526,12 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         await req.db!.query(
             `UPDATE tasks SET title = $1, description = $2, priority = $3, assigned_to = $4,
                 due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
-                workflow_state_id = $9, status = $10, completed_at = $11, parent_task_id = $12,
-                acceptance_criteria = $13, is_blocked = $14, blocked_reason = $15,
-                project_id = $16, task_number = $17
-              WHERE id = $18`,
+                workflow_state_id = $9, status = $10, parent_task_id = $11,
+                acceptance_criteria = $12, is_blocked = $13, blocked_reason = $14,
+                project_id = $15, task_number = $16
+              WHERE id = $17`,
             [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
-                newStoryPoints, newWitId, newWsId, newStatusKey, newCompletedAt, newParentTaskId,
+                newStoryPoints, newWitId, newWsId, newStatusKey, newParentTaskId,
                 newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                 newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
         );

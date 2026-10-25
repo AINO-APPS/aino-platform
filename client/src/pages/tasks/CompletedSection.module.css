@@ -1,0 +1,118 @@
+.completed-section {
+    margin-top: var(--space-gutter);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-control);
+}
+
+.completed-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 4px;
+    background: none;
+    border: 0;
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.completed-toggle:hover {
+    color: var(--text-primary);
+}
+
+.completed-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.completed-title {
+    font-weight: 600;
+}
+
+.completed-count {
+    color: var(--text-muted);
+}
+
+.completed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 0 8px;
+}
+
+.completed-row {
+    display: grid;
+    grid-template-columns: minmax(72px, auto) 1fr auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.completed-row:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+.completed-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.completed-key {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    font-size: var(--font-meta-size);
+}
+
+.completed-row-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: line-through;
+    text-decoration-color: var(--text-muted);
+}
+
+.completed-date {
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.completed-show-all {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 6px 10px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+}
+
+.completed-show-all:hover {
+    background: var(--surface-hover);
+}
+
+.completed-show-all:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.completed-loading,
+.completed-empty {
+    padding: 10px;
+    color: var(--text-muted);
+    font-size: var(--font-meta-size);
+}
