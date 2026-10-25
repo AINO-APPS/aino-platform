@@ -4,8 +4,16 @@ import { bulkTaskAction } from "../../../api/tasks";
 export type BulkAction = "move_to_sprint" | "status" | "assign" | "delete";
 
 interface UseBulkSelectionArgs {
-    onApplied?: (action: BulkAction, changed: number) => void;
+    onApplied?: (action: BulkAction, changed: number, results: BulkResult[]) => void;
     onError?: (message: string) => void;
+}
+
+/** One task's outcome, including what it was before the action. */
+export interface BulkResult {
+    id: number;
+    ok: boolean;
+    error?: string;
+    previous?: Record<string, unknown>;
 }
 
 /**
@@ -47,7 +55,7 @@ export function useBulkSelection({ onApplied, onError }: UseBulkSelectionArgs = 
                     value,
                 });
                 const changed = res?.data?.changed ?? 0;
-                onApplied?.(action, changed);
+                onApplied?.(action, changed, res?.data?.results ?? []);
                 return res?.data ?? null;
             } catch (err) {
                 const message = (err as { response?: { data?: { error?: string } } })

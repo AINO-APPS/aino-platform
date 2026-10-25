@@ -479,7 +479,7 @@ router.post("/handoff", async (req: Request, res: Response) => {
 // Native webview session exchange: a native client trades its bearer token for
 // a short-lived single-use code, and the webview redeems it for a cookie
 // session. The bearer token never enters the web page. See auth/webview.ts.
-router.use("/webview", createWebviewRouter({ auth, getTenantDb, finishLogin }));
+router.use("/webview", createWebviewRouter({ auth, getTenantDb, masterQuery, finishLogin }));
 
 // Step-up realm switch for an already-authenticated linked principal. The
 // platform password is always required; this prevents a stolen tenant session

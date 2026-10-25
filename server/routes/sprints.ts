@@ -94,6 +94,15 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
 
+        // A completed sprint is immutable (D11): it cannot be re-opened or
+        // otherwise edited. The retrospective is the only writable artefact.
+        if (sprint.status === "completed") {
+            return res.status(409).json({
+                error: "This sprint is completed and can no longer be changed.",
+                code: "SPRINT_FROZEN",
+            });
+        }
+
         const updates: string[] = [];
         const params: unknown[] = [];
         let pi = 1;

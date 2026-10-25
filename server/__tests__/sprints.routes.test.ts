@@ -183,3 +183,55 @@ describe("DELETE /api/sprints/:id", () => {
         expect(res.status).toBe(403);
     });
 });
+
+describe("PUT /api/sprints/:id", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    /**
+     * D11: a completed sprint is immutable. Re-opening it by writing
+     * `status: "active"` would resurrect a closed sprint and let its finished
+     * work be edited again, so the write is refused outright.
+     */
+    test("refuses to change a completed sprint", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({
+            rows: [{ id: 1, team_id: 1, status: "completed", name: "Sprint 1" }],
+            rowCount: 1,
+        });
+
+        const res = await request(app)
+            .put("/api/sprints/1")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ status: "active" });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("SPRINT_FROZEN");
+    });
+
+    test("still allows editing a planned sprint", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({
+                rows: [{ id: 1, team_id: 1, status: "planned", name: "Sprint 1" }],
+                rowCount: 1,
+            })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({
+                rows: [{ id: 1, team_id: 1, status: "planned", name: "Renamed" }],
+                rowCount: 1,
+            });
+
+        const res = await request(app)
+            .put("/api/sprints/1")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ name: "Renamed" });
+
+        expect(res.status).toBe(200);
+    });
+});

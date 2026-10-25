@@ -14,7 +14,6 @@
  */
 import express from "express";
 import type { Request, Response } from "express";
-import { masterQuery } from "../../db";
 import { PLATFORM_REALM, TENANT_REALM, expectedRealm, type Realm } from "../../platform/realm";
 import { availablePlatformPrincipal } from "../../services/realmPrincipals";
 import { createWebviewCode, consumeWebviewCode, isNativeClient, findActiveUser } from "../../services/webviewSession";
@@ -22,6 +21,8 @@ import { createWebviewCode, consumeWebviewCode, isNativeClient, findActiveUser }
 interface WebviewRouterDeps {
     auth: any;
     getTenantDb: (tenantId: number) => Promise<any>;
+    /** Injected rather than imported so this route never reaches into `db.ts`. */
+    masterQuery: (sql: string, params?: unknown[]) => Promise<any>;
     finishLogin: (
         req: Request,
         res: Response,
@@ -29,7 +30,7 @@ interface WebviewRouterDeps {
     ) => Promise<unknown>;
 }
 
-export function createWebviewRouter({ auth, getTenantDb, finishLogin }: WebviewRouterDeps) {
+export function createWebviewRouter({ auth, getTenantDb, masterQuery, finishLogin }: WebviewRouterDeps) {
     const router = express.Router();
 
     router.post("/code", auth, async (req: Request, res: Response) => {

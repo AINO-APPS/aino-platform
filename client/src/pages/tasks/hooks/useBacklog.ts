@@ -1,14 +1,63 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask } from "../../../api/tasks";
+import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask, bulkTaskAction } from "../../../api/tasks";
 import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
 import { useBacklogReorder } from "./useBacklogReorder";
 import { useUndo } from "./useUndo";
-import { useBulkSelection } from "./useBulkSelection";
+import { useBulkSelection, type BulkAction, type BulkResult } from "./useBulkSelection";
 import { useTaskDeltas } from "./useTaskDeltas";
 import type { Task } from "../../../types";
+
+/**
+ * Put a bulk action back the way it was.
+ *
+ * The bulk endpoint reports each task's prior value, so undo replays those
+ * values through the same endpoint rather than refetching and hoping. A
+ * deleted task cannot be restored this way — the row is gone — so delete is
+ * the one action whose undo is a refetch.
+ */
+async function reverseBulkAction(action: BulkAction, applied: BulkResult[]): Promise<void> {
+    if (action === "delete" || applied.length === 0) return;
+
+    if (action === "move_to_sprint") {
+        // Group by the sprint each task came from so one request per sprint.
+        const bySprint = new Map<number | null, number[]>();
+        applied.forEach((result) => {
+            const sprintId = (result.previous?.sprint_id ?? null) as number | null;
+            bySprint.set(sprintId, [...(bySprint.get(sprintId) ?? []), result.id]);
+        });
+        for (const [sprintId, group] of bySprint) {
+            await bulkTaskAction({ ids: group, action: "move_to_sprint", value: sprintId });
+        }
+        return;
+    }
+
+    if (action === "status") {
+        const byState = new Map<number, number[]>();
+        applied.forEach((result) => {
+            const stateId = result.previous?.workflow_state_id as number | undefined;
+            if (stateId === undefined) return;
+            byState.set(stateId, [...(byState.get(stateId) ?? []), result.id]);
+        });
+        for (const [stateId, group] of byState) {
+            await bulkTaskAction({ ids: group, action: "status", value: stateId });
+        }
+        return;
+    }
+
+    if (action === "assign") {
+        const byAssignee = new Map<number | null, number[]>();
+        applied.forEach((result) => {
+            const assignee = (result.previous?.assigned_to ?? null) as number | null;
+            byAssignee.set(assignee, [...(byAssignee.get(assignee) ?? []), result.id]);
+        });
+        for (const [assignee, group] of byAssignee) {
+            await bulkTaskAction({ ids: group, action: "assign", value: assignee });
+        }
+    }
+}
 
 interface BacklogSummary {
     total: number;
@@ -105,10 +154,14 @@ export function useBacklog({
     // Bulk actions are backlog-only. Selection is keyed by id, so it survives
     // reordering, and one undo reverses the whole batch.
     const bulk = useBulkSelection({
-        onApplied: (action, changed) => {
+        onApplied: (action, changed, results) => {
+            // The server reports what each task was before the action, so undo
+            // can put it back rather than merely refetching and hoping.
+            const applied = results.filter((result) => result.ok && result.previous);
             undo.register({
                 label: `Bulk ${action.replace(/_/g, " ")} (${changed})`,
                 undo: async () => {
+                    await reverseBulkAction(action, applied);
                     await fetchBacklog();
                 },
             });

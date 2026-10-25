@@ -84,7 +84,16 @@ describe("useBulkSelection", () => {
     });
 
     test("one undo reverses the whole batch", async () => {
-        bulkTaskAction.mockResolvedValue({ data: { changed: 3 } });
+        bulkTaskAction.mockResolvedValue({
+            data: {
+                changed: 3,
+                results: [
+                    { id: 1, ok: true, previous: { assigned_to: 4 } },
+                    { id: 2, ok: true, previous: { assigned_to: 4 } },
+                    { id: 3, ok: true, previous: { assigned_to: 5 } },
+                ],
+            },
+        });
         const onApplied = vi.fn();
         const { result } = renderHook(() => useBulkSelection({ onApplied }));
 
@@ -93,6 +102,12 @@ describe("useBulkSelection", () => {
             await result.current.apply("assign", 9);
         });
 
-        await waitFor(() => expect(onApplied).toHaveBeenCalledWith("assign", 3));
+        // The prior value of every task travels with the result, which is what
+        // lets the caller reverse the batch instead of merely refetching.
+        await waitFor(() => expect(onApplied).toHaveBeenCalledWith("assign", 3, [
+            { id: 1, ok: true, previous: { assigned_to: 4 } },
+            { id: 2, ok: true, previous: { assigned_to: 4 } },
+            { id: 3, ok: true, previous: { assigned_to: 5 } },
+        ]));
     });
 });

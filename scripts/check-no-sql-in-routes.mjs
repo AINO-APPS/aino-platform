@@ -53,15 +53,33 @@ function countSql(file) {
   return count;
 }
 
+/**
+ * Count SQL statements in a file, matching across line breaks.
+ *
+ * `countSql` tests one line at a time, so a statement split over several lines
+ * (`SELECT ...\n FROM ...`) slips through. This is the rule that actually
+ * decides whether a file contains SQL; the per-line count only feeds the
+ * legacy ratchet, which is pinned in line units.
+ */
+function hasSql(file) {
+  const source = fs.readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !(trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*"));
+    })
+    .join("\n");
+  return SQL.some((re) => re.test(source));
+}
+
 const failures = [];
 
 // ── Hard rule: migrated modules ─────────────────────────────────────────────
 for (const file of walk(path.join(serverRoot, "modules"))) {
   if (!/\.routes\.ts$/.test(file)) continue;
-  const count = countSql(file);
-  if (count > 0) {
+  if (hasSql(file)) {
     const rel = path.relative(serverRoot, file).replace(/\\/g, "/");
-    failures.push(`${rel}: ${count} SQL line(s) in a migrated module route — move them to the repository.`);
+    failures.push(`${rel}: SQL in a migrated module route — move it to the repository.`);
   }
 }
 
@@ -76,6 +94,9 @@ for (const file of walk(path.join(serverRoot, "routes"))) {
   const rel = path.relative(serverRoot, file).replace(/\\/g, "/");
   const count = countSql(file);
   if (count > 0) current[rel] = count;
+  // A file the per-line count missed but which does contain a statement is
+  // still SQL in a route — record it so the ratchet sees it.
+  else if (hasSql(file)) current[rel] = 1;
 }
 
 if (process.argv.includes("--update")) {

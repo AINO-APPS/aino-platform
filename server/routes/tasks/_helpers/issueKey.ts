@@ -12,6 +12,8 @@ interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
 
+const { findTaskIdsByIssueKeys } = require("../../../modules/tasks/tasks.repository");
+
 // Regex for parsing an issue key out of arbitrary text (branch names, PR
 // titles, commit messages). Word-boundary anchored so we don't match
 // substrings like "FOO-12-BAR". Case-insensitive; project keys are stored
@@ -50,21 +52,10 @@ function extractIssueKeys(text: string | null | undefined): { projectKey: string
  */
 async function resolveIssueKeys(keys: { projectKey: string; taskNumber: number }[], orgId: number | null | undefined, db: DbLike): Promise<{ key: string; task_id: number }[]> {
     if (!keys || !keys.length || !orgId) return [];
-    // Build a parameterised IN list of project keys + task numbers.
-    // We use a single query with arrays so we don't N+1.
     const projectKeys = keys.map(k => k.projectKey);
     const taskNumbers = keys.map(k => k.taskNumber);
-    const rows = (await db.query(
-        `SELECT p.key AS project_key, t.task_number, t.id
-           FROM tasks t
-           JOIN projects p ON p.id = t.project_id
-          WHERE p.org_id = $1
-            AND (p.key, t.task_number) IN (
-                SELECT UNNEST($2::text[]), UNNEST($3::int[])
-            )`,
-        [orgId, projectKeys, taskNumbers]
-    )).rows;
-    return rows.map(r => ({
+    const rows = await findTaskIdsByIssueKeys(db, orgId, projectKeys, taskNumbers);
+    return rows.map((r: any) => ({
         key: `${r.project_key}-${r.task_number}`,
         task_id: r.id,
     }));

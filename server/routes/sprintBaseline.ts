@@ -8,6 +8,7 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
+const { requireTenant, requireFeature } = require("../middleware/tenant");
 const {
     captureBaseline,
     scopeDelta,
@@ -20,6 +21,9 @@ const {
 } = require("../modules/tasks/tasks.sprintRepository");
 
 const router = express.Router();
+// Same gate as /api/sprints: this is part of the Agile bundle, so a tenant
+// with Agile disabled must not reach it.
+router.use(requireTenant, requireFeature("agile"));
 
 async function loadSprint(req: Request, res: Response) {
     const sprint = await findSprintInOrg(req.db!, req.params.id, req.userOrgId);

@@ -124,3 +124,46 @@ export const setAssignee = async (db: TasksDb, id: number, assignee: number | nu
 
 export const deleteTask = async (db: TasksDb, id: number) =>
     db.query("DELETE FROM tasks WHERE id = $1", [id]);
+
+/** Every epic in the org, with its work-item type for the badge colour. */
+export const findEpics = async (db: TasksDb, orgId: number | null) => (await db.query(
+    `SELECT t.id, t.title, t.issue_key, t.workflow_state_id, t.story_points,
+            t.project_id, wit.name AS type_name, wit.color AS type_color
+       FROM tasks t
+       JOIN work_item_types wit ON wit.id = t.work_item_type_id
+      WHERE t.org_id = $1 AND wit.is_epic = TRUE
+      ORDER BY t.created_at ASC`, [orgId],
+)).rows;
+
+/** Completed-versus-total rollup for the given epic ids, in count and points. */
+export const findEpicRollups = async (db: TasksDb, orgId: number | null, epicIds: number[]) => (await db.query(
+    `SELECT t.parent_task_id,
+            COUNT(*)::int AS total_children,
+            COUNT(*) FILTER (WHERE t.completed_at IS NOT NULL)::int AS done_children,
+            COALESCE(SUM(t.story_points), 0)::float AS total_points,
+            COALESCE(SUM(t.story_points) FILTER (WHERE t.completed_at IS NOT NULL), 0)::float AS done_points
+       FROM tasks t
+      WHERE t.org_id = $1 AND t.parent_task_id = ANY($2::int[])
+      GROUP BY t.parent_task_id`, [orgId, epicIds],
+)).rows;
+
+/**
+ * Resolve (projectKey, taskNumber) pairs to task ids in one query.
+ *
+ * A single array-based lookup rather than one query per key, so resolving a
+ * commit message that references several tickets stays one round trip.
+ */
+export const findTaskIdsByIssueKeys = async (
+    db: TasksDb,
+    orgId: number | null,
+    projectKeys: string[],
+    taskNumbers: number[],
+) => (await db.query(
+    `SELECT p.key AS project_key, t.task_number, t.id
+       FROM tasks t
+       JOIN projects p ON p.id = t.project_id
+      WHERE p.org_id = $1
+        AND (p.key, t.task_number) IN (
+            SELECT UNNEST($2::text[]), UNNEST($3::int[])
+        )`, [orgId, projectKeys, taskNumbers],
+)).rows;

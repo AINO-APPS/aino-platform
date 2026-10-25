@@ -84,6 +84,27 @@ export async function findSprintName(db: SprintDb, sprintId: unknown) {
     return (await db.query("SELECT name FROM sprints WHERE id = $1", [sprintId])).rows[0] || null;
 }
 
+/**
+ * The start date of the team's most recently completed sprint.
+ *
+ * The completed section shows the last 30 days or the last closed sprint,
+ * whichever reaches further back (D17), so this is the floor that keeps a
+ * long-running sprint's finished work visible.
+ */
+export async function findLastCompletedSprintStart(
+    db: SprintDb,
+    teamId: unknown,
+): Promise<string | null> {
+    const row = (await db.query(
+        `SELECT start_date FROM sprints
+          WHERE team_id = $1 AND status = 'completed' AND start_date IS NOT NULL
+          ORDER BY completed_at DESC NULLS LAST, end_date DESC
+          LIMIT 1`,
+        [teamId],
+    )).rows[0];
+    return row?.start_date ?? null;
+}
+
 /** Move a task into a sprint and adopt the sprint's end date as its due date. */
 export async function setSprintAndDueDate(
     db: SprintDb,

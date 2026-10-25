@@ -9,7 +9,8 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
-const { canAccessTask } = require("./_helpers/access");
+const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require("./_helpers/access");
+const { frozenSprintError } = require("./_helpers/sprintFreeze");
 const { resolveWorkflowState } = require("./_helpers/agile");
 const {
     findManyInOrg, setSprint, setWorkflowState, setAssignee, deleteTask,
@@ -77,8 +78,19 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             }
 
             try {
+                // A completed sprint is immutable (D11). The single-task routes
+                // enforce this; a bulk action must not be a way around it.
+                const nextSprintId = action === "move_to_sprint"
+                    ? (value === null || value === "" ? null : Number.parseInt(String(value), 10))
+                    : undefined;
+                const frozen = await frozenSprintError(req, task, nextSprintId);
+                if (frozen) {
+                    results.push({ id: task.id, ok: false, error: frozen.error });
+                    continue;
+                }
+
                 if (action === "move_to_sprint") {
-                    const sprintId = value === null || value === "" ? null : Number.parseInt(String(value), 10);
+                    const sprintId = nextSprintId as number | null;
                     await setSprint(req.db!, task.id, sprintId);
                     await logHistory(task.id, req.userId, "updated", "sprint", task.sprint_id, sprintId, null, req.db);
                     if (sprintId !== null) {
@@ -86,6 +98,10 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     }
                     results.push({ id: task.id, ok: true, previous: { sprint_id: task.sprint_id } });
                 } else if (action === "status") {
+                    if (!canChangeTaskStatus(task, req.userId, req.userRole)) {
+                        results.push({ id: task.id, ok: false, error: STATUS_FORBIDDEN });
+                        continue;
+                    }
                     const target = await resolveWorkflowState(value, req.userOrgId, req.db);
                     if (!target) {
                         results.push({ id: task.id, ok: false, error: "Invalid status" });

@@ -10,6 +10,7 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
+const { findLastCompletedSprintStart } = require('../../modules/tasks/tasks.sprintRepository');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { canAccessTask } = require('./_helpers/access');
@@ -27,6 +28,24 @@ const {
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
     transaction: <T = unknown>(fn: (client: any) => Promise<T>) => Promise<T>;
+}
+
+/**
+ * The completed section shows the last 30 days, or the last closed sprint,
+ * whichever reaches further back (D17). The client supplies its 30-day floor;
+ * this widens it when the last completed sprint started earlier, so a sprint
+ * that ran longer than a month does not lose its own finished work.
+ */
+async function resolveCompletedSince(
+    db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }> },
+    teamId: number | null | undefined,
+    requested: string | undefined,
+): Promise<string | undefined> {
+    if (!teamId) return requested;
+    const sprintStart = await findLastCompletedSprintStart(db, teamId);
+    if (!sprintStart) return requested;
+    if (!requested) return sprintStart;
+    return sprintStart < requested ? sprintStart : requested;
 }
 
 const router = express.Router();
@@ -62,10 +81,21 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         // task from the backlog.
         const includeCompleted = include_completed === '1' || include_completed === 'true';
         const completedOnly = req.query.completed_only === '1' || req.query.completed_only === 'true';
+
+        // The completed window is "the last 30 days, or the last closed sprint,
+        // whichever reaches further back" (D17). The client sends its 30-day
+        // floor; the server widens it to the last completed sprint's start so a
+        // long sprint does not lose its own finished work.
+        const completedSince = await resolveCompletedSince(
+            req.db!,
+            req.userTeamId,
+            completed_since || undefined,
+        );
+
         const filters = {
             assignee, label, priority, status, search,
             completed: completedOnly ? ('completed' as const) : includeCompleted ? ('all' as const) : ('incomplete' as const),
-            completedSince: completed_since || undefined,
+            completedSince,
         };
 
         const collection = buildTaskCollection({
