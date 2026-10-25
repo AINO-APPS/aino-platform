@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 07, 08, 12, 18, 21, 24
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Every feature in the parity matrix marked for Android is available
 - [x] Completed tasks leave the open backlog on Android, matching web
@@ -72,3 +72,34 @@ The matrix now records Android as `waived` with that reason, so the gate is
 honest rather than green. The remaining work is the Compose layer: render the
 completed section, the board/plan toggle, the calendar with tray and overlays,
 density, bulk selection, epics, the timer and the attribution flash.
+**2026-10-25 — completed**
+
+The Compose layer now renders every surface the ViewModel exposes.
+
+- `CompletedSection.kt` — collapsible Completed at the foot of the backlog,
+  count from the first response, lazy window on expand, muted struck-through
+  rows. `BacklogTab` renders it as the last list item.
+- `BulkActionBar.kt` — multi-select with move-to-sprint, status, assign and
+  delete; delete confirms first; `SelectionToggle` on each row.
+- `SprintPlan.kt` — sprint pane, epic rollups, ranked backlog pane, inline
+  goal editing, committed/added/removed points. `SprintView` toggles it from
+  the sprint header.
+- `TaskTimePanel.kt` — logged against estimated, timer startable from the
+  task; `openDetail` loads the timer state.
+- `TaskCardM3` takes `compact` and `attribution`, applied on backlog, board,
+  plan, schedule and search.
+- Schedule overlays render as independently toggleable bands and load with
+  the scheduled window.
+- The completion dialog shows the carryover pre-flight.
+- The search overlay doubles as a command palette (views + actions).
+- `BacklogSort.Rank` sorts by LexoRank; the row menu offers move up/down and
+  sends neighbours so the server computes the position.
+
+Parity: 33 of 38 features are `shipped` on Android against a real owning
+test. The five that remain `waived` are honest: `dnd-unified` is `@dnd-kit`
+(web-only), `continuous-team-mode` is web-only configuration (D52),
+`ios-webview-session` is iOS-specific, `parity-ci-gate` is a platform CI
+step, and `a11y-wcag-aa` has no automated audit on Android yet.
+
+Verified: `:app:assemblePlayDebug` builds; `:app:testPlayDebugUnitTest`
+2,498 tests, 0 failures; all five release guardrails pass.

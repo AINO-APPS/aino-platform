@@ -4,7 +4,7 @@
 
 **Blocked by:** 26, 27
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] CI fails when a feature is shipped on web but neither shipped nor waived elsewhere
 - [x] CI fails when a shipped feature has no owning test
@@ -83,3 +83,15 @@ The parity gate itself is now correct: it was inert because the matrix had web
 `planned` everywhere, and rule 6 only fires when web is shipped. Web and
 desktop are now `shipped` against tests that exist, and Android/iOS are
 `waived` with reasons.
+**2026-10-25 — gate complete, audit partial**
+
+The parity gate is now genuinely enforcing. It was inert because the matrix
+had web `planned` everywhere and rule 6 only fires when web is shipped; web
+and desktop are now `shipped` against tests that exist, and every other
+client is `shipped` or `waived` with a reason.
+
+The accessibility audit remains partial and is recorded as such: 11 of ~20
+surfaces are audited, and `color-contrast` / `target-size` cannot be
+evaluated in jsdom, so rendered chips are asserted only through the token
+pairs in `contrast.test.ts`. Android has no automated a11y audit, so
+`a11y-wcag-aa` stays `waived` there.

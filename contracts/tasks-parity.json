@@ -23,8 +23,8 @@
         "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -45,8 +45,8 @@
         "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -67,8 +67,8 @@
         "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -89,8 +89,8 @@
         "owner_test": "contracts/tests/design-tokens.test.mjs"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -111,8 +111,8 @@
         "owner_test": "contracts/tests/generated-models.test.mjs"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -133,8 +133,8 @@
         "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -155,8 +155,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -177,8 +177,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/useTaskPreferences.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -199,8 +199,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/CompletedSection.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -221,8 +221,8 @@
         "owner_test": "server/__tests__/tasks.completedBacklog.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -243,8 +243,8 @@
         "owner_test": "server/__tests__/tasks.collection.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -265,8 +265,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/useTasksRoute.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -287,8 +287,8 @@
         "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -309,8 +309,8 @@
         "owner_test": "server/__tests__/tasks.rank.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -353,8 +353,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/useBacklogReorder.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -375,8 +375,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/useBulkSelection.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -397,8 +397,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/QuickAdd.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -419,8 +419,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -441,8 +441,8 @@
         "owner_test": "server/__tests__/tasks.teamMode.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -463,8 +463,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/useTaskDeltas.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskSyncTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -485,8 +485,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -507,8 +507,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/EpicPanel.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -529,8 +529,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/ScheduleCalendar.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -551,8 +551,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -573,8 +573,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/cardDensity.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -595,8 +595,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/SprintCompletionDialog.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -617,8 +617,8 @@
         "owner_test": "server/__tests__/tasks.sprintLifecycle.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -639,8 +639,8 @@
         "owner_test": "server/__tests__/tasks.baseline.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -661,8 +661,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/SprintPlan.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -683,8 +683,8 @@
         "owner_test": "server/__tests__/tasks.time.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -705,8 +705,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/CommandPalette.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -727,8 +727,8 @@
         "owner_test": "server/__tests__/tasks.notifications.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Not yet rendered on Android: the ViewModel exposes the action but no Compose surface calls it. Tracked for the phase 3 Android port (D37 escape hatch applies if it slips twice)."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskSyncTest.kt"
       },
       "ios": {
         "status": "waived",
@@ -772,8 +772,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/responsive.test.tsx"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Android is already native Compose and touch-first; the same layout rules are asserted by TouchTargetTest.kt."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
       },
       "ios": {
         "status": "waived",
