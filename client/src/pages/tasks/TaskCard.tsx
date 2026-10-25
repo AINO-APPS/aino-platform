@@ -1,15 +1,17 @@
 import { MessageCircle as GlyphMessageCircle } from "../../constants/icons";
 import React, { useState } from "react";
-import { HighlightedHtml, formatDueDate, isDueOverdue } from "./utils";
+import { formatDate, formatDueDate, isDueOverdue } from "./utils";
 import { PRIORITIES, type PriorityOption } from "./constants";
-import { User, CalendarDays, PenLine, Check, Copy } from "../../constants/icons";
+import { User, CalendarDays, Check, Copy, Ban, Clock } from "../../constants/icons";
 import {
     StoryPointBadge,
     WorkItemTypeBadge,
-    BlockerBadge,
 } from "../../components/agile/AgilePickers";
 import { useToast } from "../../components/common/Toast";
 import { useCardDensity } from "./TaskContext";
+import { useAgileConfig } from "../../AgileConfigContext";
+import { currentStatusOption, statusOptions } from "./taskStatus";
+import TaskCardMenu from "./TaskCardMenu";
 import s from "./TaskCard.module.css";
 import type { Task } from "../../types";
 
@@ -57,6 +59,14 @@ interface TaskCardProps {
     attribution?: { name: string } | null;
 }
 
+/**
+ * The board and schedule card.
+ *
+ * One anatomy everywhere: a quiet key/type line, the title as the anchor, an
+ * aligned metadata row, at most two labels, then people/due/comments. Blocked
+ * and overdue are exceptions, so they stay visible in both densities — a
+ * compact card that hides them hides the only reason to look at it.
+ */
 export default function TaskCard({
     task,
     sprintMode,
@@ -69,19 +79,30 @@ export default function TaskCard({
     const pri = getPriority(task.priority);
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && !task.completed_at;
-    // Compact keeps key, title and points; comfortable adds priority, assignee,
-    // labels, description and due date.
+    // Compact keeps key, title, points and the exception flags; comfortable
+    // adds status, priority, labels, assignee and due date.
     const compact = useCardDensity() === "compact";
     const toast = useToast() as any;
+    const { workflowStates, features } = useAgileConfig() as any;
     const [copied, setCopied] = useState(false);
+    const [labelsExpanded, setLabelsExpanded] = useState(false);
 
     // Issue key (e.g. WEB-123) only exists once a task is assigned to a project;
     // legacy / unkeyed tickets fall back to "#<id>" so the chip is always
     // present and consistently placed.
     const issueKey = task.issue_key || `#${task.id}`;
+    const status = currentStatusOption(
+        task,
+        workflowStates,
+        statusOptions(workflowStates),
+    );
+    const labels: any[] = task.labels ?? [];
+    const visibleLabels = labelsExpanded ? labels : labels.slice(0, 2);
+    const hiddenLabels = labels.length - visibleLabels.length;
 
-    const onCopyKey = async (e: React.MouseEvent) => {
-        e.stopPropagation();
+    // One copy path for both the key chip and the menu item, so the feedback
+    // cannot drift between them.
+    const copyKey = async () => {
         const ok = await copyToClipboard(issueKey);
         if (ok) {
             setCopied(true);
@@ -100,6 +121,11 @@ export default function TaskCard({
         }
     };
 
+    const onCopyKey = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        void copyKey();
+    };
+
     return (
         <div
             key={task.id}
@@ -113,7 +139,9 @@ export default function TaskCard({
                 if (
                     target.closest(`.${s["task-actions"]}`) ||
                     target.closest(`.${s["task-action-btn"]}`) ||
-                    target.closest(`.${s["comment-icon"]}`)
+                    target.closest(`.${s["comment-icon"]}`) ||
+                    target.closest(`.${s["task-labels"]}`) ||
+                    target.closest(`.${s["issue-key-chip"]}`)
                 )
                     return;
                 onOpenDetail(task);
@@ -126,23 +154,6 @@ export default function TaskCard({
                             value={task.work_item_type_id || task.work_item_type_key}
                         />
                     )}
-                    {!compact && (
-                        <span
-                            className={s["task-priority-badge"]}
-                            style={
-                                {
-                                    "--badge-bg": pri.color + "20",
-                                    "--badge-color": pri.ink,
-                                } as React.CSSProperties
-                            }
-                        >
-                            {pri.icon} {pri.label}
-                        </span>
-                    )}
-                    <StoryPointBadge value={task.story_points} />
-                    {!compact && <BlockerBadge task={task} />}
-                </div>
-                <div className={s["task-actions"]}>
                     {/* Issue key chip — click to copy. Coloured with the project's
               accent when known so it visually ties cards to their project. */}
                     <button
@@ -163,38 +174,89 @@ export default function TaskCard({
                         {copied ? <Check size={11} /> : <Copy size={11} />}
                         <span className={s["issue-key-text"]}>{issueKey}</span>
                     </button>
-                    <span
-                        className={s["comment-icon"]}
-                        onClick={() => onOpenComments(task.id)}
-                        title="Comments"
-                    >
-                        <GlyphMessageCircle size="1em" style={{ verticalAlign: "middle" }} />
-                        {task.comment_count > 0 && (
-                            <span className={s["comment-badge"]}>{task.comment_count}</span>
-                        )}
-                    </span>
+                    {/* Compact keeps the points on the quiet line so the card
+                        stays two lines tall instead of three. */}
+                    {compact && <StoryPointBadge value={task.story_points} />}
+                </div>
+                <div className={s["task-actions"]}>
+                    <TaskCardMenu
+                        label={`Actions for ${issueKey}`}
+                        items={[
+                            { label: "Open task", onSelect: () => onOpenDetail(task) },
+                            { label: `Copy ${issueKey}`, onSelect: () => void copyKey() },
+                            { label: "Comments", onSelect: () => onOpenComments(task.id) },
+                        ]}
+                    />
                 </div>
             </div>
 
-            <div className={s["task-title-row"]}>
-                <div className={s["task-title"]}>{task.title}</div>
-                {!compact && task.labels && task.labels.length > 0 && (
-                    <div className={s["task-labels"]}>
-                        {task.labels.map((l: any) => (
-                            <span
-                                key={l.id}
-                                className={s["label-pill"]}
-                                style={{ "--label-color": l.color } as React.CSSProperties}
-                            >
-                                {l.name}
-                            </span>
-                        ))}
-                    </div>
-                )}
-            </div>
+            <div className={s["task-title"]}>{task.title}</div>
 
-            {!compact && task.description && (
-                <HighlightedHtml html={task.description} className={s["task-desc"]} />
+            {!compact && (
+                <div className={s["task-meta"]}>
+                    {!sprintMode && status && (
+                        <span className={s["task-status"]}>
+                            <span
+                                className={s["task-status-dot"]}
+                                style={{ background: status.color }}
+                            />
+                            {status.label}
+                        </span>
+                    )}
+                    <span
+                        className={s["task-priority-badge"]}
+                        style={
+                            {
+                                "--badge-bg": pri.color + "20",
+                                "--badge-color": pri.ink,
+                            } as React.CSSProperties
+                        }
+                    >
+                        {pri.icon} {pri.label}
+                    </span>
+                    <StoryPointBadge value={task.story_points} />
+                </div>
+            )}
+
+            {task.is_blocked && features?.blockers !== false && (
+                <span
+                    className={s["task-exception"]}
+                    title={task.blocked_reason || "Blocked"}
+                >
+                    <Ban size={12} aria-hidden="true" /> Blocked
+                </span>
+            )}
+            {overdue && (
+                <span className={`${s["task-exception"]} ${s["task-exception-overdue"]}`}>
+                    <Clock size={12} aria-hidden="true" /> Overdue · {formatDate(task.due_date)}
+                </span>
+            )}
+
+            {!compact && labels.length > 0 && (
+                <div className={s["task-labels"]}>
+                    {visibleLabels.map((l: any) => (
+                        <span
+                            key={l.id}
+                            className={s["label-pill"]}
+                            style={{ "--label-color": l.color } as React.CSSProperties}
+                        >
+                            {l.name}
+                        </span>
+                    ))}
+                    {hiddenLabels > 0 && (
+                        <button
+                            type="button"
+                            className={s["label-overflow"]}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setLabelsExpanded(true);
+                            }}
+                            aria-label={`Show all ${labels.length} labels`}
+                        >
+                            +{hiddenLabels}
+                        </button>
+                    )}
+                </div>
             )}
 
             <div className={s["task-card-footer"]}>
@@ -211,23 +273,8 @@ export default function TaskCard({
                             {task.assignee.full_name || task.assignee.username}
                         </span>
                     )}
-                    {!compact &&
-                        task.creator &&
-                        task.assigned_to &&
-                        task.user_id !== task.assigned_to && (
-                            <span
-                                className={s["task-creator"]}
-                                title={`Created by ${task.creator.full_name || task.creator.username}`}
-                            >
-                                <PenLine
-                                    size={12}
-                                    style={{ marginRight: 3, verticalAlign: "middle" }}
-                                />
-                                {task.creator.full_name || task.creator.username}
-                            </span>
-                        )}
-                    {!compact && dueFmt && (
-                        <span className={`${s["task-due"]} ${overdue ? s["overdue"] : ""}`}>
+                    {!compact && dueFmt && !overdue && (
+                        <span className={s["task-due"]}>
                             <CalendarDays
                                 size={12}
                                 style={{ marginRight: 3, verticalAlign: "middle" }}
@@ -236,7 +283,20 @@ export default function TaskCard({
                         </span>
                     )}
                 </div>
-                {!compact && <span className={s["drag-hint"]}>⠿ drag to move</span>}
+                <button
+                    type="button"
+                    className={s["comment-icon"]}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenComments(task.id);
+                    }}
+                    aria-label={`${task.comment_count || 0} comments on ${issueKey}`}
+                >
+                    <GlyphMessageCircle size={14} />
+                    {task.comment_count > 0 && (
+                        <span className={s["comment-count"]}>{task.comment_count}</span>
+                    )}
+                </button>
             </div>
 
             {attribution && (
