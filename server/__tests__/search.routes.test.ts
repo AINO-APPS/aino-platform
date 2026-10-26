@@ -183,7 +183,7 @@ describe("GET /api/search - results grouping", () => {
 
         expect(res.status).toBe(200);
         const taskCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM tasks"));
-        expect(taskCall[1][1]).toBe(`${"a".repeat(100)}:*`);
+        expect(taskCall[1][0]).toBe(`${"a".repeat(100)}:*`);
         const userCall = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("FROM users") && sql.includes("full_name ILIKE"));
         expect(userCall[1][2]).toBe(`%${"a".repeat(100)}%`);
     });

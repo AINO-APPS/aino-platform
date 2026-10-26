@@ -9,7 +9,14 @@ const { loadUserContext } = require('../../middleware/rbac');
 const { requireFeature } = require('../../middleware/tenant');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { canAccessTask } = require('./_helpers/access');
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { isOrgAdmin, taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
+const {
+    canMoveIntoTeamSprint,
+    sprintTeamMismatchBody,
+    teamAfterSprintMove,
+} = require('../../modules/tasks/tasks.ownership');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
@@ -54,14 +61,14 @@ const requireAgile = requireFeature('agile');
 // ─── Get available sprints for user's team (current + future) ────────────
 router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const isOrgAdmin = req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin');
+        const callerIsOrgAdmin = !!req.userOrgId && isOrgAdmin(req.userRole);
 
         // Org admins see every active/planned sprint across all teams in their org
         // (so they can move service-desk tickets into any team's sprint). For any
         // team in the org that has a sprint_start_date configured but no sprint
         // rows yet, auto-materialise the current + next sprint so admins don't
         // have to wait for a team member to visit the Tasks page first.
-        if (isOrgAdmin) {
+        if (callerIsOrgAdmin) {
             const teamsNeedingSprints = (await req.db!.query(`
                 SELECT t.id, t.name, t.sprint_start_date, t.sprint_duration_weeks
                 FROM teams t
@@ -91,7 +98,7 @@ router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req
 
         const sprints = (await req.db!.query(`
             SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal,
-                   s.sprint_number, t.name AS team_name
+                   s.team_id, s.sprint_number, t.name AS team_name
             FROM sprints s
             JOIN teams t ON t.id = s.team_id
             WHERE s.team_id = $1 AND s.status IN ('active', 'planned')
@@ -121,7 +128,7 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
         const { sprint_id } = req.body;
 
         const task = await findTask(req.db!, id);
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         if (sprint_id === null || sprint_id === undefined || sprint_id === '') {
             const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
@@ -133,16 +140,23 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
             // up globally by id (no org filter). With a colliding team_id across
             // tenants you could in theory attach to another org's sprint. Join
             // through teams in both branches so the org filter is always applied.
-            const isOrgAdmin = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
             const sprint = await findSprintInOrg(req.db!, sprint_id, req.userOrgId);
-            if (!sprint || (!isOrgAdmin && sprint.team_id !== req.userTeamId)) {
+            if (!sprint || (!isOrgAdmin(req.userRole) && sprint.team_id !== req.userTeamId)) {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
+            }
+            // A ticket may only join its own team's sprint. Crossing teams is an
+            // explicit admin transfer, never a side effect of a sprint move.
+            if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
+                return res.status(409).json(sprintTeamMismatchBody());
             }
             const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
             if (task.due_date !== sprint.end_date) {
                 await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, sprint.end_date, null, req.db);
             }
-            await setSprintAndDueDate(req.db!, task.id, sprint.id, sprint.end_date);
+            await setSprintAndDueDate(
+                req.db!, task.id, sprint.id, sprint.end_date,
+                task.team_id == null ? teamAfterSprintMove(task.team_id, sprint.team_id) : null,
+            );
             await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', sprint.name, null, req.db);
             // Being added to a sprint is one of the five events worth telling
             // people about; the assignee hears it unless they did it themselves.

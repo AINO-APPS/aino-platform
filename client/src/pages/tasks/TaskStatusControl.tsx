@@ -1,10 +1,11 @@
 import { useAgileConfig } from "../../AgileConfigContext";
+import { useFeatures } from "../../FeaturesContext";
 import { canChangeTaskStatus, currentStatusOption, statusOptions, STATUS_FORBIDDEN, type StatusOption } from "./taskStatus";
 import s from "./TaskDetailModal.module.css";
 
 interface Props {
     task: any;
-    currentUser: { id?: number; role?: string } | null | undefined;
+    currentUser: { id?: number; role?: string; team_id?: number | null } | null | undefined;
     onChange: (task: any, option: { id: string; label: string }) => void;
 }
 
@@ -15,9 +16,13 @@ interface Props {
  */
 export default function TaskStatusControl({ task, currentUser, onChange }: Props) {
     const { workflowStates } = (useAgileConfig() as any) || {};
+    const { hasFeature } = useFeatures() as any;
     const options = statusOptions(workflowStates);
     const current = currentStatusOption(task, workflowStates, options);
-    const allowed = canChangeTaskStatus(task, currentUser?.id, currentUser?.role);
+    const allowed = canChangeTaskStatus(task, currentUser?.id, currentUser?.role, {
+        teamId: currentUser?.team_id ?? null,
+        teamVisibility: hasFeature("team_visibility"),
+    });
 
     return (
         <div className={s["detail-status-bar"]} title={allowed ? undefined : STATUS_FORBIDDEN} data-testid="task-status-control">

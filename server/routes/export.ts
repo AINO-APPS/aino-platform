@@ -9,6 +9,8 @@ const { getOffsetMin } = require("../utils/timezone");
 const { computeFloorMs, computeBreakMs, endOfLocalDayMs } = require("../utils/timeCalc");
 const { sendCSV, sendPDF, sendPayrollCSV, sendPayrollPDF } = require("../utils/export");
 const { logger } = require("../utils/logger");
+const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { buildTaskExportScope } = require("../modules/tasks/tasks.export");
 
 const router = express.Router();
 const { requireTenant, requireFeature } = require("../middleware/tenant");
@@ -138,12 +140,10 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
     try {
         const { from, to, format } = req.query as { from?: string; to?: string; format?: string };
 
-        let dateFilter = "";
-        const params: unknown[] = [req.userId];
-        if (from && to) {
-            dateFilter = " AND t.planned_date BETWEEN $2 AND $3";
-            params.push(from, to);
-        }
+        // "My tasks" follows the same visibility policy as the Plan lists.
+        const scope = buildTaskExportScope(taskActorFromRequest(req), {
+            orgId: req.userOrgId || null, from, to,
+        });
 
         const tasks = (await req.db!.query(`
             SELECT t.planned_date AS date, t.title, ws.key AS status, t.priority, t.due_date,
@@ -151,9 +151,9 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
             FROM tasks t
             LEFT JOIN users u ON u.id = t.assigned_to
             LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-            WHERE t.user_id = $1${dateFilter}
+            WHERE ${scope.whereSql}
             ORDER BY t.planned_date DESC, t.id DESC
-        `, params)).rows;
+        `, scope.params)).rows;
 
         const fields = [
             { label: "Date", value: "date" },

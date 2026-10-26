@@ -19,7 +19,9 @@ const { getUploadKey, getUploadUrl } = require('../../utils/uploadPath');
 const { getStorage, randomFilename } = require('../../platform/storage');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { canAccessTask } = require('./_helpers/access');
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { taskActorFromRequest, taskActorFromUser } = require('../../modules/tasks/tasks.policy');
 
 const router = express.Router();
 
@@ -60,7 +62,7 @@ function commentFilename(userId: number | undefined, mimetype: string): string {
 router.get('/:id/comments', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         const comments = (await req.db!.query(`
             SELECT tc.*, u.username, u.full_name, u.avatar
@@ -103,8 +105,8 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
     };
     try {
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
-            return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
+            return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
 
         const content = (req.body.content || '').trim();
@@ -181,7 +183,7 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                 // users — previously every such mention was silently dropped.
                 // The role rides along for canAccessTask (Bug #5: admins).
                 const mentionRows = (await req.db!.query(
-                    'SELECT id, role FROM users WHERE id = ANY($1) AND is_active = TRUE AND ($2::int IS NULL OR org_id = $2)',
+                    'SELECT id, role, org_id, team_id FROM users WHERE id = ANY($1) AND is_active = TRUE AND ($2::int IS NULL OR org_id = $2)',
                     [[...mentionedIds], req.userOrgId || null]
                 )).rows;
                 const found = new Set(mentionRows.map((r: any) => r.id));
@@ -192,7 +194,11 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
 
                 for (const row of mentionRows) {
                     const uid = row.id;
-                    if (!await canAccessTask(task, uid, req.userOrgId, req.db, row.role || null)) {
+                    const mentionActor = taskActorFromUser(
+                        { ...row, id: uid, org_id: row.org_id ?? req.userOrgId },
+                        taskActorFromRequest(req).teamVisibility,
+                    );
+                    if (!await canAccessTask(task, mentionActor, req.db)) {
                         req.log.info({ taskId: task.id, userId: uid }, 'Task mention skipped: mentioned user cannot access the task');
                         continue;
                     }
@@ -227,8 +233,9 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
 router.put('/:id/comments/:commentId', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
-        if (!task || !(await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole))) {
-            return res.status(404).json({ error: 'Task not found' });
+        if (!task) return res.status(404).json({ error: 'Task not found' });
+        if (!(await canAccessTask(task, taskActorFromRequest(req), req.db))) {
+            return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
         const comment = (await req.db!.query('SELECT * FROM task_comments WHERE id = $1 AND task_id = $2', [req.params.commentId, req.params.id])).rows[0];
         if (!comment || comment.user_id !== req.userId) return res.status(404).json({ error: 'Comment not found' });
@@ -259,8 +266,9 @@ router.put('/:id/comments/:commentId', auth, loadUserContext, async (req: Reques
 router.delete('/:id/comments/:commentId', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [req.params.id])).rows[0];
-        if (!task || !(await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole))) {
-            return res.status(404).json({ error: 'Task not found' });
+        if (!task) return res.status(404).json({ error: 'Task not found' });
+        if (!(await canAccessTask(task, taskActorFromRequest(req), req.db))) {
+            return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
         const comment = (await req.db!.query('SELECT * FROM task_comments WHERE id = $1 AND task_id = $2', [req.params.commentId, req.params.id])).rows[0];
         if (!comment) return res.status(404).json({ error: 'Comment not found' });

@@ -7,6 +7,8 @@ const { logAction } = require("../utils/audit");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
+const { removeTeam } = require("../modules/organization/teamOwnership");
+const { listTeamsForActor } = require("../modules/organization/teamListing");
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireTenant);
@@ -552,39 +554,12 @@ router.get("/teams", requireSameOrg, async (req: Request, res: Response) => {
         const effectiveOrgId = req.userRole === "platform_admin"
             ? ((req.query as { org_id?: string }).org_id ? Number((req.query as { org_id?: string }).org_id) : null)
             : req.userOrgId;
-
-        // Only hr_admin+ can see all teams with member counts
-        if (userLevel >= ROLE_LEVEL["hr_admin"]) {
-            if (!effectiveOrgId) return res.json([]);
-            const where = ["t.org_id = $1"];
-            const params: unknown[] = [effectiveOrgId];
-            let pi = 2;
-            if (department_id) { where.push(`t.department_id = $${pi++}`); params.push(Number(department_id)); }
-
-            const teams = (await req.db!.query(`
-                SELECT t.*, u.full_name as lead_name, d.name as department_name,
-                       (SELECT COUNT(*) FROM users WHERE team_id = t.id AND is_active = TRUE)::integer as member_count
-                FROM teams t
-                LEFT JOIN users u ON u.id = t.lead_id
-                LEFT JOIN departments d ON d.id = t.department_id
-                WHERE ${where.join(" AND ")}
-                ORDER BY t.name
-            `, params)).rows;
-            return res.json(teams);
-        }
-
-        // Everyone else: only see their own team (no member counts)
-        const user = (await req.db!.query("SELECT team_id FROM users WHERE id = $1", [req.userId])).rows[0];
-        if (!user?.team_id) return res.json([]);
-        const teams = (await req.db!.query(`
-            SELECT t.id, t.name, t.department_id, t.sprint_duration_weeks, t.sprint_start_date,
-                   u.full_name as lead_name, d.name as department_name
-            FROM teams t
-            LEFT JOIN users u ON u.id = t.lead_id
-            LEFT JOIN departments d ON d.id = t.department_id
-            WHERE t.id = $1 AND t.org_id = $2
-        `, [user.team_id, req.userOrgId])).rows;
-        res.json(teams);
+        res.json(await listTeamsForActor(req.db!, {
+            userId: req.userId!,
+            effectiveOrgId: effectiveOrgId ?? null,
+            departmentId: department_id,
+            canSeeAll: userLevel >= ROLE_LEVEL["hr_admin"],
+        }));
     } catch (err) {
         req.log.error({ err }, "GET /teams error");
         res.status(500).json({ error: "Failed to fetch teams" });
@@ -637,15 +612,31 @@ router.put("/teams/:id", requireRole("hr_admin"), requireSameOrg, async (req: Re
 router.delete("/teams/:id", requireRole("hr_admin"), requireSameOrg, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const teamQuery = req.userRole === "platform_admin"
-            ? await req.db!.query("SELECT * FROM teams WHERE id = $1", [id])
-            : await req.db!.query("SELECT * FROM teams WHERE id = $1 AND org_id = $2", [id, req.userOrgId]);
-        const team = teamQuery.rows[0];
-        if (!team) return res.status(404).json({ error: "Team not found" });
+        const outcome = await removeTeam(req.db!, {
+            teamId: id,
+            orgId: req.userOrgId ?? null,
+            isPlatformAdmin: req.userRole === "platform_admin",
+        });
+        if (!outcome.team) return res.status(404).json({ error: "Team not found" });
 
-        await req.db!.query("UPDATE users SET team_id = NULL WHERE team_id = $1", [id]);
-        await req.db!.query("DELETE FROM teams WHERE id = $1", [id]);
-        logAction(req, "delete", "team", Number(id), { name: team.name });
+        // A team that still owns work cannot be deleted: deleting it would
+        // orphan tickets and destroy its sprints.
+        if (outcome.counts && (outcome.counts.tasks > 0 || outcome.counts.sprints > 0)) {
+            return res.status(409).json({
+                error: `This team still owns ${outcome.counts.tasks} ticket(s) and ${outcome.counts.sprints} sprint(s). `
+                    + "Transfer or remove them before deleting the team.",
+                code: "TEAM_HAS_WORK",
+                tasks: outcome.counts.tasks,
+                sprints: outcome.counts.sprints,
+            });
+        }
+
+        // The user-context cache holds `team_id` for an hour; detaching members
+        // must not leave them with their old team's visibility.
+        for (const memberId of outcome.memberIds ?? []) {
+            try { await redis.invalidateUserContext(req.tenantId, memberId); } catch { /* best effort */ }
+        }
+        logAction(req, "delete", "team", Number(id), { name: outcome.team.name });
         res.json({ message: "Team deleted" });
     } catch (err) {
         req.log.error({ err }, "DELETE /teams/:id error");

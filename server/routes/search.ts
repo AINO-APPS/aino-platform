@@ -6,6 +6,7 @@ import { loadUserContext, ROLE_LEVEL } from "../middleware/rbac";
 import { requireTenant } from "../middleware/tenant";
 import { isMobileClient } from "../middleware/webOnly";
 import * as redis from "../redis";
+import { isFeatureEnabled } from "../utils/planCatalog";
 import { createSearchService } from "../modules/search/search.service";
 import type { SearchDb } from "../modules/search/search.types";
 
@@ -28,6 +29,9 @@ router.get("/", async (req: Request, res: Response) => {
             tenantId: req.tenantId == null ? null : Number(req.tenantId),
             userId: req.userId!,
             orgId: req.userOrgId || null,
+            teamId: req.userTeamId ?? null,
+            role: req.userRole ?? null,
+            teamVisibility: isFeatureEnabled((req.tenant as any) ?? null, "team_visibility"),
             canReadAuditLogs: (ROLE_LEVEL[req.userRole as string] || 1) >= ROLE_LEVEL.hr_admin,
         });
         // Audit logs are admin data and administration is web-only.

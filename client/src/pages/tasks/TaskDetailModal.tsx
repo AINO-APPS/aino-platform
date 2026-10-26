@@ -6,7 +6,8 @@ import CommentSection from "../../components/profile/CommentSection";
 import SprintSelector from "../../components/common/SprintSelector";
 import LabelSelector from "./LabelSelector";
 import { PRIORITIES } from "./constants";
-import { currentStatusOption, statusOptions } from "./taskStatus";
+import { canCancelTask, currentStatusOption, statusOptions } from "./taskStatus";
+import { useFeatures } from "../../FeaturesContext";
 import { formatDueDate, isDueOverdue, getAvatarUrl } from "./utils";
 import { useTaskCtx } from "./TaskContext";
 import {
@@ -98,11 +99,10 @@ export default function TaskDetailModal({
         activeTab,
     } = useTaskCtx() as any;
     const { typeById, workflowStates } = useAgileConfig() as any;
-    const { fields: customFields } = useCustomFields() as unknown as {
-        fields: any[];
-    };
-    // Pull the task's custom-field values once when the modal opens so the
-    // read-only summary in view mode has data to render.
+    const { hasFeature } = useFeatures() as any;
+    const canCancel = canCancelTask(detailTask, currentUser?.id, currentUser?.role, { teamId: currentUser?.team_id ?? null, teamVisibility: hasFeature("team_visibility") });
+    const { fields: customFields } = useCustomFields() as unknown as { fields: any[] };
+    // Pull custom-field values once on open so the read-only summary has data.
     const [customValues, setCustomValues] = useState<Record<string, unknown>>(
         {},
     );
@@ -283,7 +283,7 @@ export default function TaskDetailModal({
                                 />
                                 Edit
                             </button>
-                            {currentUser?.id === detailTask?.user_id && !detailTask?.completed_at && (
+                            {canCancel && (
                                 <button
                                     className="btn btn-danger btn-sm"
                                     onClick={() => onDelete(detailTask)}

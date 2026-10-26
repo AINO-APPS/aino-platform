@@ -3,9 +3,10 @@ import { describe, test, expect, vi } from "vitest";
 
 let mockStates: any[] = [];
 vi.mock("../AgileConfigContext", () => ({ useAgileConfig: () => ({ workflowStates: mockStates }) }));
+vi.mock("../FeaturesContext", () => ({ useFeatures: () => ({ hasFeature: () => false }) }));
 
 import TaskStatusControl from "../pages/tasks/TaskStatusControl";
-import { canChangeTaskStatus, currentStatusOption, statusOptions } from "../pages/tasks/taskStatus";
+import { canCancelTask, canChangeTaskStatus, currentStatusOption, statusOptions } from "../pages/tasks/taskStatus";
 
 const backlogTicket = { id: 5, title: "Fix login", workflow_state_key: "pending", user_id: 1, assigned_to: 2, sprint_id: null, planned_date: null };
 
@@ -16,6 +17,25 @@ describe("canChangeTaskStatus", () => {
         expect(canChangeTaskStatus(backlogTicket, 9, "hr_admin")).toBe(true);
         expect(canChangeTaskStatus(backlogTicket, 9, "team_lead")).toBe(false);
         expect(canChangeTaskStatus(null, 1, "super_admin")).toBe(false);
+    });
+
+    test("with team visibility on, any member of the owning team may change status", () => {
+        const ticket = { ...backlogTicket, team_id: 7 };
+        expect(canChangeTaskStatus(ticket, 9, "employee", { teamId: 7, teamVisibility: true })).toBe(true);
+        expect(canChangeTaskStatus(ticket, 9, "team_lead", { teamId: 7, teamVisibility: true })).toBe(true);
+        expect(canChangeTaskStatus(ticket, 9, "employee", { teamId: 8, teamVisibility: true })).toBe(false);
+        // Flag off restores the old assignee/reporter rule.
+        expect(canChangeTaskStatus(ticket, 9, "employee", { teamId: 7, teamVisibility: false })).toBe(false);
+    });
+});
+
+describe("canCancelTask", () => {
+    test("team members may cancel; completed tickets and non-members may not", () => {
+        const ticket = { ...backlogTicket, team_id: 7 };
+        expect(canCancelTask(ticket, 9, "employee", { teamId: 7, teamVisibility: true })).toBe(true);
+        expect(canCancelTask(ticket, 9, "employee", { teamId: 8, teamVisibility: true })).toBe(false);
+        expect(canCancelTask({ ...ticket, completed_at: "2026-10-01" }, 9, "employee", { teamId: 7, teamVisibility: true })).toBe(false);
+        expect(canCancelTask(ticket, 1, "employee")).toBe(true);
     });
 });
 
@@ -56,6 +76,7 @@ describe("TaskStatusControl", () => {
         expect(button.disabled).toBe(true);
         fireEvent.click(button);
         expect(onChange).not.toHaveBeenCalled();
-        expect(screen.getByTestId("task-status-control").getAttribute("title")).toMatch(/assignee or reporter/);
+        expect(screen.getByTestId("task-status-control").getAttribute("title"))
+            .toMatch(/permission/);
     });
 });

@@ -7,6 +7,7 @@ import { useTaskCtx } from "./TaskContext";
 import { useFeatures } from "../../FeaturesContext";
 import { CalendarDays, Package, Search, Headset, BarChart3 } from "../../constants/icons";
 import { Link } from "react-router-dom";
+import type { TeamScope } from "./hooks/useTeamScope";
 import s from "./TasksHeader.module.css";
 
 interface TasksHeaderProps {
@@ -46,6 +47,11 @@ interface TasksHeaderProps {
     setSprintImportOpen: (value: boolean | ((o: boolean) => boolean)) => void;
     fetchBacklog: () => void;
     clearFilters: () => void;
+    /** Org admins only: the teams they may switch between. */
+    teams?: any[];
+    selectedTeamId?: TeamScope | null;
+    onTeamChange?: (value: TeamScope) => void;
+    showTeamSwitcher?: boolean;
 }
 
 export default function TasksHeader({
@@ -84,6 +90,10 @@ export default function TasksHeader({
     setSprintImportOpen,
     fetchBacklog,
     clearFilters,
+    teams = [],
+    selectedTeamId = null,
+    onTeamChange,
+    showTeamSwitcher = false,
 }: TasksHeaderProps) {
     const { assignableUsers, orgLabels, availableSprints, currentUser } =
         useTaskCtx() as any;
@@ -91,10 +101,22 @@ export default function TasksHeader({
     const currentSprint = availableSprints.find(
         (sp: any) => sp.id === selectedSprintId,
     );
-    // The team the user belongs to. `team_name` comes from GET /profile; org
-    // admins browsing another team's sprint fall back to that sprint's team.
+    // The selected team (admin switcher) wins; otherwise the user's own team
+    // from GET /profile, then the sprint's team for an admin browsing it.
+    const selectedTeam = teams.find(
+        (team: any) =>
+            selectedTeamId !== "all"
+            && selectedTeamId !== "unassigned"
+            && selectedTeamId != null
+            && Number(team.id) === Number(selectedTeamId),
+    );
     const teamName =
-        currentUser?.team_name || currentSprint?.team_name || "Your team";
+        selectedTeam?.name
+        || (selectedTeamId === "all" ? "All teams" : null)
+        || (selectedTeamId === "unassigned" ? "Unassigned" : null)
+        || currentUser?.team_name
+        || currentSprint?.team_name
+        || "Your team";
     // The sprint's number, not its stored name: the tab already says "Sprint",
     // so repeating it ("Payments — Sprint 1") wastes the heading. Sprints
     // created before `sprint_number` existed fall back to the trailing digits
@@ -183,6 +205,33 @@ export default function TasksHeader({
                 </div>
 
                 <div className={s["tasks-header-actions"]}>
+                    {/* Org admins can switch teams and open the Unassigned
+                        bucket. Non-admins never see this control. */}
+                    {showTeamSwitcher && (
+                        <select
+                            value={selectedTeamId == null ? "all" : String(selectedTeamId)}
+                            onChange={(event) => {
+                                const value = event.target.value;
+                                onTeamChange?.(
+                                    value === "all" || value === "unassigned"
+                                        ? value
+                                        : Number(value),
+                                );
+                            }}
+                            className={s["date-input"]}
+                            aria-label="Team"
+                            title="Show another team's backlog and sprints"
+                        >
+                            <option value="all">All teams</option>
+                            {teams.map((team: any) => (
+                                <option key={team.id} value={team.id}>
+                                    {team.name}
+                                </option>
+                            ))}
+                            <option value="unassigned">Unassigned</option>
+                        </select>
+                    )}
+
                     {/* Tab switcher */}
                     <div className={s["tab-switcher"]}>
                         {/* Sprint tab is part of the Agile feature bundle — explicitly

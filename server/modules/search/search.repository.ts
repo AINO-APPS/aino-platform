@@ -1,18 +1,48 @@
 /** Persistence boundary for global search. */
 import type { SearchDb } from "./search.types";
+import {
+    buildVisibilityPredicate,
+    resolveTaskVisibility,
+    type TaskVisibility,
+} from "../tasks/tasks.policy";
 
-export async function searchTasks(db: SearchDb, userId: number, tsQuery: string) {
+export async function searchTasks(
+    db: SearchDb,
+    userId: number,
+    tsQuery: string,
+    visibility: TaskVisibility = { kind: "personal", userId },
+) {
+    const access = buildVisibilityPredicate(visibility, 2);
     return (await db.query(
         `SELECT t.id, t.title, t.description, ws.key AS workflow_state_key, t.priority,
                 t.planned_date, t.due_date, t.sprint_id,
                 ts_headline('english', t.title || ' ' || COALESCE(t.description, ''),
-                    to_tsquery('english', $2), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet
+                    to_tsquery('english', $1), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet
          FROM tasks t
          LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-         WHERE (t.user_id = $1 OR t.assigned_to = $1)
-           AND to_tsvector('english', t.title || ' ' || COALESCE(t.description, '')) @@ to_tsquery('english', $2)
-         ORDER BY t.created_at DESC LIMIT 20`, [userId, tsQuery],
+         WHERE ${access.sql ? `${access.sql} AND ` : ""}to_tsvector('english', t.title || ' ' || COALESCE(t.description, '')) @@ to_tsquery('english', $1)
+         ORDER BY t.created_at DESC LIMIT 20`, [tsQuery, ...access.params],
     )).rows;
+}
+
+/** The visibility decision a search request runs under. */
+export function searchVisibility(actor: {
+    userId: number;
+    orgId: number | null;
+    teamId?: number | null;
+    role?: string | null;
+    teamVisibility?: boolean;
+}): TaskVisibility {
+    const teamVisibility = actor.teamVisibility ?? true;
+    // Global search was personal before the flag; off restores that scope.
+    if (!teamVisibility) return { kind: "personal", userId: actor.userId };
+    return resolveTaskVisibility({
+        userId: actor.userId,
+        orgId: actor.orgId,
+        teamId: actor.teamId ?? null,
+        role: actor.role ?? null,
+        teamVisibility,
+    });
 }
 
 export async function getNotebookData(db: SearchDb, userId: number): Promise<unknown> {

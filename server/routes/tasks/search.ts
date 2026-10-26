@@ -9,6 +9,11 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 
 const { enrichTasks } = require('./_helpers/enrich');
+const {
+    buildVisibilityPredicate,
+    resolveTaskVisibility,
+    taskActorFromRequest,
+} = require('../../modules/tasks/tasks.policy');
 
 const router = express.Router();
 
@@ -22,17 +27,27 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
         const params: unknown[] = [`%${escapedQ}%`];
         let pi = 2;
 
-        const scope: string[] = ['(t.title ILIKE $1 OR t.description ILIKE $1)'];
+        const scope: string[] = [];
         if (req.userOrgId) {
             scope.push(`t.org_id = $${pi++}`);
             params.push(req.userOrgId);
         } else {
             scope.push('t.org_id IS NULL');
         }
-        // Restrict search scope: own tasks + assigned to me.
-        scope.push(`(t.user_id = $${pi} OR t.assigned_to = $${pi})`);
-        params.push(req.userId);
-        pi++;
+
+        // The same visibility boundary as every other list: a member searches
+        // the team's tickets, an admin the org, a no-team user their own.
+        // With the flag off, search keeps its original personal scope.
+        const actor = taskActorFromRequest(req);
+        const visibility = buildVisibilityPredicate(
+            actor.teamVisibility
+                ? resolveTaskVisibility(actor)
+                : { kind: "personal", userId: actor.userId },
+            pi,
+        );
+        if (visibility.sql) scope.push(visibility.sql);
+        params.push(...visibility.params);
+        pi = visibility.nextIndex;
 
         // A key like PROJ-123 resolves to exactly one task and ranks first.
         const keyMatch = q.trim().match(/^([A-Za-z][A-Za-z0-9_]{1,9})-(\d+)$/);
@@ -44,11 +59,12 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
             params.push(keyMatch[1].toUpperCase(), Number.parseInt(keyMatch[2], 10));
             pi += 2;
         }
+        scope.push(`(t.title ILIKE $1 OR t.description ILIKE $1 OR ${keyCondition})`);
 
         const tasks = (await req.db!.query(`
             SELECT t.* FROM tasks t
             LEFT JOIN projects p ON p.id = t.project_id
-            WHERE (${scope.join(' AND ')}) OR ${keyCondition}
+            WHERE ${scope.join(' AND ')}
             ORDER BY ${keyRank}, t.created_at DESC
             LIMIT 20
         `, params)).rows;
@@ -79,6 +95,16 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         // is the canonical column), the task disappeared from search. Filter
         // on `t.org_id` directly. We still join users only to keep the column
         // list compatible for future enrichment, but it's no longer the gate.
+        // The dependency picker must not leak another team's ticket titles.
+        // Flag off keeps the historical personal scope (it was org-wide, which
+        // leaked — tightening it is the safer reading of "old behaviour").
+        const actor = taskActorFromRequest(req);
+        const visibility = buildVisibilityPredicate(
+            actor.teamVisibility
+                ? resolveTaskVisibility(actor)
+                : { kind: "personal", userId: actor.userId },
+            4,
+        );
         const rows = (await req.db!.query(
             `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
                     t.work_item_type_id
@@ -88,9 +114,10 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
                     ($3::int IS NOT NULL AND t.id = $3::int)
                     OR t.title ILIKE $2
                 )
+                ${visibility.sql ? `AND ${visibility.sql}` : ''}
               ORDER BY t.id DESC
               LIMIT 20`,
-            [req.userOrgId, `%${q}%`, numericId]
+            [req.userOrgId, `%${q}%`, numericId, ...visibility.params]
         )).rows;
         res.json({ tasks: rows });
     } catch (err) {

@@ -538,14 +538,14 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
         }
 
         const result = await req.db!.query(
-            `INSERT INTO tasks (user_id, org_id, title, planned_date, workflow_state_id, priority, sprint_id)
-             VALUES ($1, $2, $3, $4,
+            `INSERT INTO tasks (user_id, org_id, team_id, title, planned_date, workflow_state_id, priority, sprint_id)
+             VALUES ($1, $2, $6, $3, $4,
                      (SELECT id FROM workflow_states
                        WHERE org_id = $2 AND is_active = TRUE
                        ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
                      'medium', $5)
              RETURNING id, title, planned_date AS date, priority, sprint_id`,
-            [req.userId, userRow?.org_id || null, title.trim(), dateStr, sprintId],
+            [req.userId, userRow?.org_id || null, title.trim(), dateStr, sprintId, userRow?.team_id || null],
         );
         const task = result.rows[0];
 
@@ -628,9 +628,12 @@ router.get("/search-tasks", async (req: Request, res: Response) => {
     try {
         const { q } = req.query as { q?: string };
 
-        // Include tasks the user owns, is assigned to, OR belong to same org
-        const userRow = (await req.db!.query("SELECT org_id FROM users WHERE id = $1", [req.userId])).rows[0];
-        const rows = await searchTasksForLinking(req.db!, req.userId, userRow?.org_id || null, q);
+        // Same visibility policy as the Plan lists.
+        const userRow = (await req.db!.query("SELECT id, org_id, team_id, role FROM users WHERE id = $1", [req.userId])).rows[0];
+        const { isFeatureEnabled } = require("../utils/planCatalog");
+        const { taskActorFromUser } = require("../modules/tasks/tasks.policy");
+        const actor = taskActorFromUser(userRow, isFeatureEnabled((req as any).tenant ?? null, "team_visibility"));
+        const rows = await searchTasksForLinking(req.db!, actor, q);
         res.json({ tasks: rows });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/search-tasks error");

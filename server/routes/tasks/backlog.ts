@@ -11,9 +11,16 @@ const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
 const { findLastCompletedSprintStart } = require('../../modules/tasks/tasks.sprintRepository');
+const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { canAccessTask } = require('./_helpers/access');
+const { canAccessTask, denyTaskAccess } = require('./_helpers/access');
+const {
+    isOrgAdmin,
+    rejectsForeignTeamRequest,
+    resolveTaskVisibility,
+    taskActorFromRequest,
+} = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const {
@@ -68,12 +75,15 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
-        const isOrgAdmin = req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin');
-        const visibility = isOrgAdmin
-            ? { kind: 'org-admin' as const }
-            : req.userTeamId
-                ? { kind: 'team' as const, userId: req.userId, teamId: req.userTeamId }
-                : { kind: 'personal' as const, userId: req.userId };
+        const actor = taskActorFromRequest(req);
+        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        const visibility = resolveTaskVisibility(actor, {
+            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
+        });
 
         // Completed work leaves the open list. `include_completed=1` reveals it
         // (the collapsed Completed section), optionally windowed by
@@ -163,7 +173,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
     try {
         const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
-            acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
+            acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
 
         if (!title || !title.trim()) return res.status(400).json({ error: 'Task title is required' });
         if (title.trim().length > 200) return res.status(400).json({ error: 'Task title must be 200 characters or less' });
@@ -202,6 +212,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         if (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) validDueDate = due_date;
 
         let validSprintId = null;
+        let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
@@ -209,20 +220,29 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const { isFeatureEnabled } = require('../../utils/planCatalog');
         const agileOn = isFeatureEnabled((req as any).tenant, 'agile');
         if (sprint_id && agileOn) {
-            const isOrgAdmin = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
-            const sprint = isOrgAdmin
+            const callerIsOrgAdmin = isOrgAdmin(req.userRole);
+            const sprint = callerIsOrgAdmin
                 ? (await req.db!.query(
                     'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
                     [sprint_id, req.userOrgId]
                 )).rows[0]
                 : (await req.db!.query('SELECT id, team_id, end_date FROM sprints WHERE id = $1', [sprint_id])).rows[0];
-            if (sprint && (isOrgAdmin || sprint.team_id === req.userTeamId)) {
+            if (sprint && (callerIsOrgAdmin || sprint.team_id === req.userTeamId)) {
                 validSprintId = sprint.id;
+                sprintRow = sprint;
                 if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
         }
+
+        const owner = await resolveCreateTeamId(req.db!, {
+            actor: taskActorFromRequest(req),
+            orgId: req.userOrgId || null,
+            explicitTeamId: team_id,
+            sprint: sprintRow,
+        });
+        if (owner.error) return res.status(owner.error.status).json(owner.error.body);
 
         // Agile fields
         const sp = validateStoryPoints(story_points);
@@ -263,13 +283,13 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             const insertRes = await client.query(
                 `INSERT INTO tasks
                     (user_id, planned_date, title, description, priority, assigned_to, due_date,
-                     sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
+                     sprint_id, org_id, team_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
+                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
                  RETURNING id`,
                 [req.userId, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, validSprintId, req.userOrgId || null,
+                    assignedTo, validDueDate, validSprintId, req.userOrgId || null, owner.teamId,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
@@ -307,7 +327,7 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         }
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         await req.db!.query('UPDATE tasks SET planned_date = $1 WHERE id = $2', [date, id]);
         await logHistory(id, req.userId, 'scheduled', 'planned_date', task.planned_date || 'backlog', date, null, req.db);
@@ -327,7 +347,7 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const { id } = req.params;
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         await req.db!.query('UPDATE tasks SET planned_date = NULL WHERE id = $1', [id]);
         await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date, 'backlog', null, req.db);

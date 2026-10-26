@@ -9,13 +9,19 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
-const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require("./_helpers/access");
+const { canAccessTask, canCancelTask, canChangeTaskStatus, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
+const { isOrgAdmin, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { frozenSprintError } = require("./_helpers/sprintFreeze");
 const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
     findManyInOrg, setSprint, setWorkflowState, setAssignee,
 } = require("../../modules/tasks/tasks.repository");
 const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
+const {
+    canMoveIntoTeamSprint,
+    sprintTeamMismatchBody,
+    teamAfterSprintMove,
+} = require("../../modules/tasks/tasks.ownership");
 const { describeSprintTaskAdded, taskNotificationLink } = require("../../modules/tasks/tasks.notifications");
 const { notifyUser } = require("../../realtime/fanout");
 
@@ -69,10 +75,11 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
         if (!ACTIONS.includes(action)) return res.status(400).json({ error: "Unknown bulk action" });
 
         const tasks = await findManyInOrg(req.db!, ids, req.userOrgId);
+        const actor = taskActorFromRequest(req);
 
         const results: BulkResult[] = [];
         for (const task of tasks) {
-            if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
+            if (!await canAccessTask(task, actor, req.db)) {
                 results.push({ id: task.id, ok: false, error: "Not found" });
                 continue;
             }
@@ -91,14 +98,27 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
 
                 if (action === "move_to_sprint") {
                     const sprintId = nextSprintId as number | null;
-                    await setSprint(req.db!, task.id, sprintId);
+                    let adoptTeamId: number | null = null;
+                    if (sprintId !== null) {
+                        const sprint = await findSprintInOrg(req.db!, sprintId, req.userOrgId);
+                        if (!sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))) {
+                            results.push({ id: task.id, ok: false, error: "Invalid sprint or sprint does not belong to your team" });
+                            continue;
+                        }
+                        if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
+                            results.push({ id: task.id, ok: false, error: sprintTeamMismatchBody().error as string });
+                            continue;
+                        }
+                        if (task.team_id == null) adoptTeamId = teamAfterSprintMove(task.team_id, sprint.team_id);
+                    }
+                    await setSprint(req.db!, task.id, sprintId, adoptTeamId);
                     await logHistory(task.id, req.userId, "updated", "sprint", task.sprint_id, sprintId, null, req.db);
                     if (sprintId !== null) {
                         await notifyBulkSprintAdded(req, task, sprintId);
                     }
                     results.push({ id: task.id, ok: true, previous: { sprint_id: task.sprint_id } });
                 } else if (action === "status") {
-                    if (!canChangeTaskStatus(task, req.userId, req.userRole)) {
+                    if (!await canChangeTaskStatus(task, actor, req.db)) {
                         results.push({ id: task.id, ok: false, error: STATUS_FORBIDDEN });
                         continue;
                     }
@@ -120,8 +140,8 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     await logHistory(task.id, req.userId, "updated", "assigned_to", task.assigned_to, assignee, null, req.db);
                     results.push({ id: task.id, ok: true, previous: { assigned_to: task.assigned_to } });
                 } else {
-                    if (task.user_id !== req.userId) {
-                        results.push({ id: task.id, ok: false, error: "Only the creator can cancel a task" });
+                    if (!await canCancelTask(task, actor, req.db)) {
+                        results.push({ id: task.id, ok: false, error: ACCESS_DENIED });
                         continue;
                     }
                     // Cancelling is for open work: a ticket that already reached

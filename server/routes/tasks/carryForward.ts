@@ -11,6 +11,11 @@ const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
+const {
+    buildVisibilityPredicate,
+    resolveTaskVisibility,
+    taskActorFromRequest,
+} = require('../../modules/tasks/tasks.policy');
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -23,13 +28,21 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
     try {
         const today = getLocalToday(req);
 
+        // Carry-forward is a per-person planner action, so it deliberately asks
+        // the policy for *personal* scope rather than the team list.
+        const actor = taskActorFromRequest(req);
+        const personal = buildVisibilityPredicate(
+            resolveTaskVisibility(actor, { scope: 'personal' }),
+            1,
+        );
+
         const lastTaskDay = (await req.db!.query(`
-            SELECT planned_date AS date FROM tasks
-            WHERE (user_id = $1 OR assigned_to = $1)
-              AND planned_date < $2::date
-              AND planned_date >= $2::date - INTERVAL '7 days'
-              AND ((org_id = $3) OR (org_id IS NULL AND $3::integer IS NULL))
-            ORDER BY planned_date DESC LIMIT 1
+            SELECT t.planned_date AS date FROM tasks t
+            WHERE ${personal.sql}
+              AND t.planned_date < $2::date
+              AND t.planned_date >= $2::date - INTERVAL '7 days'
+              AND ((t.org_id = $3) OR (t.org_id IS NULL AND $3::integer IS NULL))
+            ORDER BY t.planned_date DESC LIMIT 1
         `, [req.userId, today, req.userOrgId || null])).rows[0];
 
         if (!lastTaskDay) return res.json({ message: 'No tasks to carry forward', carried: 0 });
@@ -41,14 +54,15 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         // Also includes the row id so we don't need a second query to copy
         // labels.
         const incomplete = (await req.db!.query(`
-            SELECT id, title, description, priority, assigned_to, due_date,
-                   story_points, work_item_type_id, workflow_state_id,
-                   parent_task_id, acceptance_criteria, is_blocked, blocked_reason
-              FROM tasks
-             WHERE (user_id = $1 OR assigned_to = $1)
-               AND planned_date = $2
-               AND completed_at IS NULL
-               AND ((org_id = $3) OR (org_id IS NULL AND $3::integer IS NULL))
+            SELECT t.id, t.title, t.description, t.priority, t.assigned_to, t.due_date,
+                   t.story_points, t.work_item_type_id, t.workflow_state_id,
+                   t.parent_task_id, t.acceptance_criteria, t.is_blocked, t.blocked_reason,
+                   t.team_id
+              FROM tasks t
+             WHERE ${personal.sql}
+               AND t.planned_date = $2
+               AND t.completed_at IS NULL
+               AND ((t.org_id = $3) OR (t.org_id IS NULL AND $3::integer IS NULL))
         `, [req.userId, lastTaskDay.date, req.userOrgId || null])).rows;
 
         if (incomplete.length === 0) return res.json({ message: 'No tasks to carry forward', carried: 0 });
@@ -75,11 +89,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                     const insertRes = await client.query(
                         `INSERT INTO tasks
                             (user_id, planned_date, title, description, priority, assigned_to, due_date, org_id,
-                             story_points, work_item_type_id, workflow_state_id,
+                             team_id, story_points, work_item_type_id, workflow_state_id,
                              parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
                          RETURNING id`,
                         [req.userId, today, t.title, t.description, t.priority, t.assigned_to, dueDate, req.userOrgId || null,
+                        t.team_id ?? actor.teamId ?? null,
                         t.story_points, t.work_item_type_id, t.workflow_state_id,
                         t.parent_task_id,
                         t.acceptance_criteria ? JSON.stringify(t.acceptance_criteria) : null,

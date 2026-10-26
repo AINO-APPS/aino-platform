@@ -19,6 +19,7 @@ const {
     insertBaseline,
     findSprintTaskPoints,
 } = require("../modules/tasks/tasks.sprintRepository");
+const { canAccessSprint, taskActorFromRequest } = require("../modules/tasks/tasks.policy");
 
 const router = express.Router();
 // Same gate as /api/sprints: this is part of the Agile bundle, so a tenant
@@ -29,6 +30,10 @@ async function loadSprint(req: Request, res: Response) {
     const sprint = await findSprintInOrg(req.db!, req.params.id, req.userOrgId);
     if (!sprint) {
         res.status(404).json({ error: "Sprint not found" });
+        return null;
+    }
+    if (!canAccessSprint(sprint, taskActorFromRequest(req))) {
+        res.status(403).json({ error: "Access denied" });
         return null;
     }
     return sprint;

@@ -222,7 +222,7 @@ describe("Tenant Isolation - Tasks", () => {
     test("does not notify mention targets outside requester org", async () => {
         setupAuth();
         mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, title: "Scoped Task" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, team_id: 1, title: "Scoped Task" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ team_id: 1, org_id: 1 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ team_id: 1, org_id: 1 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 501 }], rowCount: 1 })
@@ -238,7 +238,7 @@ describe("Tenant Isolation - Tasks", () => {
             .send({ content: '<span data-user-id="999">@x</span>' });
 
         expect(res.status).toBe(200);
-        const orgMentionLookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role FROM users WHERE id = ANY($1)"));
+        const orgMentionLookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role, org_id, team_id FROM users WHERE id = ANY($1)"));
         expect(orgMentionLookup).toBeTruthy();
         expect(orgMentionLookup![1]).toEqual([[999], 1]);
         const notifInsertCount = mockQuery.mock.calls.filter(([sql]: any[]) => typeof sql === "string" && sql.includes("INSERT INTO notifications") && sql.includes("link_task_id")).length;
@@ -257,7 +257,7 @@ describe("Tenant Isolation - Tasks", () => {
             if (sql.includes("INSERT INTO task_comments")) return { rows: [{ id: 601 }], rowCount: 1 };
             if (sql.includes("FROM task_comments tc")) return { rows: [{ id: 601, task_id: 90, user_id: 1 }], rowCount: 1 };
             if (sql.includes("SELECT username, full_name FROM users")) return { rows: [{ username: "u1", full_name: "Commenter" }], rowCount: 1 };
-            if (sql.includes("SELECT id, role FROM users")) return { rows: [{ id: 5, role: "employee" }], rowCount: 1 };
+            if (sql.includes("SELECT id, role, org_id, team_id FROM users")) return { rows: [{ id: 5, role: "employee" }], rowCount: 1 };
             if (sql.includes("SELECT email, full_name FROM users")) return { rows: [{ email: "e@x", full_name: "Five" }], rowCount: 1 };
             return { rows: [], rowCount: 0 };
         });
@@ -270,7 +270,7 @@ describe("Tenant Isolation - Tasks", () => {
 
         expect(res.status).toBe(200);
         await new Promise((r) => setImmediate(r));
-        const lookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role FROM users"));
+        const lookup = mockQuery.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("SELECT id, role, org_id, team_id FROM users"));
         expect(lookup![1]).toEqual([[5], null]);
         const call = (ws.notifyUser as jest.Mock).mock.calls[0];
         expect(call.slice(2, 6)).toEqual([5, "mention", "Commenter mentioned you", "In task: No-org task"]);
@@ -280,7 +280,7 @@ describe("Tenant Isolation - Tasks", () => {
 
 describe("task realtime fan-out (task_updated)", () => {
     const ws = require("../utils/ws");
-    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, workflow_state_id: 10, title: "Ship it" };
+    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, team_id: 1, workflow_state_id: 10, title: "Ship it" };
     const states = [
         { id: 10, key: "pending", category: "open", is_initial: true, is_terminal: false },
         { id: 11, key: "in_progress", category: "in_progress", is_initial: false, is_terminal: false },
@@ -340,8 +340,8 @@ describe("task realtime fan-out (task_updated)", () => {
         ]);
     });
 
-    test("status change is refused for a teammate who is neither assignee nor reporter", async () => {
-        setupAuth();
+    test("status change is refused for a non-member of the owning team", async () => {
+        setupAuth("employee", { team_id: 2 });
         routeQueries([
             [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
             [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
@@ -354,7 +354,7 @@ describe("task realtime fan-out (task_updated)", () => {
             .send({ status: "done" });
 
         expect(res.status).toBe(403);
-        expect(res.body.error).toMatch(/assignee or reporter/);
+        expect(res.body.error).toMatch(/Access denied/);
         const updated = mockQuery.mock.calls.some(([sql]: any[]) => typeof sql === "string" && sql.includes("UPDATE tasks SET workflow_state_id"));
         expect(updated).toBe(false);
     });
@@ -391,8 +391,8 @@ describe("task realtime fan-out (task_updated)", () => {
         expect(res.status).toBe(200);
     });
 
-    test("full update refuses a workflow state change from a non-assignee/non-reporter", async () => {
-        setupAuth();
+    test("full update refuses a workflow state change from a non-member of the owning team", async () => {
+        setupAuth("employee", { team_id: 2 });
         routeQueries([
             [/SELECT \* FROM tasks WHERE id = \$1/, [{ ...task, workflow_state_id: 10 }]],
             [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],

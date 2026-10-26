@@ -43,7 +43,7 @@ describe("completed work leaves the backlog", () => {
         // Same container, tenant and visibility predicates.
         expect(revealed.whereSql).toContain("t.sprint_id IS NULL");
         expect(revealed.whereSql).toContain("t.org_id = $1");
-        expect(revealed.whereSql).toContain("(t.user_id = $2 OR t.assigned_to = $2 OR t.user_id IN (SELECT id FROM users WHERE team_id = $3))");
+        expect(revealed.whereSql).toContain("t.team_id = $2");
         expect(revealed.params).toEqual(open.params);
 
         // Only the completed rule differs.
@@ -64,7 +64,7 @@ describe("completed work leaves the backlog", () => {
             visibility,
             filters: { completedSince: "2026-09-25" },
         });
-        expect(completed.whereSql).toContain("t.completed_at >= $4");
+        expect(completed.whereSql).toContain("t.completed_at >= $3");
         expect(completed.params).toContain("2026-09-25");
     });
 

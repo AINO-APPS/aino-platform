@@ -30,7 +30,7 @@ describe("task collection builder", () => {
 
         const sharedFilters = [
             "t.org_id = $?",
-            "(t.user_id = $? OR t.assigned_to = $? OR t.user_id IN (SELECT id FROM users WHERE team_id = $?))",
+            "t.team_id = $?",
             "(t.assigned_to = $? OR (t.user_id = $? AND t.assigned_to IS NULL))",
             "t.priority = $?",
             "(t.title ILIKE $? ESCAPE '\\' OR t.description ILIKE $? ESCAPE '\\')",
@@ -58,10 +58,29 @@ describe("task collection builder", () => {
         expect(board.whereSql).toMatch(/t\.sprint_id = \$\d+/);
         expect(schedule.whereSql).toMatch(/t\.planned_date = \$\d+/);
 
-        const shared = "t.org_id = $? AND (t.user_id = $? OR t.assigned_to = $? OR t.user_id IN (SELECT id FROM users WHERE team_id = $?))";
+        const shared = "t.org_id = $? AND t.team_id = $?";
         expect(withoutParamNumbers(backlog.whereSql)).toContain(shared);
         expect(withoutParamNumbers(board.whereSql)).toContain(shared);
         expect(withoutParamNumbers(schedule.whereSql)).toContain(shared);
+    });
+
+    test("flag off restores the creator-team predicate", () => {
+        const legacy = { kind: "legacy-team" as const, userId: 7, teamId: 3 };
+        const backlog = buildTaskCollection({ scope: "backlog", orgId: 1, visibility: legacy });
+        expect(withoutParamNumbers(backlog.whereSql)).toContain(
+            "(t.user_id = $? OR t.assigned_to = $? OR t.user_id IN (SELECT id FROM users WHERE team_id = $?))",
+        );
+        expect(backlog.params).toEqual([1, 7, 3]);
+    });
+
+    test("admins may request the unassigned bucket", () => {
+        const backlog = buildTaskCollection({
+            scope: "backlog",
+            orgId: 1,
+            visibility: { kind: "unassigned" },
+        });
+        expect(backlog.whereSql).toContain("t.team_id IS NULL");
+        expect(backlog.params).toEqual([1]);
     });
 
     test("defines completion in exactly one place", () => {

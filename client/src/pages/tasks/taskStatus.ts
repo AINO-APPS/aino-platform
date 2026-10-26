@@ -1,17 +1,62 @@
 import { COLUMNS } from "./constants";
 
-/** Mirrors the server's `canChangeTaskStatus`: assignee, reporter, or an org admin. */
+/** The team context that decides whether a ticket belongs to the viewer. */
+export interface TaskAccessContext {
+    teamId?: number | null;
+    /** Per-org `team_visibility` flag. Off keeps the legacy rule. */
+    teamVisibility?: boolean;
+}
+
+const ORG_ADMIN_ROLES = ["super_admin", "hr_admin", "platform_admin"];
+
+export function isOrgAdminRole(role: string | null | undefined): boolean {
+    return ORG_ADMIN_ROLES.includes(String(role));
+}
+
+function isTeamMember(
+    task: { team_id?: number | null } | null | undefined,
+    context: TaskAccessContext | undefined,
+): boolean {
+    if (!context?.teamVisibility) return false;
+    if (context.teamId == null || task?.team_id == null) return false;
+    return Number(task.team_id) === Number(context.teamId);
+}
+
+/**
+ * Mirrors the server's `canChangeTaskStatus`: the creator, the assignee, an
+ * org admin, or (with team visibility on) any member of the owning team.
+ */
 export function canChangeTaskStatus(
-    task: { user_id?: number | null; assigned_to?: number | null } | null | undefined,
+    task: { user_id?: number | null; assigned_to?: number | null; team_id?: number | null } | null | undefined,
     userId: number | null | undefined,
     role: string | null | undefined,
+    context?: TaskAccessContext,
 ): boolean {
     if (!task) return false;
     if (userId != null && (Number(task.user_id) === Number(userId) || Number(task.assigned_to) === Number(userId))) return true;
-    return ["super_admin", "hr_admin", "platform_admin"].includes(String(role));
+    if (isOrgAdminRole(role)) return true;
+    return isTeamMember(task, context);
 }
 
-export const STATUS_FORBIDDEN = "Only the assignee or reporter can change the status";
+/**
+ * Cancellation is a team write: the creator/assignee, an org admin, or any
+ * member of the owning team when team visibility is on.
+ */
+export function canCancelTask(
+    task: { user_id?: number | null; assigned_to?: number | null; team_id?: number | null; completed_at?: unknown } | null | undefined,
+    userId: number | null | undefined,
+    role: string | null | undefined,
+    context?: TaskAccessContext,
+): boolean {
+    if (!task || task.completed_at) return false;
+    // Flag off restores the old creator-only cancellation rule.
+    if (context?.teamVisibility === false) {
+        return isOrgAdminRole(role) || (userId != null && Number(task.user_id) === Number(userId));
+    }
+    return canChangeTaskStatus(task, userId, role, context);
+}
+
+export const STATUS_FORBIDDEN = "You do not have permission to change this ticket's status";
 
 export interface StatusOption {
     /** Sent to PATCH /tasks/:id/status as `status`; the server resolves it to a workflow state. */

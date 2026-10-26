@@ -7,12 +7,11 @@
  * else is shared.
  */
 
-export type TaskCollectionScope = "backlog" | "board" | "schedule";
+import { buildVisibilityPredicate, type TaskVisibility } from "./tasks.policy";
 
-export type TaskVisibility =
-    | { kind: "org-admin" }
-    | { kind: "team"; userId: number; teamId: number }
-    | { kind: "personal"; userId: number };
+export type { TaskVisibility };
+
+export type TaskCollectionScope = "backlog" | "board" | "schedule";
 
 export interface TaskCollectionFilters {
     assignee?: string;
@@ -142,22 +141,23 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     }
 
     // ── Visibility ─────────────────────────────────────────────────────────
-    if (input.visibility.kind === "team") {
-        push(
-            `(t.user_id = $${pi} OR t.assigned_to = $${pi} OR t.user_id IN (SELECT id FROM users WHERE team_id = $${pi + 1}))`,
-            input.visibility.userId,
-            input.visibility.teamId,
-        );
-    } else if (input.visibility.kind === "personal") {
-        push(`(t.user_id = $${pi} OR t.assigned_to = $${pi})`, input.visibility.userId);
+    // One predicate builder for every surface (see tasks.policy). `team`
+    // anchors on the ticket's own team; `legacy-team` is the flag-off
+    // creator-team rule; org admins add no restriction.
+    const visibility = buildVisibilityPredicate(input.visibility, pi);
+    if (visibility.sql) {
+        conditions.push(visibility.sql);
+        params.push(...visibility.params);
+        pi = visibility.nextIndex;
     }
 
     // ── Filters ────────────────────────────────────────────────────────────
     const filters = input.filters || {};
 
     if (filters.assignee) {
+        const visibilityUserId = "userId" in input.visibility ? input.visibility.userId : null;
         const assigneeId = filters.assignee === "me"
-            ? (input.visibility.kind === "org-admin" ? null : input.visibility.userId)
+            ? visibilityUserId
             : parseId(filters.assignee);
         if (assigneeId !== null) {
             push(
@@ -241,12 +241,22 @@ export interface CollectionDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>;
 }
 
-/** Every task in one sprint, in board order, with its workflow state. */
-export async function listSprintTasks(db: CollectionDb, orgId: number | null, sprintId: number) {
+/**
+ * Every task in one sprint, in board order, with its workflow state.
+ *
+ * The caller must already have authorised the sprint; `visibility` then
+ * applies the same ticket policy as every other list.
+ */
+export async function listSprintTasks(
+    db: CollectionDb,
+    orgId: number | null,
+    sprintId: number,
+    visibility: TaskVisibility = { kind: "org-admin" },
+) {
     const collection = buildTaskCollection({
         scope: "board",
         orgId,
-        visibility: { kind: "org-admin" },
+        visibility,
         sprintId,
     });
     return (await db.query(

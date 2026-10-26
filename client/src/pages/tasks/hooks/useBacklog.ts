@@ -72,11 +72,16 @@ type ShowConfirm = (
     opts?: { confirmText?: string; isDanger?: boolean },
 ) => void;
 
+/** Stable default so an omitted scope never re-triggers every fetch. */
+const EMPTY_SCOPE: Record<string, unknown> = {};
+
 interface UseBacklogParams {
     activeTab: string;
     backlogOpen: boolean;
     date: string;
     backlogFilters: Record<string, unknown> | null;
+    /** Team scope from the admin Plan switcher: `{ team_id }` or `{ unassigned: 1 }`. */
+    scopeParams?: Record<string, unknown>;
     selectedSprintId: number | string | null;
     showConfirm: ShowConfirm;
     closeConfirm: () => void;
@@ -91,6 +96,7 @@ export function useBacklog({
     backlogOpen,
     date,
     backlogFilters,
+    scopeParams = EMPTY_SCOPE,
     selectedSprintId,
     showConfirm,
     closeConfirm,
@@ -199,6 +205,7 @@ export function useBacklog({
         try {
             const res = await getBacklog({
                 ...(backlogFilters || {}),
+                ...scopeParams,
                 limit: backlogLimit,
                 offset: backlogOffset,
             });
@@ -232,7 +239,7 @@ export function useBacklog({
         } finally {
             if (!quiet) setBacklogLoading(false);
         }
-    }, [backlogFilters, backlogLimit, backlogOffset]);
+    }, [backlogFilters, scopeParams, backlogLimit, backlogOffset]);
 
     const sortedBacklogTasks = useMemo(() => {
         const sorted = [...backlogTasks];
@@ -290,6 +297,8 @@ export function useBacklog({
         if (!backlogTitle.trim()) return;
         try {
             await addBacklogTask({
+                // An admin viewing a team's backlog creates the ticket there.
+                ...(scopeParams.team_id ? { team_id: scopeParams.team_id } : {}),
                 title: backlogTitle,
                 description: backlogDesc,
                 priority: backlogPriority,
@@ -330,7 +339,10 @@ export function useBacklog({
      */
     const quickAdd = useCallback(async (title: string) => {
         try {
-            await addBacklogTask({ title, priority: "medium" });
+            await addBacklogTask({
+                ...(scopeParams.team_id ? { team_id: scopeParams.team_id } : {}),
+                title, priority: "medium",
+            });
             await fetchBacklog(true);
         } catch (err) {
             const error = err as { response?: { data?: { error?: string } } };
@@ -468,6 +480,7 @@ export function useBacklog({
         try {
             const params: Record<string, unknown> = {
                 ...(backlogFilters || {}),
+                ...scopeParams,
                 include_completed: 1,
                 completed_only: 1,
                 limit: 100,
@@ -487,7 +500,7 @@ export function useBacklog({
         } finally {
             setCompletedLoading(false);
         }
-    }, [backlogFilters, setError]);
+    }, [backlogFilters, scopeParams, setError]);
 
     const toggleCompleted = useCallback(() => {
         setCompletedOpen((open) => {

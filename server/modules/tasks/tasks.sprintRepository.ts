@@ -18,6 +18,42 @@ export async function findSprintInOrg(db: SprintDb, sprintId: unknown, orgId: nu
     )).rows[0] || null;
 }
 
+/** Every sprint in an org, optionally narrowed to one team (admin view). */
+export async function findSprintsForOrg(db: SprintDb, orgId: unknown, teamId?: number | null) {
+    return (await db.query(
+        `SELECT s.* FROM sprints s
+           JOIN teams t ON t.id = s.team_id
+          WHERE t.org_id = $1
+            AND ($2::int IS NULL OR s.team_id = $2::int)
+          ORDER BY
+              CASE s.status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
+              s.start_date DESC`,
+        [orgId, teamId ?? null],
+    )).rows;
+}
+
+/** Every sprint belonging to one team (member view). */
+export async function findSprintsForTeam(db: SprintDb, teamId: unknown) {
+    return (await db.query(
+        `SELECT * FROM sprints
+          WHERE team_id = $1
+          ORDER BY
+              CASE status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
+              start_date DESC`,
+        [teamId],
+    )).rows;
+}
+
+/** One sprint joined with its team's org, for access checks. */
+export async function findSprintWithTeam(db: SprintDb, sprintId: unknown) {
+    return (await db.query(
+        `SELECT s.*, t.org_id, t.name AS team_name
+           FROM sprints s JOIN teams t ON t.id = s.team_id
+          WHERE s.id = $1`,
+        [sprintId],
+    )).rows[0] || null;
+}
+
 /** One task row by id. */
 export async function findTask(db: SprintDb, taskId: unknown) {
     return (await db.query("SELECT * FROM tasks WHERE id = $1", [taskId])).rows[0] || null;
@@ -105,13 +141,27 @@ export async function findLastCompletedSprintStart(
     return row?.start_date ?? null;
 }
 
-/** Move a task into a sprint and adopt the sprint's end date as its due date. */
+/**
+ * Move a task into a sprint and adopt the sprint's end date as its due date.
+ *
+ * `teamId` is passed for a legacy ticket with no owner: entering a sprint is
+ * the moment it adopts that sprint's team. A ticket that already has a team
+ * keeps it (the caller has already checked the same-team rule).
+ */
 export async function setSprintAndDueDate(
     db: SprintDb,
     taskId: unknown,
     sprintId: unknown,
     dueDate: unknown,
+    teamId?: number | null,
 ): Promise<void> {
+    if (teamId !== undefined && teamId !== null) {
+        await db.query(
+            "UPDATE tasks SET sprint_id = $1, due_date = $2, team_id = $3 WHERE id = $4",
+            [sprintId, dueDate, teamId, taskId],
+        );
+        return;
+    }
     await db.query("UPDATE tasks SET sprint_id = $1, due_date = $2 WHERE id = $3", [sprintId, dueDate, taskId]);
 }
 

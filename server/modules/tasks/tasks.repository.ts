@@ -113,8 +113,10 @@ export const setRank = async (db: TasksDb, id: number | string, rank: string) =>
 export const findManyInOrg = async (db: TasksDb, ids: number[], orgId: number | null) =>
     (await db.query("SELECT * FROM tasks WHERE id = ANY($1::int[]) AND org_id = $2", [ids, orgId])).rows;
 
-export const setSprint = async (db: TasksDb, id: number, sprintId: number | null) =>
-    db.query("UPDATE tasks SET sprint_id = $1 WHERE id = $2", [sprintId, id]);
+export const setSprint = async (db: TasksDb, id: number, sprintId: number | null, teamId?: number | null) =>
+    teamId !== undefined && teamId !== null
+        ? db.query("UPDATE tasks SET sprint_id = $1, team_id = $3 WHERE id = $2", [sprintId, id, teamId])
+        : db.query("UPDATE tasks SET sprint_id = $1 WHERE id = $2", [sprintId, id]);
 
 export const setWorkflowState = async (db: TasksDb, id: number, workflowStateId: number | null) =>
     db.query("UPDATE tasks SET workflow_state_id = $1 WHERE id = $2", [workflowStateId, id]);

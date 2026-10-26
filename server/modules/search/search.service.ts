@@ -46,7 +46,14 @@ export function createSearchService(deps: SearchDependencies) {
                 .map((word) => `${word.replace(/[^a-zA-Z0-9]/g, "")}:*`)
                 .filter((part) => part.length > 1).join(" & ");
             const pattern = `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-            const tasks = tsQuery ? await repository.searchTasks(db, actor.userId, tsQuery) : [];
+            const tasks = tsQuery
+                ? await repository.searchTasks(
+                    db,
+                    actor.userId,
+                    tsQuery,
+                    repository.searchVisibility(actor),
+                )
+                : [];
             const notes = searchNotes(await repository.getNotebookData(db, actor.userId), term);
             const users = actor.orgId ? await repository.searchUsers(db, actor.orgId, actor.userId, pattern) : [];
             const events = await repository.searchEvents(db, actor.userId, pattern);

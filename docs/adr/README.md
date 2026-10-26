@@ -31,6 +31,8 @@ decisions.
 | [009](ADR-009-control-plane-vs-application-plane.md) | Control plane and application plane are separate hosts and realms | Accepted |
 | [011](ADR-011-realm-scoped-linked-principals.md) | One human may hold linked principals in separate realms | Accepted |
 | [012](ADR-012-default-tenant-has-no-data-privilege.md) | The default tenant has no data privilege | Accepted |
+| [013](ADR-013-ticket-team-ownership.md) | Tickets are owned by one team; membership is the visibility boundary | Accepted |
+| [014](ADR-014-workflow-transition-enforcement.md) | Workflow transitions are enforced server-side | Accepted |
 
 > 010 is reserved for the remaining GDAP-style JIT-access hardening. See
 > [`../PLATFORM_TENANT_SEPARATION_PLAN.md`](../PLATFORM_TENANT_SEPARATION_PLAN.md).

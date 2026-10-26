@@ -7,7 +7,9 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 
-const { canAccessTask } = require('./_helpers/access');
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
 import * as taskService from "../../modules/tasks/tasks.service";
 
@@ -17,7 +19,7 @@ const router = express.Router();
 router.get('/:id/detail', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const task = await taskService.getTask(req.db!, String(req.params.id));
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         const enriched = await enrichTasks([task], req.db);
 
@@ -35,7 +37,7 @@ router.get('/:id/history', auth, loadUserContext, async (req: Request, res: Resp
     try {
         const task = await taskService.getTask(req.db!, String(req.params.id));
         if (!task) return res.status(404).json({ error: 'Task not found' });
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
         const history = await taskService.getHistory(req.db!, String(req.params.id));
 

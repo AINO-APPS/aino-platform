@@ -6,26 +6,40 @@ const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
+const {
+    canAccessSprint,
+    isOrgAdmin,
+    resolveTaskVisibility,
+    taskActorFromRequest,
+} = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
+const { findSprintsForOrg, findSprintsForTeam } = require("../modules/tasks/tasks.sprintRepository");
+const { loadSprintForActor } = require("../modules/tasks/tasks.sprintAccess");
 const { notifySprintStarted, notifySprintCompleted } = require("./_helpers/sprintNotifications");
 const { snapshotBurndown } = require("./_helpers/sprintBurndown");
-
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
-
+async function loadAccessibleSprint(req: Request, res: Response, id: number) {
+    const outcome = await loadSprintForActor(req.db!, id, taskActorFromRequest(req));
+    if (outcome.error) { res.status(outcome.error.status).json(outcome.error.body); return null; }
+    return outcome.sprint;
+}
 router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        // Org admins see every team's sprints (and may filter with ?team_id=);
+        // everyone else sees their own team only.
+        if (isOrgAdmin(req.userRole)) {
+            const teamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+            const sprints = await findSprintsForOrg(
+                req.db!,
+                req.userOrgId,
+                Number.isNaN(teamId as number) ? null : teamId,
+            );
+            return res.json({ sprints });
+        }
+
         if (!req.userTeamId) return res.json({ sprints: [] });
-
-        const sprints = (await req.db!.query(`
-            SELECT * FROM sprints
-            WHERE team_id = $1
-            ORDER BY
-                CASE status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
-                start_date DESC
-        `, [req.userTeamId])).rows;
-
-        res.json({ sprints });
+        res.json({ sprints: await findSprintsForTeam(req.db!, req.userTeamId) });
     } catch (err) {
         req.log.error({ err }, "Error fetching sprints:");
         res.status(500).json({ error: "Failed to fetch sprints" });
@@ -34,19 +48,23 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
 
 router.get("/active", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        if (!req.userTeamId) return res.json({ sprint: null });
+        const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+        const teamId = isOrgAdmin(req.userRole) && requested != null && !Number.isNaN(requested)
+            ? requested
+            : req.userTeamId;
+        if (!teamId) return res.json({ sprint: null });
 
         // Try Redis cache first
-        const cached = await redis.getActiveSprint(req.tenantId, req.userTeamId);
+        const cached = await redis.getActiveSprint(req.tenantId, teamId);
         if (cached !== null) return res.json({ sprint: cached || null });
 
         const sprint = (await req.db!.query(`
             SELECT * FROM sprints
             WHERE team_id = $1 AND status = 'active'
             ORDER BY start_date DESC LIMIT 1
-        `, [req.userTeamId])).rows[0];
+        `, [teamId])).rows[0];
 
-        await redis.setActiveSprint(req.tenantId, req.userTeamId, sprint || false);
+        await redis.setActiveSprint(req.tenantId, teamId, sprint || false);
 
         res.json({ sprint: sprint || null });
     } catch (err) {
@@ -92,7 +110,7 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
         // A completed sprint is immutable (D11): it cannot be re-opened or
         // otherwise edited. The retrospective is the only writable artefact.
@@ -144,7 +162,7 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
         await req.db!.query("UPDATE tasks SET sprint_id = NULL WHERE sprint_id = $1", [id]);
         await req.db!.query("DELETE FROM sprints WHERE id = $1", [id]);
@@ -164,8 +182,14 @@ router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Respon
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
-        return res.json({ tasks: await listSprintTasks(req.db!, req.userOrgId || null, Number(id)) });
+        const actor = taskActorFromRequest(req);
+        if (!canAccessSprint(sprint, actor)) {
+            return res.status(403).json({ error: "Access denied" });
+        }
+        const visibility = resolveTaskVisibility(actor, { teamId: sprint.team_id });
+        return res.json({
+            tasks: await listSprintTasks(req.db!, req.userOrgId || null, Number(id), visibility),
+        });
     } catch (err) {
         req.log.error({ err }, "Error fetching sprint tasks:");
         res.status(500).json({ error: "Failed to fetch sprint tasks" });
@@ -339,7 +363,7 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "active") return res.status(400).json({ error: "Sprint is already active" });
         if (sprint.status === "completed") return res.status(400).json({ error: "Cannot restart a completed sprint" });
         // Auto-complete any other active sprint on the same team
@@ -388,7 +412,7 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "completed") return res.status(400).json({ error: "Sprint already completed" });
 
         // Capture final burndown snapshot before rollover so the chart shows
@@ -489,7 +513,7 @@ router.post("/:id/pause", auth, loadUserContext, requireRole("team_lead"), async
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "active") return res.status(400).json({ error: "Only an active sprint can be paused" });
 
         await req.db!.query(
@@ -521,7 +545,7 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
             [id, req.userOrgId]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "paused") return res.status(400).json({ error: "Only a paused sprint can be resumed" });
 
         // Push the end date out by however long we were paused so the team
@@ -644,7 +668,11 @@ router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Res
 // ─── Velocity (last N completed sprints for the team) ───────────────────────
 router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        if (!req.userTeamId) return res.json({ sprints: [], average: 0 });
+        const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+        const teamId = isOrgAdmin(req.userRole) && requested != null && !Number.isNaN(requested)
+            ? requested
+            : req.userTeamId;
+        if (!teamId) return res.json({ sprints: [], average: 0 });
         const limit = Math.min(parseInt(String(req.query.limit), 10) || 6, 20);
         const rows = (await req.db!.query(
             `SELECT id, name, start_date, end_date, completed_at,
@@ -653,7 +681,7 @@ router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: 
               WHERE team_id = $1 AND status = 'completed'
               ORDER BY completed_at DESC NULLS LAST
               LIMIT $2`,
-            [req.userTeamId, limit]
+            [teamId, limit]
         )).rows;
         const series = rows.reverse(); // oldest → newest for charting
         const avg = series.length
@@ -667,24 +695,6 @@ router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: 
 });
 
 // ─── Phase 3 endpoints ─────────────────────────────────────────────────────
-
-/**
- * Helper: ensure the requester can read this sprint (same org). Returns the
- * sprint row joined with team.org_id, or null after sending 404.
- */
-async function loadAccessibleSprint(req: Request, res: Response, sprintId: number) {
-    const sprint = (await req.db!.query(
-        `SELECT s.*, t.org_id, t.name AS team_name
-           FROM sprints s JOIN teams t ON t.id = s.team_id
-          WHERE s.id = $1`,
-        [sprintId]
-    )).rows[0];
-    if (!sprint || (req.userOrgId && sprint.org_id !== req.userOrgId)) {
-        res.status(404).json({ error: "Sprint not found" });
-        return null;
-    }
-    return sprint;
-}
 
 // GET /sprints/:id/cumulative-flow
 //

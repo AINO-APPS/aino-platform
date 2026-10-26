@@ -334,24 +334,13 @@ router.delete("/:id", requireAdmin, async (req: Request, res: Response) => {
 
 // ── Per-task values ────────────────────────────────────────────────────────
 
-// Task access check — mirrors the rules in routes/tasks.js but lighter.
+// Task access check — the one policy, not a lighter local copy.
 async function loadTaskAccessible(req: Request, taskId: number) {
     const task = (await req.db!.query("SELECT * FROM tasks WHERE id = $1", [taskId])).rows[0];
     if (!task) return null;
-    if (req.userOrgId && task.org_id && task.org_id !== req.userOrgId) return null;
-    if (!req.userOrgId && task.org_id) return null;
-    // Org admins can always access; otherwise creator/assignee or same team.
-    const isAdmin = ["super_admin", "hr_admin", "platform_admin"].includes(req.userRole!);
-    if (isAdmin) return task;
-    if (task.user_id === req.userId || task.assigned_to === req.userId) return task;
-    if (req.userTeamId) {
-        const r = await req.db!.query(
-            "SELECT 1 FROM users WHERE id = $1 AND team_id = $2",
-            [task.user_id, req.userTeamId]
-        );
-        if (r.rowCount > 0) return task;
-    }
-    return null;
+    const { canAccessTask } = require("./tasks/_helpers/access");
+    const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+    return await canAccessTask(task, taskActorFromRequest(req), req.db) ? task : null;
 }
 
 router.get("/task/:taskId", async (req: Request, res: Response) => {

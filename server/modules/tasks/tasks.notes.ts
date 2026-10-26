@@ -8,6 +8,12 @@
  * day (D2).
  */
 
+import {
+    buildVisibilityPredicate,
+    resolveTaskVisibility,
+    type TaskActor,
+} from "./tasks.policy";
+
 export interface NotesTaskDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
@@ -23,20 +29,34 @@ const TASK_SELECT = `SELECT t.id, t.title, ws.key AS status, t.priority, t.plann
  */
 export async function searchTasksForLinking(
     db: NotesTaskDb,
-    userId: number,
-    orgId: number | null,
+    actor: TaskActor,
     query: string | undefined,
 ): Promise<any[]> {
-    const params: unknown[] = [userId];
-    const scope = `(t.user_id = $1 OR t.assigned_to = $1${orgId ? " OR t.org_id = $2" : ""})`;
-    if (orgId) params.push(orgId);
+    // The picker must use the same boundary as the Plan lists — it used to
+    // return every task in the org, leaking other teams' titles.
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (actor.orgId != null) {
+        conditions.push("t.org_id = $1");
+        params.push(actor.orgId);
+    } else {
+        conditions.push("t.org_id IS NULL");
+    }
+    const visibility = buildVisibilityPredicate(resolveTaskVisibility(actor), params.length + 1);
+    if (visibility.sql) {
+        conditions.push(visibility.sql);
+        params.push(...visibility.params);
+    }
     const term = query && query.trim()
         ? `%${query.trim().replace(/[\\%_]/g, (character) => `\\${character}`)}%`
         : null;
-    if (term) params.push(term);
+    if (term) {
+        params.push(term);
+        conditions.push(`t.title ILIKE $${params.length}`);
+    }
     return (await db.query(
         `${TASK_SELECT}
-          WHERE ${scope}${term ? ` AND t.title ILIKE $${params.length}` : ""}
+          WHERE ${conditions.join(" AND ")}
           ORDER BY t.created_at DESC LIMIT 20`,
         params,
     )).rows;

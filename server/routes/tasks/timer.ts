@@ -11,7 +11,9 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
-const { canAccessTask } = require("./_helpers/access");
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { logHistory } = require("./_helpers/logHistory");
 const { elapsedMinutes, summariseTime, findRunningTimer, startTimer, stopTimer } = require("../../modules/tasks/tasks.time");
 const { findTask } = require("../../modules/tasks/tasks.repository");
@@ -20,8 +22,8 @@ const router = express.Router();
 
 async function loadTask(req: Request, res: Response) {
     const task = await findTask(req.db!, req.params.id);
-    if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
-        res.status(404).json({ error: "Task not found" });
+    if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
+        denyTaskAccess(res, task, taskActorFromRequest(req));
         return null;
     }
     return task;

@@ -149,9 +149,21 @@ describe("getEffectiveFeatures — fail-closed semantics", () => {
         expect(f.webhooks).toBe(false);
     });
 
-    test("enterprise plan has everything ON", () => {
+    test("enterprise plan has everything ON except rollout flags", () => {
         const f = getEffectiveFeatures("enterprise", {});
-        for (const k of FEATURE_KEYS) expect(f[k]).toBe(true);
+        // `team_visibility` is a rollout flag: it stays off on every plan until
+        // the backfill conflict report has been reviewed, and is turned on per
+        // org with an explicit override.
+        for (const k of FEATURE_KEYS) {
+            if (k === "team_visibility") expect(f[k]).toBe(false);
+            else expect(f[k]).toBe(true);
+        }
+    });
+
+    test("team_visibility turns on with a per-tenant override", () => {
+        const f = getEffectiveFeatures("enterprise", { team_visibility: true });
+        expect(f.team_visibility).toBe(true);
+        expect(getEffectiveFeatures("standard", { team_visibility: true }).team_visibility).toBe(true);
     });
 
     test("per-tenant override turns a plan default OFF", () => {

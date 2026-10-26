@@ -7,6 +7,10 @@ export interface SearchActor {
     tenantId?: number | null;
     userId: number;
     orgId: number | null;
+    /** Team/role context for the ticket visibility policy. */
+    teamId?: number | null;
+    role?: string | null;
+    teamVisibility?: boolean;
     canReadAuditLogs: boolean;
 }
 

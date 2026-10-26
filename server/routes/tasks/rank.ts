@@ -10,7 +10,9 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
-const { canAccessTask } = require("./_helpers/access");
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { rankForMove } = require("../../modules/tasks/tasks.rank");
 const { findRank, setRank, findTask } = require("../../modules/tasks/tasks.repository");
 
@@ -29,8 +31,8 @@ router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Respo
         const { beforeId, afterId } = req.body as { beforeId?: unknown; afterId?: unknown };
 
         const task = await findTask(req.db!, id);
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
-            return res.status(404).json({ error: "Task not found" });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
+            return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
 
         const before = await rankOf(req, beforeId);

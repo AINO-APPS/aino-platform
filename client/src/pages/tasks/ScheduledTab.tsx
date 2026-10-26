@@ -22,9 +22,12 @@ interface ScheduledTabProps {
   onOpenComments: (id: number | string) => void;
   /** Bumped by the page when tasks change elsewhere (detail edits, deletes). */
   version?: number;
+  /** Team scope from the admin Plan switcher: `{ team_id }` or `{ unassigned: 1 }`. */
+  scopeParams?: Record<string, unknown>;
 }
 
 const noopDrag = () => {};
+const EMPTY_SCOPE: Record<string, unknown> = {};
 
 /**
  * Scheduled — tasks planned onto a day (Backlog → Schedule, carry-forward,
@@ -32,7 +35,7 @@ const noopDrag = () => {};
  * week strip to jump, and per-card Reschedule / Back to backlog with Undo.
  * Kept in sync by `task_*` realtime events plus a visible-tab poll.
  */
-export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOpenDetail, onOpenComments, version = 0 }: ScheduledTabProps) {
+export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOpenDetail, onOpenComments, version = 0, scopeParams = EMPTY_SCOPE }: ScheduledTabProps) {
   const toast = useToast() as any;
   const today = getLocalToday();
   const [tasks, setTasks] = useState<any[]>([]);
@@ -48,7 +51,9 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const load = useCallback(async () => {
     const [start, end] = scheduledWindow(getLocalToday());
     try {
-      const res = await getTasks(undefined, { ...(filters || {}), start_date: start, end_date: end } as any);
+      const res = await getTasks(undefined, {
+        ...(filters || {}), ...scopeParams, start_date: start, end_date: end,
+      } as any);
       setTasks(((res.data as any)?.tasks as any[]) || []);
       setError("");
     } catch {
@@ -56,7 +61,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, scopeParams]);
 
   useEffect(() => { load(); }, [load, version]);
   useRealtimeEvent(["task_updated", "task_assigned"], () => { load(); });
@@ -65,12 +70,12 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   // The unscheduled tray is backlog work with no planned day.
   const loadBacklog = useCallback(async () => {
     try {
-      const res = await getBacklog({ limit: 200 });
+      const res = await getBacklog({ ...scopeParams, limit: 200 });
       setBacklogTasks(((res.data as any)?.tasks as any[]) || []);
     } catch {
       // The tray is supplementary; a failure must not block the calendar.
     }
-  }, []);
+  }, [scopeParams]);
   useEffect(() => { void loadBacklog(); }, [loadBacklog, version]);
 
   // Read-only context behind the calendar: leave, holidays and meetings.

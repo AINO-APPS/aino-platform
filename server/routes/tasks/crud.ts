@@ -16,11 +16,24 @@ const { emitTaskUpdated, notifyTaskAssigned } = require('../../utils/taskNotific
 const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require('./_helpers/access');
+
+const { canAccessTask, canCancelTask, canChangeTaskStatus, denyTaskAccess, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
+const {
+    isOrgAdmin,
+    rejectsForeignTeamRequest,
+    resolveTaskVisibility,
+    taskActorFromRequest,
+} = require('../../modules/tasks/tasks.policy');
 const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
+const {
+    resolveCreateTeamId,
+    canMoveIntoTeamSprint,
+    sprintTeamMismatchBody,
+    teamAfterSprintMove,
+} = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { findTask, setWorkflowState } = require('../../modules/tasks/tasks.repository');
 const {
@@ -45,14 +58,19 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search } = req.query as Record<string, string>;
 
-        const isOrgAdmin = req.userOrgId && (req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin');
-        const visibility = scope === 'personal'
-            ? { kind: 'personal' as const, userId: req.userId }
-            : isOrgAdmin
-                ? { kind: 'org-admin' as const }
-                : req.userTeamId
-                    ? { kind: 'team' as const, userId: req.userId, teamId: req.userTeamId }
-                    : { kind: 'personal' as const, userId: req.userId };
+        // One policy for every list surface. Admins may ask for a team (the
+        // Plan team switcher) or the Unassigned bucket; a non-admin asking for
+        // a foreign team is rejected rather than silently narrowed.
+        const actor = taskActorFromRequest(req);
+        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+            return res.status(403).json({ error: ACCESS_DENIED });
+        }
+        const visibility = resolveTaskVisibility(actor, {
+            scope,
+            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
+        });
 
         const collection = buildTaskCollection({
             scope: 'schedule',
@@ -89,7 +107,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { title, description, priority, date, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
-            acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
+            acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
 
         if (!title || !title.trim()) return res.status(400).json({ error: 'Task title is required' });
         if (title.trim().length > 200) return res.status(400).json({ error: 'Task title must be 200 characters or less' });
@@ -137,6 +155,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         }
 
         let validSprintId = null;
+        let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
@@ -147,14 +166,26 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
                 [sprint_id, req.userOrgId]
             )).rows[0];
-            const isOrgAdmin = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
-            if (sprint && (sprint.team_id === req.userTeamId || isOrgAdmin)) {
+            const callerIsOrgAdmin = isOrgAdmin(req.userRole);
+            if (sprint && (sprint.team_id === req.userTeamId || callerIsOrgAdmin)) {
                 validSprintId = sprint.id;
+                sprintRow = sprint;
                 if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
         }
+
+        // Ownership: explicit team (admins only), else the sprint's team, else
+        // the creator's team. A sprint assignment that contradicts the ticket's
+        // team is rejected so ownership never changes as a side effect.
+        const owner = await resolveCreateTeamId(req.db!, {
+            actor: taskActorFromRequest(req),
+            orgId: req.userOrgId || null,
+            explicitTeamId: team_id,
+            sprint: sprintRow,
+        });
+        if (owner.error) return res.status(owner.error.status).json(owner.error.body);
 
         // Agile fields
         const sp = validateStoryPoints(story_points);
@@ -201,13 +232,13 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             const insertRes = await client.query(
                 `INSERT INTO tasks
                     (user_id, planned_date, title, description, priority, assigned_to, due_date,
-                     sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
+                     sprint_id, org_id, team_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19)
                  RETURNING id`,
                 [req.userId, targetDate, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, validSprintId, req.userOrgId || null,
+                    assignedTo, validDueDate, validSprintId, req.userOrgId || null, owner.teamId,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
@@ -256,8 +287,9 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         const { status, workflow_state_id } = req.body;
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
-        if (!canChangeTaskStatus(task, req.userId, req.userRole)) return res.status(403).json({ error: STATUS_FORBIDDEN });
+        const actor = taskActorFromRequest(req);
+        if (!await canAccessTask(task, actor, req.db)) return denyTaskAccess(res, task, actor);
+        if (!await canChangeTaskStatus(task, actor, req.db)) return res.status(403).json({ error: STATUS_FORBIDDEN });
 
         const frozen = await frozenSprintError(req, task);
         if (frozen) return res.status(409).json(frozen);
@@ -356,7 +388,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        const actor = taskActorFromRequest(req);
+        if (!await canAccessTask(task, actor, req.db)) return denyTaskAccess(res, task, actor);
 
         // A completed sprint accepts no task writes.
         const frozen = await frozenSprintError(req, task, sprint_id === undefined ? undefined : sprint_id);
@@ -414,7 +447,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 // Service desk tasks (linked via service_desk_ticket_id) can be assigned
                 // to any active user in the tenant by org admins for cross-team resolution.
                 const isServiceDeskTask = !!task.service_desk_ticket_id;
-                const isOrgAdminUser = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
+                const isOrgAdminUser = isOrgAdmin(req.userRole);
                 if (!isServiceDeskTask && targetUser.org_id && req.userOrgId !== targetUser.org_id) {
                     return res.status(400).json({ error: 'Cannot assign tasks to users in a different organization' });
                 }
@@ -445,6 +478,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
 
         let newSprintId = task.sprint_id;
+        let newTeamId = task.team_id;
         // Agile gate: when "Agile & Sprints" is disabled for the tenant,
         // ignore sprint changes entirely (clearing is still harmless but we
         // keep behaviour deterministic: no sprint mutations at all).
@@ -458,10 +492,14 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                     'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
                     [sprint_id, req.userOrgId]
                 )).rows[0];
-                const isOrgAdmin = req.userRole === 'super_admin' || req.userRole === 'hr_admin' || req.userRole === 'platform_admin';
-                if (sprint && (sprint.team_id === req.userTeamId || isOrgAdmin)) {
+                const callerIsOrgAdmin = isOrgAdmin(req.userRole);
+                if (sprint && (sprint.team_id === req.userTeamId || callerIsOrgAdmin)) {
+                    if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
+                        return res.status(409).json(sprintTeamMismatchBody());
+                    }
                     newSprintId = sprint_id;
                     newDueDate = sprint.end_date;
+                    if (newTeamId == null) newTeamId = teamAfterSprintMove(newTeamId, sprint.team_id);
                 } else {
                     return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
                 }
@@ -499,7 +537,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // changed. `completed_at` is derived by the database trigger, so
             // this route never writes it.
             const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '');
-            if (stateChanged && !canChangeTaskStatus(task, req.userId, req.userRole)) {
+            if (stateChanged && !await canChangeTaskStatus(task, actor, req.db)) {
                 return res.status(403).json({ error: STATUS_FORBIDDEN });
             }
         }
@@ -534,13 +572,13 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
                 workflow_state_id = $9, parent_task_id = $10,
                 acceptance_criteria = $11, is_blocked = $12, blocked_reason = $13,
-                project_id = $14, task_number = $15, planned_date = $16
+                project_id = $14, task_number = $15, planned_date = $16, team_id = $18
               WHERE id = $17`,
             [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
                 newStoryPoints, newWitId, newWsId, newParentTaskId,
                 newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                 newIsBlocked, newBlockedReason, newProjectId, newTaskNumber,
-                newPlannedDate, id]
+                newPlannedDate, id, newTeamId]
         );
 
         // Log a project assignment as a first-class history event so users
@@ -626,10 +664,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         // Broadcast only the fields that actually changed, so two people editing
         // different fields of the same ticket both survive.
-        const actor = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
+        const actorRow = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
         emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, assignmentNotified ? null : updated?.assigned_to, task.user_id, req.userId], {
             fields: diffTask(task, updated),
-            actor: { id: req.userId!, name: actor?.full_name || actor?.username || null },
+            actor: { id: req.userId!, name: actorRow?.full_name || actorRow?.username || null },
         });
 
         res.json(enriched[0]);
@@ -652,8 +690,11 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!task) return res.status(404).json({ error: 'Task not found' });
-        if (task.user_id !== req.userId) return res.status(403).json({ error: 'Only task creator can cancel task' });
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
+        // Cancelling is a team write: any member of the owning team may do it,
+        // and so may the creator/assignee and org admins.
+        if (!await canCancelTask(task, taskActorFromRequest(req), req.db)) {
+            return res.status(403).json({ error: ACCESS_DENIED });
+        }
 
         const frozen = await frozenSprintError(req, task);
         if (frozen) return res.status(409).json(frozen);

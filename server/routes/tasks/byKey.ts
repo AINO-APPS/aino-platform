@@ -8,7 +8,9 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
-const { canAccessTask } = require("./_helpers/access");
+
+const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require("./_helpers/enrich");
 const { findByIssueKey } = require("../../modules/tasks/tasks.repository");
 
@@ -29,8 +31,8 @@ router.get("/by-key/:key", auth, loadUserContext, async (req: Request, res: Resp
         );
 
         if (!task) return res.status(404).json({ error: "Task not found" });
-        if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) {
-            return res.status(404).json({ error: "Task not found" });
+        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
+            return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
 
         const enriched = await enrichTasks([task], req.db);

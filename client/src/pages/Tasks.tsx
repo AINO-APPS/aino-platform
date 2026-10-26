@@ -46,6 +46,8 @@ import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
+import { useTeamScope } from "./tasks/hooks/useTeamScope";
+import TeamFallbackBanner from "./tasks/TeamFallbackBanner";
 import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
 import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
 import TasksOverlays from "./tasks/TasksOverlays";
@@ -119,6 +121,9 @@ export default function Tasks() {
     },
   });
 
+  const team = useTeamScope({ currentUser, hasFeature, availableSprints, setSelectedSprintId });
+  const { isOrgAdmin, teamVisibility, showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
+
   // If agile gets disabled while the user is on the Sprint tab (feature
   // override flipped from the platform console), bounce back to Backlog.
   useEffect(() => {
@@ -171,6 +176,8 @@ export default function Tasks() {
     backlogOpen: false,
     date,
     backlogFilters: filters.backlogFilters,
+    /** Team scope from the admin switcher (team_id or unassigned). */
+    scopeParams: teamScopeParams,
     selectedSprintId,
     showConfirm,
     closeConfirm,
@@ -228,23 +235,10 @@ export default function Tasks() {
   const epics = useEpics(tasksRoute.filters.epic);
   const teamMode = useTeamMode(currentUser?.team_id);
 
-  // Keep a valid sprint selected once the sprint list resolves: preserve the
-  // current pick if it still exists, otherwise default to the active sprint
-  // (or the first one).
-  useEffect(() => {
-    if (!availableSprints.length) return;
-    setSelectedSprintId((prev: any) =>
-      prev && availableSprints.some((sp) => sp.id === prev)
-        ? prev
-        : (availableSprints.find((sp) => sp.status === "active")?.id ??
-          availableSprints[0].id),
-    );
-  }, [availableSprints]);
-
   // Landing on the bare /tasks entry point opens the running sprint's plan.
   useSprintLanding({
     pathname: location.pathname,
-    availableSprints,
+    availableSprints: visibleSprints,
     agileEnabled: hasFeature("agile"),
     navigate,
   });
@@ -290,13 +284,13 @@ export default function Tasks() {
 
   useEffect(() => {
     if (!currentUser?.team_id) {
-      if (activeTab === "sprint") setActiveTab("backlog");
+      if (!isOrgAdmin && activeTab === "sprint") setActiveTab("backlog");
       return;
     }
     getTeamSprintConfig(currentUser.team_id).catch(() => {
       if (activeTab === "sprint") setActiveTab("backlog");
     });
-  }, [currentUser?.team_id]);
+  }, [currentUser?.team_id, isOrgAdmin]);
 
   useEffect(() => {
     const today = getLocalToday();
@@ -407,7 +401,7 @@ export default function Tasks() {
     <TaskProvider
       assignableUsers={assignableUsers}
       orgLabels={orgLabels}
-      availableSprints={availableSprints}
+      availableSprints={visibleSprints}
       availableProjects={availableProjects}
       currentUser={currentUser}
       activeTab={activeTab}
@@ -450,7 +444,13 @@ export default function Tasks() {
           setSprintImportOpen={setSprintImportOpen}
           fetchBacklog={backlog.fetchBacklog}
           clearFilters={filters.clearFilters}
+          teams={orgTeams}
+          selectedTeamId={selectedTeamId}
+          onTeamChange={(value) => setSelectedTeamId(value)}
+          showTeamSwitcher={showTeamSwitcher}
         />
+
+        <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />
 
         {activeTab === "sprint" && (
           <SprintTab
@@ -458,7 +458,7 @@ export default function Tasks() {
             sprintStats={sprintStats}
             features={features}
             unitLabel={unitLabel}
-            availableSprints={availableSprints}
+            availableSprints={visibleSprints}
             selectedSprintId={selectedSprintId}
             currentUser={currentUser}
             getColTasks={getColTasks}
@@ -523,7 +523,7 @@ export default function Tasks() {
           />
         )}
 
-        {activeTab === "scheduled" && (<ScheduledTab filters={filters.plannerFilters} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
+        {activeTab === "scheduled" && (<ScheduledTab filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}
 
         <InlineCommentPanel
