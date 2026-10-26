@@ -1,0 +1,77 @@
+.skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 4px;
+}
+
+.skeleton-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 32px;
+    gap: 8px;
+    align-items: center;
+}
+
+.skeleton-bar {
+    height: 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+    animation: async-pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-title {
+    width: 100%;
+}
+
+.skeleton-tail {
+    width: 24px;
+    justify-self: end;
+}
+
+@keyframes async-pulse {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.failure,
+.stale {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 4px;
+    font-size: var(--font-meta-size);
+}
+
+.failure {
+    color: var(--danger);
+}
+
+.stale {
+    color: var(--text-muted);
+}
+
+.retry {
+    flex: none;
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+}
+
+.retry:hover {
+    background: var(--surface-hover);
+}
+
+.retry:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}

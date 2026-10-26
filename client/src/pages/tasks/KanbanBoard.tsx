@@ -69,15 +69,18 @@ export default function KanbanBoard({
     const visibleColumns = isPhone
         ? boardStates.slice(phoneColumn, phoneColumn + 1)
         : boardStates;
-    // Match a task to a column either by workflow_state_id (preferred) or by the
-    // legacy `status` key (back-compat for tasks created pre-migration).
+    // Match a task to a column by its workflow state key. The key is what the
+    // task list always carries, and it is the only field that works before
+    // `/agile` resolves: the fallback states all share `id: 0`, so an id match
+    // can never place a card in a fallback column. `workflow_state_id` is kept
+    // as a fallback for a task that has only the id.
     const getColTasks = (col: any) =>
         tasks.filter(
             (t) =>
+                (col.key && t.workflow_state_key === col.key) ||
                 (t.workflow_state_id &&
                     col.id &&
-                    t.workflow_state_id === col.id) ||
-                (t.status && col.key && t.status === col.key),
+                    t.workflow_state_id === col.id),
         );
 
     return (

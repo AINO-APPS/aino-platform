@@ -1,13 +1,20 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, ChevronLeft } from "../../constants/icons";
 import IssueKey from "./IssueKey";
 import EpicPanel from "./EpicPanel";
+import AsyncSection from "../../components/common/AsyncSection";
 import { useCardDensity } from "./TaskContext";
 import s from "./SprintPlan.module.css";
 
 interface SprintPlanProps {
     backlogTasks: any[];
     sprintTasks: any[];
+    backlogLoading?: boolean;
+    backlogError?: string | null;
+    onRetryBacklog?: () => void;
+    sprintLoading?: boolean;
+    sprintError?: string | null;
+    onRetrySprint?: () => void;
     sprint: any;
     velocity: { sprints: Array<{ id: number; name: string; velocity_points: number }>; average: number };
     burndown: Array<{ snapshot_date: string; remaining_points: number }>;
@@ -37,6 +44,12 @@ function points(tasks: any[]): number {
 export default function SprintPlan({
     backlogTasks,
     sprintTasks,
+    backlogLoading = false,
+    backlogError = null,
+    onRetryBacklog,
+    sprintLoading = false,
+    sprintError = null,
+    onRetrySprint,
     sprint,
     velocity,
     burndown,
@@ -52,6 +65,47 @@ export default function SprintPlan({
 }: SprintPlanProps) {
     const [goal, setGoal] = useState(sprint?.goal ?? "");
     const [editingGoal, setEditingGoal] = useState(false);
+    // Only a real keypress may be persisted: blurring the untouched
+    // "Set a goal" placeholder must never write an empty goal over the sprint.
+    const [goalDirty, setGoalDirty] = useState(false);
+    const editingRef = useRef(false);
+    // A sprint goal that changed while the user was typing, adopted once the
+    // editor closes.
+    const missedSprintGoal = useRef<string | null>(null);
+
+    useEffect(() => {
+        editingRef.current = editingGoal;
+    }, [editingGoal]);
+
+    // The sprint arrives (or changes) after the plan body already rendered.
+    // Adopt its goal — unless the user is mid-edit, in which case remember the
+    // incoming goal so it is not lost when they finish.
+    useEffect(() => {
+        if (editingRef.current) {
+            missedSprintGoal.current = sprint?.goal ?? "";
+            return;
+        }
+        setGoal(sprint?.goal ?? "");
+        setGoalDirty(false);
+    }, [sprint?.id, sprint?.goal]);
+
+    useEffect(() => {
+        if (editingGoal || missedSprintGoal.current === null) return;
+        const arrived = missedSprintGoal.current;
+        missedSprintGoal.current = null;
+        setGoal(arrived);
+        setGoalDirty(false);
+    }, [editingGoal]);
+
+    /** Close the editor. Only a real edit is persisted. */
+    const commitGoal = () => {
+        const edited = goalDirty;
+        setEditingGoal(false);
+        setGoalDirty(false);
+        // The user's own edit outranks a sprint that arrived meanwhile.
+        if (edited) missedSprintGoal.current = null;
+        if (edited && goal !== (sprint?.goal ?? "")) onSaveGoal(goal);
+    };
     // Compact plan rows drop the points column's neighbours and keep key, title
     // and points — the same rule the backlog and board follow.
     const compact = useCardDensity() === "compact";
@@ -80,40 +134,48 @@ export default function SprintPlan({
                     <h3>Backlog</h3>
                     <span className={s["plan-count"]}>{backlogTasks.length}</span>
                 </header>
-                <ul className={s["plan-list"]}>
-                    {backlogTasks.map((task) => (
-                        <li
-                            key={task.id}
-                            className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
-                        >
-                            <IssueKey task={task} copyable={false} />
-                            <button
-                                type="button"
-                                className={s["plan-title"]}
-                                onClick={() => onOpenDetail(task)}
+                <AsyncSection
+                    label="backlog"
+                    loading={backlogLoading}
+                    error={backlogError}
+                    hasData={backlogTasks.length > 0}
+                    onRetry={onRetryBacklog}
+                >
+                    <ul className={s["plan-list"]}>
+                        {backlogTasks.map((task) => (
+                            <li
+                                key={task.id}
+                                className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
                             >
-                                {task.title}
-                            </button>
-                            <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
-                            {!compact && task.assignee && (
-                                <span className={s["plan-assignee"]}>
-                                    {task.assignee.full_name || task.assignee.username}
-                                </span>
-                            )}
-                            <button
-                                type="button"
-                                className={s["plan-move"]}
-                                aria-label={`Move ${task.title} into the sprint`}
-                                onClick={() => onMoveToSprint(task.id)}
-                            >
-                                <ChevronRight size={14} aria-hidden="true" />
-                            </button>
-                        </li>
-                    ))}
-                    {backlogTasks.length === 0 && (
-                        <li className={s["plan-empty"]}>Nothing left in the backlog.</li>
-                    )}
-                </ul>
+                                <IssueKey task={task} copyable={false} />
+                                <button
+                                    type="button"
+                                    className={s["plan-title"]}
+                                    onClick={() => onOpenDetail(task)}
+                                >
+                                    {task.title}
+                                </button>
+                                <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
+                                {!compact && task.assignee && (
+                                    <span className={s["plan-assignee"]}>
+                                        {task.assignee.full_name || task.assignee.username}
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    className={s["plan-move"]}
+                                    aria-label={`Move ${task.title} into the sprint`}
+                                    onClick={() => onMoveToSprint(task.id)}
+                                >
+                                    <ChevronRight size={14} aria-hidden="true" />
+                                </button>
+                            </li>
+                        ))}
+                        {backlogTasks.length === 0 && (
+                            <li className={s["plan-empty"]}>Nothing left in the backlog.</li>
+                        )}
+                    </ul>
+                </AsyncSection>
             </section>
 
             <section className={s["plan-pane"]} aria-label="Sprint">
@@ -148,15 +210,17 @@ export default function SprintPlan({
                             value={goal}
                             autoFocus
                             aria-label="Sprint goal"
-                            onChange={(event) => setGoal(event.target.value)}
-                            onBlur={() => {
-                                setEditingGoal(false);
-                                if (goal !== (sprint?.goal ?? "")) onSaveGoal(goal);
+                            onChange={(event) => {
+                                setGoal(event.target.value);
+                                setGoalDirty(true);
                             }}
+                            onBlur={commitGoal}
                             onKeyDown={(event) => {
                                 if (event.key === "Enter") (event.target as HTMLInputElement).blur();
                                 if (event.key === "Escape") {
+                                    missedSprintGoal.current = null;
                                     setGoal(sprint?.goal ?? "");
+                                    setGoalDirty(false);
                                     setEditingGoal(false);
                                 }
                             }}
@@ -172,40 +236,48 @@ export default function SprintPlan({
                     )}
                 </div>
 
-                <ul className={s["plan-list"]}>
-                    {sprintTasks.map((task) => (
-                        <li
-                            key={task.id}
-                            className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
-                        >
-                            <button
-                                type="button"
-                                className={s["plan-move"]}
-                                aria-label={`Move ${task.title} back to the backlog`}
-                                onClick={() => onMoveToBacklog(task.id)}
+                <AsyncSection
+                    label="sprint"
+                    loading={sprintLoading}
+                    error={sprintError}
+                    hasData={sprintTasks.length > 0}
+                    onRetry={onRetrySprint}
+                >
+                    <ul className={s["plan-list"]}>
+                        {sprintTasks.map((task) => (
+                            <li
+                                key={task.id}
+                                className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
                             >
-                                <ChevronLeft size={14} aria-hidden="true" />
-                            </button>
-                            <IssueKey task={task} copyable={false} />
-                            <button
-                                type="button"
-                                className={s["plan-title"]}
-                                onClick={() => onOpenDetail(task)}
-                            >
-                                {task.title}
-                            </button>
-                            <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
-                            {!compact && task.assignee && (
-                                <span className={s["plan-assignee"]}>
-                                    {task.assignee.full_name || task.assignee.username}
-                                </span>
-                            )}
-                        </li>
-                    ))}
-                    {sprintTasks.length === 0 && (
-                        <li className={s["plan-empty"]}>Pull work in from the backlog.</li>
-                    )}
-                </ul>
+                                <IssueKey task={task} copyable={false} />
+                                <button
+                                    type="button"
+                                    className={s["plan-title"]}
+                                    onClick={() => onOpenDetail(task)}
+                                >
+                                    {task.title}
+                                </button>
+                                <span className={s["plan-points"]}>{task.story_points ?? "–"}</span>
+                                {!compact && task.assignee && (
+                                    <span className={s["plan-assignee"]}>
+                                        {task.assignee.full_name || task.assignee.username}
+                                    </span>
+                                )}
+                                <button
+                                    type="button"
+                                    className={s["plan-move"]}
+                                    aria-label={`Move ${task.title} back to the backlog`}
+                                    onClick={() => onMoveToBacklog(task.id)}
+                                >
+                                    <ChevronLeft size={14} aria-hidden="true" />
+                                </button>
+                            </li>
+                        ))}
+                        {sprintTasks.length === 0 && (
+                            <li className={s["plan-empty"]}>Pull work in from the backlog.</li>
+                        )}
+                    </ul>
+                </AsyncSection>
 
                 <div className={s["plan-insights"]}>
                     <div>

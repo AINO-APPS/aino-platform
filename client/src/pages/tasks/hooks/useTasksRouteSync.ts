@@ -8,9 +8,7 @@
 import { useEffect, useRef } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import { getTaskByKey, getTaskDetail } from "../../../api/tasks";
-import { landingTasksPath, tasksViewPath, type TasksRoute } from "./useTasksRoute";
-
-const LEGACY_TABS = ["backlog", "sprint", "scheduled", "service-desk"];
+import { LEGACY_TABS, landingTasksPath, sprintIdFrom, tasksViewPath, type TasksRoute } from "./useTasksRoute";
 
 interface RouteSyncOptions {
     route: TasksRoute;
@@ -29,7 +27,7 @@ export function useTasksRouteSync({
 }: RouteSyncOptions) {
     useEffect(() => {
         const tabParam = searchParams.get("tab");
-        if (tabParam && LEGACY_TABS.includes(tabParam)) {
+        if (tabParam && LEGACY_TABS.some((tab) => tab === tabParam)) {
             const next = new URLSearchParams(searchParams);
             next.delete("tab");
             const query = next.toString();
@@ -40,10 +38,7 @@ export function useTasksRouteSync({
             return;
         }
         setActiveTab(route.view);
-        if (route.sprintId) {
-            const parsed = Number(route.sprintId);
-            setSelectedSprintId(Number.isNaN(parsed) ? route.sprintId : parsed);
-        }
+        if (route.sprintId) setSelectedSprintId(sprintIdFrom(route.sprintId));
     }, [route.view, route.sprintId, searchParams, navigate, setActiveTab, setSelectedSprintId]);
 }
 

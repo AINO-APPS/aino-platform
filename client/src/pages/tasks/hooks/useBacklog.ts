@@ -100,6 +100,9 @@ export function useBacklog({
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
     const [backlogLoading, setBacklogLoading] = useState(false);
+    // A load failure belongs to this section, not just the page-level banner:
+    // the Plan view must be able to say "this pane failed" and offer a retry.
+    const [backlogError, setBacklogError] = useState("");
     const [backlogFormOpen, setBacklogFormOpen] = useState(false);
     const [backlogTitle, setBacklogTitle] = useState("");
     const [backlogDesc, setBacklogDesc] = useState("");
@@ -220,8 +223,12 @@ export function useBacklog({
             } else {
                 setBacklogTotal(data.tasks?.length || 0);
             }
+            setBacklogError("");
         } catch {
-            setError("Failed to load backlog");
+            // A backlog failure belongs to the backlog section. Raising it
+            // page-wide would also paint it inside the sprint pane, whose
+            // retry reloads tasks rather than the backlog.
+            setBacklogError("Failed to load backlog");
         } finally {
             if (!quiet) setBacklogLoading(false);
         }
@@ -498,6 +505,7 @@ export function useBacklog({
         backlogTasks,
         setBacklogTasks,
         backlogLoading,
+        backlogError,
         completedCount,
         completedTasks,
         completedOpen,

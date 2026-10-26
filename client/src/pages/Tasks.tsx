@@ -38,7 +38,7 @@ import { useBacklog } from "./tasks/hooks/useBacklog";
 import { backlogTabHandlers } from "./tasks/hooks/backlogTabProps";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
-import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
+import { useTasksRoute, sprintIdFrom, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink, useSprintLanding } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
 import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
@@ -73,10 +73,10 @@ export default function Tasks() {
   const [error, setError] = useAutoDismiss("") as [string, (v: string) => void];
   const [taskToDelete, setTaskToDelete] = useState<any>(null);
   const [carriedCount, setCarriedCount] = useState(0);
-  const [activeTab, setActiveTab] = useState("backlog");
-  const [selectedSprintId, setSelectedSprintId] = useState<any>(null);
-  // Tabs are real routes: the URL is the source of truth for the view.
+  // Tabs are real routes: the URL decides the view before the first render.
   const tasksRoute = useTasksRoute();
+  const [activeTab, setActiveTab] = useState<string>(tasksRoute.route.view);
+  const [selectedSprintId, setSelectedSprintId] = useState<any>(() => sprintIdFrom(tasksRoute.route.sprintId));
   const [sprintImportOpen, setSprintImportOpen] = useState(false);
   const [scheduledFocus, setScheduledFocus] = useState<string | null>(null);
   const toast = useToast() as any;
@@ -130,8 +130,7 @@ export default function Tasks() {
   const { unitLabel, features, initialState, terminalStates } = useAgileConfig() as any;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
-  const { confirmDialog, showConfirm, closeConfirm } =
-    useConfirmDialog() as any;
+  const { confirmDialog, showConfirm, closeConfirm } = useConfirmDialog() as any;
   const filters = useFilters({ activeTab }) as any;
   const globalSearch = useGlobalSearch() as any;
 
@@ -315,8 +314,8 @@ export default function Tasks() {
   }, [date, fetchTasks]);
 
   useEffect(() => {
-    if (activeTab === "backlog") backlog.fetchBacklog();
-  }, [activeTab, backlog.fetchBacklog]);
+    if (activeTab === "backlog" || (activeTab === "sprint" && tasksRoute.route.plan)) backlog.fetchBacklog();
+  }, [activeTab, tasksRoute.route.plan, backlog.fetchBacklog]);
 
   // Refresh sprint stats whenever the sprint changes or its tasks update.
   useEffect(() => {
@@ -494,6 +493,7 @@ export default function Tasks() {
             selectedEpicId={epics.selectedEpicId}
             onSelectEpic={(id) => tasksRoute.setFilters({ epic: id ? String(id) : "" })}
             teamMode={teamMode.mode}
+            onRetry={() => { setLoading(true); fetchTasks().finally(() => setLoading(false)); }}
           />
         )}
 

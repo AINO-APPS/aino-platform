@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
     assignTaskToSprint,
     getRecentVelocity,
@@ -24,6 +25,7 @@ export function useSprintPlan({
     fetchBacklog,
     onError,
 }: UseSprintPlanArgs) {
+    const queryClient = useQueryClient();
     const [velocity, setVelocity] = useState<{ sprints: any[]; average: number }>({
         sprints: [],
         average: 0,
@@ -105,11 +107,21 @@ export function useSprintPlan({
             if (!sprintId) return;
             try {
                 await updateSprint(sprintId, { goal });
+                // The plan resyncs its inline goal from the sprint list, so the
+                // saved value must land there too — otherwise the next sync
+                // restores the old goal over the user's edit.
+                queryClient.setQueryData<any[]>(["tasks", "availableSprints"], (sprints) =>
+                    sprints?.map((sprint) =>
+                        String(sprint.id) === String(sprintId)
+                            ? { ...sprint, goal }
+                            : sprint,
+                    ),
+                );
             } catch {
                 onError?.("Failed to save the sprint goal");
             }
         },
-        [sprintId, onError],
+        [sprintId, onError, queryClient],
     );
 
     return { velocity, burndown, scope, moveToSprint, moveToBacklog, saveGoal };

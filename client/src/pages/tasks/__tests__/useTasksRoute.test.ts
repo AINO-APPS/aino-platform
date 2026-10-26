@@ -38,6 +38,14 @@ describe("tasks routes", () => {
         expect(parseTasksRoute("/tasks/sprint", params("")).view).toBe("sprint");
     });
 
+    test("a legacy ?tab= link names its view from the first render", () => {
+        expect(parseTasksRoute("/tasks", params("tab=scheduled")).view).toBe("scheduled");
+        expect(parseTasksRoute("/tasks", params("tab=service-desk")).view).toBe("service-desk");
+        expect(parseTasksRoute("/tasks", params("tab=nonsense")).view).toBe("backlog");
+        // A real path always wins over the legacy parameter.
+        expect(parseTasksRoute("/tasks/backlog", params("tab=scheduled")).view).toBe("backlog");
+    });
+
     test("filters round-trip through the query string", () => {
         const filters = {
             assignee: "me",

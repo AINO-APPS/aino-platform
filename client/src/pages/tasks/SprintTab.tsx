@@ -4,6 +4,7 @@ import SprintProgressCard from "./SprintProgressCard";
 import SprintImportPanel from "./SprintImportPanel";
 import KanbanBoard from "./KanbanBoard";
 import SprintPlan from "./SprintPlan";
+import AsyncSection from "../../components/common/AsyncSection";
 import s from "../Tasks.module.css";
 
 interface SprintTabProps {
@@ -38,6 +39,8 @@ interface SprintTabProps {
     selectedEpicId: number | string | null;
     onSelectEpic: (id: number | string | null) => void;
     teamMode?: "sprints" | "continuous";
+    /** Reload the sprint's tasks after a failed load. */
+    onRetry: () => void;
 }
 
 /**
@@ -76,6 +79,7 @@ export default function SprintTab({
     selectedEpicId,
     onSelectEpic,
     teamMode = "sprints",
+    onRetry,
 }: SprintTabProps) {
     return (
         <>
@@ -104,8 +108,6 @@ export default function SprintTab({
                     carried forward automatically.
                 </div>
             )}
-            {error && <div className="error-msg error-msg-mb">{error}</div>}
-
             {sprintImportOpen && (
                 <SprintImportPanel
                     backlogTasks={backlog.backlogTasks}
@@ -124,13 +126,15 @@ export default function SprintTab({
                 />
             )}
 
-            {loading ? (
-                <div className="loading-spinner">
-                    <div className="spinner" />
-                </div>
-            ) : plan ? (
+            {plan ? (
                 <SprintPlan
                     backlogTasks={backlog.backlogTasks}
+                    backlogLoading={backlog.backlogLoading}
+                    backlogError={backlog.backlogError}
+                    onRetryBacklog={backlog.fetchBacklog}
+                    sprintLoading={loading}
+                    sprintError={error}
+                    onRetrySprint={onRetry}
                     sprintTasks={tasks}
                     sprint={availableSprints.find((sp: any) => sp.id === selectedSprintId)}
                     velocity={sprintPlan.velocity}
@@ -146,26 +150,34 @@ export default function SprintTab({
                     scope={sprintPlan.scope}
                 />
             ) : (
-                <KanbanBoard
-                    tasks={tasks}
-                    dragOverCol={drag.dragOverCol}
-                    sprintMode={sprintMode}
-                    onDragOver={drag.onDragOver}
-                    onDragLeave={drag.onDragLeave}
-                    onDrop={drag.onDrop}
-                    onDragStart={drag.onDragStart}
-                    onDragEnd={drag.onDragEnd}
-                    onOpenDetail={onOpenDetail}
-                    onOpenComments={onOpenComments}
-                    onAddTask={onAddTask ? () => onAddTask() : undefined}
-                    boardDrag={boardDrag}
-                    wipWarning={boardDrag.wipWarning}
-                    announcement={boardAnnouncement}
-                    attribution={backlog.attribution}
-                />
+                <AsyncSection
+                    label="sprint board"
+                    loading={loading}
+                    error={error}
+                    hasData={tasks.length > 0}
+                    onRetry={onRetry}
+                >
+                    <KanbanBoard
+                        tasks={tasks}
+                        dragOverCol={drag.dragOverCol}
+                        sprintMode={sprintMode}
+                        onDragOver={drag.onDragOver}
+                        onDragLeave={drag.onDragLeave}
+                        onDrop={drag.onDrop}
+                        onDragStart={drag.onDragStart}
+                        onDragEnd={drag.onDragEnd}
+                        onOpenDetail={onOpenDetail}
+                        onOpenComments={onOpenComments}
+                        onAddTask={onAddTask ? () => onAddTask() : undefined}
+                        boardDrag={boardDrag}
+                        wipWarning={boardDrag.wipWarning}
+                        announcement={boardAnnouncement}
+                        attribution={backlog.attribution}
+                    />
+                </AsyncSection>
             )}
 
-            {tasks.length === 0 && !loading && (
+            {tasks.length === 0 && !loading && !error && (
                 <div className={s["tasks-empty"]}>
                     <div className={s["tasks-empty-icon"]}>
                         <ClipboardList size={36} strokeWidth={1.5} />

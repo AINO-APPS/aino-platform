@@ -17,6 +17,9 @@ const VIEW_PATHS: Record<TasksView, string> = {
     "service-desk": "/tasks/desk",
 };
 
+/** Legacy `?tab=` values, redirected to their route by the page. */
+export const LEGACY_TABS: TasksView[] = ["backlog", "sprint", "scheduled", "service-desk"];
+
 const PATH_VIEWS: Array<[RegExp, TasksView]> = [
     [/^\/tasks\/backlog\/?$/, "backlog"],
     [/^\/tasks\/sprint(\/|$)/, "sprint"],
@@ -56,13 +59,23 @@ export function landingTasksPath(pathname: string, activeSprintId: number | stri
  */
 export function parseTasksRoute(pathname: string, search: URLSearchParams): TasksRoute {
     const match = PATH_VIEWS.find(([pattern]) => pattern.test(pathname));
-    const view = match ? match[1] : "backlog";
+    // A legacy `?tab=` link names its view too, so redirecting it does not
+    // flash (or fetch) the backlog first.
+    const legacyTab = LEGACY_TABS.find((tab) => tab === search.get("tab"));
+    const view = match ? match[1] : (legacyTab ?? "backlog");
 
     const sprintFromPath = pathname.match(/^\/tasks\/sprint\/([^/]+)/)?.[1] ?? null;
     const sprintId = sprintFromPath || search.get("sprint_id") || null;
     const plan = /\/plan\/?$/.test(pathname) || search.get("view") === "plan";
 
     return { view, sprintId, plan };
+}
+
+/** Numeric sprint ids stay numbers; anything else is kept verbatim. */
+export function sprintIdFrom(value: string | null): number | string | null {
+    if (!value) return null;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
 }
 
 /**

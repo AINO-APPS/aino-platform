@@ -2,7 +2,7 @@
     margin-top: var(--space-control);
     padding: var(--space-control);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius);
     background: var(--surface);
 }
 

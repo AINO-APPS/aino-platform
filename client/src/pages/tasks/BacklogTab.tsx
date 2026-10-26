@@ -45,6 +45,7 @@ interface BacklogTabProps {
     backlogTasks: any[];
     sortedBacklogTasks: any[];
     backlogLoading: boolean;
+    backlogError?: string;
     backlogSummary: any;
     backlogSort: string;
     setBacklogSort: (v: string) => void;
@@ -119,6 +120,7 @@ export default function BacklogTab({
     backlogTasks,
     sortedBacklogTasks,
     backlogLoading,
+    backlogError,
     backlogSummary,
     backlogSort,
     setBacklogSort,
@@ -186,7 +188,9 @@ export default function BacklogTab({
     const statusOpts = statusOptions(workflowStates);
     return (
         <>
-            {error && <div className="error-msg error-msg-mb">{error}</div>}
+            {(error || backlogError) && (
+                <div className="error-msg error-msg-mb">{error || backlogError}</div>
+            )}
 
             {/* Backlog Summary Bar */}
             {!backlogLoading && backlogTasks.length > 0 && (

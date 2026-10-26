@@ -9,7 +9,7 @@
     padding: 8px 12px;
     margin-bottom: var(--space-control);
     border: 1px solid var(--primary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius);
     background: var(--surface);
     box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.12));
 }

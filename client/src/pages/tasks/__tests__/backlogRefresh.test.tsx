@@ -13,6 +13,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 
 const getBacklog = vi.fn();
+const setError = vi.fn();
 
 vi.mock("../../../api/tasks", () => ({
     getBacklog: (...args: unknown[]) => getBacklog(...args),
@@ -59,7 +60,7 @@ function renderBacklog() {
                 showConfirm: vi.fn(),
                 closeConfirm: vi.fn(),
                 fetchTasks: vi.fn(),
-                setError: vi.fn(),
+                setError,
             }),
         { wrapper },
     );
@@ -74,6 +75,7 @@ const page = {
 describe("backlog background refresh", () => {
     beforeEach(() => {
         getBacklog.mockReset().mockResolvedValue({ data: page });
+        setError.mockReset();
     });
 
     afterEach(() => {
@@ -115,6 +117,36 @@ describe("backlog background refresh", () => {
             await pending;
         });
         expect(result.current.backlogLoading).toBe(false);
+        expect(result.current.backlogTasks).toHaveLength(1);
+    });
+
+    test("a failed load is reported on the backlog itself", async () => {
+        getBacklog.mockRejectedValueOnce(new Error("offline"));
+        const { result } = renderBacklog();
+
+        await act(async () => {
+            await result.current.fetchBacklog();
+        });
+
+        expect(result.current.backlogError).toBe("Failed to load backlog");
+        expect(result.current.backlogLoading).toBe(false);
+        // The sprint pane shares the page-level error; a backlog failure must
+        // not surface there with a retry that reloads the wrong section.
+        expect(setError).not.toHaveBeenCalled();
+    });
+
+    test("a successful refresh clears the backlog error", async () => {
+        getBacklog.mockRejectedValueOnce(new Error("offline"));
+        const { result } = renderBacklog();
+        await act(async () => {
+            await result.current.fetchBacklog();
+        });
+        expect(result.current.backlogError).toBe("Failed to load backlog");
+
+        await act(async () => {
+            await result.current.fetchBacklog(true);
+        });
+        expect(result.current.backlogError).toBe("");
         expect(result.current.backlogTasks).toHaveLength(1);
     });
 
