@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CalendarDays, MessageSquare, Ban, Clock, X } from "../../constants/icons";
+import { CalendarDays, MessageSquare, Ban, Clock, X, ChevronUp, ChevronDown, Minus } from "../../constants/icons";
 import { StoryPointBadge, WorkItemTypeBadge } from "../../components/agile/AgilePickers";
 import { PRIORITIES, type PriorityOption } from "./constants";
 import type { StatusOption } from "./taskStatus";
@@ -22,21 +22,19 @@ export function getPriority(p: string | undefined): PriorityOption {
     return PRIORITIES.find((pr) => pr.value === p) || PRIORITIES[1];
 }
 
-/** Three ascending bars; filled bars carry the priority tone. */
-export function PriorityBars({ priority }: { priority: string | undefined }) {
+/** Priority chevron: up for high, a dash for medium, down for low. */
+export function PriorityIcon({ priority }: { priority: string | undefined }) {
     const pri = getPriority(priority);
-    const filled = pri.value === "high" ? 3 : pri.value === "medium" ? 2 : 1;
+    const Glyph = pri.value === "high" ? ChevronUp : pri.value === "low" ? ChevronDown : Minus;
     return (
         <span
-            className={s["pri-bars"]}
+            className={s["pri-icon"]}
             role="img"
             aria-label={`${pri.label} priority`}
             title={`${pri.label} priority`}
             style={{ "--pri-color": pri.color } as React.CSSProperties}
         >
-            {[0, 1, 2].map((i) => (
-                <i key={i} className={i < filled ? s["pri-on"] : undefined} />
-            ))}
+            <Glyph size={15} strokeWidth={3} aria-hidden="true" />
         </span>
     );
 }
@@ -168,7 +166,7 @@ export function CardBody({
                 )}
                 <BlockedFlag task={task} enabled={blockersEnabled} />
                 <span className={s.grow} />
-                <PriorityBars priority={task.priority} />
+                <PriorityIcon priority={task.priority} />
                 {actionsSlot}
             </div>
             <div className={s["task-title"]}>{titleSlot ?? task.title}</div>
