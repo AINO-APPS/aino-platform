@@ -124,6 +124,17 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         results.push({ id: task.id, ok: false, error: "Only the creator can cancel a task" });
                         continue;
                     }
+                    // Cancelling is for open work: a ticket that already reached
+                    // a terminal state was finished or already abandoned, and
+                    // re-stating it would rewrite what happened.
+                    if (task.completed_at) {
+                        results.push({
+                            id: task.id,
+                            ok: false,
+                            error: "This ticket is already completed or cancelled",
+                        });
+                        continue;
+                    }
                     // Tickets are cancelled, never hard-deleted: the record and
                     // its history stay readable, and the move is reversible.
                     const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);

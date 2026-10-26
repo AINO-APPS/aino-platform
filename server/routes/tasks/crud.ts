@@ -204,7 +204,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                      sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
                  RETURNING id`,
                 [req.userId, targetDate, title.trim(), description?.trim() || null, validPriority,
                     assignedTo, validDueDate, validSprintId, req.userOrgId || null,
@@ -657,6 +657,17 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
 
         const frozen = await frozenSprintError(req, task);
         if (frozen) return res.status(409).json(frozen);
+
+        // Cancelling is for open work. A ticket that already reached a terminal
+        // state was either finished or already abandoned, and re-stating it as
+        // cancelled would rewrite what happened. Refuse instead of silently
+        // overwriting the outcome.
+        if (task.completed_at) {
+            return res.status(409).json({
+                error: 'This ticket is already completed or cancelled and cannot be cancelled again.',
+                code: 'TASK_COMPLETED',
+            });
+        }
 
         const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
         if (!cancelled) return res.status(400).json({ error: 'No cancelled workflow state is available' });

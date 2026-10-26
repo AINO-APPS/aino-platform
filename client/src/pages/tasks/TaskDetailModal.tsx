@@ -283,7 +283,7 @@ export default function TaskDetailModal({
                                 />
                                 Edit
                             </button>
-                            {currentUser?.id === detailTask?.user_id && (
+                            {currentUser?.id === detailTask?.user_id && !detailTask?.completed_at && (
                                 <button
                                     className="btn btn-danger btn-sm"
                                     onClick={() => onDelete(detailTask)}

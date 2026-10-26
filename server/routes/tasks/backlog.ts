@@ -266,7 +266,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
                      sprint_id, org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
+                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
                  RETURNING id`,
                 [req.userId, title.trim(), description?.trim() || null, validPriority,
                     assignedTo, validDueDate, validSprintId, req.userOrgId || null,

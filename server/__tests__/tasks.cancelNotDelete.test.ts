@@ -141,4 +141,64 @@ describe("DELETE /api/tasks/:id cancels instead of deleting", () => {
 
         expect(res.status).toBe(200);
         expect(res.body).toMatchObject({ cancelled: true, id: 77 });
-    });});
+    });
+});
+
+/**
+ * Cancelling is for open work.
+ *
+ * A completed ticket already reached a terminal state, so cancelling it would
+ * rewrite what happened: the record would say the work was abandoned when it
+ * was actually finished. The same applies to a ticket that is already
+ * cancelled. Both are refused rather than silently re-stated.
+ */
+describe("a completed ticket cannot be cancelled", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    test("refuses to cancel a ticket that is already completed", async () => {
+        const completed = { ...task, completed_at: "2026-10-20T10:00:00.000Z" };
+        routeQueries([[/SELECT \* FROM tasks WHERE id = \$1/, [completed]]]);
+
+        const res = await request(app)
+            .delete("/api/tasks/77")
+            .set(CSRF)
+            .set("Cookie", authCookie(1));
+
+        expect(res.status).toBe(409);
+        expect(res.body).toMatchObject({ code: "TASK_COMPLETED" });
+        const sqls = mockQuery.mock.calls.map(([sql]: any[]) => String(sql));
+        expect(sqls.some((sql) => /UPDATE tasks SET workflow_state_id/i.test(sql))).toBe(false);
+    });
+
+    test("refuses to cancel a ticket that is already cancelled", async () => {
+        const cancelled = {
+            ...task,
+            completed_at: "2026-10-20T10:00:00.000Z",
+            workflow_state_id: 99,
+        };
+        routeQueries([[/SELECT \* FROM tasks WHERE id = \$1/, [cancelled]]]);
+
+        const res = await request(app)
+            .delete("/api/tasks/77")
+            .set(CSRF)
+            .set("Cookie", authCookie(1));
+
+        expect(res.status).toBe(409);
+        expect(res.body).toMatchObject({ code: "TASK_COMPLETED" });
+    });
+
+    test("still cancels an open ticket", async () => {
+        routeQueries([[/SELECT \* FROM tasks WHERE id = \$1/, [task]]]);
+
+        const res = await request(app)
+            .delete("/api/tasks/77")
+            .set(CSRF)
+            .set("Cookie", authCookie(1));
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ cancelled: true, id: 77 });
+    });});
