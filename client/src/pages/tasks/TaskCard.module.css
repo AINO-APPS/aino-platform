@@ -19,7 +19,9 @@
 .task-card:hover { border-color: color-mix(in srgb, var(--text) 18%, var(--border)); box-shadow: var(--control-shadow-hover); }
 .task-card:active { cursor: grabbing; }
 .task-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.task-card.dragging { opacity: 0.4; }
+/* A dragged card is the browser's drag image, so it must stay fully opaque —
+   dimming it (via a `.dragging` class) made the ticket the user was moving
+   disappear. The drop target carries the feedback instead; see `.drag-over`. */
 .task-card-selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 .task-card.task-done .task-title { text-decoration: line-through; color: var(--text-muted); }
 .task-card.task-done .card-foot { opacity: 0.7; }

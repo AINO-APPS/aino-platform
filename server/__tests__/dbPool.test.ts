@@ -5,7 +5,11 @@ const mockPoolOn = jest.fn();
 const mockPool = { connect: mockConnect, on: mockPoolOn };
 const mockPoolConstructor = jest.fn(() => mockPool);
 
-jest.mock("pg", () => ({ Pool: mockPoolConstructor }));
+jest.mock("pg", () => ({
+    Pool: mockPoolConstructor,
+    // platform/db/pool.ts registers the DATE parser at import time.
+    types: { setTypeParser: jest.fn() },
+}));
 jest.mock("../utils/logger", () => ({
     logger: { fatal: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));

@@ -77,7 +77,8 @@ router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req
             }
 
             const orgSprints = (await req.db!.query(`
-                SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal, s.team_id, t.name as team_name
+                SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal, s.team_id,
+                       s.sprint_number, t.name as team_name
                 FROM sprints s
                 JOIN teams t ON t.id = s.team_id
                 WHERE t.org_id = $1 AND s.status IN ('active', 'planned')
@@ -89,10 +90,12 @@ router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req
         if (!req.userTeamId) return res.json([]);
 
         const sprints = (await req.db!.query(`
-            SELECT id, name, start_date, end_date, status, goal
-            FROM sprints
-            WHERE team_id = $1 AND status IN ('active', 'planned')
-            ORDER BY start_date ASC
+            SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal,
+                   s.sprint_number, t.name AS team_name
+            FROM sprints s
+            JOIN teams t ON t.id = s.team_id
+            WHERE s.team_id = $1 AND s.status IN ('active', 'planned')
+            ORDER BY s.start_date ASC
         `, [req.userTeamId])).rows;
 
         if (sprints.length === 0) {

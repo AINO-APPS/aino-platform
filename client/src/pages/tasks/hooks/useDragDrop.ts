@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { updateTaskStatus } from "../../../api/tasks";
-import s from "../TaskCard.module.css";
 import type { Task } from "../../../types";
 
 interface WorkflowCol {
@@ -44,13 +43,9 @@ export function useDragDrop({
         dragTaskId.current = taskId;
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", String(taskId));
-        const el = document.getElementById(`task-${taskId}`);
-        if (el) el.classList.add(s.dragging);
     };
 
-    const onDragEnd = (_e: React.DragEvent, taskId: number) => {
-        const el = document.getElementById(`task-${taskId}`);
-        if (el) el.classList.remove(s.dragging);
+    const onDragEnd = (_e: React.DragEvent, _taskId: number) => {
         dragTaskId.current = null;
         setDragOverCol(null);
     };

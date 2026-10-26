@@ -1,8 +1,8 @@
 import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as GlyphBan, ArrowDownCircle, ClipboardList } from "../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects } from "../api/tasks";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects, assignTaskToSprint } from "../api/tasks";
 import { getLocalToday } from "../api/client";
 import { getTeamSprintConfig } from "../api/organization";
 import { useAgileConfig } from "../AgileConfigContext";
@@ -39,7 +39,7 @@ import { backlogTabHandlers } from "./tasks/hooks/backlogTabProps";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, tasksViewPath } from "./tasks/hooks/useTasksRoute";
-import { useTasksRouteSync, useTaskDeepLink } from "./tasks/hooks/useTasksRouteSync";
+import { useTasksRouteSync, useTaskDeepLink, useSprintLanding } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
 import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
@@ -47,7 +47,9 @@ import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
 import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
+import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
 import TasksOverlays from "./tasks/TasksOverlays";
+import TasksConfirmDialogs from "./tasks/TasksConfirmDialogs";
 
 import s from "./Tasks.module.css";
 
@@ -58,6 +60,7 @@ export default function Tasks() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [tasks, setTasks] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({
     total: 0,
@@ -239,6 +242,14 @@ export default function Tasks() {
     );
   }, [availableSprints]);
 
+  // Landing on the bare /tasks entry point opens the running sprint's plan.
+  useSprintLanding({
+    pathname: location.pathname,
+    availableSprints,
+    agileEnabled: hasFeature("agile"),
+    navigate,
+  });
+
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
   useTasksRouteSync({
@@ -319,18 +330,19 @@ export default function Tasks() {
   }, [activeTab, selectedSprintId, tasks.length, stats.done]);
 
   const handleDelete = (task: any) => setTaskToDelete(task);
+
+  const lifecycle = useTicketLifecycle({
+    availableSprints, selectedSprintId, activeTab, showConfirm, closeConfirm,
+    setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast,
+  });
+
   const confirmDeleteWithRefresh = async () => {
     if (!taskToDelete) return;
-    try {
-      await deleteTask(taskToDelete.id);
-      setTaskToDelete(null);
-      if (comments.commentTaskId === taskToDelete.id) comments.closeComments();
-      if (detail.detailTask?.id === taskToDelete.id) detail.closeTaskDetail();
-      fetchTasks();
-      if (activeTab === "backlog") backlog.fetchBacklog();
-    } catch {
-      setError("Failed to delete item");
-    }
+    const target = taskToDelete;
+    setTaskToDelete(null);
+    if (comments.commentTaskId === target.id) comments.closeComments();
+    if (detail.detailTask?.id === target.id) detail.closeTaskDetail();
+    await lifecycle.cancelTicket(target);
   };
 
   const handleToggleDone = (task: any) => {
@@ -497,12 +509,14 @@ export default function Tasks() {
                 availableSprints={availableSprints}
                 assignableUsers={assignableUsers}
                 onOfferUndo={offerUndo}
+                onConfirmCancel={lifecycle.confirmBulkCancel}
               />
             }
             filterPriority={filters.filterPriority}
             summaryAllActive={summaryAllActive}
             error={error}
             onOpenDetail={detail.openTaskDetail}
+            onAddToSprint={lifecycle.addToSprint}
             onHandleSummaryTotal={handleSummaryTotal}
             onHandleSummaryPriority={handleSummaryPriority}
             onToggleLabel={toggleLabel as any}
@@ -555,26 +569,12 @@ export default function Tasks() {
           setError={setError}
         />
 
-        <ConfirmDialog
-          isOpen={!!taskToDelete}
-          title="Delete Item"
-          message={`Are you sure you want to delete "${taskToDelete?.title}"? This cannot be undone.`}
-          confirmText="Delete"
-          isDanger
-          onConfirm={confirmDeleteWithRefresh}
-          onCancel={() => setTaskToDelete(null)}
-        />
-
-        <ConfirmDialog
-          isOpen={confirmDialog.open}
-          title={confirmDialog.title}
-          message={confirmDialog.message}
-          confirmText={confirmDialog.confirmText}
-          isDanger={confirmDialog.isDanger}
-          onConfirm={() => {
-            if (confirmDialog.onConfirm) confirmDialog.onConfirm();
-          }}
-          onCancel={closeConfirm}
+        <TasksConfirmDialogs
+          taskToCancel={taskToDelete}
+          onConfirmCancel={confirmDeleteWithRefresh}
+          onDismissCancel={() => setTaskToDelete(null)}
+          confirmDialog={confirmDialog}
+          onCloseConfirm={closeConfirm}
         />
 
         <TasksOverlays

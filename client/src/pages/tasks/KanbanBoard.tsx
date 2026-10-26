@@ -51,18 +51,24 @@ export default function KanbanBoard({
     attribution,
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
+    // Cancelled is a terminal state, not a work-in-progress column: a cancelled
+    // ticket leaves the board rather than sitting in a fifth column. It stays
+    // available in the status picker so a ticket can be cancelled from detail.
+    const boardStates = (workflowStates || []).filter(
+        (state: any) => state.key !== "cancelled",
+    );
     // On a phone the board is one column at a time, swiped between. On wider
     // viewports every column is visible and the board scrolls horizontally.
     const isPhone = useIsPhone();
     const [phoneColumn, setPhoneColumn] = useState(0);
-    const columnCount = workflowStates.length;
+    const columnCount = boardStates.length;
     const swipe = useSwipe(
         () => setPhoneColumn((index) => Math.min(columnCount - 1, index + 1)),
         () => setPhoneColumn((index) => Math.max(0, index - 1)),
     );
     const visibleColumns = isPhone
-        ? workflowStates.slice(phoneColumn, phoneColumn + 1)
-        : workflowStates;
+        ? boardStates.slice(phoneColumn, phoneColumn + 1)
+        : boardStates;
     // Match a task to a column either by workflow_state_id (preferred) or by the
     // legacy `status` key (back-compat for tasks created pre-migration).
     const getColTasks = (col: any) =>
@@ -95,7 +101,7 @@ export default function KanbanBoard({
                         ‹
                     </button>
                     <span className={s["phone-column-label"]} aria-live="polite">
-                        {workflowStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
+                        {boardStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
                     </span>
                     <button
                         type="button"

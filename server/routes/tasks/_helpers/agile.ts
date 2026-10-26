@@ -1,6 +1,8 @@
 // Agile catalog helpers — work item types, workflow states, story points
 // and acceptance criteria normalisation.
 
+const { findOrCreateCancelledState } = require('../../../modules/tasks/tasks.repository');
+
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
@@ -114,11 +116,28 @@ function normalizeAcceptanceCriteria(value: unknown): any[] | null {
     }).filter(Boolean);
 }
 
+/**
+ * The org's "cancelled" state, creating it on first use.
+ *
+ * Jira's model: a ticket is completed or cancelled, never deleted. Cancelling
+ * keeps the record (and its comments, history and time) while taking it out of
+ * the open work. The state is terminal so `completed_at` is stamped by the
+ * trigger and the ticket leaves the backlog and the board's open columns.
+ *
+ * Tenants that already define a state with key `cancelled` (or a terminal state
+ * named "Cancelled") get theirs; otherwise one is inserted next to the other
+ * terminal states.
+ */
+async function getOrCreateCancelledState(orgId: number | null | undefined, db: DbLike): Promise<any | null> {
+    return findOrCreateCancelledState(db as any, orgId);
+}
+
 export = {
     validateStoryPoints,
     resolveWorkItemType,
     resolveWorkflowState,
     getInitialWorkflowState,
     getDefaultWorkItemType,
+    getOrCreateCancelledState,
     normalizeAcceptanceCriteria,
 };

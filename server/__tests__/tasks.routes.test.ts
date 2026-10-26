@@ -285,6 +285,7 @@ describe("task realtime fan-out (task_updated)", () => {
         { id: 10, key: "pending", category: "open", is_initial: true, is_terminal: false },
         { id: 11, key: "in_progress", category: "in_progress", is_initial: false, is_terminal: false },
         { id: 12, key: "done", category: "done", is_initial: false, is_terminal: true },
+        { id: 13, key: "cancelled", name: "Cancelled", category: "done", is_initial: false, is_terminal: true },
     ];
 
     function routeQueries(routes: Array<[RegExp, any[]]>) {
@@ -294,6 +295,11 @@ describe("task realtime fan-out (task_updated)", () => {
             // the caller asked for so a state change is actually detected.
             if (/FROM workflow_states/.test(sql)) {
                 const wanted = params?.[0];
+                // The cancel route looks the state up by key/name, not by id.
+                if (/key = 'cancelled'/.test(sql)) {
+                    const cancelled = states.filter((state) => state.key === "cancelled");
+                    return { rows: cancelled, rowCount: cancelled.length };
+                }
                 const match = states.filter((state) => state.id === wanted || state.key === wanted);
                 return { rows: match, rowCount: match.length };
             }
@@ -402,7 +408,7 @@ describe("task realtime fan-out (task_updated)", () => {
         expect(res.status).toBe(403);
     });
 
-    test("delete notifies the assignee and the creator", async () => {
+    test("cancelling notifies the assignee and the creator", async () => {
         setupAuth();
         routeQueries([
             [/SELECT \* FROM tasks WHERE id = \$1/, [{ ...task, user_id: 1 }]],
@@ -412,9 +418,15 @@ describe("task realtime fan-out (task_updated)", () => {
         const res = await request(app).delete("/api/tasks/77").set(CSRF).set("Cookie", authCookie(1));
 
         expect(res.status).toBe(200);
-        expect(taskUpdatedRecipients()).toEqual([
-            [3, { taskId: 77, action: "deleted" }],
-            [1, { taskId: 77, action: "deleted" }],
-        ]);
+        expect(res.body).toMatchObject({ cancelled: true, id: 77 });
+        const recipients = taskUpdatedRecipients();
+        expect(recipients.map(([userId]: any[]) => userId)).toEqual([3, 1]);
+        for (const [, payload] of recipients) {
+            expect(payload).toMatchObject({
+                taskId: 77,
+                action: "updated",
+                fields: { workflow_state_id: 13 },
+            });
+        }
     });
 });

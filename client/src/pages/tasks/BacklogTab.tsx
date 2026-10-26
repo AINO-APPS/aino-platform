@@ -104,6 +104,8 @@ interface BacklogTabProps {
     onHandleAddBacklog: (e: React.FormEvent) => void;
     onOpenDetail: (task: any) => void;
     onScheduleTask: (id: number | string, title: string) => void;
+    /** Move a backlog ticket into a sprint (the backlog's own planning action). */
+    onAddToSprint?: (task: any) => void;
     onHandleSummaryTotal: () => void;
     onHandleSummaryPriority: (priority: string) => void;
     onToggleLabel: (
@@ -173,6 +175,7 @@ export default function BacklogTab({
     onHandleAddBacklog,
     onOpenDetail,
     onScheduleTask,
+    onAddToSprint,
     onHandleSummaryTotal,
     onHandleSummaryPriority,
     onToggleLabel,
@@ -451,6 +454,9 @@ export default function BacklogTab({
                             setScheduleDate={setScheduleDate}
                             onOpenDetail={onOpenDetail}
                             onScheduleTask={onScheduleTask}
+                            onAddToSprint={
+                                availableSprints?.length ? onAddToSprint : undefined
+                            }
                             reorder={reorder}
                             onInlineEdit={onInlineEdit}
                             selection={selection}

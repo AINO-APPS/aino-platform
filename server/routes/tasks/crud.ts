@@ -22,12 +22,14 @@ const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
+const { findTask, setWorkflowState } = require('../../modules/tasks/tasks.repository');
 const {
     validateStoryPoints,
     resolveWorkItemType,
     resolveWorkflowState,
     getInitialWorkflowState,
     getDefaultWorkItemType,
+    getOrCreateCancelledState,
     normalizeAcceptanceCriteria,
 } = require('./_helpers/agile');
 
@@ -637,28 +639,41 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
     }
 });
 
-// ─── Delete a task (only creator can delete) ─────────────────────────────
+// ─── Cancel a task (tickets are never hard-deleted) ──────────────────────
+// Jira's model: work is completed or cancelled, and the record stays so
+// history, comments, time entries and links keep making sense. A hard delete
+// silently destroys all of that and cannot be undone, so this route cancels
+// instead: the ticket moves to the org's terminal "Cancelled" state, which
+// takes it out of the backlog and the board's open columns while keeping it
+// readable (and reversible) afterwards.
 router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!task) return res.status(404).json({ error: 'Task not found' });
-        if (task.user_id !== req.userId) return res.status(403).json({ error: 'Only task creator can delete task' });
+        if (task.user_id !== req.userId) return res.status(403).json({ error: 'Only task creator can cancel task' });
         if (!await canAccessTask(task, req.userId, req.userOrgId, req.db, req.userRole)) return res.status(404).json({ error: 'Task not found' });
 
         const frozen = await frozenSprintError(req, task);
         if (frozen) return res.status(409).json(frozen);
 
-        await logHistory(id, req.userId, 'deleted', null, task.title, null, null, req.db);
-        await req.db!.query('DELETE FROM tasks WHERE id = $1', [id]);
-        // Bug #16: audit on delete (irreversible, especially important).
-        logAction(req, 'delete', 'task', id, { title: task.title });
-        res.json({ message: 'Task deleted' });
-        emitTaskUpdated(req.tenantId, id, 'deleted', [task.assigned_to, task.user_id, req.userId]);
+        const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
+        if (!cancelled) return res.status(400).json({ error: 'No cancelled workflow state is available' });
+
+        await setWorkflowState(req.db!, id, cancelled.id);
+        await logHistory(id, req.userId, 'cancelled', 'workflow_state', task.workflow_state_id, cancelled.id, null, req.db);
+        logAction(req, 'cancel', 'task', id, { title: task.title });
+
+        const updated = await findTask(req.db!, id);
+        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, task.user_id, req.userId], {
+            fields: { workflow_state_id: cancelled.id },
+            actor: { id: req.userId!, name: null },
+        });
+        res.json({ cancelled: true, id, task: updated });
     } catch (err) {
-        req.log.error({ err: err }, 'Error deleting task:');
-        res.status(500).json({ error: 'Failed to delete task' });
+        req.log.error({ err: err }, 'Error cancelling task:');
+        res.status(500).json({ error: 'Failed to cancel task' });
     }
 });
 

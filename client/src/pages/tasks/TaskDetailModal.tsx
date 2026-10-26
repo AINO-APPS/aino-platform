@@ -287,12 +287,10 @@ export default function TaskDetailModal({
                                 <button
                                     className="btn btn-danger btn-sm"
                                     onClick={() => onDelete(detailTask)}
+                                    title="Cancelling keeps the ticket and its history; it leaves the open work."
                                 >
-                                    <Trash2
-                                        size={13}
-                                        style={{ marginRight: 4, verticalAlign: "middle" }}
-                                    />
-                                    Delete
+                                    <Trash2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
+                                    Cancel ticket
                                 </button>
                             )}
                         </>

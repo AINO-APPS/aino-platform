@@ -1,6 +1,12 @@
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
 import { logger } from "../../utils/logger";
+import { installPgTypeParsers } from "./pgTypes";
+
+// DATE columns must reach the API as `YYYY-MM-DD` strings, not local-midnight
+// Date objects. Registering here covers every pool, because they all import
+// this module for `makePoolQuery` / `makePoolTransaction`.
+installPgTypeParsers();
 
 if (!process.env.DATABASE_URL) {
     logger.fatal("DATABASE_URL environment variable is not set. Server cannot start.");

@@ -12,6 +12,8 @@ interface BacklogBulkBarProps {
     availableSprints: any[];
     assignableUsers: any[];
     onOfferUndo: (label: string) => void;
+    /** Ask before cancelling a batch; cancelling is reversible but not silent. */
+    onConfirmCancel: (count: number, onConfirm: () => void) => void;
 }
 
 /**
@@ -24,6 +26,7 @@ export default function BacklogBulkBar({
     availableSprints,
     assignableUsers,
     onOfferUndo,
+    onConfirmCancel,
 }: BacklogBulkBarProps) {
     return (
         <BulkActionBar
@@ -45,8 +48,10 @@ export default function BacklogBulkBar({
                 onOfferUndo("Assignee changed");
             }}
             onDelete={() => {
-                void bulk.apply("delete", null);
-                onOfferUndo("Deleted");
+                onConfirmCancel(bulk.count, () => {
+                    void bulk.apply("delete", null);
+                    onOfferUndo("Cancelled");
+                });
             }}
             onClear={bulk.clear}
         />

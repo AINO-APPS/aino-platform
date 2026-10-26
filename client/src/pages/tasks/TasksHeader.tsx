@@ -91,7 +91,20 @@ export default function TasksHeader({
     const currentSprint = availableSprints.find(
         (sp: any) => sp.id === selectedSprintId,
     );
-    const teamName = currentUser?.team_name || "Team";
+    // The team the user belongs to. `team_name` comes from GET /profile; org
+    // admins browsing another team's sprint fall back to that sprint's team.
+    const teamName =
+        currentUser?.team_name || currentSprint?.team_name || "Your team";
+    // The sprint's number, not its stored name: the tab already says "Sprint",
+    // so repeating it ("Payments — Sprint 1") wastes the heading. Sprints
+    // created before `sprint_number` existed fall back to the trailing digits
+    // of their name — `Number(undefined)` is NaN, which `??` would keep.
+    const sprintNumber = (() => {
+        if (!currentSprint) return null;
+        if (currentSprint.sprint_number != null) return currentSprint.sprint_number;
+        const trailing = Number(String(currentSprint.name).match(/(\d+)\s*$/)?.[1]);
+        return Number.isFinite(trailing) ? trailing : null;
+    })();
     const daysLeft = currentSprint
         ? Math.max(
               0,
@@ -120,7 +133,11 @@ export default function TasksHeader({
                         <>
                             <h2>
                                 <span className="page-icon"><GlyphRun size="1em" style={{ verticalAlign: "middle" }} /></span> {teamName} —{" "}
-                                {currentSprint ? currentSprint.name : "Sprint"}
+                                {currentSprint
+                                    ? sprintNumber
+                                        ? `#${sprintNumber}`
+                                        : currentSprint.name
+                                    : "Sprint"}
                                 {currentSprint?.status === "active" && (
                                     <span className={s["sprint-status-pill"]} data-status="active">
                                         Active

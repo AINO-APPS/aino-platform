@@ -11,9 +11,9 @@ const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
 const { canAccessTask, canChangeTaskStatus, STATUS_FORBIDDEN } = require("./_helpers/access");
 const { frozenSprintError } = require("./_helpers/sprintFreeze");
-const { resolveWorkflowState } = require("./_helpers/agile");
+const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
-    findManyInOrg, setSprint, setWorkflowState, setAssignee, deleteTask,
+    findManyInOrg, setSprint, setWorkflowState, setAssignee,
 } = require("../../modules/tasks/tasks.repository");
 const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
 const { describeSprintTaskAdded, taskNotificationLink } = require("../../modules/tasks/tasks.notifications");
@@ -121,12 +121,23 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     results.push({ id: task.id, ok: true, previous: { assigned_to: task.assigned_to } });
                 } else {
                     if (task.user_id !== req.userId) {
-                        results.push({ id: task.id, ok: false, error: "Only the creator can delete a task" });
+                        results.push({ id: task.id, ok: false, error: "Only the creator can cancel a task" });
                         continue;
                     }
-                    await logHistory(task.id, req.userId, "deleted", null, task.title, null, null, req.db);
-                    await deleteTask(req.db!, task.id);
-                    results.push({ id: task.id, ok: true, previous: { deleted: true } });
+                    // Tickets are cancelled, never hard-deleted: the record and
+                    // its history stay readable, and the move is reversible.
+                    const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
+                    if (!cancelled) {
+                        results.push({ id: task.id, ok: false, error: "No cancelled workflow state is available" });
+                        continue;
+                    }
+                    await setWorkflowState(req.db!, task.id, cancelled.id);
+                    await logHistory(task.id, req.userId, "cancelled", "workflow_state", task.workflow_state_id, cancelled.id, null, req.db);
+                    results.push({
+                        id: task.id,
+                        ok: true,
+                        previous: { workflow_state_id: task.workflow_state_id },
+                    });
                 }
             } catch (err) {
                 results.push({ id: task.id, ok: false, error: (err as Error).message });

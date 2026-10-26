@@ -62,15 +62,15 @@ async function materialiseTeamSprints(team: any, req: Request): Promise<any[]> {
             const eMs = sMs + (sprintDurationDays - 1) * 86400000;
             const name = `Sprint #${num}`;
             const existing = (await client.query(
-                'SELECT id, name, start_date, end_date, status, goal FROM sprints WHERE team_id = $1 AND name = $2',
+                'SELECT id, name, start_date, end_date, status, goal, sprint_number FROM sprints WHERE team_id = $1 AND name = $2',
                 [team.id, name]
             )).rows[0];
             if (existing) {
                 out.push(existing);
             } else {
                 const inserted = await client.query(
-                    'INSERT INTO sprints (team_id, name, start_date, end_date, status) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, start_date, end_date, status, goal',
-                    [team.id, name, fmt(sMs), fmt(eMs), i === 0 ? 'active' : 'planned']
+                    'INSERT INTO sprints (team_id, name, start_date, end_date, status, sprint_number) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, start_date, end_date, status, goal, sprint_number',
+                    [team.id, name, fmt(sMs), fmt(eMs), i === 0 ? 'active' : 'planned', num]
                 );
                 out.push(inserted.rows[0]);
             }

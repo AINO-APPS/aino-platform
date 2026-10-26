@@ -126,6 +126,43 @@ export const deleteTask = async (db: TasksDb, id: number) =>
     db.query("DELETE FROM tasks WHERE id = $1", [id]);
 
 /**
+ * The org's "cancelled" workflow state, creating it on first use.
+ *
+ * Jira's model: a ticket is completed or cancelled, never deleted. Cancelling
+ * keeps the record (and its comments, history and time) while taking it out of
+ * the open work. The state is terminal, so the `completed_at` trigger stamps it
+ * and the ticket leaves the backlog and the board's open columns.
+ *
+ * Tenants that already define a state with key `cancelled` (or a terminal state
+ * named "Cancelled") get theirs; otherwise one is inserted after the others.
+ */
+export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | null | undefined) => {
+    if (!orgId) return null;
+    const existing = (await db.query(
+        `SELECT * FROM workflow_states
+          WHERE org_id = $1 AND is_active = TRUE
+            AND (key = 'cancelled' OR (is_terminal = TRUE AND LOWER(name) = 'cancelled'))
+          ORDER BY sort_order ASC, id ASC
+          LIMIT 1`,
+        [orgId],
+    )).rows[0];
+    if (existing) return existing;
+
+    const nextOrder = (await db.query(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE org_id = $1",
+        [orgId],
+    )).rows[0]?.next ?? 1;
+
+    return (await db.query(
+        `INSERT INTO workflow_states (org_id, key, name, category, color, sort_order, is_initial, is_terminal)
+         VALUES ($1, 'cancelled', 'Cancelled', 'done', '#6b7280', $2, FALSE, TRUE)
+         ON CONFLICT (org_id, key) DO UPDATE SET is_active = TRUE
+         RETURNING *`,
+        [orgId, nextOrder],
+    )).rows[0] || null;
+};
+
+/**
  * Every epic in the org, with its work-item type for the badge colour.
  *
  * `issue_key` is not a column: it is the project key plus the per-project task

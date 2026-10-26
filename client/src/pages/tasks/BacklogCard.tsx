@@ -32,6 +32,12 @@ interface BacklogCardProps {
     };
     /** Patch one field without opening the detail view. */
     onInlineEdit?: (task: any, patch: Record<string, unknown>) => Promise<void> | void;
+    /**
+     * Move this ticket into a sprint. The backlog is the only place a ticket
+     * can be planned, so the action lives on the card rather than behind the
+     * Sprint tab. Hidden when the tenant has no sprints to offer.
+     */
+    onAddToSprint?: (task: any) => void;
     /** Multi-select for bulk actions. */
     selection?: {
         isSelected: (id: number | string) => boolean;
@@ -53,6 +59,7 @@ export default function BacklogCard({
     onScheduleTask,
     reorder,
     onInlineEdit,
+    onAddToSprint,
     selection,
     attribution,
 }: BacklogCardProps) {
@@ -180,6 +187,9 @@ export default function BacklogCard({
                                 label={`Actions for ${issueKey}`}
                                 items={[
                                     { label: "Open task", onSelect: () => onOpenDetail(task) },
+                                    ...(onAddToSprint
+                                        ? [{ label: "Add to sprint", onSelect: () => onAddToSprint(task) }]
+                                        : []),
                                     { label: "Schedule to a day", onSelect: openSchedule },
                                 ]}
                             />

@@ -159,7 +159,7 @@ are referenced by the parity matrix and the phase plan.
 | D20 | **Backlog is a flat ranked list.** No Planner-style buckets; grouping may return later as a view option. |
 | D21 | **Sprint tab becomes Board / Plan.** Plan is the split view (backlog left, sprint right, drag to pull, goal + dates + committed points). |
 | D22 | **Schedule becomes a calendar:** month grid + week strip + an *Unscheduled* tray; drag onto a day sets `planned_date`, drag back unschedules. The day list survives as a toggle. |
-| D23 | **Bulk actions are backlog-only** in this effort (move to sprint, status, assign, delete). |
+| D23 | **Bulk actions are backlog-only** in this effort (move to sprint, status, assign, cancel). |
 | D24 | **Epics are first-class:** badge and colour on cards, epic filter, per-epic progress rollup, epics panel in Plan. |
 | D25 | **Two card densities** — *Comfortable* (default: key, title, points, assignee, priority) and *Compact* (key, title, points), as a per-user setting. |
 | D26 | **Issue key (`PROJ-123`) is canonical** — on every card, searchable, used in URLs, commits and comments. |
@@ -168,6 +168,11 @@ are referenced by the parity matrix and the phase plan.
 | D29 | **Unified command palette** on `Ctrl/Cmd+K`: search tasks by key/title, jump to views, run actions. |
 | D30 | **Tab renamed Schedule** (route `/tasks/schedule`). |
 | D31 | **Service Desk is out of scope.** Untouched. |
+| D32 | **Tickets are cancelled, never deleted.** `DELETE /api/tasks/:id` moves the ticket to the org's terminal *Cancelled* state (created on first use). History, comments, time entries and links survive, and the move is reversible. Cancelling always asks first, singly and in bulk. |
+| D33 | **Cancelled is not a board column.** The board shows the work-in-progress states only; a cancelled ticket leaves it. The state stays in the status picker so a ticket can be cancelled from detail. |
+| D34 | **DATE columns are `YYYY-MM-DD` strings on the wire.** `pg` parses `DATE` into a local-midnight `Date`, which serialises as a UTC instant and renders as the wrong day (or `Invalid Date`). `platform/db/pgTypes.ts` registers a string parser for OID 1082. |
+| D35 | **The Sprint tab lands first when a sprint is running.** The bare `/tasks` entry opens the active sprint's Plan; explicit views (bookmarks, shared links, chosen tabs) are always honoured. |
+| D36 | **The phone board is a vertical kanban.** Every workflow state is a column stacked top to bottom, each with its own header and cards. No horizontal pager: nothing is hidden behind a swipe. |
 
 ### 4.4 Sprint lifecycle
 
@@ -423,7 +428,10 @@ is absent. `/tasks` redirects to `/tasks/backlog` preserving the query string.
 - **Inline edit**: click title → edit; click points/assignee/sprint → picker.
   The detail modal is *not* required for triage.
 - **Bulk**: checkbox on hover/always on touch. Selection bar shows
-  *Move to sprint · Set status · Assign · Delete · Clear*, with undo.
+  *Move to sprint · Set status · Assign · Cancel · Clear*, with undo.
+- **Add to sprint** on each card's action menu (D35): the backlog is where a
+  ticket gets planned, so the action lives there rather than only in the Sprint
+  tab's planner.
 - **Completed section**, collapsed by default (D16):
   - Header: `▸ Completed (12)` with the count from `completed_count`, rendered
     from the *first* response so the badge does not need a second request.
