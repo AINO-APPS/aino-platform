@@ -65,13 +65,22 @@ interface WorkflowState {
     is_initial?: boolean;
     is_terminal?: boolean;
     sort_order?: number;
+    wip_limit?: number | null;
     [key: string]: unknown;
+}
+
+/** One stored edge of the enforced lifecycle graph. */
+interface WorkflowTransition {
+    from_state_id: number;
+    to_state_id: number;
 }
 
 interface AgileConfig {
     settings: AgileSettings;
     workItemTypes: WorkItemType[];
     workflowStates: WorkflowState[];
+    /** Explicit edges; the board derives any origin without rows. */
+    transitions: WorkflowTransition[];
     canEdit: boolean;
 }
 
@@ -193,6 +202,9 @@ const FALLBACK_CONFIG: AgileConfig = {
             sort_order: 4,
         },
     ],
+    // No explicit rows: the board derives the default graph from the states,
+    // exactly as the server does for an org that predates the seed migration.
+    transitions: [],
     canEdit: false,
 };
 
@@ -252,6 +264,7 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
                     cfg.workflowStates && cfg.workflowStates.length > 0
                         ? cfg.workflowStates
                         : FALLBACK_CONFIG.workflowStates,
+                transitions: Array.isArray(cfg.transitions) ? cfg.transitions : [],
                 canEdit: !!cfg.canEdit,
             };
             setConfig(merged);

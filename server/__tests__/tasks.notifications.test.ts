@@ -1,6 +1,7 @@
 import {
     describeSprintCompletion,
     describeSprintTaskAdded,
+    describeStatusChanged,
     isDueDateApproaching,
     isSilentAction,
     sprintLink,
@@ -48,12 +49,25 @@ describe("task notification events", () => {
         ).toBe("Sprint 16 completed: 1 of 2 tickets done. 1 ticket carried over to Sprint 17.");
     });
 
-    test("status changes and reordering are silent", () => {
-        expect(isSilentAction("status_change")).toBe(true);
+    test("reordering and ranking are silent; a status change is not", () => {
+        expect(isSilentAction("status_change")).toBe(false);
         expect(isSilentAction("reordered")).toBe(true);
         expect(isSilentAction("ranked")).toBe(true);
         expect(isSilentAction("task_assigned")).toBe(false);
         expect(isSilentAction(null)).toBe(false);
+    });
+
+    test("a status change tells the assignee and reporter, never the actor", () => {
+        const moved = describeStatusChanged({
+            task: { id: 77, title: "Refund webhook retries", assigned_to: 3, user_id: 2 },
+            from: "New",
+            to: "In Progress",
+            actorId: 3,
+            actorName: "Ada",
+        });
+        expect(moved.title).toBe("Status changed: Refund webhook retries");
+        expect(moved.body).toBe("Ada moved Refund webhook retries from New to In Progress.");
+        expect(moved.audience).toEqual([2]);
     });
 
     test("the audience is the assignee and creator, minus the actor", () => {

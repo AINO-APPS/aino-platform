@@ -6,8 +6,9 @@ import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
 import { useBacklogReorder } from "./useBacklogReorder";
 import { useUndo } from "./useUndo";
-import { useBulkSelection, type BulkAction, type BulkResult } from "./useBulkSelection";
+import { describeSkipped, useBulkSelection, type BulkAction, type BulkResult } from "./useBulkSelection";
 import { useTaskDeltas } from "./useTaskDeltas";
+import { useApplyBulkStatus } from "./useApplyBulkStatus";
 import type { Task } from "../../../types";
 
 /**
@@ -174,9 +175,20 @@ export function useBacklog({
                     await fetchBacklog(true);
                 },
             });
+            // Skipped tickets are named after the fact too: the server is the
+            // authority on which ones could not move, and why.
+            const skipped = describeSkipped(results, backlogTasks);
+            if (skipped) setError(skipped);
             void fetchBacklog(true);
         },
         onError: setError,
+    });
+
+    const applyBulkStatus = useApplyBulkStatus({
+        bulk,
+        tasks: backlogTasks as any[],
+        showConfirm,
+        closeConfirm,
     });
     // The stored preference decides whether the section starts expanded. A
     // `completed` URL parameter overrides it for this view only.
@@ -534,7 +546,8 @@ export function useBacklog({
         quickAdd,
         inlineEdit,
         undo,
-        bulk,
+        // `applyStatus` checks the lifecycle graph; no extra plumbing needed.
+        bulk: { ...bulk, applyStatus: applyBulkStatus },
         backlogFormOpen,
         setBacklogFormOpen,
         backlogTitle,

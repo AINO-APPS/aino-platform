@@ -9,15 +9,16 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import type { LifecycleContext } from "../../modules/tasks/tasks.workflow";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
-const { emitTaskUpdated, notifyTaskAssigned } = require('../../utils/taskNotifications');
+const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
 
-const { canAccessTask, canCancelTask, canChangeTaskStatus, denyTaskAccess, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
+const { canAccessTask, canChangeTaskStatus, denyTaskAccess, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
@@ -27,6 +28,9 @@ const {
 const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
+const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusEvents');
+const { assertLifecycleMove, loadLifecycleContext, stateOf } = require('../../modules/tasks/tasks.workflow');
+const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const {
     resolveCreateTeamId,
@@ -35,14 +39,12 @@ const {
     teamAfterSprintMove,
 } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
-const { findTask, setWorkflowState } = require('../../modules/tasks/tasks.repository');
 const {
     validateStoryPoints,
     resolveWorkItemType,
     resolveWorkflowState,
     getInitialWorkflowState,
     getDefaultWorkItemType,
-    getOrCreateCancelledState,
     normalizeAcceptanceCriteria,
 } = require('./_helpers/agile');
 
@@ -302,36 +304,13 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         // so a task must always point at a real workflow state.
         if (!target) return res.status(400).json({ error: 'Invalid status / workflow state' });
 
-        // ── Phase 3: WIP enforcement ────────────────────────────────────────
-        // If the org has WIP limits enabled and the destination state has a
-        // wip_limit, refuse the move when the column is already full. We don't
-        // count the task itself if it's already in the target state.
-        if (target.id) {
-            const settingsRow = (await req.db!.query(
-                'SELECT enable_wip_limits FROM org_agile_settings WHERE org_id = $1',
-                [req.userOrgId]
-            )).rows[0];
-            const stateRow = (await req.db!.query(
-                'SELECT wip_limit, name FROM workflow_states WHERE id = $1',
-                [target.id]
-            )).rows[0];
-            if (settingsRow?.enable_wip_limits && stateRow?.wip_limit) {
-                const occupancy = (await req.db!.query(
-                    `SELECT COUNT(*)::int AS c FROM tasks
-                      WHERE workflow_state_id = $1 AND id != $2 AND org_id = $3`,
-                    [target.id, id, req.userOrgId]
-                )).rows[0].c;
-                if (occupancy >= stateRow.wip_limit) {
-                    return res.status(409).json({
-                        error: `WIP limit reached for "${stateRow.name}" (${occupancy}/${stateRow.wip_limit}). ` +
-                            `Move a ticket out of this column first.`,
-                        code: 'WIP_EXCEEDED',
-                        wip_limit: stateRow.wip_limit,
-                        occupancy,
-                    });
-                }
-            }
-        }
+        // ── Lifecycle: legal transition + WIP capacity ──────────────────────
+        // One helper for every write path. It refuses a move the transition
+        // graph does not allow (409 INVALID_TRANSITION) and a destination
+        // column that is already full (409 WIP_EXCEEDED).
+        const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
+        const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle);
+        if (conflict) return res.status(conflict.status).json(conflict.body);
 
         // ── Phase 3: cycle-time start marker ────────────────────────────────
         // Record the moment the task first transitions out of an "open" state
@@ -358,19 +337,25 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
             [target.id, id]
         );
 
-        if (String(task.workflow_state_id ?? '') !== String(target.id ?? '')) {
+        const statusChanged = String(task.workflow_state_id ?? '') !== String(target.id ?? '');
+        const statusActor = await findActorName(req.db!, req.userId);
+        if (statusChanged) {
             await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, target.id, null, req.db);
-            // Bug #16: audit status transitions too.
-            logAction(req, 'update', 'task', id, { from: task.workflow_state_id, to: target.id, field: 'workflow_state' });
         }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);
-        const statusActor = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
-        emitTaskUpdated(req.tenantId, id, 'status', [updated?.assigned_to, updated?.user_id, req.userId], {
-            fields: diffTask(task, updated),
-            actor: { id: req.userId!, name: statusActor?.full_name || statusActor?.username || null },
-        });
+        if (statusChanged) {
+            // Audit, notify and realtime fan-out are one call, so this path
+            // cannot drift from the others.
+            await announceStatusMove(req, {
+                task: updated,
+                from: stateOf(lifecycle, task),
+                to: target,
+                name: statusActor,
+                fields: diffTask(task, updated),
+            });
+        }
         res.json(enriched[0]);
     } catch (err) {
         req.log.error({ err: err }, 'Error updating task status:');
@@ -524,6 +509,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         let newWsId = task.workflow_state_id;
         let newWsRow = null;
+        let stateChanged = false;
+        let lifecycle: LifecycleContext | null = null;
         if (workflow_state_id !== undefined) {
             if (workflow_state_id === null || workflow_state_id === '') {
                 // Reset to initial state for the org
@@ -536,9 +523,16 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // Bug #13 (Stage 2): only check permission when the state actually
             // changed. `completed_at` is derived by the database trigger, so
             // this route never writes it.
-            const stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '');
-            if (stateChanged && !await canChangeTaskStatus(task, actor, req.db)) {
-                return res.status(403).json({ error: STATUS_FORBIDDEN });
+            stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '');
+            if (stateChanged) {
+                if (!await canChangeTaskStatus(task, actor, req.db)) {
+                    return res.status(403).json({ error: STATUS_FORBIDDEN });
+                }
+                // The full update is another way into the lifecycle: it applies
+                // the same transition graph and WIP capacity as PATCH.
+                lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
+                const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, newWsRow, lifecycle);
+                if (conflict) return res.status(conflict.status).json(conflict.body);
             }
         }
         let newParentTaskId = task.parent_task_id;
@@ -631,7 +625,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const newWit = newWitId ? (newWitRow || (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [newWitId])).rows[0]) : null;
             await logHistory(id, req.userId, 'updated', 'work_item_type', oldWit?.name || 'none', newWit?.name || 'none', null, req.db);
         }
-        if (String(newWsId ?? '') !== String(task.workflow_state_id ?? '')) {
+        const statusActor = await findActorName(req.db!, req.userId);
+        if (stateChanged) {
             await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, newWsId, null, req.db);
         }
         if (String(newParentTaskId ?? '') !== String(task.parent_task_id ?? '')) {
@@ -663,69 +658,31 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             assignmentNotified = await notifyTaskAssigned(req, updated, newAssignedTo);
         }
         // Broadcast only the fields that actually changed, so two people editing
-        // different fields of the same ticket both survive.
-        const actorRow = (await req.db!.query('SELECT full_name, username FROM users WHERE id = $1', [req.userId])).rows[0];
-        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, assignmentNotified ? null : updated?.assigned_to, task.user_id, req.userId], {
-            fields: diffTask(task, updated),
-            actor: { id: req.userId!, name: actorRow?.full_name || actorRow?.username || null },
-        });
+        // different fields of the same ticket both survive. A status transition
+        // also reaches the owning team; an ordinary edit keeps the old audience.
+        const extraAudience = [task.assigned_to, assignmentNotified ? null : updated?.assigned_to];
+        if (stateChanged) {
+            await announceStatusMove(req, {
+                task: updated,
+                from: stateOf(lifecycle, task),
+                to: newWsRow,
+                name: statusActor,
+                action: 'updated',
+                fields: diffTask(task, updated),
+                extra: extraAudience,
+                includeTeam: true,
+            });
+        } else {
+            await broadcastTaskUpdated(req, updated, 'updated', {
+                fields: diffTask(task, updated),
+                actor: { id: req.userId!, name: statusActor },
+            }, extraAudience, false);
+        }
 
         res.json(enriched[0]);
     } catch (err) {
         req.log.error({ err: err }, 'Error updating task:');
         res.status(500).json({ error: 'Failed to update task' });
-    }
-});
-
-// ─── Cancel a task (tickets are never hard-deleted) ──────────────────────
-// Jira's model: work is completed or cancelled, and the record stays so
-// history, comments, time entries and links keep making sense. A hard delete
-// silently destroys all of that and cannot be undone, so this route cancels
-// instead: the ticket moves to the org's terminal "Cancelled" state, which
-// takes it out of the backlog and the board's open columns while keeping it
-// readable (and reversible) afterwards.
-router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const id = parseInt(String(req.params.id), 10);
-        if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
-        const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!task) return res.status(404).json({ error: 'Task not found' });
-        // Cancelling is a team write: any member of the owning team may do it,
-        // and so may the creator/assignee and org admins.
-        if (!await canCancelTask(task, taskActorFromRequest(req), req.db)) {
-            return res.status(403).json({ error: ACCESS_DENIED });
-        }
-
-        const frozen = await frozenSprintError(req, task);
-        if (frozen) return res.status(409).json(frozen);
-
-        // Cancelling is for open work. A ticket that already reached a terminal
-        // state was either finished or already abandoned, and re-stating it as
-        // cancelled would rewrite what happened. Refuse instead of silently
-        // overwriting the outcome.
-        if (task.completed_at) {
-            return res.status(409).json({
-                error: 'This ticket is already completed or cancelled and cannot be cancelled again.',
-                code: 'TASK_COMPLETED',
-            });
-        }
-
-        const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
-        if (!cancelled) return res.status(400).json({ error: 'No cancelled workflow state is available' });
-
-        await setWorkflowState(req.db!, id, cancelled.id);
-        await logHistory(id, req.userId, 'cancelled', 'workflow_state', task.workflow_state_id, cancelled.id, null, req.db);
-        logAction(req, 'cancel', 'task', id, { title: task.title });
-
-        const updated = await findTask(req.db!, id);
-        emitTaskUpdated(req.tenantId, id, 'updated', [task.assigned_to, task.user_id, req.userId], {
-            fields: { workflow_state_id: cancelled.id },
-            actor: { id: req.userId!, name: null },
-        });
-        res.json({ cancelled: true, id, task: updated });
-    } catch (err) {
-        req.log.error({ err: err }, 'Error cancelling task:');
-        res.status(500).json({ error: 'Failed to cancel task' });
     }
 });
 

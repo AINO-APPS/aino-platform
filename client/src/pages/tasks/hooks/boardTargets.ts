@@ -1,9 +1,9 @@
 /**
  * The board's column vocabulary and the seam to its target rules.
  *
- * Issue 04 turns the workflow graph and WIP limits into hard rules; the board
- * then refuses a column and explains why. Until then every rendered column is
- * legal, so the default policy allows all of them.
+ * The enforced graph and WIP limits live in `workflowTargets.ts`; this module
+ * only holds the shapes and the default (allow-all) policy used by isolated
+ * tests. Production wiring always supplies the lifecycle-aware policy.
  */
 
 export interface BoardColumn {

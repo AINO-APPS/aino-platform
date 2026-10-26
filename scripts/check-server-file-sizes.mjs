@@ -26,7 +26,7 @@ const grandfathered = {
   "routes/organization.ts": 1079,
   "routes/profile.ts": 619,
   "routes/sprints.ts": 959,
-  "routes/tasks/crud.ts": 735,
+  "routes/tasks/crud.ts": 689,
   "routes/tenants.ts": 1782,
   "routes/tracker.ts": 925,
   "services/pushNotifications.ts": 866,

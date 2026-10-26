@@ -259,12 +259,20 @@ export async function listSprintTasks(
         visibility,
         sprintId,
     });
+    // Cancelled is a terminal outcome, not a board column: the ticket stays
+    // readable in detail and under the completed filter, but it never sits in
+    // a column. The exclusion lives here rather than in the shared builder so
+    // the backlog's completed rule stays the single "complete" definition.
     return (await db.query(
         `SELECT t.*, ws.key AS workflow_state_key, ws.name AS workflow_state_name,
                 ws.category AS workflow_state_category
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE ${collection.whereSql}
+            AND NOT EXISTS (
+                SELECT 1 FROM workflow_states active
+                 WHERE active.id = t.workflow_state_id AND active.key = 'cancelled'
+            )
           ORDER BY ${collection.orderSql}`,
         collection.params,
     )).rows;

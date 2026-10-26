@@ -1,12 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { updateTaskStatus } from "../../../api/tasks";
 import type { Task } from "../../../types";
-import {
-    allowAllTargets,
-    moveAdvisory,
-    type BoardColumn,
-    type TargetPolicy,
-} from "./boardTargets";
+import type { BoardColumn, TargetPolicy } from "./boardTargets";
+import { moveAdvisory } from "./boardTargets";
+import { useWorkflowTargetPolicy } from "./useWorkflowTargetPolicy";
 import type { ShowConfirm } from "./useConfirmDialog";
 import { stageStatusMove } from "./stageStatusMove";
 
@@ -34,8 +31,11 @@ export function useDragDrop({
     showConfirm,
     closeConfirm,
     setError,
-    targetPolicy = allowAllTargets,
+    targetPolicy,
 }: UseDragDropArgs) {
+    // The board refuses illegal and over-limit columns before a drop, using
+    // the same graph and WIP setting the server enforces.
+    const policy = useWorkflowTargetPolicy(tasks, targetPolicy);
     const [dragOverCol, setDragOverCol] = useState<string | number | null>(
         null,
     );
@@ -126,7 +126,7 @@ export function useDragDrop({
         col: BoardColumn,
     ) => {
         const task = tasks.find((candidate) => candidate.id === dragTaskId.current);
-        if (task && targetPolicy(task, col)) {
+        if (task && policy(task, col)) {
             // Not a target: leave `preventDefault` unset so the browser shows
             // "no drop" and no drop event fires.
             e.dataTransfer.dropEffect = "none";
@@ -158,7 +158,7 @@ export function useDragDrop({
         if (task.workflow_state_key === col.key || task.workflow_state_id === col.id)
             return;
 
-        const rejection = targetPolicy(task, col);
+        const rejection = policy(task, col);
         if (rejection) {
             setError(rejection);
             return;
@@ -182,6 +182,6 @@ export function useDragDrop({
         onDragLeave,
         onDrop,
         commitMove,
-        targetPolicy,
+        targetPolicy: policy,
     };
 }

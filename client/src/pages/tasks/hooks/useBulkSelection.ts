@@ -13,7 +13,23 @@ export interface BulkResult {
     id: number;
     ok: boolean;
     error?: string;
+    /** Stable machine code for a skipped ticket. */
+    code?: string;
     previous?: Record<string, unknown>;
+}
+
+/** The tickets the server skipped, named for the error banner. */
+export function describeSkipped(
+    results: BulkResult[],
+    tasks: Array<{ id: number | string; title?: string }>,
+): string | null {
+    const skipped = results.filter((result) => !result.ok);
+    if (skipped.length === 0) return null;
+    const titles = skipped.map((result) => {
+        const task = tasks.find((candidate) => String(candidate.id) === String(result.id));
+        return task?.title || `#${result.id}`;
+    });
+    return `${skipped.length} ticket(s) skipped: ${titles.join(", ")} (${skipped[0].error || "not allowed"})`;
 }
 
 /**

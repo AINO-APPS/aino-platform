@@ -121,6 +121,32 @@ export const setSprint = async (db: TasksDb, id: number, sprintId: number | null
 export const setWorkflowState = async (db: TasksDb, id: number, workflowStateId: number | null) =>
     db.query("UPDATE tasks SET workflow_state_id = $1 WHERE id = $2", [workflowStateId, id]);
 
+/** The display name of a user, falling back to the username. */
+export const findActorName = async (db: TasksDb, userId: number | null | undefined): Promise<string | null> => {
+    if (!userId) return null;
+    const row = (await db.query("SELECT full_name, username FROM users WHERE id = $1", [userId])).rows[0];
+    return row?.full_name || row?.username || null;
+};
+
+/**
+ * The active members of a ticket's owning team.
+ *
+ * Status changes are broadcast to them, not only to the assignee and reporter:
+ * the team shares the board, so a card that moves should move for everyone
+ * looking at it without a refetch. An unowned ticket has no team to notify.
+ */
+export const findTeamMemberIds = async (
+    db: TasksDb,
+    teamId: number | null | undefined,
+    orgId: number | null | undefined,
+): Promise<number[]> => {
+    if (!teamId || !orgId) return [];
+    return (await db.query(
+        "SELECT id FROM users WHERE team_id = $1 AND org_id = $2 AND is_active = TRUE",
+        [teamId, orgId],
+    )).rows.map((row: any) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
+};
+
 export const setAssignee = async (db: TasksDb, id: number, assignee: number | null) =>
     db.query("UPDATE tasks SET assigned_to = $1 WHERE id = $2", [assignee, id]);
 
@@ -144,7 +170,9 @@ export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | nu
         `SELECT * FROM workflow_states
           WHERE org_id = $1 AND is_active = TRUE
             AND (key = 'cancelled' OR (is_terminal = TRUE AND LOWER(name) = 'cancelled'))
-          ORDER BY sort_order ASC, id ASC
+          -- The seeded key wins over a look-alike terminal state, so the
+          -- transition rows and the lazy lookup always agree.
+          ORDER BY (key = 'cancelled') DESC, sort_order ASC, id ASC
           LIMIT 1`,
         [orgId],
     )).rows[0];

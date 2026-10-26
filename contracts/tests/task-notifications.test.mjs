@@ -7,18 +7,19 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
-// The five task events worth a notification, and the actions that must stay
-// silent. These assertions pin the set so a new emitter cannot quietly add a
-// sixth event or start notifying on status changes.
+// The task events worth a notification, and the actions that must stay silent.
+// These assertions pin the set so a new emitter cannot quietly add another
+// event, or start notifying on reordering.
 const NOTIFICATION_EVENTS = [
   "task_assigned",
   "sprint_task_added",
   "sprint_started",
   "sprint_completed",
+  "status_changed",
   "due_date_approaching",
 ];
 
-test("the notification module declares exactly the five task events", () => {
+test("the notification module declares exactly the task events", () => {
   const source = read("server/modules/tasks/tasks.notifications.ts");
   const start = source.indexOf("export type TaskNotificationEvent =");
   const end = source.indexOf(";", start);
@@ -26,26 +27,47 @@ test("the notification module declares exactly the five task events", () => {
   assert.deepEqual(declared.sort(), [...NOTIFICATION_EVENTS].sort());
 });
 
-test("status changes and reordering are declared silent", () => {
+test("reordering is declared silent; a status change is not", () => {
   const source = read("server/modules/tasks/tasks.notifications.ts");
   const start = source.indexOf("export const SILENT_ACTIONS = [");
   const end = source.indexOf("] as const;", start);
   const silent = [...source.slice(start, end).matchAll(/"([a-z_]+)"/g)].map(m => m[1]);
-  assert.deepEqual(silent.sort(), ["ranked", "reordered", "status_change"]);
+  assert.deepEqual(silent.sort(), ["ranked", "reordered"]);
 });
 
-test("no task route notifies on a status change or a reorder", () => {
+test("every lifecycle write path notifies through the one status helper", () => {
+  for (const file of [
+    "server/routes/tasks/crud.ts",
+    "server/routes/tasks/bulk.ts",
+    "server/routes/tasks/cancel.ts",
+  ]) {
+    const source = read(file);
+    assert.ok(
+      source.includes("announceStatusMove"),
+      `${file} does not use the shared status side-effect helper`,
+    );
+  }
+  // The audience is the assignee and reporter, minus the actor — never the
+  // whole team.
+  const helper = read("server/routes/tasks/_helpers/statusEvents.ts");
+  assert.ok(helper.includes("notifyStatusChanged"), "status helper must notify");
+  assert.ok(helper.includes("describeStatusChanged"), "status helper must use the shared copy");
+  const notifications = read("server/modules/tasks/tasks.notifications.ts");
+  const describe = notifications.indexOf("export function describeStatusChanged");
+  assert.ok(describe > -1, "describeStatusChanged missing");
+  assert.ok(
+    notifications.slice(describe, describe + 900).includes("taskAudience"),
+    "a status change must scope its audience",
+  );
+});
+
+test("no task route notifies on a reorder", () => {
   for (const file of [
     "server/routes/tasks/crud.ts",
     "server/routes/tasks/rank.ts",
     "server/routes/tasks/bulk.ts",
   ]) {
     const source = read(file);
-    // A notifyUser call inside a status/rank handler would be the regression.
-    assert.ok(
-      !/notifyUser\([^)]*status_change/.test(source),
-      `${file} notifies on a status change`,
-    );
     assert.ok(
       !/notifyUser\([^)]*reordered/.test(source),
       `${file} notifies on a reorder`,

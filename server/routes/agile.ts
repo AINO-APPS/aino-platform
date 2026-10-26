@@ -50,6 +50,7 @@ function requireAgileReviewer(req: Request, res: Response, next: NextFunction) {
 const { logAction } = require("../utils/audit");
 const { notifyUser } = require("../utils/ws");
 const { AGILE_ACCESS_LINK } = require("../utils/notificationLinks");
+const { effectiveTransitionRows, loadLifecycleContext, seedOrgTransitions } = require("../modules/tasks/tasks.workflow");
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
@@ -111,8 +112,10 @@ router.get("/config", async (req: Request, res: Response) => {
               ORDER BY sort_order ASC, id ASC`,
             [req.userOrgId]
         )).rows;
+        // The board uses the same graph the server enforces, including derived edges.
+        const transitions = effectiveTransitionRows(await loadLifecycleContext(req.db, req.userOrgId));
         const canEdit = await isAgileEditor(req);
-        res.json({ settings, workItemTypes: types, workflowStates: states, canEdit });
+        res.json({ settings, workItemTypes: types, workflowStates: states, transitions, canEdit });
     } catch (err) {
         req.log.error({ err }, "GET /agile/config error");
         res.status(500).json({ error: "Failed to load Agile config" });
@@ -439,6 +442,8 @@ router.post("/workflow-states", requireAgileEditor, async (req: Request, res: Re
 
         const row = (await req.db!.query("SELECT * FROM workflow_states WHERE org_id = $1 AND key = $2", [req.userOrgId, key])).rows[0];
         logAction(req, "create", "workflow_state", row.id, { key, name: finalName, category });
+        // A new state must be reachable: extend the stored graph by its category.
+        await seedOrgTransitions(req.db, req.userOrgId);
         res.json(row);
     } catch (err) {
         req.log.error({ err }, "POST /agile/workflow-states error");
@@ -525,6 +530,8 @@ router.put("/workflow-states/:id", requireAgileEditor, async (req: Request, res:
 
         const row = (await req.db!.query("SELECT * FROM workflow_states WHERE id = $1", [id])).rows[0];
         logAction(req, "update", "workflow_state", id, { name: row.name });
+        // A category or active-flag change changes the graph.
+        await seedOrgTransitions(req.db, req.userOrgId);
         res.json(row);
     } catch (err) {
         req.log.error({ err }, "PUT /agile/workflow-states/:id error");
@@ -557,6 +564,8 @@ router.delete("/workflow-states/:id", requireAgileEditor, async (req: Request, r
 
         await req.db!.query("DELETE FROM workflow_states WHERE id = $1", [id]);
         logAction(req, "delete", "workflow_state", id, { name: existing.name });
+        // The state's rows cascade-deleted; re-seed so the rest stay connected.
+        await seedOrgTransitions(req.db, req.userOrgId);
         res.json({ message: "Workflow state deleted" });
     } catch (err) {
         req.log.error({ err }, "DELETE /agile/workflow-states/:id error");

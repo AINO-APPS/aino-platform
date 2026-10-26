@@ -14,7 +14,7 @@ const { isOrgAdmin, taskActorFromRequest } = require("../../modules/tasks/tasks.
 const { frozenSprintError } = require("./_helpers/sprintFreeze");
 const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
-    findManyInOrg, setSprint, setWorkflowState, setAssignee,
+    findActorName, findManyInOrg, setSprint, setWorkflowState, setAssignee,
 } = require("../../modules/tasks/tasks.repository");
 const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
 const {
@@ -24,6 +24,8 @@ const {
 } = require("../../modules/tasks/tasks.ownership");
 const { describeSprintTaskAdded, taskNotificationLink } = require("../../modules/tasks/tasks.notifications");
 const { notifyUser } = require("../../realtime/fanout");
+const { assertLifecycleMove, loadLifecycleContext, stateOf } = require("../../modules/tasks/tasks.workflow");
+const { announceStatusMove } = require("./_helpers/statusEvents");
 
 const router = express.Router();
 
@@ -34,6 +36,8 @@ interface BulkResult {
     id: number;
     ok: boolean;
     error?: string;
+    /** Stable machine code for a skipped ticket (`INVALID_TRANSITION`, `WIP_EXCEEDED`, …). */
+    code?: string;
     previous?: Record<string, unknown>;
 }
 
@@ -76,6 +80,10 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
 
         const tasks = await findManyInOrg(req.db!, ids, req.userOrgId);
         const actor = taskActorFromRequest(req);
+        // Loaded once per batch: every ticket is validated against the same
+        // graph and WIP setting, including tickets moved earlier in the loop.
+        const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
+        const name = await findActorName(req.db!, req.userId);
 
         const results: BulkResult[] = [];
         for (const task of tasks) {
@@ -127,8 +135,28 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         results.push({ id: task.id, ok: false, error: "Invalid status" });
                         continue;
                     }
+                    // Re-entering the same state changes nothing: no history,
+                    // audit or notification for a no-op.
+                    if (String(task.workflow_state_id ?? "") === String(target.id)) {
+                        results.push({ id: task.id, ok: true, previous: { workflow_state_id: task.workflow_state_id } });
+                        continue;
+                    }
+                    // Bulk is not a way around the lifecycle: an illegal
+                    // transition or a full column skips that one ticket and
+                    // leaves the rest of the batch to apply.
+                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle);
+                    if (conflict) {
+                        results.push({ id: task.id, ok: false, error: conflict.body.error, code: conflict.body.code });
+                        continue;
+                    }
                     await setWorkflowState(req.db!, task.id, target.id);
                     await logHistory(task.id, req.userId, "status_change", "workflow_state", task.workflow_state_id, target.id, null, req.db);
+                    await announceStatusMove(req, {
+                        task,
+                        from: stateOf(lifecycle, task),
+                        to: target,
+                        name,
+                    });
                     results.push({
                         id: task.id,
                         ok: true,
@@ -152,6 +180,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                             id: task.id,
                             ok: false,
                             error: "This ticket is already completed or cancelled",
+                            code: "TASK_COMPLETED",
                         });
                         continue;
                     }
@@ -162,8 +191,21 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         results.push({ id: task.id, ok: false, error: "No cancelled workflow state is available" });
                         continue;
                     }
+                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, cancelled, lifecycle);
+                    if (conflict) {
+                        results.push({ id: task.id, ok: false, error: conflict.body.error, code: conflict.body.code });
+                        continue;
+                    }
                     await setWorkflowState(req.db!, task.id, cancelled.id);
                     await logHistory(task.id, req.userId, "cancelled", "workflow_state", task.workflow_state_id, cancelled.id, null, req.db);
+                    await announceStatusMove(req, {
+                        task,
+                        from: stateOf(lifecycle, task),
+                        to: cancelled,
+                        name,
+                        audit: "cancel",
+                        action: "updated",
+                    });
                     results.push({
                         id: task.id,
                         ok: true,

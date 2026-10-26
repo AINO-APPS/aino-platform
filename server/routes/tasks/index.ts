@@ -31,6 +31,7 @@ const epicsRouter = require('./epics');
 const scheduleOverlaysRouter = require('./scheduleOverlays');
 const timerRouter = require('./timer');
 const transferRouter = require('./transfer');
+const cancelRouter = require('./cancel');   // DELETE /:id (cancel, never hard-delete)
 const crudRouter = require('./crud');
 
 const router = express.Router();
@@ -64,8 +65,9 @@ router.use('/', epicsRouter);         // /epics
 router.use('/', scheduleOverlaysRouter); // /schedule-overlays
 router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
 router.use('/', transferRouter);      // /:id/transfer (admin-only ownership move)
+router.use('/', cancelRouter);        // /:id (DELETE = cancel)
 
-// Generic CRUD last (owns GET /, POST /, PUT /:id, DELETE /:id, PATCH /:id/status)
+// Generic CRUD last (owns GET /, POST /, PUT /:id, PATCH /:id/status)
 router.use('/', crudRouter);
 
 export = router;

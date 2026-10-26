@@ -186,7 +186,14 @@ describe("pointer drop is staged behind one confirmation", () => {
     });
 
     test("a pointer move into Done carries the blocker advisory, and Cancel still wins", () => {
-        const blocked = { ...pendingTask, is_blocked: true };
+        // New → Done is not a legal transition (issue 04); active work may go
+        // straight to Done, so the advisory path starts from In Progress.
+        const blocked = {
+            ...pendingTask,
+            workflow_state_key: "in_progress",
+            workflow_state_id: 2,
+            is_blocked: true,
+        };
         const onTasks = vi.fn();
         render(<BoardHarness task={blocked} onTasks={onTasks} />);
 

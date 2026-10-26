@@ -1,10 +1,10 @@
 /**
- * The five task events worth telling people about.
+ * The task events worth telling people about.
  *
  * Being assigned a task, being added to a sprint, a sprint starting, a sprint
- * completing (with a summary of what moved), and a due date approaching.
- * Status changes and reordering deliberately emit nothing — they are noise at
- * the volume a busy board produces.
+ * completing (with a summary of what moved), a due date approaching, and a
+ * status change that touches the assignee or the reporter. Reordering emits
+ * nothing — it is noise at the volume a busy board produces.
  */
 import { taskLink } from "../../utils/notificationLinks";
 
@@ -13,10 +13,16 @@ export type TaskNotificationEvent =
     | "sprint_task_added"
     | "sprint_started"
     | "sprint_completed"
+    | "status_changed"
     | "due_date_approaching";
 
-/** Events that must never produce a notification. */
-export const SILENT_ACTIONS = ["status_change", "reordered", "ranked"] as const;
+/**
+ * History actions that must never produce a notification.
+ *
+ * A status change is not one of them any more: moving work is the moment the
+ * assignee and reporter most need to know, so it has its own notifier below.
+ */
+export const SILENT_ACTIONS = ["reordered", "ranked"] as const;
 
 export interface SprintCompletionSummary {
     sprintName: string;
@@ -120,6 +126,40 @@ export function describeSprintTaskAdded(input: SprintTaskAddedInput): {
     return {
         title: `Added to ${input.sprint.name}`,
         body: `${input.task.title} was added to ${input.sprint.name}.`,
+        audience: taskAudience(input.task, input.actorId),
+    };
+}
+
+/** The slice of a task and two states a status notification needs. */
+export interface StatusChangedInput {
+    task: {
+        id: number | string;
+        title: string;
+        assigned_to?: number | string | null;
+        user_id?: number | string | null;
+    };
+    from: string;
+    to: string;
+    actorId?: number | string | null;
+    actorName?: string | null;
+}
+
+/**
+ * Tell the assignee and the reporter that a ticket moved.
+ *
+ * Only those two people — the rest of the owning team already sees the board,
+ * and a notification per ticket would be noise. The actor is removed by
+ * `taskAudience`, because nobody needs telling about their own move.
+ */
+export function describeStatusChanged(input: StatusChangedInput): {
+    title: string;
+    body: string;
+    audience: number[];
+} {
+    const actor = input.actorName || "Someone";
+    return {
+        title: `Status changed: ${input.task.title}`,
+        body: `${actor} moved ${input.task.title} from ${input.from} to ${input.to}.`,
         audience: taskAudience(input.task, input.actorId),
     };
 }
