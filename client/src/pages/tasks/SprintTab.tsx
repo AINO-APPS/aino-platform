@@ -170,6 +170,8 @@ export default function SprintTab({
                         onOpenComments={onOpenComments}
                         onAddTask={onAddTask ? () => onAddTask() : undefined}
                         boardDrag={boardDrag}
+                        draggingTaskId={drag.draggingTaskId}
+                        targetPolicy={drag.targetPolicy}
                         wipWarning={boardDrag.wipWarning}
                         announcement={boardAnnouncement}
                         attribution={backlog.attribution}

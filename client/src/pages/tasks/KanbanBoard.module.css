@@ -91,6 +91,15 @@
   transition: border-color 0.12s ease;
 }
 .kanban-column.drag-over { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); }
+/* A lifted card (keyboard drag) is outlined, never dimmed: it stays readable
+   the whole time it is in flight. */
+.card-lifted { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
+/* A column that cannot take the card says so without hiding anything. */
+.kanban-column.column-disabled {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.kanban-column.column-disabled .column-label { color: var(--text-muted); }
 .column-header {
   position: sticky;
   top: 0;

@@ -41,7 +41,7 @@ import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, sprintIdFrom, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink, useSprintLanding } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
-import { useBoardDrag } from "./tasks/hooks/useBoardDrag";
+import { boardColumns } from "./tasks/hooks/boardTargets";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
@@ -127,10 +127,10 @@ export default function Tasks() {
     }
   }, [hasFeature, activeTab]);
   const [sprintStats, setSprintStats] = useState<any>(null);
-  const { unitLabel, features, initialState, terminalStates } = useAgileConfig() as any;
+  const { unitLabel, features, initialState, terminalStates, workflowStates } = useAgileConfig() as any;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
-  const { confirmDialog, showConfirm, closeConfirm } = useConfirmDialog() as any;
+  const { confirmDialog, showConfirm, closeConfirm, cancelConfirm } = useConfirmDialog() as any;
   const filters = useFilters({ activeTab }) as any;
   const globalSearch = useGlobalSearch() as any;
 
@@ -207,14 +207,14 @@ export default function Tasks() {
     setError,
   }) as any;
 
-  // Accessible board drag: keyboard and touch route through the same move as
-  // the mouse, and entering done with open blockers asks first.
+  // Keyboard board navigation only. Pointer drag lives in `useDragDrop`; both
+  // paths stage the move behind the same confirmation and commit it once.
   const { boardDrag, announcement: boardAnnouncement } = useBoardDragWiring({
     tasks,
-    columns: (useAgileConfig() as any)?.workflowStates || [],
-    fetchTasks,
+    columns: boardColumns(workflowStates),
     showConfirm,
     closeConfirm,
+    onMove: (task: any, column: any) => drag.commitMove(task, column),
   });
 
   const sprintPlan = useSprintPlan({
@@ -574,7 +574,7 @@ export default function Tasks() {
           onConfirmCancel={confirmDeleteWithRefresh}
           onDismissCancel={() => setTaskToDelete(null)}
           confirmDialog={confirmDialog}
-          onCloseConfirm={closeConfirm}
+          onCancelConfirm={cancelConfirm}
         />
 
         <TasksOverlays

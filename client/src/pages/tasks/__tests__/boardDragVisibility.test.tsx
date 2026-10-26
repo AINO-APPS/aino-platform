@@ -100,4 +100,25 @@ describe("board card drag affordance", () => {
         const dimmingRule = /\.task-card\.dragging\s*\{[^}]*opacity\s*:\s*(0?\.\d+)/;
         expect(css).not.toMatch(dimmingRule);
     });
+
+    test("the backlog does not dim the row being reordered", () => {
+        const css = fs.readFileSync(
+            path.join(__dirname, "..", "BacklogTab.module.css"),
+            "utf8",
+        );
+        // The dragged row is the one the user is reading; a placeholder or an
+        // outline marks it without making the ticket disappear.
+        const dimmingRule = /\.backlog-card-dragging[^{]*\{[^}]*opacity\s*:\s*(0?\.\d+)/;
+        expect(css).not.toMatch(dimmingRule);
+        expect(css).toMatch(/\.backlog-card-dragging[^{]*\{[^}]*outline/);
+    });
+
+    test("a keyboard-lifted board card is outlined, never dimmed", () => {
+        const css = fs.readFileSync(
+            path.join(__dirname, "..", "KanbanBoard.module.css"),
+            "utf8",
+        );
+        expect(css).toMatch(/\.card-lifted\s*\{[^}]*outline/);
+        expect(css).not.toMatch(/\.card-lifted\s*\{[^}]*opacity\s*:\s*(0?\.\d+)/);
+    });
 });

@@ -3,6 +3,11 @@ import TaskCard from "./TaskCard";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useIsPhone } from "../../hooks/useViewportWidth";
 import { useSwipe } from "./hooks/useSwipe";
+import {
+    allowAllTargets,
+    boardColumns,
+    type TargetPolicy,
+} from "./hooks/boardTargets";
 import s from "./KanbanBoard.module.css";
 
 interface KanbanBoardProps {
@@ -16,15 +21,21 @@ interface KanbanBoardProps {
     onDragEnd: (e: React.DragEvent, id: number | string) => void;
     onOpenDetail: (task: any) => void;
     onOpenComments: (id: number | string) => void;
-    /** Accessible drag: keyboard lift/move/drop and touch, shared with backlog. */
+    /** The card in flight under the pointer, for disabled-target feedback. */
+    draggingTaskId?: number | string | null;
+    /**
+     * Keyboard navigation and announcements. Pointer drag belongs to
+     * `useDragDrop`; this never receives pointer events.
+     */
     boardDrag?: {
         draggingId: number | string | null;
         overColumn: number | string | null;
         onKeyDown: (event: React.KeyboardEvent, taskId: number | string) => void;
-        onDragStart: (taskId: number | string) => void;
-        onDragOver: (column: any) => void;
-        onDrop: (column: any) => void;
+        /** Drop any keyboard lift, e.g. when a pointer drag ends. */
+        reset?: () => void;
     };
+    /** Which columns may receive a card. All are legal until issue 04. */
+    targetPolicy?: TargetPolicy;
     wipWarning?: string | null;
     announcement?: string;
     /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
@@ -44,7 +55,9 @@ export default function KanbanBoard({
     onDragEnd,
     onOpenDetail,
     onOpenComments,
+    draggingTaskId,
     boardDrag,
+    targetPolicy = allowAllTargets,
     wipWarning,
     announcement,
     onAddTask,
@@ -54,9 +67,7 @@ export default function KanbanBoard({
     // Cancelled is a terminal state, not a work-in-progress column: a cancelled
     // ticket leaves the board rather than sitting in a fifth column. It stays
     // available in the status picker so a ticket can be cancelled from detail.
-    const boardStates = (workflowStates || []).filter(
-        (state: any) => state.key !== "cancelled",
-    );
+    const boardStates = boardColumns(workflowStates);
     // On a phone the board is one column at a time, swiped between. On wider
     // viewports every column is visible and the board scrolls horizontally.
     const isPhone = useIsPhone();
@@ -82,6 +93,13 @@ export default function KanbanBoard({
                     col.id &&
                     t.workflow_state_id === col.id),
         );
+    // The card currently being dragged, under either input. Columns the policy
+    // rejects are marked and cannot take the drop.
+    const draggedId = draggingTaskId ?? boardDrag?.draggingId ?? null;
+    const draggedTask =
+        draggedId != null
+            ? tasks.find((task) => task.id === draggedId)
+            : undefined;
 
     return (
         <div className={s["kanban-board"]} data-phone={isPhone ? "true" : undefined}>
@@ -121,9 +139,18 @@ export default function KanbanBoard({
             <div className={s["kanban-columns"]} {...(isPhone ? swipe : {})}>
                 {visibleColumns.map((col: any) => {
                 const colTasks = getColTasks(col);
+                const disabledReason = draggedTask
+                    ? targetPolicy(draggedTask, col)
+                    : null;
                 // Drag-over compares against either id or key — useDragDrop passes whichever it has
                 const isDragOver =
-                    dragOverCol === col.id || dragOverCol === col.key;
+                    !disabledReason &&
+                    (dragOverCol === col.id || dragOverCol === col.key);
+                const isKeyboardOver =
+                    !disabledReason &&
+                    boardDrag?.overColumn != null &&
+                    (boardDrag.overColumn === col.id ||
+                        boardDrag.overColumn === col.key);
                 const wipExceeded =
                     features.wipLimits &&
                     col.wip_limit &&
@@ -132,16 +159,16 @@ export default function KanbanBoard({
                 return (
                     <div
                         key={col.id || col.key}
-                        className={`${s["kanban-column"]} ${isDragOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""}`}
+                        data-column-key={col.key}
+                        className={`${s["kanban-column"]} ${isDragOver || isKeyboardOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""} ${disabledReason ? s["column-disabled"] : ""}`}
                         style={{ "--col-color": col.color } as React.CSSProperties}
-                        onDragOver={(e) => {
-                            onDragOver(e, col.id || col.key, col);
-                            boardDrag?.onDragOver(col);
-                        }}
+                        aria-disabled={disabledReason ? true : undefined}
+                        title={disabledReason ?? undefined}
+                        onDragOver={(e) => onDragOver(e, col.id || col.key, col)}
                         onDragLeave={onDragLeave}
                         onDrop={(e) => {
+                            if (disabledReason) return;
                             onDrop(e, col.id || col.key, col);
-                            boardDrag?.onDrop(col);
                         }}
                     >
                         <div className={s["column-header"]}>
@@ -174,10 +201,10 @@ export default function KanbanBoard({
                         </div>
 
                         <div className={s["column-tasks"]}>
-                            {isDragOver && (
+                            {(isDragOver || isKeyboardOver) && (
                                 <div className={s["drop-indicator"]}>Drop here</div>
                             )}
-                            {colTasks.length === 0 && !isDragOver && (
+                            {colTasks.length === 0 && !isDragOver && !isKeyboardOver && (
                                 <div className={s["column-empty"]}>
                                     <span>No items</span>
                                 </div>
@@ -185,20 +212,32 @@ export default function KanbanBoard({
                             {colTasks.map((task) => (
                                 <div
                                     key={task.id}
+                                    className={
+                                        boardDrag?.draggingId === task.id
+                                            ? s["card-lifted"]
+                                            : undefined
+                                    }
                                     tabIndex={boardDrag ? 0 : undefined}
                                     role={boardDrag ? "listitem" : undefined}
                                     aria-roledescription={boardDrag ? "draggable card" : undefined}
                                     aria-grabbed={boardDrag ? boardDrag.draggingId === task.id : undefined}
                                     onKeyDown={(event) => boardDrag?.onKeyDown(event, task.id)}
-                                    onDragStart={() => boardDrag?.onDragStart(task.id)}
                                 >
                                     <TaskCard
                                         task={task}
                                         sprintMode={sprintMode}
                                         onOpenDetail={onOpenDetail}
                                         onOpenComments={onOpenComments}
-                                        onDragStart={onDragStart}
-                                        onDragEnd={onDragEnd}
+                                        onDragStart={(event, id) => {
+                                            boardDrag?.reset?.();
+                                            onDragStart(event, id);
+                                        }}
+                                        onDragEnd={(event, id) => {
+                                            // A pointer drag ending must also
+                                            // clear any keyboard lift.
+                                            boardDrag?.reset?.();
+                                            onDragEnd(event, id);
+                                        }}
                                         attribution={attribution?.[String(task.id)] ?? null}
                                     />
                                 </div>

@@ -14,8 +14,10 @@ interface TasksConfirmDialogsProps {
         confirmText: string;
         isDanger: boolean;
         onConfirm: (() => void) | null;
+        onCancel: (() => void) | null;
     };
-    onCloseConfirm: () => void;
+    /** Dismisses the dialog and runs its pending cancel hook. */
+    onCancelConfirm: () => void;
 }
 
 /**
@@ -29,7 +31,7 @@ export default function TasksConfirmDialogs({
     onConfirmCancel,
     onDismissCancel,
     confirmDialog,
-    onCloseConfirm,
+    onCancelConfirm,
 }: TasksConfirmDialogsProps) {
     return (
         <>
@@ -52,7 +54,7 @@ export default function TasksConfirmDialogs({
                 onConfirm={() => {
                     if (confirmDialog.onConfirm) confirmDialog.onConfirm();
                 }}
-                onCancel={onCloseConfirm}
+                onCancel={onCancelConfirm}
             />
         </>
     );

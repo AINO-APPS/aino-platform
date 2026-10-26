@@ -28,8 +28,9 @@
 .backlog-row:hover .backlog-select, .backlog-select:focus-visible, .backlog-select:checked, .backlog-list:has(.backlog-select:checked) .backlog-select { opacity: 1; }
 .backlog-card { min-width: 0; }
 .backlog-actions { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.backlog-card-dragging { opacity: 0.4; }
-.backlog-card-over { outline: 2px dashed var(--primary); outline-offset: -2px; }
+/* A row being reordered, or the row it is over, is outlined — never dimmed:
+   the ticket has to stay readable while the user decides where it goes. */
+.backlog-card-dragging, .backlog-card-over { outline: 2px dashed var(--primary); outline-offset: -2px; }
 .backlog-inline-input { width: 100%; padding: 2px 4px; border: 1px solid var(--primary); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; }
 .task-comments-count { color: var(--text-muted); font-size: 0.78rem; }
 

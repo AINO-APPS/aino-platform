@@ -1,63 +1,56 @@
 import { useCallback, useRef, useState } from "react";
+import {
+    allowAllTargets,
+    columnOf,
+    columnRef,
+    findColumn,
+    moveAdvisory,
+    sameColumn,
+    wipAdvisory,
+    type BoardColumn,
+    type BoardTask,
+    type TargetPolicy,
+} from "./boardTargets";
 
-export interface BoardColumn {
-    id?: number | string;
-    key?: string;
-    name?: string;
-    category?: string;
-    is_terminal?: boolean;
-    wip_limit?: number | null;
-    [key: string]: unknown;
-}
+export type { BoardColumn, BoardTask } from "./boardTargets";
 
-export interface BoardTask {
-    id: number | string;
-    title?: string;
-    /** The workflow state is the only status (D4). */
-    workflow_state_id?: number | string | null;
-    workflow_state_key?: string | null;
-    is_blocked?: boolean;
-    acceptance_criteria?: unknown[] | null;
-    [key: string]: unknown;
-}
+/** What happened to a staged move once the confirmation closed. */
+export type MoveOutcome = "accepted" | "cancelled" | "failed";
 
 interface UseBoardDragArgs {
     tasks: BoardTask[];
     columns: BoardColumn[];
-    onMove: (task: BoardTask, column: BoardColumn) => Promise<void> | void;
+    /**
+     * Stage a move behind the confirmation dialog. It must not mutate the
+     * ticket or call the API itself; it resolves once the user has answered.
+     * `notice` is an advisory (blocker, unchecked criteria, WIP) to include.
+     */
+    onRequestMove: (
+        task: BoardTask,
+        column: BoardColumn,
+        notice: string | null,
+    ) => Promise<MoveOutcome> | MoveOutcome;
     onAnnounce?: (message: string) => void;
-    /** Ask before entering a done state with open blockers or unchecked criteria. */
-    confirmDone?: (task: BoardTask, reason: string) => Promise<boolean> | boolean;
-}
-
-function columnOf(task: BoardTask, columns: BoardColumn[]): BoardColumn | undefined {
-    return columns.find(
-        (column) =>
-            (task.workflow_state_id && column.id && task.workflow_state_id === column.id) ||
-            (task.workflow_state_key && column.key && task.workflow_state_key === column.key),
-    );
-}
-
-function isDoneColumn(column: BoardColumn | undefined): boolean {
-    return Boolean(column && (column.category === "done" || column.is_terminal));
+    /** Which columns may receive the lifted card. All are legal until issue 04. */
+    targetPolicy?: TargetPolicy;
 }
 
 /**
- * Board drag for mouse, touch and keyboard.
+ * Keyboard navigation for the board.
  *
- * All three inputs route through `move`, so the result is identical and the
- * outcome is announced. WIP limits warn without blocking, and entering a done
- * state with open blockers or unchecked acceptance criteria asks first.
+ * Space lifts a card, the arrow keys choose a column, and space drops it. The
+ * drop is staged through `onRequestMove`, so nothing changes until the user
+ * confirms. Pointer drag lives in `useDragDrop`; this hook never handles it.
  */
 export function useBoardDrag({
     tasks,
     columns,
-    onMove,
+    onRequestMove,
     onAnnounce,
-    confirmDone,
+    targetPolicy = allowAllTargets,
 }: UseBoardDragArgs) {
     const [draggingId, setDraggingId] = useState<number | string | null>(null);
-    const [overColumn, setOverColumn] = useState<number | string | null>(null);
+    const [overColumn, setOverColumn] = useState<string | number | null>(null);
     const [wipWarning, setWipWarning] = useState<string | null>(null);
     const lastAnnouncement = useRef("");
 
@@ -70,71 +63,71 @@ export function useBoardDrag({
         [onAnnounce],
     );
 
+    const reset = useCallback(() => {
+        setDraggingId(null);
+        setOverColumn(null);
+    }, []);
+
     const move = useCallback(
         async (taskId: number | string, column: BoardColumn) => {
             const task = tasks.find((candidate) => candidate.id === taskId);
             if (!task) return;
 
-            const current = columnOf(task, columns);
-            if (current && (current.id === column.id || current.key === column.key)) return;
-
-            // WIP limits warn without blocking.
-            if (column.wip_limit) {
-                const occupancy = tasks.filter(
-                    (candidate) => columnOf(candidate, columns)?.id === column.id,
-                ).length;
-                if (occupancy >= column.wip_limit) {
-                    setWipWarning(
-                        `${column.name} is over its WIP limit (${occupancy}/${column.wip_limit}). The move is allowed.`,
-                    );
-                } else {
-                    setWipWarning(null);
-                }
+            const rejection = targetPolicy(task, column);
+            if (rejection) {
+                announce(
+                    `${column.name ?? "That column"} cannot take this ticket: ${rejection}`,
+                );
+                return;
             }
 
-            // Entering done is advisory-checked.
-            if (isDoneColumn(column) && confirmDone) {
-                const openBlockers = Boolean(task.is_blocked);
-                const unchecked = Array.isArray(task.acceptance_criteria)
-                    && task.acceptance_criteria.some(
-                        (item: any) => item && typeof item === "object" && item.done === false,
-                    );
-                if (openBlockers || unchecked) {
-                    const reason = openBlockers
-                        ? "This task has an open blocker."
-                        : "This task has unchecked acceptance criteria.";
-                    const proceed = await confirmDone(task, reason);
-                    if (!proceed) {
-                        announce("Move cancelled");
-                        return;
-                    }
-                }
+            const outcome = await onRequestMove(
+                task,
+                column,
+                moveAdvisory(task, column, tasks),
+            );
+            if (outcome === "accepted") {
+                // The warning is shown only once the move was accepted: a
+                // cancelled dialog changes nothing, not even a notice.
+                if (column.wip_limit) setWipWarning(wipAdvisory(column, tasks));
+                announce(
+                    `Moved ${task.title ?? "ticket"} to ${column.name ?? "column"}`,
+                );
+            } else if (outcome === "cancelled") {
+                announce("Move cancelled");
             }
-
-            await onMove(task, column);
-            announce(`Moved ${task.title ?? "task"} to ${column.name ?? "column"}`);
         },
-        [tasks, columns, onMove, confirmDone, announce],
+        [tasks, onRequestMove, targetPolicy, announce],
     );
 
-    /** Keyboard: space lifts, arrows move between columns, space drops. */
+    /** Space lifts, arrows choose a column, space drops. Escape cancels. */
     const onKeyDown = useCallback(
         (event: React.KeyboardEvent, taskId: number | string) => {
             const task = tasks.find((candidate) => candidate.id === taskId);
             if (!task) return;
-            const currentIndex = columns.findIndex(
-                (column) => columnOf(task, columns)?.id === column.id,
+            const current = columnOf(task, columns);
+            const currentIndex = columns.findIndex((column) =>
+                sameColumn(current, column),
             );
 
             if (event.key === " " || event.key === "Enter") {
                 event.preventDefault();
-                if (draggingId === taskId) {
-                    setDraggingId(null);
-                    announce("Dropped");
-                } else {
+                if (draggingId !== taskId) {
                     setDraggingId(taskId);
-                    announce("Lifted. Use the arrow keys to choose a column, space to drop, escape to cancel.");
+                    setOverColumn(null);
+                    announce(
+                        "Lifted. Use the arrow keys to choose a column, space to drop, escape to cancel.",
+                    );
+                    return;
                 }
+
+                const target = findColumn(columns, overColumn);
+                reset();
+                if (!target || sameColumn(current, target)) {
+                    announce(`Dropped in ${current?.name ?? "its column"}`);
+                    return;
+                }
+                void move(taskId, target);
                 return;
             }
 
@@ -142,7 +135,7 @@ export function useBoardDrag({
 
             if (event.key === "Escape") {
                 event.preventDefault();
-                setDraggingId(null);
+                reset();
                 announce("Move cancelled");
                 return;
             }
@@ -150,46 +143,52 @@ export function useBoardDrag({
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
                 event.preventDefault();
                 const delta = event.key === "ArrowLeft" ? -1 : 1;
-                const nextIndex = Math.max(0, Math.min(columns.length - 1, currentIndex + delta));
-                const next = columns[nextIndex];
-                if (next) {
-                    setOverColumn(next.id ?? next.key ?? null);
-                    void move(taskId, next);
+                const selected = findColumn(columns, overColumn);
+                const fromIndex = selected
+                    ? columns.indexOf(selected)
+                    : currentIndex;
+                // Step over columns the policy refuses, so the keyboard is not
+                // trapped on the first illegal target issue 04 introduces.
+                let index = fromIndex + delta;
+                const rejected: string[] = [];
+                while (index >= 0 && index < columns.length) {
+                    const candidate = columns[index];
+                    const blocked = targetPolicy(task, candidate);
+                    if (!blocked) {
+                        setOverColumn(columnRef(candidate));
+                        announce(
+                            `${rejected.join(" ")} ${candidate.name ?? "Column"} selected. Press space to drop.`.trim(),
+                        );
+                        return;
+                    }
+                    rejected.push(
+                        `${candidate.name ?? "That column"} cannot take this ticket: ${blocked}`,
+                    );
+                    index += delta;
                 }
+                announce(
+                    rejected.join(" ") || "No column in that direction",
+                );
             }
         },
-        [tasks, columns, draggingId, move, announce],
-    );
-
-    /** Pointer/touch drag. */
-    const onDragStart = useCallback((taskId: number | string) => {
-        setDraggingId(taskId);
-    }, []);
-
-    const onDragOver = useCallback((column: BoardColumn) => {
-        setOverColumn(column.id ?? column.key ?? null);
-    }, []);
-
-    const onDrop = useCallback(
-        (column: BoardColumn) => {
-            const taskId = draggingId;
-            setDraggingId(null);
-            setOverColumn(null);
-            if (taskId === null) return;
-            void move(taskId, column);
-        },
-        [draggingId, move],
+        [
+            tasks,
+            columns,
+            draggingId,
+            overColumn,
+            move,
+            reset,
+            targetPolicy,
+            announce,
+        ],
     );
 
     return {
         draggingId,
         overColumn,
         wipWarning,
-        clearWipWarning: () => setWipWarning(null),
-        move,
         onKeyDown,
-        onDragStart,
-        onDragOver,
-        onDrop,
+        reset,
+        targetPolicy,
     };
 }
