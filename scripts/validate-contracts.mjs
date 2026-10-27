@@ -93,6 +93,34 @@ if (errors.length) {
   console.error(`Contract validation failed (${errors.length}):\n- ${errors.join("\n- ")}`);
   process.exit(1);
 }
+
+// The route snapshot is the machine-checked record of every endpoint the app
+// actually serves. Comparing it to the inventory is the check that was missing:
+// OpenAPI ↔ inventory can agree while a brand-new route is registered by
+// neither, which is how POST /api/tasks/:id/transfer shipped unregistered.
+const snapshotFile = "server/__tests__/__snapshots__/routes.snapshot.test.ts.snap";
+if (fs.existsSync(path.join(root, snapshotFile))) {
+  const snapshot = fs.readFileSync(path.join(root, snapshotFile), "utf8");
+  const snapshotKeys = new Set(
+    [...snapshot.matchAll(/^\s*"([A-Z]+)\s+(\/\S+)",$/gm)]
+      .map(([, method, route]) => `${method} ${route}`)
+      // The snapshot carries one bare regex mount probe that is not an endpoint.
+      .filter(key => !key.includes("*")),
+  );
+  const inventoryKeys = new Set(inventory.endpoints.map(e => `${e.method} ${e.path}`));
+  // An endpoint in both is fine; report each side's unique members.
+  for (const key of snapshotKeys) {
+    if (!inventoryKeys.has(key)) errors.push(`route snapshot has an endpoint absent from the inventory: ${key}`);
+  }
+  for (const key of inventoryKeys) {
+    if (!snapshotKeys.has(key)) errors.push(`inventory has an endpoint absent from the route snapshot: ${key}`);
+  }
+}
+
+if (errors.length) {
+  console.error(`Contract validation failed (${errors.length}):\n- ${errors.join("\n- ")}`);
+  process.exit(1);
+}
 console.log(`Contracts valid: ${inventory.mounts.length} router mounts, ${inventory.endpoints.length} endpoints inventoried, ${operationKeys.size} OpenAPI operations, ${mobileRoutes.wrappers.length} mobile wrapper calls classified.`);
 
 // Keep the realtime baseline dependency-free and part of the same repository gate.

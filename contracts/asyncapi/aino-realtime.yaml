@@ -433,6 +433,7 @@ components:
                       estimated_minutes: { type: [integer, "null"] }
                       logged_minutes: { type: integer }
                       acceptance_criteria: { type: [array, "null"] }
+                      team_id: { type: [integer, "null"] }
                   actor:
                     type: [object, "null"]
                     description: Who made the change, so the card can attribute it.

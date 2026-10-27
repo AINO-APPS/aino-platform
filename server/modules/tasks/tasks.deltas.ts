@@ -28,7 +28,10 @@ export const DELTA_FIELDS = [
     "estimated_minutes",
     "logged_minutes",
     "acceptance_criteria",
-] as const;
+        // A transfer changes the ticket's owning team. Without this the delta
+        // dropped the field and clients never learned a ticket moved teams.
+        "team_id",
+    ] as const;
 
 export type DeltaField = (typeof DELTA_FIELDS)[number];
 

@@ -34,7 +34,17 @@ const MODELS = ["Task", "Sprint", "SprintBaseline", "TaskListResponse", "Backlog
 
 const OUTPUTS = [
     { platform: "web", path: "aino-platform/client/src/types/generated/tasks.ts" },
-    { platform: "android", path: "aino-android/app/src/main/java/app/aino/mobile/feature/tasks/generated/TaskModelsGenerated.kt" },
+    {
+        platform: "android",
+        path: "aino-android/app/src/main/java/app/aino/mobile/feature/tasks/generated/TaskModelsGenerated.kt",
+        // Android maintains its DTOs by hand (`feature/tasks/TaskModels.kt`) and
+        // imports nothing from here. Emitting a second, incompatible `Task`
+        // (Int ids vs the real Long ids) was a trap rather than a contract
+        // guard, so generation for this platform is off until the app actually
+        // consumes generated models. See aino-android
+        // `.scratch/android-backend-drift/audit.md`.
+        enabled: false,
+    },
     { platform: "ios", path: "aino-ios/AinoMobile/Features/Tasks/Generated/TaskModelsGenerated.swift" },
 ];
 
@@ -253,7 +263,11 @@ function write() {
     const models = hoistInlineObjects(loadSchemas());
     let changed = 0;
     for (const output of OUTPUTS) {
-        if (!platformRootPresent(output.path)) {
+            if (output.enabled === false) {
+                if (MODE !== "check") console.log(`api-models: skipped ${output.platform} (generation disabled)`);
+                continue;
+            }
+            if (!platformRootPresent(output.path)) {
             if (MODE !== "check") console.log(`api-models: skipped ${output.platform} (repository not checked out)`);
             continue;
         }

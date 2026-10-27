@@ -114,7 +114,13 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                             continue;
                         }
                         if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
-                            results.push({ id: task.id, ok: false, error: sprintTeamMismatchBody().error as string });
+                            const mismatch = sprintTeamMismatchBody();
+                            results.push({
+                                id: task.id,
+                                ok: false,
+                                error: mismatch.error as string,
+                                code: mismatch.code as string,
+                            });
                             continue;
                         }
                         if (task.team_id == null) adoptTeamId = teamAfterSprintMove(task.team_id, sprint.team_id);

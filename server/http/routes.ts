@@ -79,9 +79,15 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/leaves", apiLimiter, leaveRoutes);
     app.use("/api/tasks", apiLimiter, taskRoutes);
     app.use("/api/sprints", apiLimiter, sprintsRoutes);
-    // Agile editor routes are gated in middleware/agileEditor.ts; the
-    // reviewer inbox (access requests / grants) is gated here.
-    app.use("/api/agile", apiLimiter, webOnlyExcept((req) => !/^\/permissions\/(requests|grants)(\/|$)/.test(req.path)), agileRoutes);
+    // Agile editor routes are gated in middleware/agileEditor.ts; the reviewer
+    // inbox (access requests / grants) is gated here.
+    //
+    // `GET /config` is a read of the tenant's workflow definition, not
+    // administration: the native app needs it to render the real board columns
+    // and to disable illegal status moves. Every write path stays web-only.
+    app.use("/api/agile", apiLimiter, webOnlyExcept((req) =>
+        (req.method === "GET" && req.path === "/config")
+        || !/^\/permissions\/(requests|grants)(\/|$)/.test(req.path)), agileRoutes);
     app.use("/api/profile/password", passwordLimiter);
     app.use("/api/profile", apiLimiter, profileRoutes);
     app.use("/api/user/preferences", apiLimiter, userPreferencesRoutes);

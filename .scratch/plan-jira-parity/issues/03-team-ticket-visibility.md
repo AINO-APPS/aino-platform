@@ -101,3 +101,17 @@ bulk, search, quicksearch, export, notes pickers, carry-over, service desk,
 `/sprints/:id/tasks`, baseline and completion preview. The Plan header has an
 admin team switcher and the no-team banner. `team_visibility` stays off by
 default; enable it per org after reviewing `task_team_backfill_conflicts`.
+
+**2026-10-27 — root cause found: the feature was dormant**
+
+The work above was correct but never took effect. `team_visibility` defaulted to
+`false` on **every** plan, including enterprise (`server/utils/planCatalog.ts`),
+and no tenant carried an override. With the flag off `tasks.policy.ts` falls back
+to the legacy creator-team predicate — the reported bug — so the shipped default
+reproduced the defect exactly, and `canChangeTaskStatus` denied transitions to
+every teammate who was not the creator or assignee.
+
+Fix: `team_visibility` now defaults to `true` on standard, pro and enterprise.
+The model is still reversible per org with an explicit override. Regression
+coverage lives in `server/__tests__/tasks.teamTicketVisibility.test.ts` (16
+tests; 12 of them fail if the flag is turned back off).
