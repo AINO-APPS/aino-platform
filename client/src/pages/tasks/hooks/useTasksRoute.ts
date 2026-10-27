@@ -36,6 +36,19 @@ export function tasksViewPath(view: TasksView, sprintId?: string | number | null
 }
 
 /**
+ * Whether the backlog list is on screen for the current view.
+ *
+ * The backlog is not only the Backlog tab: the Plan view renders it beside the
+ * sprint as a split pane, and that view is the `sprint` tab with `plan` set. An
+ * action that changes sprint membership from there moves a ticket between the
+ * two panes, so the backlog has to reload as well — gating that refresh on
+ * `activeTab === "backlog"` leaves the ticket visible in both lists.
+ */
+export function showsBacklog(activeTab: string, plan = false): boolean {
+    return activeTab === "backlog" || (activeTab === "sprint" && plan);
+}
+
+/**
  * Where the Tasks page should land for a given entry path.
  *
  * Once a team's sprint is running, the sprint plan is where the work is — the

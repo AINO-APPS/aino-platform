@@ -38,7 +38,7 @@ import { useBacklog } from "./tasks/hooks/useBacklog";
 import { backlogTabHandlers } from "./tasks/hooks/backlogTabProps";
 import { useTaskDetail } from "./tasks/hooks/useTaskDetail";
 import { useDragDrop } from "./tasks/hooks/useDragDrop";
-import { useTasksRoute, sprintIdFrom, tasksViewPath } from "./tasks/hooks/useTasksRoute";
+import { useTasksRoute, showsBacklog, sprintIdFrom, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink, useSprintLanding } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
 import { boardColumns } from "./tasks/hooks/boardTargets";
@@ -186,10 +186,7 @@ export default function Tasks() {
     onScheduled: (_id: any, day: string) => toast.success(<span>Scheduled for {day} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={() => { setScheduledFocus(day); setActiveTab("scheduled"); }}>View</button></span>, 6000),
   }) as any;
   const detail = useTaskDetail({
-    activeTab,
-    backlogOpen: false,
-    showConfirm,
-    closeConfirm,
+    activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
     setTasks,
     setBacklogTasks: backlog.setBacklogTasks,
     fetchTasks,
@@ -212,7 +209,7 @@ export default function Tasks() {
     showConfirm,
     closeConfirm,
     setError,
-  }) as any;
+  });
 
   // Keyboard board navigation only. Pointer drag lives in `useDragDrop`; both
   // paths stage the move behind the same confirmation and commit it once.
@@ -308,7 +305,7 @@ export default function Tasks() {
   }, [date, fetchTasks]);
 
   useEffect(() => {
-    if (activeTab === "backlog" || (activeTab === "sprint" && tasksRoute.route.plan)) backlog.fetchBacklog();
+    if (showsBacklog(activeTab, tasksRoute.route.plan)) backlog.fetchBacklog();
   }, [activeTab, tasksRoute.route.plan, backlog.fetchBacklog]);
 
   // Refresh sprint stats whenever the sprint changes or its tasks update.
@@ -325,7 +322,7 @@ export default function Tasks() {
   const handleDelete = (task: any) => setTaskToDelete(task);
 
   const lifecycle = useTicketLifecycle({
-    availableSprints, selectedSprintId, activeTab, showConfirm, closeConfirm,
+    availableSprints, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
     setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast,
   });
 

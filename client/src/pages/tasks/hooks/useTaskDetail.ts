@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { getTaskDetail, getTaskHistory, getTaskComments, deleteTaskComment, updateTask, updateTaskStatus, addTaskComment, updateTaskComment } from "../../../api/tasks";
 import type { Comment, Task } from "../../../types";
+import { showsBacklog } from "./useTasksRoute";
 
 type ShowConfirm = (
     title: string,
@@ -31,6 +32,8 @@ interface StatusColumn {
 
 interface UseTaskDetailParams {
     activeTab: string;
+    /** True when the sprint tab is showing the Plan split view, which renders the backlog. */
+    planOpen?: boolean;
     showConfirm: ShowConfirm;
     closeConfirm: () => void;
     setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -48,6 +51,7 @@ interface UseTaskDetailParams {
  */
 export function useTaskDetail({
     activeTab,
+    planOpen = false,
     showConfirm,
     closeConfirm,
     setTasks,
@@ -144,7 +148,9 @@ export function useTaskDetail({
                     setDetailComments(data.comments || []);
                     refreshDetailHistory(detailTask.id);
                     fetchTasks();
-                    if (activeTab === "backlog") fetchBacklog();
+                    // The Plan view shows the backlog too, so a sprint move made
+                    // there must reload it — see `showsBacklog`.
+                    if (showsBacklog(activeTab, planOpen)) fetchBacklog();
                 } catch {
                     setError("Failed to update item");
                 }
@@ -281,7 +287,9 @@ export function useTaskDetail({
                     setBacklogTasks((prev) => prev.map(patch));
                     refreshDetailHistory(task.id);
                     fetchTasks();
-                    if (activeTab === "backlog") fetchBacklog();
+                    // The Plan view shows the backlog too, so a sprint move made
+                    // there must reload it — see `showsBacklog`.
+                    if (showsBacklog(activeTab, planOpen)) fetchBacklog();
                 } catch (err) {
                     // 403 (not assignee/reporter), 400 (invalid state) and 409 (WIP limit) carry a readable reason.
                     setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update status");

@@ -12,11 +12,14 @@
  */
 import { useCallback } from "react";
 import { assignTaskToSprint, deleteTask } from "../../../api/tasks";
+import { showsBacklog } from "./useTasksRoute";
 
 interface UseTicketLifecycleArgs {
     availableSprints: any[];
     selectedSprintId: any;
     activeTab: string;
+    /** True when the sprint tab is showing the Plan split view, which renders the backlog. */
+    planOpen?: boolean;
     showConfirm: (
         title: string,
         message: string,
@@ -34,6 +37,7 @@ export function useTicketLifecycle({
     availableSprints,
     selectedSprintId,
     activeTab,
+    planOpen = false,
     showConfirm,
     closeConfirm,
     setError,
@@ -47,13 +51,13 @@ export function useTicketLifecycle({
             try {
                 await deleteTask(task.id);
                 fetchTasks();
-                if (activeTab === "backlog") fetchBacklog();
+                if (showsBacklog(activeTab, planOpen)) fetchBacklog();
                 toast.success("Ticket cancelled");
             } catch (err: any) {
                 setError(err?.response?.data?.error || "Failed to cancel ticket");
             }
         },
-        [activeTab, fetchTasks, fetchBacklog, setError, toast],
+        [activeTab, planOpen, fetchTasks, fetchBacklog, setError, toast],
     );
 
     /** Move a backlog ticket into a sprint, after confirming the target. */

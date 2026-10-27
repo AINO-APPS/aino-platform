@@ -434,7 +434,7 @@ export function useBacklog({
                 try {
                     await unscheduleTask(taskId);
                     fetchTasks();
-                    if (backlogOpen || activeTab === "backlog") fetchBacklog(true);
+                    if (backlogOpen || activeTab === "backlog" || activeTab === "sprint") fetchBacklog(true);
                     if (closeAfter) closeAfter();
                 } catch {
                     setError("Failed to move task to backlog");
