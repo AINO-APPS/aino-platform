@@ -25,11 +25,13 @@ function renderTabs(sprints: any[], agile = true, onTab = vi.fn(), onSprint = vi
 }
 
 describe("planning tabs follow the team's sprint state", () => {
-    test("an active sprint offers Sprint, Backlog, Scheduled and Service Desk", () => {
+    test("an active sprint offers Sprint, Backlog and Service Desk — never Scheduled", () => {
         renderTabs([{ id: 7, status: "active" }]);
-        for (const name of [/Sprint/, /Backlog/, /Scheduled/, /Service Desk/]) {
+        // Sprint and Scheduled are alternatives (ADR-015).
+        for (const name of [/^Sprint$/, /Backlog/, /Service Desk/]) {
             expect(screen.getByRole("tab", { name })).toBeTruthy();
         }
+        expect(screen.queryByRole("tab", { name: /Scheduled/ })).toBeNull();
     });
 
     test("only a planned sprint hides the Sprint tab", () => {

@@ -32,15 +32,23 @@ export interface PaletteItem {
     run: () => void;
 }
 
-/** The views every palette offers, in the order they appear. */
-export function paletteViews(sprintId?: string | null): PaletteView[] {
-    return [
+/**
+ * The views the palette offers, in the order they appear.
+ *
+ * `allowed` is the team's tab set (`planningTabs`). Sprint and Scheduled are
+ * alternatives, so the palette must not offer the one this team does not have —
+ * otherwise the hidden tab stays reachable from the keyboard.
+ */
+export function paletteViews(sprintId?: string | null, allowed?: string[]): PaletteView[] {
+    const views: PaletteView[] = [
         { id: "view-backlog", label: "Backlog", view: "backlog" },
         { id: "view-board", label: "Sprint board", view: "sprint", sprintId },
         { id: "view-plan", label: "Sprint plan", view: "sprint", sprintId, plan: true },
         { id: "view-schedule", label: "Schedule", view: "scheduled" },
         { id: "view-desk", label: "Service desk", view: "service-desk" },
     ];
+    if (!allowed) return views;
+    return views.filter((entry) => allowed.includes(entry.view));
 }
 
 /**
@@ -102,18 +110,20 @@ export function buildPaletteItems(input: {
  */
 export function useCommandPalette(options: {
     sprintId?: string | null;
+    /** The team's tab set, so a hidden surface is not offered here either. */
+    allowedViews?: string[];
     actions: PaletteAction[];
     onOpenTask: (task: PaletteTask) => void;
     onGoToView: (view: PaletteView) => void;
 }) {
-    const { sprintId, actions, onOpenTask, onGoToView } = options;
+    const { sprintId, allowedViews, actions, onOpenTask, onGoToView } = options;
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
     const [tasks, setTasks] = useState<PaletteTask[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
     const previouslyFocused = useRef<HTMLElement | null>(null);
 
-    const views = useMemo(() => paletteViews(sprintId), [sprintId]);
+    const views = useMemo(() => paletteViews(sprintId, allowedViews), [sprintId, allowedViews]);
 
     const items = useMemo(
         () =>

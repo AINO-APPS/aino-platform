@@ -46,22 +46,31 @@ export function useTasksRouteSync({
             );
             return;
         }
-        // The Sprint *board* needs a running sprint. A bare `/tasks/sprint`
-        // or a sprint view for a team with nothing active has no board, so
-        // leave for the backlog (navigating, so the address bar follows).
+        // A URL can point at a surface this team does not have — an old
+        // bookmark, a shared link, or a tab picked before the sprint list
+        // resolved. Sprint and Scheduled are alternatives, so leave for the
+        // backlog rather than render a view with no button back to it. The
+        // route is what `activeTab` derives from, so this must navigate.
         // A named sprint (`/tasks/sprint/9`, its plan) stays reachable for
-        // planning a future sprint. Waits for the sprint list to resolve.
-        if (sprintsLoaded && route.view === "sprint" && !route.sprintId) {
-            const { activeSprintId } = planningTabs({ agileEnabled: hasFeature("agile"), sprints: availableSprints });
-            navigate(
-                activeSprintId ? tasksViewPath("sprint", activeSprintId) : tasksViewPath("backlog", null),
-                { replace: true },
-            );
-            return;
-        }
-        if (sprintsLoaded && route.view === "sprint" && !hasFeature("agile")) {
-            navigate(tasksViewPath("backlog", null), { replace: true });
-            return;
+        // planning a future sprint.
+        if (sprintsLoaded) {
+            const { tabs, activeSprintId } = planningTabs({
+                agileEnabled: hasFeature("agile"),
+                sprints: availableSprints,
+            });
+            if (route.view === "sprint" && !route.sprintId) {
+                navigate(
+                    activeSprintId && tabs.includes("sprint")
+                        ? tasksViewPath("sprint", activeSprintId)
+                        : tasksViewPath("backlog", null),
+                    { replace: true },
+                );
+                return;
+            }
+            if (!tabs.includes(route.view)) {
+                navigate(tasksViewPath("backlog", null), { replace: true });
+                return;
+            }
         }
         setActiveTab(route.view);
         if (route.sprintId) setSelectedSprintId(sprintIdFrom(route.sprintId));

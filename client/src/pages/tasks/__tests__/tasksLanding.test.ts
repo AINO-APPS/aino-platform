@@ -44,9 +44,10 @@ describe("tabs follow the selected team's sprint state", () => {
     const active = { id: 12, status: "active", team_id: 3 };
     const planned = { id: 13, status: "planned", team_id: 3 };
 
-    test("an active sprint shows Sprint, Backlog and Scheduled", () => {
+    test("an active sprint shows Sprint and Backlog, and no Scheduled", () => {
+        // Scheduled is the alternative to the board, not a companion (ADR-015).
         expect(planningTabs({ agileEnabled: true, sprints: [active, planned] })).toEqual({
-            tabs: ["sprint", "backlog", "scheduled", "service-desk"],
+            tabs: ["sprint", "backlog", "service-desk"],
             activeSprintId: 12,
         });
     });

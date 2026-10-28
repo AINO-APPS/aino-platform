@@ -345,10 +345,8 @@ export default function Tasks() {
     showConfirm, closeConfirm, fetchTasks, setError, initialState, terminalStates,
   });
 
-  const summaryFilters = useSummaryFilters(filters);
-  const { showTotal: handleSummaryTotal, showPriority: handleSummaryPriority } = summaryFilters;
+  const { showTotal: handleSummaryTotal, showPriority: handleSummaryPriority } = useSummaryFilters(filters);
   const toggleLabel = toggleLabelId;
-
   const getColTasks = (colId: string) => tasks.filter((t) => t.workflow_state_key === colId);
   const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
@@ -358,6 +356,8 @@ export default function Tasks() {
   // overlay that documents the complete shortcut set.
   const tasksPalette = useTasksPalette({
     sprintId: selectedSprintId,
+    agileEnabled: hasFeature("agile"),
+    sprints: visibleSprints,
     onOpenTask: (task) => detail.openTaskDetail(task),
     onGoToView: (view, sprintId) => {
       changeTab(view);
