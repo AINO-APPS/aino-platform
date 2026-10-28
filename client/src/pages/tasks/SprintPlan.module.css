@@ -48,12 +48,14 @@
     gap: 2px;
 }
 
-/* Key, title, points, assignee, action — one track per cell, so the action
-   button aligns at the same edge in both panes and nothing wraps onto an
-   implicit second row. */
+/* Key, title, points, assignee, action — one line, always. A fixed track count
+   would silently wrap the action onto a second row the moment a row carried one
+   cell more than the template declared (an unassigned ticket, a new column), so
+   the title absorbs the free space and the action is pinned to the end instead.
+   Nothing can wrap because the row is a single non-wrapping flex line. */
 .plan-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
     padding: 6px 4px;
@@ -65,6 +67,7 @@
 }
 
 .plan-title {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -85,20 +88,21 @@
 }
 
 .plan-points {
+    flex: none;
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
     font-size: var(--font-meta-size);
 }
 
-/* Both panes put the action in the last cell. Pin it to the final track so an
-   unassigned ticket — which has one cell fewer — still lines its button up with
-   the rest instead of leaving the empty assignee track's gap in between. */
+/* The action sits at the end of the row in both panes. `margin-left: auto`
+   pushes it past any cells the row happens to carry, so an unassigned ticket —
+   one cell fewer than its neighbours — still lines its button up with the rest. */
 .plan-move {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    grid-column: -2 / -1;
-    justify-self: end;
+    flex: none;
+    margin-left: auto;
     width: 24px;
     height: 24px;
     border: 1px solid var(--border);
@@ -203,14 +207,14 @@
     opacity: 0.7;
 }
 
-/* Compact density: key, title and points only — the assignee column drops out
-   and the row tightens so both panes stay readable side by side. */
+/* Compact density: the assignee drops out and the row tightens so both panes
+   stay readable side by side. The flex line is unchanged, so nothing can wrap. */
 .plan-row-compact {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
     padding: 0.3rem 0.4rem;
 }
 
 .plan-assignee {
+    flex: none;
     font-size: 0.72rem;
     color: var(--text-muted);
     overflow: hidden;

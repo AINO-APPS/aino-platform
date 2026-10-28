@@ -3,6 +3,11 @@ import "highlight.js/styles/github-dark.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+// The generated design tokens carry the spacing and type scale (--space-gutter,
+// --space-control, --font-meta-size, …) that global.css never defined. Without
+// this import every one of those `var()`s resolves to nothing, and the Plan's
+// panes lose their padding and gutter.
+import "./styles/tokens.generated.css";
 import "./global.css";
 import { initErrorTracking } from "./errorTracking";
 

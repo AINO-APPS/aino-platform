@@ -214,25 +214,29 @@ describe("SprintPlan row layout", () => {
         expect(lastCellLabel("Retry backoff")).toMatch(/Move Retry backoff back to the backlog/);
     });
 
-    test("the stylesheet declares one column for every cell in both densities", () => {
+    test("the row is a single non-wrapping line, so the action can never fold under the title", () => {
         const css = fs.readFileSync(
             path.join(__dirname, "..", "SprintPlan.module.css"),
             "utf8",
         );
-        const tracks = (className: string) => {
-            const block = css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
-            const value = block.match(/grid-template-columns:\s*([^;]+);/)?.[1] ?? "";
-            // A `minmax(0, 1fr)` track contains a space; count it as one.
-            return value.trim().replace(/minmax\([^)]*\)/g, "track").split(/\s+/).filter(Boolean);
-        };
+        const block = (className: string) =>
+            css.match(new RegExp(`\\.${className}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
 
-        expect(tracks("plan-row")).toHaveLength(5);
-        expect(tracks("plan-row-compact")).toHaveLength(4);
+        // A fixed grid track count silently wrapped the action onto a second row
+        // whenever a row carried more cells than the template declared. The row
+        // is now a flex line that cannot wrap, at any cell count or density.
+        const row = block("plan-row");
+        expect(row).toMatch(/display:\s*flex/);
+        expect(row).toMatch(/flex-wrap:\s*nowrap/);
+        expect(row).not.toMatch(/grid-template-columns/);
 
-        // The action is pinned to the last track, which holds for both the
-        // five-cell comfortable row and the four-cell compact row.
-        const action = css.match(/\.plan-move\s*\{([^}]*)\}/)?.[1] ?? "";
-        expect(action).toMatch(/grid-column:\s*-2\s*\/\s*-1/);
+        // The title absorbs the free space; the action is pushed to the end, so
+        // an unassigned ticket still lines its button up with the rest.
+        expect(block("plan-title")).toMatch(/flex:\s*1 1 auto/);
+        expect(block("plan-move")).toMatch(/margin-left:\s*auto/);
+        expect(block("plan-move")).toMatch(/flex:\s*none/);
+        // Compact only tightens the padding — it must not reintroduce a template.
+        expect(block("plan-row-compact")).not.toMatch(/grid-template-columns/);
     });
 });
 
