@@ -16,8 +16,10 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+let AGILE = true;
+
 vi.mock("../../../FeaturesContext", () => ({
-    useFeatures: () => ({ hasFeature: () => true }),
+    useFeatures: () => ({ hasFeature: () => AGILE }),
 }));
 
 vi.mock("../../../AuthContext", () => ({
@@ -47,8 +49,9 @@ vi.mock("../TaskContext", () => ({
 
 const TasksHeader = (await import("../TasksHeader")).default;
 
-function renderHeader(sprintEnabled: boolean) {
+function renderHeader(sprintEnabled: boolean, agile = true) {
     SPRINT_ENABLED = sprintEnabled;
+    AGILE = agile;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
         <QueryClientProvider client={queryClient}>
@@ -116,4 +119,13 @@ describe("planning tabs follow the team's sprint config", () => {
         renderHeader(true);
         expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
     });
+
+    test("agile off loses the Sprint tab whatever the team config says", () => {
+        // Tasks.tsx derives the prop as `hasFeature("agile") && config`, so with
+        // agile off the resolved value is false and the dated surface returns.
+        renderHeader(false, false);
+        expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
+        expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
+    });
+
 });
