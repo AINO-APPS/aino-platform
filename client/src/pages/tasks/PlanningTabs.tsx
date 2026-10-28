@@ -54,7 +54,7 @@ export default function PlanningTabs({
                     role="tab"
                     aria-selected={activeTab === tab}
                     className={`${s["tab-btn"]} ${activeTab === tab ? s["tab-active"] : ""}`}
-                    title={tab === "scheduled" ? "Unsprinted tickets with a planned or due date" : undefined}
+                    title={tab === "scheduled" ? "Unsprinted tickets with a planned day" : undefined}
                     onClick={() => {
                         if (tab === "sprint") setSelectedSprintId(activeSprintId as number);
                         setActiveTab(tab);

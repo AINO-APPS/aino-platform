@@ -12,12 +12,18 @@ import { buildVisibilityPredicate, type TaskVisibility } from "./tasks.policy";
 export type { TaskVisibility };
 
 /**
- * Containers are mutually exclusive: a sprint wins over a date, and a date
- * wins over the backlog.
- *  - `backlog`   — no sprint, no planned/due date.
- *  - `scheduled` — no sprint, a planned or due date (the Scheduled tab).
+ * Containers are mutually exclusive, and a planned day is what decides them:
+ * a sprint wins over a day, and a day wins over the backlog.
+ *  - `backlog`   — no sprint, no planned day. A due date is a deadline, not a
+ *                  container: it never moves a ticket out of the backlog.
+ *  - `scheduled` — no sprint, a planned day (the Scheduled tab).
  *  - `board`     — one sprint.
  *  - `schedule`  — the legacy day/range lookup used by the planner and calendar.
+ *
+ * A due date used to win over the backlog too, so a ticket created from the
+ * Backlog with a deadline vanished into Scheduled (and, on a sprint team whose
+ * Scheduled tab is hidden, into nowhere). It is now metadata: it sorts, it
+ * renders on the card, and it is never a reason to leave the backlog.
  */
 export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled";
 
@@ -25,8 +31,8 @@ export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled"
 export const SCHEDULED_HISTORY_DAYS = 30;
 
 const UNSPRINTED = "t.sprint_id IS NULL";
-const UNDATED = "t.planned_date IS NULL AND t.due_date IS NULL";
-const DATED = "(t.planned_date IS NOT NULL OR t.due_date IS NOT NULL)";
+const UNPLANNED = "t.planned_date IS NULL";
+const PLANNED = "t.planned_date IS NOT NULL";
 
 function isoDaysBefore(iso: string, days: number): string {
     const d = new Date(`${iso}T00:00:00Z`);
@@ -136,11 +142,11 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     // ── Container scope ────────────────────────────────────────────────────
     if (input.scope === "backlog") {
         // The collapsed Completed section lists every finished unsprinted
-        // ticket, dated or not; the open list is undated only.
+        // ticket, dated or not; the open list is unplanned only.
         if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);
-        else conditions.push(UNSPRINTED, UNDATED);
+        else conditions.push(UNSPRINTED, UNPLANNED);
     } else if (input.scope === "scheduled") {
-        conditions.push(UNSPRINTED, DATED);
+        conditions.push(UNSPRINTED, PLANNED);
         if (input.today) {
             push(
                 `(t.completed_at IS NULL OR t.completed_at >= $${pi})`,

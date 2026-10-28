@@ -7,7 +7,7 @@
  */
 
 /**
- * Scheduled container: unsprinted tickets carrying a planned or due date.
+ * Scheduled container: unsprinted tickets carrying a planned day.
  *
  * Completed history is trimmed to the window the client shows, so a finished
  * ticket stays visible for `SCHEDULED_HISTORY_DAYS` and then drops out.
@@ -19,14 +19,14 @@ export async function listScheduledTasks(db: SprintDb, whereSql: string, params:
     )).rows;
 }
 
-/** Clear the planned day, and the due date unless the caller keeps it. */
-export async function clearScheduledDates(db: SprintDb, taskId: unknown, keepDue: boolean): Promise<void> {
-    await db.query(
-        keepDue
-            ? "UPDATE tasks SET planned_date = NULL WHERE id = $1"
-            : "UPDATE tasks SET planned_date = NULL, due_date = NULL WHERE id = $1",
-        [taskId],
-    );
+/**
+ * Clear the planned day, returning the ticket to the backlog.
+ *
+ * The due date is kept: it is the ticket's own deadline, not a container
+ * decision, so "move to backlog" must not destroy it.
+ */
+export async function clearScheduledDates(db: SprintDb, taskId: unknown): Promise<void> {
+    await db.query("UPDATE tasks SET planned_date = NULL WHERE id = $1", [taskId]);
 }
 
 export interface SprintDb {

@@ -199,8 +199,8 @@ export default function TasksHeader({
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
                                     : activeTab === "scheduled"
-                                      ? "Tickets with a planned or due date and no sprint — overdue first"
-                                      : "Tickets with no sprint and no date, waiting to be planned"}
+                                      ? "Tickets planned onto a day, with no sprint — overdue first"
+                                      : "Tickets with no sprint and no day planned, waiting to be picked up"}
                             </p>
                         </>
                     )}

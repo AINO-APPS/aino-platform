@@ -141,12 +141,14 @@ describe("task collection builder", () => {
         }
     });
 
-    describe("container placement (sprint > dated > backlog)", () => {
-        test("the backlog holds only tickets with no sprint and no date", () => {
+    describe("container placement (sprint > planned day > backlog)", () => {
+        test("the backlog holds tickets with no sprint and no planned day, whatever their due date", () => {
             const backlog = normalise(buildTaskCollection({ scope: "backlog", orgId: 1, visibility }).whereSql);
             expect(backlog).toContain("t.sprint_id IS NULL");
             expect(backlog).toContain("t.planned_date IS NULL");
-            expect(backlog).toContain("t.due_date IS NULL");
+            // A due date is a deadline, not a container: it must not hide the
+            // ticket from the backlog it was created in.
+            expect(backlog).not.toContain("t.due_date");
         });
 
         test("the backlog's Completed section lists finished tickets whatever their dates", () => {
@@ -161,11 +163,11 @@ describe("task collection builder", () => {
             }
         });
 
-        test("scheduled holds every unsprinted ticket with either date, with no window", () => {
+        test("scheduled holds every unsprinted ticket with a planned day, with no window", () => {
             const scheduled = buildTaskCollection({ scope: "scheduled", orgId: 1, visibility, today: "2026-10-28" });
             const sql = normalise(scheduled.whereSql);
             expect(sql).toContain("t.sprint_id IS NULL");
-            expect(sql).toContain("(t.planned_date IS NOT NULL OR t.due_date IS NOT NULL)");
+            expect(sql).toContain("t.planned_date IS NOT NULL");
             expect(sql).not.toMatch(/planned_date <= \$/);
         });
 

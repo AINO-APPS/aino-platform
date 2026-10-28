@@ -30,7 +30,7 @@ const noopDrag = () => {};
 const EMPTY_SCOPE: Record<string, unknown> = {};
 
 /**
- * Scheduled — every unsprinted ticket with a planned or due date. Overdue
+ * Scheduled — every unsprinted ticket planned onto a day. Overdue
  * first, then one section per day, then Later; a week strip to jump, and
  * per-card Reschedule / Back to backlog with Undo. Kept in sync by `task_*`
  * realtime events plus a visible-tab poll.
@@ -212,7 +212,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         <div className={s.empty}>
           <CalendarDays size={36} strokeWidth={1.5} />
           <p>Nothing scheduled</p>
-          <span>Give a backlog ticket a planned or due date and it moves here.</span>
+          <span>Schedule a backlog ticket onto a day and it moves here.</span>
         </div>
       ) : (
         groups.map((g) => (

@@ -1,6 +1,7 @@
 # ADR-015 — Three exclusive planning containers (sprint, Scheduled, backlog)
 
-- **Status:** Accepted (supersedes D1/D2 of `docs/TASKS_DESIGN_SPEC.md`)
+- **Status:** Accepted (supersedes D1/D2 of `docs/TASKS_DESIGN_SPEC.md`);
+  amended 2026-10-29 — a due date is metadata, only a planned day is a container
 - **Date:** 2026-10-28
 
 ## Context
@@ -19,13 +20,20 @@ Three containers, mutually exclusive, decided in the server query builder
 | Container | Predicate |
 |-----------|-----------|
 | Sprint | `sprint_id = <sprint>` |
-| Scheduled | `sprint_id IS NULL AND (planned_date IS NOT NULL OR due_date IS NOT NULL)` |
-| Backlog | `sprint_id IS NULL AND planned_date IS NULL AND due_date IS NULL` |
+| Scheduled | `sprint_id IS NULL AND planned_date IS NOT NULL` |
+| Backlog | `sprint_id IS NULL AND planned_date IS NULL` |
 
-- A **sprint wins over a date**: a dated ticket in a sprint belongs only to that sprint.
-- A **date wins over the backlog**: giving an unsprinted ticket a planned or due
-  date moves it to Scheduled; "Back to backlog" (`PATCH /tasks/:id/unschedule`)
-  clears both dates so it returns.
+- A **sprint wins over a planned day**: a planned ticket in a sprint belongs only
+  to that sprint.
+- A **planned day wins over the backlog**: scheduling an unsprinted ticket onto a
+  day moves it to Scheduled; "Back to backlog" (`PATCH /tasks/:id/unschedule`)
+  clears the planned day so it returns.
+- **A due date is only a deadline.** It is never a container: it sorts, it renders
+  on the card, and it may be set from either surface without moving the ticket.
+  The amendment: the first version of this ADR also moved due-dated tickets out
+  of the backlog, so a ticket created from the Backlog with a deadline vanished
+  from the list it was created in — and, on a sprint team whose Scheduled tab is
+  hidden, into no surface at all.
 - Joining a sprint overwrites `due_date` with the sprint's end date, so the
   ticket's own date is remembered in `pre_sprint_due_date` and restored when it
   leaves (see `LEAVE_SPRINT`). Without this every ticket that ever left a sprint

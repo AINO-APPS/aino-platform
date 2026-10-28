@@ -1,5 +1,5 @@
-// Backlog endpoints — the backlog is `sprint_id IS NULL` with no planned or
-// due date; dated unsprinted tickets live in Scheduled.
+// Backlog endpoints — the backlog is `sprint_id IS NULL` with no planned day;
+// a due date is a deadline and never moves a ticket out of the backlog.
 //   GET   /backlog
 //   GET   /scheduled
 //   POST  /backlog
@@ -176,9 +176,9 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
     }
 });
 
-// ─── Scheduled: unsprinted tickets that carry a planned or due date ──────
-// No date window: a ticket dated months ahead must still be visible somewhere
-// once dated work leaves the backlog. Completed history is trimmed to 30 days.
+// ─── Scheduled: unsprinted tickets that carry a planned day ─────────────
+// No date window: a ticket planned months ahead must still be visible once it
+// leaves the backlog. Completed history is trimmed to 30 days.
 router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { assignee, label, priority, status, search } = req.query as Record<string, string>;
@@ -391,14 +391,10 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
-        // Back to backlog means undated: a remaining due date would keep the
-        // ticket in Scheduled. `?keep_due=1` clears only the planned day.
-        const keepDue = req.query.keep_due === '1' || req.query.keep_due === 'true';
-        await clearScheduledDates(req.db!, id, keepDue);
+        // The planned day is the container, so clearing it returns the ticket
+        // to the backlog; its own due date (a deadline) is left alone.
+        await clearScheduledDates(req.db!, id);
         await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date, 'backlog', null, req.db);
-        if (!keepDue && task.due_date) {
-            await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, null, null, req.db);
-        }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);

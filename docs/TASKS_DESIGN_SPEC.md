@@ -127,8 +127,8 @@ are referenced by the parity matrix and the phase plan.
 
 | ID | Decision |
 |----|----------|
-| D1 | **Three exclusive containers: sprint, Scheduled, backlog.** A task is in a sprint, or (no sprint) in Scheduled when it carries a `planned_date` or `due_date`, or in the backlog when it carries neither. Never two, never none. A sprint wins over a date; a date wins over the backlog. |
-| D2 | **`planned_date` and `due_date` are the Scheduled container, not backlog metadata.** Setting either on an unsprinted task moves it from the backlog to Scheduled; clearing both (`PATCH /tasks/:id/unschedule`) moves it back. |
+| D1 | **Three exclusive containers: sprint, Scheduled, backlog.** A task is in a sprint, or (no sprint) in Scheduled when it carries a `planned_date`, or in the backlog when it carries none. Never two, never none. A sprint wins over a planned day; a planned day wins over the backlog. A `due_date` is a deadline and never a container (ADR-015, amended 2026-10-29). |
+| D2 | **`planned_date` is the Scheduled container; `due_date` is metadata.** Setting a planned day on an unsprinted task moves it from the backlog to Scheduled; clearing it (`PATCH /tasks/:id/unschedule`) moves it back. A due date never moves a ticket. |
 | D3 | `date TEXT` is renamed **`planned_date`** and both date columns become `DATE`. Date-only, no time component, no timezone. "Today" is the viewer's local today; burndown and reminders use the **team's** timezone. |
 | D4 | **`workflow_state_id` is the only status.** `tasks.status` is backfilled then **dropped**. |
 | D5 | **`workflow_states.category = 'done'` is the only definition of complete.** `completed_at` becomes a derived side effect (set on entering a done category, cleared on leaving), written by the server, never by clients. |
@@ -296,7 +296,7 @@ phase. Nothing reads it.
 ### 5.2 Invariants
 
 - Every task has exactly one `workflow_state_id` belonging to its org.
-- A task is in the backlog **iff** `sprint_id IS NULL AND planned_date IS NULL AND due_date IS NULL`. There is exactly one third state: Scheduled (`sprint_id IS NULL` with either date).
+- A task is in the backlog **iff** `sprint_id IS NULL AND planned_date IS NULL`. There is exactly one third state: Scheduled (`sprint_id IS NULL` with a planned day). A due date is not a container.
 - `completed_at IS NOT NULL` ⟺ the current workflow state's category is `done`.
   Enforced by trigger; clients cannot write it.
 - `rank` is unique per team and totally ordered. Reordering rewrites at most one
@@ -309,8 +309,8 @@ Existing endpoints are kept unless listed. Changes:
 
 | Method | Path | Change |
 |--------|------|--------|
-| `GET` | `/api/tasks/backlog` | Backlog is `sprint_id IS NULL AND planned_date IS NULL AND due_date IS NULL` (D1). Add `project_id`, `work_item_type_id`, `epic_id`, `include_completed`, `completed_since`. Return `completed_count` and `incomplete_total` in the envelope. Cursor or offset pagination. |
-| `GET` | `/api/tasks/scheduled` | **New.** Unsprinted tasks with a planned or due date, no window, completed history trimmed to 30 days. |
+| `GET` | `/api/tasks/backlog` | Backlog is `sprint_id IS NULL AND planned_date IS NULL` (D1). Add `project_id`, `work_item_type_id`, `epic_id`, `include_completed`, `completed_since`. Return `completed_count` and `incomplete_total` in the envelope. Cursor or offset pagination. |
+| `GET` | `/api/tasks/scheduled` | **New.** Unsprinted tasks with a planned day, no window, completed history trimmed to 30 days. |
 | `GET` | `/api/tasks/backlog/completed` | *Not added* — completed items are served by the flag above, lazy-loaded on expand (D16). |
 | `PATCH` | `/api/tasks/:id/rank` | **New.** Body `{ beforeId, afterId }`; server computes the LexoRank string and returns the new rank. |
 | `PATCH` | `/api/tasks/:id/status` | Rejects writes when `sprint.status = 'completed'`. Returns the derived `completed_at`. |

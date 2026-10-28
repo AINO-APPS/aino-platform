@@ -403,7 +403,7 @@ export function useBacklog({
     ) => {
         showConfirm(
             "Move to Backlog",
-            `Move "${taskTitle || "this task"}" to backlog? Its planned and due dates are cleared.`,
+            `Move "${taskTitle || "this task"}" to backlog? Its planned day is cleared; a due date is kept as a deadline.`,
             async () => {
                 closeConfirm();
                 try {
