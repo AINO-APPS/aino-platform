@@ -67,7 +67,11 @@ export function useTasksRouteSync({
                 );
                 return;
             }
-            if (!tabs.includes(route.view)) {
+            // A named sprint is reachable even with nothing running: that is how
+            // a future sprint is planned. Everything else must be a tab the
+            // team has (Scheduled is not, while a sprint runs).
+            const namedSprint = route.view === "sprint" && route.sprintId != null;
+            if (!namedSprint && !tabs.includes(route.view)) {
                 navigate(tasksViewPath("backlog", null), { replace: true });
                 return;
             }
