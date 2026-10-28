@@ -10,97 +10,41 @@
  * list: `GET /tasks/available-sprints` materialises sprint rows as a side effect
  * of being read, so gating on the list made the tab set flicker.
  */
-import React from "react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+import { isSprintEnabled } from "../hooks/usePlanningSurface";
 
 let AGILE = true;
-
 vi.mock("../../../FeaturesContext", () => ({
     useFeatures: () => ({ hasFeature: () => AGILE }),
 }));
 
-vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({
-        user: { id: 1, role: "employee", team_id: 1, team_sprint_enabled: SPRINT_ENABLED },
-    }),
-}));
+const PlanningTabs = (await import("../PlanningTabs")).default;
 
-let SPRINT_ENABLED = true;
-
-vi.mock("../../../api/tasks", () => ({
-    getAvailableSprints: vi.fn().mockResolvedValue({ data: [] }),
-}));
-
-vi.mock("../../../api/organization", () => ({
-    getOrgTeams: vi.fn().mockResolvedValue({ data: [] }),
-}));
-
-vi.mock("../TaskContext", () => ({
-    useTaskCtx: () => ({
-        assignableUsers: [],
-        orgLabels: [],
-        availableSprints: [],
-        currentUser: { id: 1, team_id: 1, team_sprint_enabled: SPRINT_ENABLED },
-    }),
-}));
-
-const TasksHeader = (await import("../TasksHeader")).default;
-
-function renderHeader(sprintEnabled: boolean, agile = true) {
-    SPRINT_ENABLED = sprintEnabled;
+function renderTabs(user: any, sprints: any[] = [], agile = true) {
     AGILE = agile;
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
-        <QueryClientProvider client={queryClient}>
-            <MemoryRouter>
-                <TasksHeader
-                    activeTab="backlog"
-                    setActiveTab={() => {}}
-                    selectedSprintId={null}
-                    setSelectedSprintId={() => {}}
-                    backlogTasks={[]}
-                    filterCount={0}
-                    filtersOpen={false}
-                    cardDensity="comfortable"
-                    setCardDensity={() => {}}
-                    setFiltersOpen={() => {}}
-                    filterAssignee=""
-                    setFilterAssignee={() => {}}
-                    filterLabel=""
-                    setFilterLabel={() => {}}
-                    filterPriority=""
-                    setFilterPriority={() => {}}
-                    filterStatus=""
-                    setFilterStatus={() => {}}
-                    globalSearch=""
-                    globalResults={[]}
-                    globalSearching={false}
-                    globalSearchOpen={false}
-                    globalSearchRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
-                    onGlobalSearch={() => {}}
-                    setGlobalSearchOpen={() => {}}
-                    onOpenDetail={() => {}}
-                    setBacklogFormOpen={() => {}}
-                    setSprintImportOpen={() => {}}
-                    fetchBacklog={() => {}}
-                    clearFilters={() => {}}
-                    sprintEnabled={sprintEnabled}
-                />
-            </MemoryRouter>
-        </QueryClientProvider>,
+        <PlanningTabs
+            activeTab="backlog"
+            setActiveTab={() => {}}
+            currentUser={user}
+            agileEnabled={agile}
+            backlogCount={0}
+            availableSprints={sprints}
+            selectedSprintId={null}
+            setSelectedSprintId={() => {}}
+        />,
     );
 }
 
 describe("planning tabs follow the team's sprint config", () => {
     beforeEach(() => {
-        SPRINT_ENABLED = true;
+        AGILE = true;
     });
 
     test("a sprint team is offered Sprint, not Scheduled", () => {
-        renderHeader(true);
+        renderTabs({ id: 1, team_id: 1, team_sprint_enabled: true });
         expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
         expect(screen.queryByRole("button", { name: /Scheduled/ })).toBeNull();
         // The backlog is common to both surfaces.
@@ -108,24 +52,40 @@ describe("planning tabs follow the team's sprint config", () => {
     });
 
     test("a team with no sprint config is offered Scheduled, not Sprint", () => {
-        renderHeader(false);
+        renderTabs({ id: 1, team_id: 1, team_sprint_enabled: false });
         expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
         expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
         expect(screen.getByRole("button", { name: /Backlog/ })).toBeTruthy();
     });
 
     test("the Sprint tab does not wait for a sprint row to exist", () => {
-        // availableSprints is [] in the mocked context: config alone is enough.
-        renderHeader(true);
+        // No sprints in context: the team's config alone is enough.
+        renderTabs({ team_sprint_enabled: true }, []);
         expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
     });
 
-    test("agile off loses the Sprint tab whatever the team config says", () => {
-        // Tasks.tsx derives the prop as `hasFeature("agile") && config`, so with
-        // agile off the resolved value is false and the dated surface returns.
-        renderHeader(false, false);
+    test("an older server that omits the flag keeps the Sprint tab", () => {
+        // `undefined` is "not reported", which must not read as "no sprints".
+        renderTabs({ id: 1 }, [{ id: 7, status: "active" }]);
+        expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
+    });
+
+    test("an older server with no sprints still shows the dated surface", () => {
+        renderTabs({ id: 1 }, []);
         expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
         expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
     });
 
+    test("agile off loses the Sprint tab whatever the team config says", () => {
+        renderTabs({ team_sprint_enabled: true }, [], false);
+        expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
+        expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
+    });
+
+    test("the predicate distinguishes unknown from no-sprints", () => {
+        expect(isSprintEnabled({}, true, [])).toBe(false);
+        expect(isSprintEnabled({ team_sprint_enabled: false }, true, [{ id: 1 }])).toBe(false);
+        expect(isSprintEnabled({ team_sprint_enabled: true }, true, [])).toBe(true);
+        expect(isSprintEnabled({ team_sprint_enabled: true }, false, [])).toBe(false);
+    });
 });

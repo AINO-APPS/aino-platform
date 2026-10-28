@@ -20,6 +20,7 @@ const { getStorage, randomFilename } = require("../platform/storage");
 const { isValidDescriptor, isPlausibleDescriptor, parseDescriptor, compareDescriptors, FACE_DESCRIPTOR_LENGTH } = require("../utils/face");
 const { ROLE_LEVEL } = require("../middleware/rbac");
 const { broadcastProfileUpdate } = require("../services/profileRealtime");
+import { loadProfileRow } from "../modules/profile/profileQuery";
 const router = express.Router();
 // Tenantless platform users may read their profile and rotate their password.
 // All other profile operations remain tenant-only and therefore cannot run
@@ -156,45 +157,17 @@ router.get("/", auth, async (req: Request, res: Response) => {
             });
         }
 
-        // Progressive fallback: an older tenant DB may predate either the user's
-        // `notification_prefs` column or the team's `sprint_start_date`. Each
-        // query drops one optional column, so a missing column degrades the
-        // response instead of failing the whole profile fetch (which would
-        // strand both clients on a degraded session).
-        //
-        // `team_sprint_enabled` is the team's sprint config, not the tenant's
-        // agile feature: a team works in sprints once an admin has set a start
-        // date, even before any sprint row has been materialised. Clients use
-        // it to choose between the Sprint and Schedule planning surfaces.
-        const PROFILE_COLUMNS = "u.id, u.username, u.full_name, u.email, u.avatar, u.role, u.org_id, u.team_id, u.department_id, u.must_change_password, t.name as team_name";
-        const profileQueries = [
-            [`SELECT ${PROFILE_COLUMNS}, u.notification_prefs,
-                    (t.sprint_start_date IS NOT NULL AND t.sprint_start_date <> '') as team_sprint_enabled
-               FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1`, "all"],
-            [`SELECT ${PROFILE_COLUMNS},
-                    (t.sprint_start_date IS NOT NULL AND t.sprint_start_date <> '') as team_sprint_enabled
-               FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1`, "no notification_prefs"],
-            [`SELECT ${PROFILE_COLUMNS}
-               FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1`, "no notification_prefs, no sprint_start_date"],
-        ] as const;
-        let user;
-        let queried = false;
-        for (const [sql, missing] of profileQueries) {
-            try {
-                user = (await req.db!.query(sql, [req.userId])).rows[0];
-                queried = true;
-                break;
-            } catch (colErr) {
-                req.log.warn({ err: colErr }, `GET /profile: ${missing} unavailable, falling back`);
-            }
-        }
-        if (!queried) throw new Error("GET /profile: no column set is queryable");
+        // Degrades one optional column at a time; see the module for why a
+        // missing column must not fail the session hydration.
+        const { user, sprintEnabledReported } = await loadProfileRow(req.db!, Number(req.userId), (missing, err) =>
+            req.log.warn({ err }, `GET /profile: ${missing} unavailable, falling back`),
+        );
         if (!user) return res.status(404).json({ error: "User not found" });
         user.must_change_password = !!user.must_change_password;
         // A user with no team has no sprint context at all. When the fallback had
         // to drop the column, leave it absent: clients distinguish "no sprints"
         // from "not reported" and infer from the sprint list in the latter case.
-        if (user.team_sprint_enabled !== undefined) user.team_sprint_enabled = !!user.team_sprint_enabled;
+        if (sprintEnabledReported) user.team_sprint_enabled = !!user.team_sprint_enabled;
         user.tenant_id = req.tenantId ?? null;
         if (req.isPlatformUser) user.role = "platform_admin";
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];

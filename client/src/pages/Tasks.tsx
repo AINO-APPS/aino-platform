@@ -121,19 +121,6 @@ export default function Tasks() {
     },
   });
 
-  // The team's planning surface: a team with sprint config plans in the sprint,
-  // a team without it schedules onto dates. This is the team's own config, not
-  // the tenant's agile feature, and it must not be inferred from `availableSprints`
-  // — that call materialises sprint rows as a side effect of being read.
-  //
-  // `undefined` means an older server: fall back to the sprint list so an
-  // un-upgraded deploy keeps the Sprint tab instead of losing it. `null` also
-  // means "not hydrated yet", which resolves on the next profile fetch.
-  const sprintConfigKnown = currentUser?.team_sprint_enabled !== undefined;
-  const sprintEnabled =
-    hasFeature("agile") &&
-    (currentUser?.team_sprint_enabled ?? availableSprints.length > 0);
-
   const team = useTeamScope({ currentUser, hasFeature, availableSprints, setSelectedSprintId });
   const { isOrgAdmin, teamVisibility, showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
 
@@ -253,30 +240,9 @@ export default function Tasks() {
     navigate,
   });
 
-  // Schedule is not offered to a sprint team, so a bookmark or a picked tab can
-  // point at a surface that no longer exists for them. Keep the URL reachable,
-  // but move the view to the backlog rather than to a tab with no button.
-  //
-  // This navigates rather than setting local state: `activeTab` is derived from
-  // the route by `useTasksRouteSync`, so writing it directly would leave the
-  // address bar on a view that is no longer rendered. It also waits until the
-  // profile has actually reported the config — an un-hydrated user must not be
-  // treated as a team without sprints.
-  useEffect(() => {
-    if (!sprintConfigKnown) return;
-    if (sprintEnabled && activeTab === "scheduled") changeTab("backlog");
-    if (!sprintEnabled && activeTab === "sprint") changeTab("backlog");
-  }, [sprintConfigKnown, sprintEnabled, activeTab, changeTab]);
-
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
-  useTasksRouteSync({
-    route: tasksRoute.route,
-    searchParams,
-    navigate,
-    setActiveTab,
-    setSelectedSprintId,
-  });
+  useTasksRouteSync({ route: tasksRoute.route, searchParams, navigate, setActiveTab, setSelectedSprintId, currentUser });
 
   // Deep links to a specific task open its detail on arrival.
   useTaskDeepLink(searchParams, detail.openTaskDetail);
@@ -473,7 +439,6 @@ export default function Tasks() {
           selectedTeamId={selectedTeamId}
           onTeamChange={(value) => setSelectedTeamId(value)}
           showTeamSwitcher={showTeamSwitcher}
-          sprintEnabled={sprintEnabled}
         />
 
         <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />
