@@ -121,6 +121,12 @@ export default function Tasks() {
     },
   });
 
+  // The team's planning surface: a team with sprint config plans in the sprint,
+  // a team without it schedules onto dates. This is the team's own config, not
+  // the tenant's agile feature, and it must not be inferred from `availableSprints`
+  // — that call materialises sprint rows as a side effect of being read.
+  const sprintEnabled = hasFeature("agile") && !!currentUser?.team_sprint_enabled;
+
   const team = useTeamScope({ currentUser, hasFeature, availableSprints, setSelectedSprintId });
   const { isOrgAdmin, teamVisibility, showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
 
@@ -239,6 +245,14 @@ export default function Tasks() {
     agileEnabled: hasFeature("agile"),
     navigate,
   });
+
+  // Schedule is not offered to a sprint team, so a bookmark or a picked tab can
+  // point at a surface that no longer exists for them. Keep the URL reachable,
+  // but move the view to the backlog rather than to a tab with no button.
+  useEffect(() => {
+    if (sprintEnabled && activeTab === "scheduled") setActiveTab("backlog");
+    if (!sprintEnabled && activeTab === "sprint") setActiveTab("backlog");
+  }, [sprintEnabled, activeTab, setActiveTab]);
 
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
@@ -445,6 +459,7 @@ export default function Tasks() {
           selectedTeamId={selectedTeamId}
           onTeamChange={(value) => setSelectedTeamId(value)}
           showTeamSwitcher={showTeamSwitcher}
+          sprintEnabled={sprintEnabled}
         />
 
         <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />

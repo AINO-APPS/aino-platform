@@ -52,6 +52,12 @@ interface TasksHeaderProps {
     selectedTeamId?: TeamScope | null;
     onTeamChange?: (value: TeamScope) => void;
     showTeamSwitcher?: boolean;
+    /**
+     * The team works in sprints (its sprint config is set). Sprint and Schedule
+     * are alternatives, not companions: a sprint team plans in the sprint, a
+     * team with no sprints dates its work instead.
+     */
+    sprintEnabled?: boolean;
 }
 
 export default function TasksHeader({
@@ -94,6 +100,7 @@ export default function TasksHeader({
     selectedTeamId = null,
     onTeamChange,
     showTeamSwitcher = false,
+    sprintEnabled = false,
 }: TasksHeaderProps) {
     const { assignableUsers, orgLabels, availableSprints, currentUser } =
         useTaskCtx() as any;
@@ -234,10 +241,11 @@ export default function TasksHeader({
 
                     {/* Tab switcher */}
                     <div className={s["tab-switcher"]}>
-                        {/* Sprint tab is part of the Agile feature bundle — explicitly
-                            gated on hasFeature("agile") instead of relying on the
-                            sprint list happening to be empty when the feature is off. */}
-                        {hasFeature("agile") && availableSprints.length > 0 && (
+                        {/* Sprint tab is part of the Agile feature bundle and belongs
+                            to teams that actually work in sprints. Gate on the team's
+                            sprint config rather than on the sprint list, which is
+                            materialised lazily and would make this tab flicker. */}
+                        {hasFeature("agile") && sprintEnabled && (
                             <button
                                 className={`${s["tab-btn"]} ${activeTab === "sprint" ? s["tab-active"] : ""}`}
                                 onClick={() => {
@@ -268,17 +276,22 @@ export default function TasksHeader({
                                 <span className={s["tab-badge"]}>{backlogTasks.length}</span>
                             )}
                         </button>
-                        <button
-                            className={`${s["tab-btn"]} ${activeTab === "scheduled" ? s["tab-active"] : ""}`}
-                            onClick={() => setActiveTab("scheduled")}
-                            title="Tasks scheduled onto a day — overdue and upcoming"
-                        >
-                            <CalendarDays
-                                size={14}
-                                style={{ verticalAlign: "middle", marginRight: 4 }}
-                            />
-                            Scheduled
-                        </button>
+                        {/* Schedule and Sprint are alternative planning surfaces, so a
+                            sprint team is not offered both. The /tasks/schedule route
+                            still resolves for links, the palette and deep links. */}
+                        {!sprintEnabled && (
+                            <button
+                                className={`${s["tab-btn"]} ${activeTab === "scheduled" ? s["tab-active"] : ""}`}
+                                onClick={() => setActiveTab("scheduled")}
+                                title="Tasks scheduled onto a day — overdue and upcoming"
+                            >
+                                <CalendarDays
+                                    size={14}
+                                    style={{ verticalAlign: "middle", marginRight: 4 }}
+                                />
+                                Scheduled
+                            </button>
+                        )}
                         <button
                             className={`${s["tab-btn"]} ${activeTab === "service-desk" ? s["tab-active"] : ""}`}
                             onClick={() => setActiveTab("service-desk")}

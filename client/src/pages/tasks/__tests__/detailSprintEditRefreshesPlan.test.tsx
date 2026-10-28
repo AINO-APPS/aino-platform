@@ -80,7 +80,9 @@ vi.mock("../../../hooks/useRealtimeEvent", () => ({ default: vi.fn() }));
 vi.mock("../hooks/useVisiblePoll", () => ({ useVisiblePoll: vi.fn() }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee" } }),
+    // This scenario lives on the Sprint tab, which a team only gets when it has
+    // sprint config.
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", team_sprint_enabled: true } }),
     hasTenantContext: () => true,
 }));
 

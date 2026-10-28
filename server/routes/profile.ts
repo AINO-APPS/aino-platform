@@ -160,24 +160,32 @@ router.get("/", auth, async (req: Request, res: Response) => {
         // If the column hasn't been added on this tenant DB yet (older
         // deployments before the migration runs), fall back to the same
         // query without it so the app keeps working.
+        // `team_sprint_enabled` is the team's sprint config, not the tenant's
+        // agile feature: a team works in sprints once an admin has set a start
+        // date, even before any sprint row has been materialised. Clients use
+        // it to choose between the Sprint and Schedule planning surfaces.
         let user;
         try {
             user = (await req.db!.query(`
                 SELECT u.id, u.username, u.full_name, u.email, u.avatar, u.role, u.org_id, u.team_id, u.department_id, u.must_change_password,
                        u.notification_prefs,
-                       t.name as team_name
+                       t.name as team_name,
+                       (t.sprint_start_date IS NOT NULL AND t.sprint_start_date <> '') as team_sprint_enabled
                 FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1
             `, [req.userId])).rows[0];
         } catch (colErr) {
             req.log.warn({ err: colErr }, "GET /profile: notification_prefs column missing, falling back");
             user = (await req.db!.query(`
                 SELECT u.id, u.username, u.full_name, u.email, u.avatar, u.role, u.org_id, u.team_id, u.department_id, u.must_change_password,
-                       t.name as team_name
+                       t.name as team_name,
+                       (t.sprint_start_date IS NOT NULL AND t.sprint_start_date <> '') as team_sprint_enabled
                 FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1
             `, [req.userId])).rows[0];
         }
         if (!user) return res.status(404).json({ error: "User not found" });
         user.must_change_password = !!user.must_change_password;
+        // A user with no team has no sprint context at all.
+        user.team_sprint_enabled = !!user.team_sprint_enabled;
         user.tenant_id = req.tenantId ?? null;
         if (req.isPlatformUser) user.role = "platform_admin";
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];

@@ -36,6 +36,15 @@ export interface User {
     impersonated?: boolean;
     impersonated_by_name?: string | null;
     impersonated_tenant_name?: string | null;
+    team_id?: number | null;
+    team_name?: string | null;
+    /**
+     * The caller's team has sprint config (an admin set a start date), so the
+     * team plans in sprints rather than on dated work. Not the tenant's agile
+     * feature, and not derivable from the sprint list, which is materialised
+     * lazily.
+     */
+    team_sprint_enabled?: boolean;
     [key: string]: unknown;
 }
 

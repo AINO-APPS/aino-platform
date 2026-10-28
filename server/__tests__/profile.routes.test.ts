@@ -238,6 +238,39 @@ describe("GET /api/profile", () => {
         expect(mockQuery.mock.calls.some(([sql]) => /FROM users u/.test(sql))).toBe(false);
     });
 
+    test("reports the team's sprint config so clients can pick their planning surface", async () => {
+        setupAuthOnly();
+        const userRow = {
+            id: 1, username: "testuser", full_name: "Test User", email: "test@test.com",
+            avatar: null, role: "employee", org_id: 1, team_id: 1, department_id: 1,
+            must_change_password: false, team_name: "Dev", team_sprint_enabled: true,
+        };
+        mockQuery.mockResolvedValueOnce({ rows: [userRow], rowCount: 1 });
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+        const res = await request(app).get("/api/profile").set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.team_sprint_enabled).toBe(true);
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("t.sprint_start_date"))).toBe(true);
+    });
+
+    test("a user with no team reports no sprint config, never null", async () => {
+        setupAuthOnly();
+        const userRow = {
+            id: 1, username: "testuser", full_name: "Test User", email: "test@test.com",
+            avatar: null, role: "employee", org_id: 1, team_id: null, department_id: null,
+            must_change_password: false, team_name: null, team_sprint_enabled: null,
+        };
+        mockQuery.mockResolvedValueOnce({ rows: [userRow], rowCount: 1 });
+        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+        const res = await request(app).get("/api/profile").set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.team_sprint_enabled).toBe(false);
+    });
+
     test("sets has_reports true when user has direct reports", async () => {
         setupAuthOnly();
         const userRow = { id: 1, username: "mgr", full_name: "Manager", email: "m@test.com", avatar: null, role: "manager", org_id: 1, team_id: 1, department_id: 1, must_change_password: false, team_name: "Dev" };
