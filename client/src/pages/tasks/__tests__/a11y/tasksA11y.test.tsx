@@ -108,12 +108,6 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
         const { container } = wrap(
             <KanbanBoard
                 tasks={[task]}
-                dragOverCol={null}
-                onDragOver={vi.fn()}
-                onDragLeave={vi.fn()}
-                onDrop={vi.fn()}
-                onDragStart={vi.fn()}
-                onDragEnd={vi.fn()}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
                 announcement="Moved Refund webhook retries to In Progress"
@@ -238,12 +232,6 @@ describe("drag results and undo are announced", () => {
         wrap(
             <KanbanBoard
                 tasks={[task]}
-                dragOverCol={null}
-                onDragOver={vi.fn()}
-                onDragLeave={vi.fn()}
-                onDrop={vi.fn()}
-                onDragStart={vi.fn()}
-                onDragEnd={vi.fn()}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
                 announcement="Moved Refund webhook retries to In Progress"

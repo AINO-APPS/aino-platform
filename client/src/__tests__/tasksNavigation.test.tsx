@@ -173,7 +173,7 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
         const user = userEvent.setup();
         render(<App />);
         await screen.findByTestId("backlog-tab");
-        await user.click(screen.getByRole("button", { name: label }));
+        await user.click(screen.getByRole("tab", { name: label }));
 
         await waitFor(() => {
             expect(window.location.pathname).toBe(path);
@@ -186,14 +186,14 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
         const user = userEvent.setup();
         render(<App />);
         await screen.findByTestId("backlog-tab");
-        const backlogButton = screen.getByRole("button", { name: "Backlog" });
-        await user.click(screen.getByRole("button", { name: "Scheduled" }));
+        const backlogButton = screen.getByRole("tab", { name: "Backlog" });
+        await user.click(screen.getByRole("tab", { name: "Scheduled" }));
         expect(await screen.findByTestId("scheduled-tab")).toBeVisible();
-        await user.click(screen.getByRole("button", { name: "Service Desk" }));
+        await user.click(screen.getByRole("tab", { name: "Service Desk" }));
         expect(await screen.findByTestId("service-desk-tab")).toBeVisible();
-        await user.click(screen.getByRole("button", { name: "Backlog" }));
+        await user.click(screen.getByRole("tab", { name: "Backlog" }));
         expect(await screen.findByTestId("backlog-tab")).toBeVisible();
-        expect(screen.getByRole("button", { name: "Backlog" })).toBe(backlogButton);
+        expect(screen.getByRole("tab", { name: "Backlog" })).toBe(backlogButton);
     });
 
     test.each([

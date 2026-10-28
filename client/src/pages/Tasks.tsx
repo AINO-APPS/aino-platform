@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects, assignTaskToSprint } from "../api/tasks";
 import { getLocalToday } from "../api/client";
-import { getTeamSprintConfig } from "../api/organization";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
 import { SprintLifecycleControls } from "../components/agile/AgileWorkflowPanels";
@@ -47,6 +46,9 @@ import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
 import { useTeamScope } from "./tasks/hooks/useTeamScope";
+import { useTeamSwitchNavigation } from "./tasks/hooks/useTeamSwitchNavigation";
+import { useSprintBoardActions } from "./tasks/hooks/useSprintBoardActions";
+import { useTaskQuickActions, useSummaryFilters, toggleLabelId } from "./tasks/hooks/useTaskQuickActions";
 import TeamFallbackBanner from "./tasks/TeamFallbackBanner";
 import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
 import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
@@ -104,7 +106,7 @@ export default function Tasks() {
   // for users with no team. Don't gate on currentUser.team_id: the cached
   // profile may be stale (especially in the desktop app where the renderer
   // doesn't auto-reload after a team is assigned).
-  const { data: availableSprints = EMPTY } = useQuery({
+  const { data: availableSprints = EMPTY, isFetched: sprintsFetched } = useQuery({
     queryKey: ["tasks", "availableSprints"],
     // "Agile & Sprints" gate: skip the (server-403-gated) sprint lookup
     // entirely when the tenant's plan/feature-override disables agile.
@@ -121,8 +123,10 @@ export default function Tasks() {
     },
   });
 
-  const team = useTeamScope({ currentUser, hasFeature, availableSprints, setSelectedSprintId });
-  const { isOrgAdmin, teamVisibility, showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
+  const sprintsLoaded = !hasFeature("agile") || sprintsFetched;
+  const team = useTeamScope({ currentUser, availableSprints, setSelectedSprintId });
+  const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, effectiveTeamId, visibleSprints, teamScopeParams } = team;
+  const teamVisibility = hasFeature("team_visibility");
 
   // If agile gets disabled while the user is on the Sprint tab (feature
   // override flipped from the platform console), bounce back to Backlog.
@@ -183,6 +187,7 @@ export default function Tasks() {
     closeConfirm,
     fetchTasks,
     setError,
+    onMoved: (to: "scheduled" | "sprint") => toast.info(to === "sprint" ? "Moved to the sprint" : "Dated tickets live in Scheduled — moved there", 4000),
     onScheduled: (_id: any, day: string) => toast.success(<span>Scheduled for {day} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={() => { setScheduledFocus(day); setActiveTab("scheduled"); }}>View</button></span>, 6000),
   }) as any;
   const detail = useTaskDetail({
@@ -230,19 +235,36 @@ export default function Tasks() {
 
   // Epics: the rollup list and the URL-backed epic filter.
   const epics = useEpics(tasksRoute.filters.epic);
-  const teamMode = useTeamMode(currentUser?.team_id);
+  // Mode follows the team on screen (an admin's picker), not the admin's own.
+  const teamMode = useTeamMode(effectiveTeamId);
 
-  // Landing on the bare /tasks entry point opens the running sprint's plan.
+  // Landing on the bare /tasks entry point opens the running sprint's board.
   useSprintLanding({
     pathname: location.pathname,
     availableSprints: visibleSprints,
+    sprintsLoaded: sprintsLoaded && (!showTeamSwitcher || selectedTeamId !== null),
     agileEnabled: hasFeature("agile"),
     navigate,
   });
 
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
-  useTasksRouteSync({ route: tasksRoute.route, searchParams, navigate, setActiveTab, setSelectedSprintId, currentUser });
+  useTasksRouteSync({
+    route: tasksRoute.route,
+    searchParams,
+    navigate,
+    setActiveTab,
+    setSelectedSprintId,
+    availableSprints: visibleSprints,
+    sprintsLoaded: sprintsLoaded && (!showTeamSwitcher || selectedTeamId !== null),
+  });
+
+  useTeamSwitchNavigation({
+    selectedTeamId,
+    visibleSprints,
+    activeTab: tasksRoute.route.view,
+    goToView: tasksRoute.goToView,
+  });
 
   // Deep links to a specific task open its detail on arrival.
   useTaskDeepLink(searchParams, detail.openTaskDetail);
@@ -272,16 +294,6 @@ export default function Tasks() {
     });
     return () => controller.abort();
   }, [fetchTasks, activeTab]);
-
-  useEffect(() => {
-    if (!currentUser?.team_id) {
-      if (!isOrgAdmin && activeTab === "sprint") setActiveTab("backlog");
-      return;
-    }
-    getTeamSprintConfig(currentUser.team_id).catch(() => {
-      if (activeTab === "sprint") setActiveTab("backlog");
-    });
-  }, [currentUser?.team_id, isOrgAdmin]);
 
   useEffect(() => {
     const today = getLocalToday();
@@ -329,39 +341,14 @@ export default function Tasks() {
     await lifecycle.cancelTicket(target);
   };
 
-  const handleToggleDone = (task: any) => {
-    // The workflow state is the only status (D4): toggling completion moves to
-    // the org's terminal state, or back to its initial one.
-    const newStatus = task.completed_at ? initialState?.key : terminalStates?.[0]?.key;
-    if (!newStatus) return;
-    const label = task.completed_at ? "Mark as incomplete" : "Mark as done";
-    showConfirm(label, `${label}: "${task.title}"?`, async () => {
-      closeConfirm();
-      try {
-        await updateTaskStatus(task.id, newStatus);
-        fetchTasks();
-      } catch {
-        setError("Failed to update task");
-      }
-    }, { confirmText: label });
-  };
+  const { toggleDone } = useTaskQuickActions({
+    showConfirm, closeConfirm, fetchTasks, setError, initialState, terminalStates,
+  });
 
-  const handleSummaryTotal = () => {
-    filters.setFiltersOpen(true);
-    filters.setFilterPriority("");
-    filters.setFilterStatus("");
-  };
-  const handleSummaryPriority = (value: string) => {
-    filters.setFiltersOpen(true);
-    filters.setFilterPriority((prev: string) => (prev === value ? "" : value));
-  };
-  const toggleLabel = (labelId: any, list: any, setter: any) => {
-    setter((prev: any[]) =>
-      prev.includes(labelId)
-        ? prev.filter((id) => id !== labelId)
-        : [...prev, labelId],
-    );
-  };
+  const summaryFilters = useSummaryFilters(filters);
+  const { showTotal: handleSummaryTotal, showPriority: handleSummaryPriority } = summaryFilters;
+  const toggleLabel = toggleLabelId;
+
   const getColTasks = (colId: string) => tasks.filter((t) => t.workflow_state_key === colId);
   const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
@@ -387,6 +374,18 @@ export default function Tasks() {
       ),
   });
   const palette = tasksPalette.palette;
+
+  const sprintActions = useSprintBoardActions({
+    visibleSprints,
+    selectedSprintId,
+    teamScopeParams,
+    currentUser,
+    setSelectedSprintId,
+    goToView: tasksRoute.goToView,
+    fetchTasks,
+    setError,
+    toast,
+  });
 
   return (
     <TaskProvider
@@ -439,6 +438,7 @@ export default function Tasks() {
           selectedTeamId={selectedTeamId}
           onTeamChange={(value) => setSelectedTeamId(value)}
           showTeamSwitcher={showTeamSwitcher}
+          onPlanSprint={sprintActions.planSprint}
         />
 
         <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />
@@ -475,7 +475,7 @@ export default function Tasks() {
             sprintMode={sprintMode}
             onOpenDetail={detail.openTaskDetail}
             onOpenComments={comments.openComments}
-            onAddTask={() => backlog.setBacklogFormOpen(true)}
+            onAddTask={selectedSprintId ? sprintActions.addToColumn : undefined}
             boardDrag={boardDrag}
             boardAnnouncement={boardAnnouncement}
             plan={tasksRoute.route.plan}

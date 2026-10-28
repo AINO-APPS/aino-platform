@@ -235,3 +235,74 @@ describe("PUT /api/sprints/:id", () => {
         expect(res.status).toBe(200);
     });
 });
+describe("POST /api/sprints/:id/start", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    /**
+     * One active sprint per team. Starting a second one used to silently
+     * complete the running sprint, stranding its unfinished tickets without
+     * the completion/rollover prompt. It is now refused.
+     */
+    test("refuses to start a sprint while the team already has an active one", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/sprints/2/start")
+            .set(CSRF)
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("SPRINT_ALREADY_ACTIVE");
+        const sql = mockQuery.mock.calls.map((c: any[]) => String(c[0]));
+        expect(sql.some((q) => /SET status = 'completed'/.test(q))).toBe(false);
+        expect(sql.some((q) => /SET status = 'active'/.test(q))).toBe(false);
+    });
+});
+
+describe("one active sprint per team on every activation path", () => {
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    });
+
+    test("PUT status=active is refused while another sprint runs", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
+
+        const res = await request(app)
+            .put("/api/sprints/2")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ status: "active" });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("SPRINT_ALREADY_ACTIVE");
+        expect(mockQuery.mock.calls.map((c: any[]) => String(c[0])).some((q) => /SET status = 'active'/.test(q))).toBe(false);
+    });
+
+    test("resume is refused while another sprint runs", async () => {
+        setupAuth();
+        mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "paused", name: "Sprint 2", end_date: "2026-11-01" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/sprints/2/resume")
+            .set(CSRF)
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe("SPRINT_ALREADY_ACTIVE");
+        expect(mockQuery.mock.calls.map((c: any[]) => String(c[0])).some((q) => /SET status = 'active'/.test(q))).toBe(false);
+    });
+});

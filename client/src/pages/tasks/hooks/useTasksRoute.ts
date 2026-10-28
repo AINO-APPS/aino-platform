@@ -51,16 +51,17 @@ export function showsBacklog(activeTab: string, plan = false): boolean {
 /**
  * Where the Tasks page should land for a given entry path.
  *
- * Once a team's sprint is running, the sprint plan is where the work is — the
+ * Once a team's sprint is running, the sprint board is where the work is — the
  * backlog is only the pool of unplanned tickets. So the bare `/tasks` entry
- * point opens the active sprint's plan. Every explicit view is honoured: a
- * bookmark to `/tasks/backlog`, a shared `/tasks/sprint/9`, a chosen tab.
+ * point opens the active sprint's Board; the Plan split view is reached only
+ * through "Plan sprint". Every explicit view is honoured: a bookmark to
+ * `/tasks/backlog`, a shared `/tasks/sprint/9`, a chosen tab.
  */
 export function landingTasksPath(pathname: string, activeSprintId: number | string | null): string {
     const isBareEntry = pathname === "/tasks" || pathname === "/tasks/";
     if (!isBareEntry) return pathname;
     return activeSprintId
-        ? tasksViewPath("sprint", activeSprintId, true)
+        ? tasksViewPath("sprint", activeSprintId)
         : VIEW_PATHS.backlog;
 }
 

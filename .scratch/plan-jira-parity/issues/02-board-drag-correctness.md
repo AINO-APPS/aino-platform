@@ -36,11 +36,16 @@ always reset drag state.
       pointer drag; `useBoardDrag` is reduced to keyboard navigation and
       announcements.
 - [ ] A drop or keyboard move opens one confirmation dialog naming the ticket and
-      target status; no state mutation, PATCH or refetch occurs before accept.
+      target status; no PATCH or refetch occurs before accept.
+      **Superseded (2026-10-28, ADR-015 follow-up):** a *pointer* drop moves the
+      card into the target column at once (Jira behaviour) and Cancel animates it
+      back; a *keyboard* move still changes nothing before accept. Cancel never
+      sends a request in either case.
 - [ ] Accept performs one optimistic update and one PATCH, rolling back on
       server error.
-- [ ] Cancel performs zero mutations, zero requests and zero refetches, from
-      pointer, keyboard and the done-advisory path.
+- [ ] Cancel performs zero requests and zero refetches, and leaves the card where
+      it started (restored for a pointer drop, never moved for a keyboard move),
+      from pointer, keyboard and the done-advisory path.
 - [ ] No card changes opacity or visibility while dragging — board or backlog.
       Replace the backlog dim with a placeholder/outline. Dragged card stays
       fully readable.

@@ -53,6 +53,8 @@ interface TasksHeaderProps {
     selectedTeamId?: TeamScope | null;
     onTeamChange?: (value: TeamScope) => void;
     showTeamSwitcher?: boolean;
+    /** Opens the Plan split view (or explains how to get a sprint). */
+    onPlanSprint?: () => void;
 }
 
 export default function TasksHeader({
@@ -95,6 +97,7 @@ export default function TasksHeader({
     selectedTeamId = null,
     onTeamChange,
     showTeamSwitcher = false,
+    onPlanSprint,
 }: TasksHeaderProps) {
     const { assignableUsers, orgLabels, availableSprints, currentUser } =
         useTaskCtx() as any;
@@ -106,14 +109,12 @@ export default function TasksHeader({
     // from GET /profile, then the sprint's team for an admin browsing it.
     const selectedTeam = teams.find(
         (team: any) =>
-            selectedTeamId !== "all"
-            && selectedTeamId !== "unassigned"
+            selectedTeamId !== "unassigned"
             && selectedTeamId != null
             && Number(team.id) === Number(selectedTeamId),
     );
     const teamName =
         selectedTeam?.name
-        || (selectedTeamId === "all" ? "All teams" : null)
         || (selectedTeamId === "unassigned" ? "Unassigned" : null)
         || currentUser?.team_name
         || currentSprint?.team_name
@@ -198,32 +199,28 @@ export default function TasksHeader({
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
                                     : activeTab === "scheduled"
-                                      ? "Tasks planned onto a day — overdue first, then upcoming"
-                                      : "Unscheduled items waiting to be planned"}
+                                      ? "Tickets with a planned or due date and no sprint — overdue first"
+                                      : "Tickets with no sprint and no date, waiting to be planned"}
                             </p>
                         </>
                     )}
                 </div>
 
                 <div className={s["tasks-header-actions"]}>
-                    {/* Org admins can switch teams and open the Unassigned
-                        bucket. Non-admins never see this control. */}
+                    {/* Super admin and above pick one team at a time; its sprint
+                        state drives the tabs. Others never see this control. */}
                     {showTeamSwitcher && (
                         <select
-                            value={selectedTeamId == null ? "all" : String(selectedTeamId)}
+                            value={selectedTeamId == null ? "" : String(selectedTeamId)}
                             onChange={(event) => {
                                 const value = event.target.value;
-                                onTeamChange?.(
-                                    value === "all" || value === "unassigned"
-                                        ? value
-                                        : Number(value),
-                                );
+                                onTeamChange?.(value === "unassigned" ? value : Number(value));
                             }}
                             className={s["date-input"]}
                             aria-label="Team"
-                            title="Show another team's backlog and sprints"
+                            title="Show another team's sprint, backlog and scheduled tickets"
                         >
-                            <option value="all">All teams</option>
+                            {selectedTeamId == null && <option value="" disabled>Select a team</option>}
                             {teams.map((team: any) => (
                                 <option key={team.id} value={team.id}>
                                     {team.name}
@@ -233,15 +230,12 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {/* Sprint or dated work — the team gets one, never both. */}
                     <PlanningTabs
                         activeTab={activeTab}
                         setActiveTab={setActiveTab}
-                        currentUser={currentUser}
                         agileEnabled={hasFeature("agile")}
                         backlogCount={backlogTasks.length}
                         availableSprints={availableSprints}
-                        selectedSprintId={selectedSprintId}
                         setSelectedSprintId={setSelectedSprintId}
                     />
 
@@ -318,6 +312,19 @@ export default function TasksHeader({
                             onClick={() => setBacklogFormOpen((o) => !o)}
                         >
                             <GlyphPlus size="1em" style={{ verticalAlign: "middle" }} /> New Ticket
+                        </button>
+                    )}
+
+                    {/* The Plan split view (backlog beside a sprint) is a
+                        Backlog action, as in Jira — never the landing view. */}
+                    {hasFeature("agile") && activeTab === "backlog" && onPlanSprint && (
+                        <button
+                            className={`btn btn-secondary ${s["add-task-toggle"]}`}
+                            onClick={onPlanSprint}
+                            title="Move tickets between the backlog and a sprint"
+                        >
+                            <GlyphRun size="1em" style={{ verticalAlign: "middle", marginRight: 4 }} />
+                            Plan sprint
                         </button>
                     )}
 

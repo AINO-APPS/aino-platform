@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask, bulkTaskAction } from "../../../api/tasks";
+import { useBacklogInlineEdit } from "./useBacklogInlineEdit";
 import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
@@ -90,6 +91,8 @@ interface UseBacklogParams {
     setError: (msg: string) => void;
     /** Called after a successful schedule (e.g. a toast with a "View" action). */
     onScheduled?: (taskId: number | string, date: string) => void;
+    /** A ticket left the backlog for Scheduled or a sprint after an edit. */
+    onMoved?: (to: "scheduled" | "sprint") => void;
 }
 
 export function useBacklog({
@@ -104,6 +107,7 @@ export function useBacklog({
     fetchTasks,
     setError,
     onScheduled,
+    onMoved,
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
     const [backlogLoading, setBacklogLoading] = useState(false);
@@ -362,36 +366,7 @@ export function useBacklog({
         }
     }, [fetchBacklog, setError]);
 
-    /**
-     * Inline edit: patch one field without opening the detail view. The prior
-     * value is registered for undo so a mis-click is reversible.
-     */
-    const inlineEdit = useCallback(async (
-        task: Task,
-        patch: Record<string, unknown>,
-    ) => {
-        const previous = Object.fromEntries(
-            Object.keys(patch).map((key) => [key, (task as any)[key]]),
-        );
-        setBacklogTasks((current) =>
-            current.map((item) => (item.id === task.id ? { ...item, ...patch } : item)),
-        );
-        try {
-            await updateTask(task.id, patch);
-            undo.register({
-                label: "Edited ticket",
-                undo: async () => {
-                    await updateTask(task.id, previous);
-                    await fetchBacklog(true);
-                },
-            });
-        } catch {
-            setBacklogTasks((current) =>
-                current.map((item) => (item.id === task.id ? { ...item, ...previous } : item)),
-            );
-            setError("Failed to save ticket");
-        }
-    }, [fetchBacklog, setError, undo, setBacklogTasks]);
+    const inlineEdit = useBacklogInlineEdit({ setBacklogTasks, fetchBacklog, setError, undo, onMoved });
 
     const handleScheduleTask = (
         taskId: number | string,
@@ -428,7 +403,7 @@ export function useBacklog({
     ) => {
         showConfirm(
             "Move to Backlog",
-            `Move "${taskTitle || "this task"}" to backlog? It will be removed from the planner.`,
+            `Move "${taskTitle || "this task"}" to backlog? Its planned and due dates are cleared.`,
             async () => {
                 closeConfirm();
                 try {

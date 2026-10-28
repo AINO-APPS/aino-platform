@@ -13,17 +13,23 @@ interface UseDragDropArgs {
     showConfirm: ShowConfirm;
     closeConfirm: () => void;
     setError: (msg: string) => void;
-    /** Which columns may receive the card. All are legal until issue 04. */
     targetPolicy?: TargetPolicy;
 }
 
+type Id = number | string;
+
+const columnKey = (column: BoardColumn) => (column.key ?? column.id) as string;
+
 /**
- * The board's only pointer drag path.
+ * The board's pointer drag state and its one move path.
  *
- * A drop is staged: it opens one confirmation naming the ticket and the target
- * state, and neither the card nor the server changes until the user accepts.
- * `commitMove` is the single place that performs an accepted move, so the
- * keyboard path in `useBoardDragWiring` cannot drift from this one.
+ * The board renders with @dnd-kit; this hook owns what a drag means. A drop
+ * lands the card in the target column immediately — the board shows the move
+ * the user made — then asks for confirmation. Accept sends one PATCH (rolled
+ * back if refused); Cancel restores the card and sends nothing.
+ *
+ * `commitMove` is the single place that sends an accepted move, shared with the
+ * keyboard path in `useBoardDragWiring`.
  */
 export function useDragDrop({
     tasks,
@@ -36,151 +42,111 @@ export function useDragDrop({
     // The board refuses illegal and over-limit columns before a drop, using
     // the same graph and WIP setting the server enforces.
     const policy = useWorkflowTargetPolicy(tasks, targetPolicy);
-    const [dragOverCol, setDragOverCol] = useState<string | number | null>(
-        null,
-    );
-    // Which card is in flight, for the board's disabled-target feedback.
-    const [draggingTaskId, setDraggingTaskId] = useState<number | string | null>(null);
-    const dragTaskId = useRef<number | string | null>(null);
+    const [draggingTaskId, setDraggingTaskId] = useState<Id | null>(null);
+    const [dragOverCol, setDragOverCol] = useState<Id | null>(null);
+    const tasksRef = useRef(tasks);
+    tasksRef.current = tasks;
 
-    const onDragStart = (e: React.DragEvent, taskId: number | string) => {
-        dragTaskId.current = taskId;
-        setDraggingTaskId(taskId);
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", String(taskId));
-    };
-
-    const clearDragState = () => {
-        dragTaskId.current = null;
-        setDraggingTaskId(null);
-        setDragOverCol(null);
-    };
-
-    /**
-     * Accept a column: one optimistic update, one PATCH, roll back on error.
-     * Returns whether the server accepted the move.
-     */
-    const commitMove = useCallback(
-        async (task: Task, column: BoardColumn): Promise<boolean> => {
-            const targetKey = column.key ?? column.id;
-            const previousStatus = task.workflow_state_key;
-            const previousStateId = task.workflow_state_id;
-
+    const placeCard = useCallback(
+        (taskId: Id, key: string, stateId: number | null | undefined) =>
             setTasks((prev) =>
                 prev.map((candidate) =>
-                    candidate.id === task.id
+                    candidate.id === taskId
                         ? {
                               ...candidate,
-                              workflow_state_key: targetKey as string,
-                              workflow_state_id:
-                                  typeof column.id === "number"
-                                      ? column.id
-                                      : candidate.workflow_state_id,
+                              workflow_state_key: key,
+                              workflow_state_id: stateId ?? candidate.workflow_state_id,
                           }
                         : candidate,
                 ),
-            );
+            ),
+        [setTasks],
+    );
 
+    const sendMove = useCallback(
+        async (task: Task, column: BoardColumn): Promise<boolean> => {
             try {
-                // Send by key (back-compat with default workflow); the server
-                // resolves it to the workflow state id.
-                await updateTaskStatus(task.id, String(targetKey));
+                // Sent by key (back-compat with the default workflow); the
+                // server resolves it to the workflow state id.
+                await updateTaskStatus(task.id, columnKey(column));
                 return true;
             } catch (err) {
-                // Snap the card back to its original column so the board never
-                // claims a move the server refused.
-                setTasks((prev) =>
-                    prev.map((candidate) =>
-                        candidate.id === task.id
-                            ? {
-                                  ...candidate,
-                                  workflow_state_key: previousStatus,
-                                  workflow_state_id: previousStateId,
-                              }
-                            : candidate,
-                    ),
-                );
-                const error = err as {
-                    response?: { data?: { error?: string; code?: string } };
-                };
+                // Snap back so the board never claims a move the server refused.
+                placeCard(task.id, task.workflow_state_key as string, task.workflow_state_id);
+                const error = err as { response?: { data?: { error?: string; code?: string } } };
                 const apiMsg = error?.response?.data?.error;
-                const code = error?.response?.data?.code;
-                if (code === "WIP_EXCEEDED") {
-                    setError(apiMsg || "WIP limit reached for this column.");
-                } else {
-                    setError(apiMsg || "Failed to move item");
-                }
+                setError(
+                    error?.response?.data?.code === "WIP_EXCEEDED"
+                        ? apiMsg || "WIP limit reached for this column."
+                        : apiMsg || "Failed to move item",
+                );
                 return false;
             }
         },
-        [setTasks, setError],
+        [placeCard, setError],
     );
 
-    const onDragEnd = (_e: React.DragEvent, _taskId: number | string) => {
-        clearDragState();
-    };
+    /** Accept a column: one optimistic update, one PATCH, roll back on error. */
+    const commitMove = useCallback(
+        async (task: Task, column: BoardColumn): Promise<boolean> => {
+            placeCard(task.id, columnKey(column), typeof column.id === "number" ? column.id : null);
+            return sendMove(task, column);
+        },
+        [placeCard, sendMove],
+    );
 
-    const onDragOver = (
-        e: React.DragEvent,
-        colId: string | number,
-        col: BoardColumn,
-    ) => {
-        const task = tasks.find((candidate) => candidate.id === dragTaskId.current);
-        if (task && policy(task, col)) {
-            // Not a target: leave `preventDefault` unset so the browser shows
-            // "no drop" and no drop event fires.
-            e.dataTransfer.dropEffect = "none";
-            if (dragOverCol !== null) setDragOverCol(null);
-            return;
-        }
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        if (dragOverCol !== colId) setDragOverCol(colId);
-    };
+    const onDragStart = useCallback((taskId: Id) => {
+        setDraggingTaskId(taskId);
+    }, []);
 
-    const onDragLeave = (e: React.DragEvent) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node))
-            setDragOverCol(null);
-    };
+    const onDragOver = useCallback((columnId: Id | null) => {
+        setDragOverCol(columnId);
+    }, []);
 
-    const onDrop = (
-        e: React.DragEvent,
-        colId: string | number,
-        col: BoardColumn,
-    ) => {
-        e.preventDefault();
-        const rawId = e.dataTransfer.getData("text/plain");
-        const taskId = rawId ? parseInt(rawId, 10) : dragTaskId.current;
-        clearDragState();
-        if (!taskId) return;
-        const task = tasks.find((candidate) => candidate.id === taskId);
-        if (!task) return;
-        if (task.workflow_state_key === col.key || task.workflow_state_id === col.id)
-            return;
+    const clearDragState = useCallback(() => {
+        setDraggingTaskId(null);
+        setDragOverCol(null);
+    }, []);
 
-        const rejection = policy(task, col);
-        if (rejection) {
-            setError(rejection);
-            return;
-        }
-
-        stageStatusMove(task, {
-            column: col,
-            notice: moveAdvisory(task, col, tasks),
-            showConfirm,
-            closeConfirm,
-            onConfirm: () => void commitMove(task, col),
-        });
-    };
+    /**
+     * Drop a card on a column: land it, then confirm. Returns false when the
+     * drop was refused outright (same column, illegal target).
+     */
+    const dropOnColumn = useCallback(
+        (taskId: Id, column: BoardColumn): boolean => {
+            clearDragState();
+            const task = tasksRef.current.find((candidate) => candidate.id === taskId);
+            if (!task) return false;
+            if (task.workflow_state_key === column.key || (column.id && task.workflow_state_id === column.id)) {
+                return false;
+            }
+            const rejection = policy(task, column);
+            if (rejection) {
+                setError(rejection);
+                return false;
+            }
+            const notice = moveAdvisory(task, column, tasksRef.current);
+            placeCard(task.id, columnKey(column), typeof column.id === "number" ? column.id : null);
+            stageStatusMove(task, {
+                column,
+                notice,
+                showConfirm,
+                closeConfirm,
+                onConfirm: () => void sendMove(task, column),
+                onCancel: () => placeCard(task.id, task.workflow_state_key as string, task.workflow_state_id),
+            });
+            return true;
+        },
+        [clearDragState, policy, setError, placeCard, showConfirm, closeConfirm, sendMove],
+    );
 
     return {
         dragOverCol,
         draggingTaskId,
         onDragStart,
-        onDragEnd,
         onDragOver,
-        onDragLeave,
-        onDrop,
+        onDragCancel: clearDragState,
+        dropOnColumn,
         commitMove,
         targetPolicy: policy,
     };

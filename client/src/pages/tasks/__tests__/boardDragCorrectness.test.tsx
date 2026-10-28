@@ -1,14 +1,13 @@
 /**
- * Board drag is one staged, cancel-safe interaction.
+ * Board drag is one confirmed, cancel-safe interaction.
  *
- * The board used to run two pointer drag systems over the same cards. A drop
- * opened the confirmation through `useDragDrop` and *also* called
- * `useBoardDrag.onDrop`, which PATCHed the status and refetched before the user
- * answered. Cancelling the dialog therefore still moved the ticket.
+ * Pointer drag (@dnd-kit): the card lands in the target column at once — the
+ * board shows the move the user made — and a confirmation follows. Accept sends
+ * exactly one PATCH; Cancel animates the card back and sends nothing; a refused
+ * PATCH snaps it back.
  *
- * These tests render the real board with the real hooks and assert the
- * contract: nothing is mutated or sent until the dialog is accepted, exactly
- * one PATCH follows an accepted move, and Cancel changes nothing.
+ * Keyboard moves keep the ask-first contract: arrow keys choose a column and
+ * nothing changes until the dialog is accepted.
  */
 import React from "react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
@@ -34,15 +33,7 @@ vi.mock("../../../AgileConfigContext", () => ({
 
 // The card is not what these tests exercise; the column is the drop target.
 vi.mock("../TaskCard", () => ({
-    default: ({ task, onDragStart, onDragEnd }: any) => (
-        <div
-            id={`task-${task.id}`}
-            data-testid={`task-${task.id}`}
-            draggable
-            onDragStart={(event: any) => onDragStart?.(event, task.id)}
-            onDragEnd={(event: any) => onDragEnd?.(event, task.id)}
-        />
-    ),
+    default: ({ task }: any) => <div id={`task-${task.id}`} data-testid={`task-${task.id}`} />,
 }));
 
 vi.mock("../../../api/tasks", () => ({
@@ -56,14 +47,8 @@ const pendingTask = {
     workflow_state_id: 1,
 };
 
-function dataTransfer(id: number | string) {
-    return {
-        getData: () => String(id),
-        setData: vi.fn(),
-        dropEffect: "",
-        effectAllowed: "",
-    };
-}
+
+const harness: { drop?: (taskId: number | string, column: any) => void } = {};
 
 /** The real board, the real hooks, the real dialog. */
 function BoardHarness({
@@ -96,18 +81,18 @@ function BoardHarness({
         closeConfirm,
         onMove: (moved: any, column: any) => drag.commitMove(moved, column),
     });
+    // @dnd-kit's pointer sensors need real layout; tests drive the drop the
+    // board's onDragEnd performs.
+    harness.drop = (taskId, column) => {
+        boardDrag.reset?.();
+        drag.dropOnColumn(taskId, column);
+    };
 
     return (
         <>
             <KanbanBoard
                 tasks={tasks}
-                dragOverCol={drag.dragOverCol}
-                draggingTaskId={drag.draggingTaskId}
-                onDragOver={drag.onDragOver}
-                onDragLeave={drag.onDragLeave}
-                onDrop={drag.onDrop}
-                onDragStart={drag.onDragStart}
-                onDragEnd={drag.onDragEnd}
+                drag={drag}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
                 boardDrag={boardDrag}
@@ -130,64 +115,61 @@ function column(key: string) {
     ).closest("[data-column-key]")!;
 }
 
-describe("pointer drop is staged behind one confirmation", () => {
+describe("pointer drop lands the card, then confirms", () => {
     beforeEach(() => vi.clearAllMocks());
 
-    test("a drop sends nothing until the move is accepted", () => {
+    function drop(key: string) {
+        act(() => harness.drop!(pendingTask.id, columns.find((c) => c.key === key)));
+    }
+
+    test("a drop moves the card at once but sends nothing before the answer", () => {
         const onTasks = vi.fn();
         render(<BoardHarness onTasks={onTasks} />);
 
-        fireEvent.drop(column("in_progress"), { dataTransfer: dataTransfer(pendingTask.id) });
+        drop("in_progress");
 
+        expect(onTasks).toHaveBeenCalledTimes(1);
+        expect(onTasks.mock.calls[0][0][0].workflow_state_key).toBe("in_progress");
         expect(updateTaskStatus).not.toHaveBeenCalled();
-        expect(onTasks).not.toHaveBeenCalled();
-        expect(screen.getByRole("button", { name: "Move" })).toBeInTheDocument();
-        expect(
-            screen.getByText(/Move "Refund webhook retries" to In Progress\?/),
-        ).toBeInTheDocument();
+        expect(screen.getByText(/Move "Refund webhook retries" to In Progress\?/)).toBeInTheDocument();
     });
 
-    test("accepting performs one optimistic update and exactly one PATCH", async () => {
+    test("accepting sends exactly one PATCH and keeps the card", async () => {
         const onTasks = vi.fn();
         render(<BoardHarness onTasks={onTasks} />);
 
-        fireEvent.drop(column("in_progress"), { dataTransfer: dataTransfer(pendingTask.id) });
+        drop("in_progress");
         fireEvent.click(screen.getByRole("button", { name: "Move" }));
 
         await waitFor(() =>
             expect(updateTaskStatus).toHaveBeenCalledWith(pendingTask.id, "in_progress"),
         );
         expect(updateTaskStatus).toHaveBeenCalledTimes(1);
-        expect(onTasks).toHaveBeenCalledTimes(1);
-        expect(onTasks.mock.calls[0][0][0].workflow_state_key).toBe("in_progress");
+        expect(onTasks.mock.calls.at(-1)![0][0].workflow_state_key).toBe("in_progress");
     });
 
-    test("cancelling mutates nothing, sends nothing and refetches nothing", () => {
+    test("cancelling puts the card back and sends nothing", () => {
         const onTasks = vi.fn();
         render(<BoardHarness onTasks={onTasks} />);
 
-        fireEvent.drop(column("in_progress"), { dataTransfer: dataTransfer(pendingTask.id) });
+        drop("in_progress");
         fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
         expect(updateTaskStatus).not.toHaveBeenCalled();
-        expect(onTasks).not.toHaveBeenCalled();
+        expect(onTasks.mock.calls.at(-1)![0][0].workflow_state_key).toBe("pending");
     });
 
-    test("cancelling the confirmation does not resolve into a later move", async () => {
+    test("a drop on the card's own column does nothing", () => {
         const onTasks = vi.fn();
         render(<BoardHarness onTasks={onTasks} />);
 
-        fireEvent.drop(column("in_progress"), { dataTransfer: dataTransfer(pendingTask.id) });
-        fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        await Promise.resolve();
+        drop("pending");
 
-        expect(updateTaskStatus).not.toHaveBeenCalled();
         expect(onTasks).not.toHaveBeenCalled();
+        expect(screen.queryByRole("button", { name: "Move" })).toBeNull();
     });
 
-    test("a pointer move into Done carries the blocker advisory, and Cancel still wins", () => {
-        // New → Done is not a legal transition (issue 04); active work may go
-        // straight to Done, so the advisory path starts from In Progress.
+    test("a move into Done carries the blocker advisory, and Cancel still restores", () => {
         const blocked = {
             ...pendingTask,
             workflow_state_key: "in_progress",
@@ -197,13 +179,13 @@ describe("pointer drop is staged behind one confirmation", () => {
         const onTasks = vi.fn();
         render(<BoardHarness task={blocked} onTasks={onTasks} />);
 
-        fireEvent.drop(column("done"), { dataTransfer: dataTransfer(blocked.id) });
+        act(() => harness.drop!(blocked.id, columns[2]));
 
         expect(screen.getByText(/This ticket has an open blocker/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
         expect(updateTaskStatus).not.toHaveBeenCalled();
-        expect(onTasks).not.toHaveBeenCalled();
+        expect(onTasks.mock.calls.at(-1)![0][0].workflow_state_key).toBe("in_progress");
     });
 
     test("a refused move rolls the card back to its original column", async () => {
@@ -213,16 +195,15 @@ describe("pointer drop is staged behind one confirmation", () => {
         const onTasks = vi.fn();
         render(<BoardHarness onTasks={onTasks} />);
 
-        fireEvent.drop(column("in_progress"), { dataTransfer: dataTransfer(pendingTask.id) });
+        drop("in_progress");
         fireEvent.click(screen.getByRole("button", { name: "Move" }));
 
-        await waitFor(() => expect(onTasks).toHaveBeenCalledTimes(2));
-        expect(onTasks.mock.calls[0][0][0].workflow_state_key).toBe("in_progress");
-        expect(onTasks.mock.calls[1][0][0].workflow_state_key).toBe("pending");
+        await waitFor(() =>
+            expect(onTasks.mock.calls.at(-1)![0][0].workflow_state_key).toBe("pending"),
+        );
         expect(updateTaskStatus).toHaveBeenCalledTimes(1);
     });
 });
-
 describe("keyboard moves are staged the same way", () => {
     beforeEach(() => vi.clearAllMocks());
 
@@ -296,30 +277,10 @@ describe("keyboard moves are staged the same way", () => {
     });
 });
 
-describe("an aborted pointer drag resets the board", () => {
+describe("a keyboard lift is cleared by a pointer drag", () => {
     beforeEach(() => vi.clearAllMocks());
 
-    test("dragEnd clears the drop indicator and leaves the ticket alone", () => {
-        render(<BoardHarness onTasks={vi.fn()} />);
-        const card = document.getElementById(`task-${pendingTask.id}`)!;
-
-        fireEvent.dragStart(card, {
-            dataTransfer: { setData: vi.fn(), effectAllowed: "" },
-        });
-        fireEvent.dragOver(column("in_progress"), {
-            dataTransfer: { dropEffect: "" },
-        });
-        expect(screen.getByText("Drop here")).toBeInTheDocument();
-
-        // Dropping outside the board (or pressing Escape) ends with dragEnd
-        // and no drop event at all.
-        fireEvent.dragEnd(card);
-
-        expect(screen.queryByText("Drop here")).toBeNull();
-        expect(updateTaskStatus).not.toHaveBeenCalled();
-    });
-
-    test("dragEnd also drops an active keyboard lift", () => {
+    test("starting a pointer drag drops an active keyboard lift", () => {
         render(<BoardHarness onTasks={vi.fn()} />);
         const card = screen.getByTestId(`task-${pendingTask.id}`);
 
@@ -327,10 +288,9 @@ describe("an aborted pointer drag resets the board", () => {
         fireEvent.keyDown(card, { key: "ArrowRight" });
         expect(screen.getByText("Drop here")).toBeInTheDocument();
 
-        fireEvent.dragEnd(card);
+        act(() => harness.drop!(pendingTask.id, columns[0]));
 
         expect(card.parentElement!.getAttribute("aria-grabbed")).toBe("false");
-        expect(screen.queryByText("Drop here")).toBeNull();
         expect(updateTaskStatus).not.toHaveBeenCalled();
     });
 });

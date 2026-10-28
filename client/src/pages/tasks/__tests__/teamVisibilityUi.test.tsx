@@ -1,8 +1,8 @@
 /**
  * Team-owned tickets in the Plan UI.
  *
- * Non-admins never see the team switcher; an org admin gets one and it
- * defaults to their own team; a user without a team sees a persistent banner
+ * Only super admin and above get the team switcher (one team at a time,
+ * defaulting to their own); a user without a team sees a persistent banner
  * instead of silently losing the Sprint tab.
  */
 import { describe, expect, test, vi, beforeEach } from "vitest";
@@ -147,8 +147,8 @@ beforeEach(() => {
 });
 
 describe("Plan team visibility", () => {
-    test("an org admin gets a team switcher defaulted to their own team", async () => {
-        state.user = { id: 2, team_id: 1, role: "hr_admin", team_name: "Payments" };
+    test("a super admin gets a one-team switcher defaulted to their own team", async () => {
+        state.user = { id: 2, team_id: 1, role: "super_admin", team_name: "Payments" };
         renderPage();
 
         const switcher = await screen.findByLabelText("Team");
@@ -157,7 +157,8 @@ describe("Plan team visibility", () => {
         await waitFor(() =>
             expect((switcher as HTMLSelectElement).value).toBe("1"),
         );
-        expect(screen.getByRole("option", { name: "All teams" })).toBeInTheDocument();
+        // One team at a time: there is no merged "All teams" board.
+        expect(screen.queryByRole("option", { name: "All teams" })).not.toBeInTheDocument();
         expect(screen.getByRole("option", { name: "Unassigned" })).toBeInTheDocument();
         expect(screen.getByRole("option", { name: "Platform" })).toBeInTheDocument();
     });
@@ -167,11 +168,17 @@ describe("Plan team visibility", () => {
         expect(screen.queryByLabelText("Team")).not.toBeInTheDocument();
     });
 
-    test("the switcher is hidden when the team_visibility flag is off", () => {
+    test("an HR admin is below super admin and gets no switcher", () => {
         state.user = { id: 2, team_id: 1, role: "hr_admin", team_name: "Payments" };
-        state.teamVisibility = false;
         renderPage();
         expect(screen.queryByLabelText("Team")).not.toBeInTheDocument();
+    });
+
+    test("the switcher does not depend on the team_visibility flag", async () => {
+        state.user = { id: 2, team_id: 1, role: "platform_admin", team_name: "Payments" };
+        state.teamVisibility = false;
+        renderPage();
+        expect(await screen.findByLabelText("Team")).toBeInTheDocument();
     });
 
     test("a user without a team sees the explanatory banner", async () => {

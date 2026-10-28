@@ -1,4 +1,20 @@
 import React, { useState } from "react";
+import {
+    DndContext,
+    DragOverlay,
+    PointerSensor,
+    TouchSensor,
+    closestCorners,
+    defaultDropAnimationSideEffects,
+    useDraggable,
+    useDroppable,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+    type DragOverEvent,
+    type DragStartEvent,
+    type DropAnimation,
+} from "@dnd-kit/core";
 import TaskCard from "./TaskCard";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { useIsPhone } from "../../hooks/useViewportWidth";
@@ -10,31 +26,38 @@ import {
 } from "./hooks/boardTargets";
 import s from "./KanbanBoard.module.css";
 
+type Id = number | string;
+
+/** The pointer drag surface of `useDragDrop`. */
+interface BoardPointerDrag {
+    draggingTaskId: Id | null;
+    dragOverCol: Id | null;
+    onDragStart: (taskId: Id) => void;
+    onDragOver: (columnId: Id | null) => void;
+    onDragCancel: () => void;
+    dropOnColumn: (taskId: Id, column: any) => boolean;
+    targetPolicy?: TargetPolicy;
+}
+
 interface KanbanBoardProps {
     tasks: any[];
-    dragOverCol: number | string | null;
     sprintMode?: boolean;
-    onDragOver: (e: React.DragEvent, colId: number | string, col: any) => void;
-    onDragLeave: (e: React.DragEvent) => void;
-    onDrop: (e: React.DragEvent, colId: number | string, col: any) => void;
-    onDragStart: (e: React.DragEvent, id: number | string) => void;
-    onDragEnd: (e: React.DragEvent, id: number | string) => void;
+    /** Pointer drag (mouse and touch). Without it, cards are not draggable. */
+    drag?: BoardPointerDrag;
     onOpenDetail: (task: any) => void;
-    onOpenComments: (id: number | string) => void;
-    /** The card in flight under the pointer, for disabled-target feedback. */
-    draggingTaskId?: number | string | null;
+    onOpenComments: (id: Id) => void;
     /**
      * Keyboard navigation and announcements. Pointer drag belongs to
      * `useDragDrop`; this never receives pointer events.
      */
     boardDrag?: {
-        draggingId: number | string | null;
-        overColumn: number | string | null;
-        onKeyDown: (event: React.KeyboardEvent, taskId: number | string) => void;
-        /** Drop any keyboard lift, e.g. when a pointer drag ends. */
+        draggingId: Id | null;
+        overColumn: Id | null;
+        onKeyDown: (event: React.KeyboardEvent, taskId: Id) => void;
+        /** Drop any keyboard lift, e.g. when a pointer drag starts. */
         reset?: () => void;
     };
-    /** Which columns may receive a card. All are legal until issue 04. */
+    /** Which columns may receive a card. Defaults to the drag hook's policy. */
     targetPolicy?: TargetPolicy;
     wipWarning?: string | null;
     announcement?: string;
@@ -44,20 +67,74 @@ interface KanbanBoardProps {
     onAddTask?: (column: any) => void;
 }
 
+const colId = (col: any): Id => col.id || col.key;
+
+/** The card settles into its new slot instead of vanishing on release. */
+const dropAnimation: DropAnimation = {
+    duration: 220,
+    easing: "cubic-bezier(0.2, 0.9, 0.3, 1.2)",
+    sideEffects: defaultDropAnimationSideEffects({
+        styles: { active: { opacity: "0.35" } },
+    }),
+};
+
+function DraggableCard({
+    task,
+    enabled,
+    children,
+}: {
+    task: any;
+    enabled: boolean;
+    children: React.ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: task.id,
+        disabled: !enabled,
+        data: { task },
+    });
+    // The original slot stays as a faded placeholder; the overlay is the card
+    // under the pointer.
+    return (
+        <div
+            ref={setNodeRef}
+            className={`${s["card-slot"]} ${isDragging ? s["card-placeholder"] : ""}`}
+            data-dragging={isDragging ? "true" : undefined}
+            {...(enabled ? listeners : {})}
+            {...(enabled ? { "aria-describedby": attributes["aria-describedby"] } : {})}
+        >
+            {children}
+        </div>
+    );
+}
+
+function DroppableColumn({
+    col,
+    disabled,
+    className,
+    children,
+    ...rest
+}: {
+    col: any;
+    disabled: boolean;
+    className: string;
+    children: React.ReactNode;
+} & React.HTMLAttributes<HTMLDivElement>) {
+    const { setNodeRef } = useDroppable({ id: `col:${colId(col)}`, disabled, data: { column: col } });
+    return (
+        <div ref={setNodeRef} className={className} {...rest}>
+            {children}
+        </div>
+    );
+}
+
 export default function KanbanBoard({
     tasks,
-    dragOverCol,
     sprintMode,
-    onDragOver,
-    onDragLeave,
-    onDrop,
-    onDragStart,
-    onDragEnd,
+    drag,
     onOpenDetail,
     onOpenComments,
-    draggingTaskId,
     boardDrag,
-    targetPolicy = allowAllTargets,
+    targetPolicy,
     wipWarning,
     announcement,
     onAddTask,
@@ -65,11 +142,10 @@ export default function KanbanBoard({
 }: KanbanBoardProps) {
     const { workflowStates, features } = useAgileConfig() as any;
     // Cancelled is a terminal state, not a work-in-progress column: a cancelled
-    // ticket leaves the board rather than sitting in a fifth column. It stays
-    // available in the status picker so a ticket can be cancelled from detail.
+    // ticket leaves the board rather than sitting in a fifth column.
     const boardStates = boardColumns(workflowStates);
-    // On a phone the board is one column at a time, swiped between. On wider
-    // viewports every column is visible and the board scrolls horizontally.
+    const policy = targetPolicy ?? drag?.targetPolicy ?? allowAllTargets;
+    // On a phone the board is one column at a time, swiped between.
     const isPhone = useIsPhone();
     const [phoneColumn, setPhoneColumn] = useState(0);
     const columnCount = boardStates.length;
@@ -80,173 +156,193 @@ export default function KanbanBoard({
     const visibleColumns = isPhone
         ? boardStates.slice(phoneColumn, phoneColumn + 1)
         : boardStates;
-    // Match a task to a column by its workflow state key. The key is what the
-    // task list always carries, and it is the only field that works before
-    // `/agile` resolves: the fallback states all share `id: 0`, so an id match
-    // can never place a card in a fallback column. `workflow_state_id` is kept
-    // as a fallback for a task that has only the id.
+
+    // A small movement threshold keeps clicks (open detail) working; touch
+    // waits for a short press so the board still scrolls.
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    );
+
+    // Match a task to a column by its workflow state key; the id is a fallback
+    // for a task that carries only the id.
     const getColTasks = (col: any) =>
         tasks.filter(
             (t) =>
                 (col.key && t.workflow_state_key === col.key) ||
-                (t.workflow_state_id &&
-                    col.id &&
-                    t.workflow_state_id === col.id),
+                (t.workflow_state_id && col.id && t.workflow_state_id === col.id),
         );
-    // The card currently being dragged, under either input. Columns the policy
-    // rejects are marked and cannot take the drop.
-    const draggedId = draggingTaskId ?? boardDrag?.draggingId ?? null;
-    const draggedTask =
-        draggedId != null
-            ? tasks.find((task) => task.id === draggedId)
-            : undefined;
+    const draggedId = drag?.draggingTaskId ?? boardDrag?.draggingId ?? null;
+    const draggedTask = draggedId != null ? tasks.find((task) => task.id === draggedId) : undefined;
+    const overlayTask = drag?.draggingTaskId != null
+        ? tasks.find((task) => task.id === drag.draggingTaskId)
+        : undefined;
+
+    const columnOf = (overId: unknown) => {
+        const key = String(overId ?? "");
+        if (!key.startsWith("col:")) return null;
+        return boardStates.find((col: any) => String(colId(col)) === key.slice(4)) ?? null;
+    };
+
+    const handleDragStart = (event: DragStartEvent) => {
+        boardDrag?.reset?.();
+        drag?.onDragStart(event.active.id as Id);
+    };
+    const handleDragOver = (event: DragOverEvent) => {
+        const col = columnOf(event.over?.id);
+        drag?.onDragOver(col ? colId(col) : null);
+    };
+    const handleDragEnd = (event: DragEndEvent) => {
+        const col = columnOf(event.over?.id);
+        if (!drag) return;
+        if (!col) {
+            drag.onDragCancel();
+            return;
+        }
+        drag.dropOnColumn(event.active.id as Id, col);
+    };
 
     return (
-        <div className={s["kanban-board"]} data-phone={isPhone ? "true" : undefined}>
-            {wipWarning && (
-                <div className={s["wip-warning"]} role="status">
-                    {wipWarning}
-                </div>
-            )}
-            <div className="sr-only" role="status" aria-live="polite">
-                {announcement}
-            </div>
-            {isPhone && columnCount > 1 && (
-                <div className={s["phone-column-nav"]} role="group" aria-label="Board column">
-                    <button
-                        type="button"
-                        aria-label="Previous column"
-                        disabled={phoneColumn === 0}
-                        onClick={() => setPhoneColumn((index) => Math.max(0, index - 1))}
-                    >
-                        ‹
-                    </button>
-                    <span className={s["phone-column-label"]} aria-live="polite">
-                        {boardStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
-                    </span>
-                    <button
-                        type="button"
-                        aria-label="Next column"
-                        disabled={phoneColumn >= columnCount - 1}
-                        onClick={() =>
-                            setPhoneColumn((index) => Math.min(columnCount - 1, index + 1))
-                        }
-                    >
-                        ›
-                    </button>
-                </div>
-            )}
-            <div className={s["kanban-columns"]} {...(isPhone ? swipe : {})}>
-                {visibleColumns.map((col: any) => {
-                const colTasks = getColTasks(col);
-                const disabledReason = draggedTask
-                    ? targetPolicy(draggedTask, col)
-                    : null;
-                // Drag-over compares against either id or key — useDragDrop passes whichever it has
-                const isDragOver =
-                    !disabledReason &&
-                    (dragOverCol === col.id || dragOverCol === col.key);
-                const isKeyboardOver =
-                    !disabledReason &&
-                    boardDrag?.overColumn != null &&
-                    (boardDrag.overColumn === col.id ||
-                        boardDrag.overColumn === col.key);
-                const wipExceeded =
-                    features.wipLimits &&
-                    col.wip_limit &&
-                    colTasks.length > col.wip_limit;
-
-                return (
-                    <div
-                        key={col.id || col.key}
-                        data-column-key={col.key}
-                        className={`${s["kanban-column"]} ${isDragOver || isKeyboardOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""} ${disabledReason ? s["column-disabled"] : ""}`}
-                        style={{ "--col-color": col.color } as React.CSSProperties}
-                        aria-disabled={disabledReason ? true : undefined}
-                        title={disabledReason ?? undefined}
-                        onDragOver={(e) => onDragOver(e, col.id || col.key, col)}
-                        onDragLeave={onDragLeave}
-                        onDrop={(e) => {
-                            if (disabledReason) return;
-                            onDrop(e, col.id || col.key, col);
-                        }}
-                    >
-                        <div className={s["column-header"]}>
-                            <div className={s["column-header-left"]}>
-                                <span
-                                    className={s["column-dot"]}
-                                    style={{ background: col.color }}
-                                />
-                                <span className={s["column-label"]}>
-                                    {sprintMode && col.is_initial ? "New" : col.name}
-                                </span>
-                            </div>
-                            <span className={s["column-count"]}>
-                                {colTasks.length}
-                                {features.wipLimits && col.wip_limit
-                                    ? ` / ${col.wip_limit}`
-                                    : ""}
-                            </span>
-                            {onAddTask && (
-                                <button
-                                    type="button"
-                                    className={s["column-add"]}
-                                    aria-label={`Add a ticket to ${col.name}`}
-                                    title={`Add a ticket to ${col.name}`}
-                                    onClick={() => onAddTask(col)}
-                                >
-                                    +
-                                </button>
-                            )}
-                        </div>
-
-                        <div className={s["column-tasks"]}>
-                            {(isDragOver || isKeyboardOver) && (
-                                <div className={s["drop-indicator"]}>Drop here</div>
-                            )}
-                            {colTasks.length === 0 && !isDragOver && !isKeyboardOver && (
-                                <div className={s["column-empty"]}>
-                                    <span>No items</span>
-                                </div>
-                            )}
-                            {colTasks.map((task) => (
-                                <div
-                                    key={task.id}
-                                    className={
-                                        boardDrag?.draggingId === task.id
-                                            ? s["card-lifted"]
-                                            : undefined
-                                    }
-                                    tabIndex={boardDrag ? 0 : undefined}
-                                    role={boardDrag ? "listitem" : undefined}
-                                    aria-roledescription={boardDrag ? "draggable card" : undefined}
-                                    aria-grabbed={boardDrag ? boardDrag.draggingId === task.id : undefined}
-                                    onKeyDown={(event) => boardDrag?.onKeyDown(event, task.id)}
-                                >
-                                    <TaskCard
-                                        task={task}
-                                        sprintMode={sprintMode}
-                                        onOpenDetail={onOpenDetail}
-                                        onOpenComments={onOpenComments}
-                                        onDragStart={(event, id) => {
-                                            boardDrag?.reset?.();
-                                            onDragStart(event, id);
-                                        }}
-                                        onDragEnd={(event, id) => {
-                                            // A pointer drag ending must also
-                                            // clear any keyboard lift.
-                                            boardDrag?.reset?.();
-                                            onDragEnd(event, id);
-                                        }}
-                                        attribution={attribution?.[String(task.id)] ?? null}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+        <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => drag?.onDragCancel()}
+        >
+            <div className={s["kanban-board"]} data-phone={isPhone ? "true" : undefined}>
+                {wipWarning && (
+                    <div className={s["wip-warning"]} role="status">
+                        {wipWarning}
                     </div>
-                );
-                })}
+                )}
+                <div className="sr-only" role="status" aria-live="polite">
+                    {announcement}
+                </div>
+                {isPhone && columnCount > 1 && (
+                    <div className={s["phone-column-nav"]} role="group" aria-label="Board column">
+                        <button
+                            type="button"
+                            aria-label="Previous column"
+                            disabled={phoneColumn === 0}
+                            onClick={() => setPhoneColumn((index) => Math.max(0, index - 1))}
+                        >
+                            ‹
+                        </button>
+                        <span className={s["phone-column-label"]} aria-live="polite">
+                            {boardStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
+                        </span>
+                        <button
+                            type="button"
+                            aria-label="Next column"
+                            disabled={phoneColumn >= columnCount - 1}
+                            onClick={() => setPhoneColumn((index) => Math.min(columnCount - 1, index + 1))}
+                        >
+                            ›
+                        </button>
+                    </div>
+                )}
+                <div className={s["kanban-columns"]} {...(isPhone && draggedId == null ? swipe : {})}>
+                    {visibleColumns.map((col: any) => {
+                        const colTasks = getColTasks(col);
+                        const disabledReason = draggedTask ? policy(draggedTask, col) : null;
+                        const isDragOver =
+                            !disabledReason &&
+                            drag?.dragOverCol != null &&
+                            (drag.dragOverCol === col.id || drag.dragOverCol === col.key);
+                        const isKeyboardOver =
+                            !disabledReason &&
+                            boardDrag?.overColumn != null &&
+                            (boardDrag.overColumn === col.id || boardDrag.overColumn === col.key);
+                        // The column the card came from is not a drop target.
+                        const isSource = draggedTask != null && colTasks.some((t) => t.id === draggedTask.id);
+                        const wipExceeded =
+                            features.wipLimits && col.wip_limit && colTasks.length > col.wip_limit;
+
+                        return (
+                            <DroppableColumn
+                                key={colId(col)}
+                                col={col}
+                                disabled={Boolean(disabledReason)}
+                                data-column-key={col.key}
+                                className={`${s["kanban-column"]} ${isDragOver || isKeyboardOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""} ${disabledReason ? s["column-disabled"] : ""}`}
+                                style={{ "--col-color": col.color } as React.CSSProperties}
+                                aria-disabled={disabledReason ? true : undefined}
+                                title={disabledReason ?? undefined}
+                            >
+                                <div className={s["column-header"]}>
+                                    <div className={s["column-header-left"]}>
+                                        <span className={s["column-dot"]} style={{ background: col.color }} />
+                                        <span className={s["column-label"]}>
+                                            {sprintMode && col.is_initial ? "New" : col.name}
+                                        </span>
+                                    </div>
+                                    <span className={s["column-count"]}>
+                                        {colTasks.length}
+                                        {features.wipLimits && col.wip_limit ? ` / ${col.wip_limit}` : ""}
+                                    </span>
+                                    {onAddTask && (
+                                        <button
+                                            type="button"
+                                            className={s["column-add"]}
+                                            aria-label={`Add a ticket to ${col.name}`}
+                                            title={`Add a ticket to ${col.name}`}
+                                            onClick={() => onAddTask(col)}
+                                        >
+                                            +
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className={s["column-tasks"]}>
+                                    {(isDragOver || isKeyboardOver) && !isSource && (
+                                        <div className={s["drop-indicator"]}>Drop here</div>
+                                    )}
+                                    {colTasks.length === 0 && !isDragOver && !isKeyboardOver && (
+                                        <div className={s["column-empty"]}>
+                                            <span>No items</span>
+                                        </div>
+                                    )}
+                                    {colTasks.map((task) => (
+                                        <DraggableCard key={task.id} task={task} enabled={Boolean(drag)}>
+                                            <div
+                                                className={boardDrag?.draggingId === task.id ? s["card-lifted"] : undefined}
+                                                tabIndex={boardDrag ? 0 : undefined}
+                                                role={boardDrag ? "listitem" : undefined}
+                                                aria-roledescription={boardDrag ? "draggable card" : undefined}
+                                                aria-grabbed={boardDrag ? boardDrag.draggingId === task.id : undefined}
+                                                onKeyDown={(event) => boardDrag?.onKeyDown(event, task.id)}
+                                            >
+                                                <TaskCard
+                                                    task={task}
+                                                    sprintMode={sprintMode}
+                                                    onOpenDetail={onOpenDetail}
+                                                    onOpenComments={onOpenComments}
+                                                    attribution={attribution?.[String(task.id)] ?? null}
+                                                />
+                                            </div>
+                                        </DraggableCard>
+                                    ))}
+                                </div>
+                            </DroppableColumn>
+                        );
+                    })}
+                </div>
             </div>
-        </div>
+            {/* The ticket under the pointer: lifted, tilted, fully opaque. */}
+            <DragOverlay dropAnimation={dropAnimation}>
+                {overlayTask ? (
+                    <div className={s["drag-overlay"]} data-testid="drag-overlay">
+                        <TaskCard
+                            task={overlayTask}
+                            sprintMode={sprintMode}
+                            onOpenDetail={() => {}}
+                            onOpenComments={() => {}}
+                        />
+                    </div>
+                ) : null}
+            </DragOverlay>
+        </DndContext>
     );
 }

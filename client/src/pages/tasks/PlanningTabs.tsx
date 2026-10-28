@@ -1,79 +1,72 @@
 /**
  * The Tasks tab row.
  *
- * Sprint and Schedule are alternative planning surfaces (see
- * `usePlanningSurface`): a sprint team never sees both. Backlog and Service Desk
- * are common to every team, so they always render.
+ * Driven by the selected team's sprint state (see `planningTabs`): a running
+ * sprint leads with the Sprint board, Backlog and Scheduled sit beside it; with
+ * no active sprint the Sprint tab is hidden. Service Desk always renders.
  */
 import React from "react";
 import { CalendarDays, Package, Headset } from "../../constants/icons";
-import { isSprintEnabled } from "./hooks/usePlanningSurface";
+import { planningTabs, type PlanningSurface } from "./hooks/usePlanningSurface";
+import type { TasksView } from "./hooks/useTasksRoute";
 import s from "./TasksHeader.module.css";
 
 interface PlanningTabsProps {
     activeTab: string;
     setActiveTab: (tab: string) => void;
-    currentUser: any;
     agileEnabled: boolean;
     backlogCount: number;
+    /** Sprints of the selected team only. */
     availableSprints: any[];
-    selectedSprintId: number | null;
     setSelectedSprintId: (id: number | null) => void;
+}
+
+const LABELS: Record<TasksView, string> = {
+    sprint: "Sprint",
+    backlog: "Backlog",
+    scheduled: "Scheduled",
+    "service-desk": "Service Desk",
+};
+
+/** The icon each tab shows; Sprint has none, the label says enough. */
+function TabIcon({ tab }: { tab: TasksView }) {
+    const style = { verticalAlign: "middle" as const, marginRight: 4 };
+    if (tab === "backlog") return <Package size={14} style={style} />;
+    if (tab === "scheduled") return <CalendarDays size={14} style={style} />;
+    if (tab === "service-desk") return <Headset size={14} style={style} />;
+    return null;
 }
 
 export default function PlanningTabs({
     activeTab,
     setActiveTab,
-    currentUser,
     agileEnabled,
     backlogCount,
     availableSprints,
-    selectedSprintId,
     setSelectedSprintId,
 }: PlanningTabsProps) {
-    const sprintEnabled = isSprintEnabled(currentUser, agileEnabled, availableSprints);
-    const button = (tab: string) =>
-        `${s["tab-btn"]} ${activeTab === tab ? s["tab-active"] : ""}`;
-
+    const { tabs, activeSprintId }: PlanningSurface = planningTabs({ agileEnabled, sprints: availableSprints });
     return (
-        <div className={s["tab-switcher"]}>
-            {/* Part of the Agile bundle and gated on the team's sprint config,
-                not on the sprint list, which is materialised lazily. */}
-            {agileEnabled && sprintEnabled && (
+        <div className={s["tab-switcher"]} role="tablist" aria-label="Tasks views">
+            {tabs.map((tab) => (
                 <button
-                    className={button("sprint")}
+                    key={tab}
+                    role="tab"
+                    aria-selected={activeTab === tab}
+                    className={`${s["tab-btn"]} ${activeTab === tab ? s["tab-active"] : ""}`}
+                    title={tab === "scheduled" ? "Unsprinted tickets with a planned or due date" : undefined}
                     onClick={() => {
-                        setActiveTab("sprint");
-                        if (!selectedSprintId) {
-                            const active = availableSprints.find((sp: any) => sp.status === "active");
-                            setSelectedSprintId(active ? active.id : (availableSprints[0]?.id ?? null));
-                        }
+                        if (tab === "sprint") setSelectedSprintId(activeSprintId as number);
+                        setActiveTab(tab);
                     }}
                 >
-                    Sprint
+                    <TabIcon tab={tab} />
+                    {LABELS[tab]}
+                    {tab === "backlog" && backlogCount > 0 && (
+                        <span className={s["tab-badge"]}>{backlogCount}</span>
+                    )}
                 </button>
-            )}
-            <button className={button("backlog")} onClick={() => setActiveTab("backlog")}>
-                <Package size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                Backlog{" "}
-                {backlogCount > 0 && <span className={s["tab-badge"]}>{backlogCount}</span>}
-            </button>
-            {/* `/tasks/schedule` still resolves for links, the palette and deep
-                links; it is only not offered here. */}
-            {!sprintEnabled && (
-                <button
-                    className={button("scheduled")}
-                    onClick={() => setActiveTab("scheduled")}
-                    title="Tasks scheduled onto a day — overdue and upcoming"
-                >
-                    <CalendarDays size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                    Scheduled
-                </button>
-            )}
-            <button className={button("service-desk")} onClick={() => setActiveTab("service-desk")}>
-                <Headset size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                Service Desk
-            </button>
+            ))}
         </div>
     );
 }

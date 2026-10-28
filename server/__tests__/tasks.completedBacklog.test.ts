@@ -51,10 +51,10 @@ describe("completed work leaves the backlog", () => {
         expect(revealed.whereSql).not.toContain("t.completed_at IS NULL");
     });
 
-    test("a planned date never removes a task from the backlog", () => {
+    test("a dated task leaves the backlog for Scheduled; the legacy date column is ignored", () => {
         const open = backlog(false);
         expect(open.whereSql).not.toContain("t.date IS NULL");
-        expect(open.whereSql).not.toContain("t.planned_date IS NULL");
+        expect(open.whereSql).toContain("t.planned_date IS NULL AND t.due_date IS NULL");
     });
 
     test("the completed window is applied only to the completed query", () => {

@@ -1,91 +1,56 @@
 /**
- * Sprint and Schedule are alternative planning surfaces, never companions.
+ * The tab row follows the selected team's sprint state.
  *
- * A team that has sprint config plans work in the sprint, so the dated Schedule
- * view is not offered beside it. A team with no sprint config has no sprint to
- * put work in, so its dated view is the only place a due date means anything.
- * Backlog and Service Desk belong to both.
- *
- * The gate is the team's sprint config (`team_sprint_enabled`), not the sprint
- * list: `GET /tasks/available-sprints` materialises sprint rows as a side effect
- * of being read, so gating on the list made the tab set flicker.
+ * A started sprint leads with the Sprint board; Backlog and Scheduled sit beside
+ * it. No active sprint hides Sprint — a planned sprint alone is not a board.
+ * Service Desk belongs to every team.
  */
-import { describe, expect, test, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, test, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { isSprintEnabled } from "../hooks/usePlanningSurface";
+import PlanningTabs from "../PlanningTabs";
 
-let AGILE = true;
-vi.mock("../../../FeaturesContext", () => ({
-    useFeatures: () => ({ hasFeature: () => AGILE }),
-}));
-
-const PlanningTabs = (await import("../PlanningTabs")).default;
-
-function renderTabs(user: any, sprints: any[] = [], agile = true) {
-    AGILE = agile;
-    return render(
+function renderTabs(sprints: any[], agile = true, onTab = vi.fn(), onSprint = vi.fn()) {
+    render(
         <PlanningTabs
             activeTab="backlog"
-            setActiveTab={() => {}}
-            currentUser={user}
+            setActiveTab={onTab}
             agileEnabled={agile}
             backlogCount={0}
             availableSprints={sprints}
-            selectedSprintId={null}
-            setSelectedSprintId={() => {}}
+            setSelectedSprintId={onSprint}
         />,
     );
+    return { onTab, onSprint };
 }
 
-describe("planning tabs follow the team's sprint config", () => {
-    beforeEach(() => {
-        AGILE = true;
+describe("planning tabs follow the team's sprint state", () => {
+    test("an active sprint offers Sprint, Backlog, Scheduled and Service Desk", () => {
+        renderTabs([{ id: 7, status: "active" }]);
+        for (const name of [/Sprint/, /Backlog/, /Scheduled/, /Service Desk/]) {
+            expect(screen.getByRole("tab", { name })).toBeTruthy();
+        }
     });
 
-    test("a sprint team is offered Sprint, not Scheduled", () => {
-        renderTabs({ id: 1, team_id: 1, team_sprint_enabled: true });
-        expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: /Scheduled/ })).toBeNull();
-        // The backlog is common to both surfaces.
-        expect(screen.getByRole("button", { name: /Backlog/ })).toBeTruthy();
+    test("only a planned sprint hides the Sprint tab", () => {
+        renderTabs([{ id: 8, status: "planned" }]);
+        expect(screen.queryByRole("tab", { name: /^Sprint$/ })).toBeNull();
+        expect(screen.getByRole("tab", { name: /Backlog/ })).toBeTruthy();
+        expect(screen.getByRole("tab", { name: /Scheduled/ })).toBeTruthy();
     });
 
-    test("a team with no sprint config is offered Scheduled, not Sprint", () => {
-        renderTabs({ id: 1, team_id: 1, team_sprint_enabled: false });
-        expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
-        expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
-        expect(screen.getByRole("button", { name: /Backlog/ })).toBeTruthy();
+    test("agile off hides Sprint even with an active sprint", () => {
+        renderTabs([{ id: 7, status: "active" }], false);
+        expect(screen.queryByRole("tab", { name: /^Sprint$/ })).toBeNull();
     });
 
-    test("the Sprint tab does not wait for a sprint row to exist", () => {
-        // No sprints in context: the team's config alone is enough.
-        renderTabs({ team_sprint_enabled: true }, []);
-        expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
-    });
-
-    test("an older server that omits the flag keeps the Sprint tab", () => {
-        // `undefined` is "not reported", which must not read as "no sprints".
-        renderTabs({ id: 1 }, [{ id: 7, status: "active" }]);
-        expect(screen.getByRole("button", { name: /Sprint/ })).toBeTruthy();
-    });
-
-    test("an older server with no sprints still shows the dated surface", () => {
-        renderTabs({ id: 1 }, []);
-        expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
-        expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
-    });
-
-    test("agile off loses the Sprint tab whatever the team config says", () => {
-        renderTabs({ team_sprint_enabled: true }, [], false);
-        expect(screen.queryByRole("button", { name: /Sprint/ })).toBeNull();
-        expect(screen.getByRole("button", { name: /Scheduled/ })).toBeTruthy();
-    });
-
-    test("the predicate distinguishes unknown from no-sprints", () => {
-        expect(isSprintEnabled({}, true, [])).toBe(false);
-        expect(isSprintEnabled({ team_sprint_enabled: false }, true, [{ id: 1 }])).toBe(false);
-        expect(isSprintEnabled({ team_sprint_enabled: true }, true, [])).toBe(true);
-        expect(isSprintEnabled({ team_sprint_enabled: true }, false, [])).toBe(false);
+    test("choosing Sprint opens the active sprint, not a planned one", () => {
+        const { onTab, onSprint } = renderTabs([
+            { id: 8, status: "planned" },
+            { id: 7, status: "active" },
+        ]);
+        fireEvent.click(screen.getByRole("tab", { name: /^Sprint$/ }));
+        expect(onSprint).toHaveBeenCalledWith(7);
+        expect(onTab).toHaveBeenCalledWith("sprint");
     });
 });

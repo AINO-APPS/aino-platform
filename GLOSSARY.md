@@ -45,9 +45,12 @@ An allowed move from one workflow state to another, recorded in
 
 ## Backlog
 
-The set of tickets not in any sprint (`sprint_id IS NULL`). Backlog is a view, not
-a workflow state and not a board column. A planned date or due date never moves a
-ticket out of the backlog.
+The set of tickets with no sprint **and no date** (`sprint_id IS NULL AND
+planned_date IS NULL AND due_date IS NULL`). Backlog is a view, not a workflow
+state and not a board column. The three planning containers are mutually
+exclusive: a sprint wins over a date, and a date wins over the backlog — a
+ticket with a planned or due date and no sprint belongs to **Scheduled**, not
+the backlog. Adding a date (or a sprint) moves the ticket out of the backlog.
 
 **Avoid:** "Backlog" as the name of a status.
 

@@ -13,8 +13,16 @@ const {
     taskActorFromRequest,
 } = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
-const { findSprintsForOrg, findSprintsForTeam } = require("../modules/tasks/tasks.sprintRepository");
+const { findSprintsForOrg, findSprintsForTeam, LEAVE_SPRINT } = require("../modules/tasks/tasks.sprintRepository");
 const { loadSprintForActor } = require("../modules/tasks/tasks.sprintAccess");
+const {
+    findOtherActiveSprint,
+    sprintAlreadyActiveBody,
+    startSprint,
+    resumedEndDate,
+} = require("../modules/tasks/tasks.sprintLifecycle");
+
+type RunningSprint = { id: number; name: string };
 const { notifySprintStarted, notifySprintCompleted } = require("./_helpers/sprintNotifications");
 const { snapshotBurndown } = require("./_helpers/sprintBurndown");
 const router = express.Router();
@@ -100,6 +108,10 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
     }
 });
 
+function sprintAlreadyActive(res: Response, running: RunningSprint): Response {
+    return res.status(409).json(sprintAlreadyActiveBody(running));
+}
+
 router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -136,6 +148,11 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         }
         if (goal !== undefined) { updates.push(`goal = $${pi++}`); params.push(goal); }
         if (status !== undefined && ["planned", "active", "paused", "completed"].includes(status)) {
+            // Activating through an edit must respect one-active-per-team too.
+            if (status === "active" && sprint.status !== "active") {
+                const running = await findOtherActiveSprint(req.db!, sprint.team_id, sprint.id);
+                if (running) return sprintAlreadyActive(res, running);
+            }
             updates.push(`status = $${pi++}`); params.push(status);
         }
 
@@ -164,7 +181,7 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
-        await req.db!.query("UPDATE tasks SET sprint_id = NULL WHERE sprint_id = $1", [id]);
+        await req.db!.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE sprint_id = $1`, [id]);
         await req.db!.query("DELETE FROM sprints WHERE id = $1", [id]);
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
         res.json({ message: "Sprint deleted successfully" });
@@ -353,7 +370,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
 // ─── Sprint lifecycle: START ────────────────────────────────────────────────
 //
 // Transitions a sprint from 'planned' → 'active'. Enforces:
-//   - Only one active sprint per team at a time (auto-completes existing).
+//   - Only one active sprint per team at a time (409 while another is active).
 //   - Captures the scope baseline and the day-0 burndown snapshot.
 router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
     try {
@@ -364,30 +381,17 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
-        if (sprint.status === "active") return res.status(400).json({ error: "Sprint is already active" });
-        if (sprint.status === "completed") return res.status(400).json({ error: "Cannot restart a completed sprint" });
-        // Auto-complete any other active sprint on the same team
-        await req.db!.query(
-            `UPDATE sprints SET status = 'completed', completed_at = NOW() WHERE team_id = $1 AND status = 'active' AND id != $2`,
-            [sprint.team_id, id]
-        );
-        await req.db!.query(
-            "UPDATE sprints SET status = 'active', started_at = COALESCE(started_at, NOW()) WHERE id = $1",
-            [id]
-        );
-        // Record what the sprint committed when it started, so scope added or
-        // removed later can be reported against it.
-        const committed = (await req.db!.query("SELECT id, story_points FROM tasks WHERE sprint_id = $1", [id])).rows;
-        const baseline = captureBaseline(committed);
-        await req.db!.query(
-            `INSERT INTO sprint_baselines (sprint_id, committed_points, committed_task_ids, reason) VALUES ($1, $2, $3::jsonb, 'start')`,
-            [id, baseline.committed_points, JSON.stringify(baseline.committed_task_ids)],
-        );
-        await snapshotBurndown(req.db, parseInt(String(id), 10));
-        await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
-        // Everyone on the team hears that the sprint started, except the person
-        // who started it.
-        await notifySprintStarted(req, sprint);
+        // One active sprint per team, the baseline, the snapshot, the cache and
+        // the team notification all live in `startSprint`.
+        const started = await startSprint({
+            db: req.db!,
+            tenantId: req.tenantId,
+            invalidateActiveSprint: redis.invalidateActiveSprint,
+            snapshotBurndown,
+            notifyStarted: (target: any) => notifySprintStarted(req, target),
+            commit: captureBaseline,
+        }, sprint);
+        if (started.error) return res.status(started.error.status).json(started.error.body);
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
         return res.json({ sprint: updated });
     } catch (err) {
@@ -455,7 +459,7 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
             );
         } else {
             const r = await req.db!.query(
-                `UPDATE tasks SET sprint_id = NULL
+                `UPDATE tasks SET ${LEAVE_SPRINT}
                   WHERE sprint_id = $1
                     AND COALESCE((SELECT is_terminal FROM workflow_states WHERE id = tasks.workflow_state_id), FALSE) = FALSE`,
                 [id]
@@ -547,15 +551,10 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "paused") return res.status(400).json({ error: "Only a paused sprint can be resumed" });
+        const running = await findOtherActiveSprint(req.db!, sprint.team_id, sprint.id);
+        if (running) return sprintAlreadyActive(res, running);
 
-        // Push the end date out by however long we were paused so the team
-        // keeps their full working window.
-        let pausedDays = 0;
-        if (sprint.paused_at) {
-            pausedDays = Math.max(0, Math.floor((Date.now() - new Date(sprint.paused_at).getTime()) / 86400000));
-        }
-        const newEnd = new Date(new Date(sprint.end_date).getTime() + pausedDays * 86400000)
-            .toISOString().slice(0, 10);
+        const newEnd = resumedEndDate(sprint.end_date, sprint.paused_at);
 
         await req.db!.query(
             "UPDATE sprints SET status = 'active', paused_at = NULL, end_date = $2 WHERE id = $1",

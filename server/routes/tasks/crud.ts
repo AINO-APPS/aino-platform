@@ -39,6 +39,12 @@ const {
     teamAfterSprintMove,
 } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
+const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
+const {
+    resolveSprintTarget,
+    planSprintEdit,
+    resolveEditDates,
+} = require('../../modules/tasks/tasks.sprintAssignment');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -111,25 +117,15 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
 
-        if (!title || !title.trim()) return res.status(400).json({ error: 'Task title is required' });
-        if (title.trim().length > 200) return res.status(400).json({ error: 'Task title must be 200 characters or less' });
-        if (description && description.length > 5000) return res.status(400).json({ error: 'Task description must be 5000 characters or less' });
+        const invalid = validateCreatedFields({ title, description });
+        if (invalid) return res.status(invalid.status).json(invalid.body);
 
         // Stage 3: optional project assignment + auto issue key. We validate
         // the project here so a missing/invalid value returns 400 before we
         // open the create transaction.
-        let validProjectId = null;
-        if (project_id !== undefined && project_id !== null && project_id !== '') {
-            const projNum = parseInt(project_id, 10);
-            if (!isNaN(projNum) && req.userOrgId) {
-                const proj = (await req.db!.query(
-                    'SELECT id FROM projects WHERE id = $1 AND org_id = $2 AND is_archived = FALSE',
-                    [projNum, req.userOrgId]
-                )).rows[0];
-                if (!proj) return res.status(400).json({ error: 'Invalid project or project is archived' });
-                validProjectId = proj.id;
-            }
-        }
+        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null);
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        let validProjectId = project.projectId;
 
         const targetDate = date || getLocalToday(req);
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
@@ -144,34 +140,38 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             assignedTo = assigned_to;
         }
 
-        let validDueDate = null;
-        if (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) {
-            // Bug #15 (Stage 2): reject due_date earlier than the scheduled
-            // date so users can't create logically impossible tasks (e.g.
-            // dated 2026-05-21 due 2024-01-01). Compared lexicographically —
-            // both are YYYY-MM-DD strings so ASCII order = chronological.
-            if (targetDate && due_date < targetDate) {
-                return res.status(400).json({ error: 'Due date cannot be earlier than the task date' });
-            }
-            validDueDate = due_date;
-        }
+        // Bug #15: reject a due date before the scheduled day so an impossible
+        // ticket cannot be created.
+        const created = resolveEditDates({
+            currentDueDate: null,
+            currentPlannedDate: targetDate ?? null,
+            requestedDueDate: due_date ?? undefined,
+        });
+        if (created.error) return res.status(400).json(created.error.body);
+        let validDueDate = created.dueDate;
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
+        // The ticket's own due date, restored if it later leaves the sprint.
+        let ownDueDate: string | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
         // sneak a task into a sprint.
         const { isFeatureEnabled } = require('../../utils/planCatalog');
         if (sprint_id && isFeatureEnabled((req as any).tenant, 'agile')) {
-            const sprint = (await req.db!.query(
-                'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
-                [sprint_id, req.userOrgId]
-            )).rows[0];
-            const callerIsOrgAdmin = isOrgAdmin(req.userRole);
-            if (sprint && (sprint.team_id === req.userTeamId || callerIsOrgAdmin)) {
+            const target = await resolveSprintTarget(req.db!, {
+                sprintId: sprint_id,
+                orgId: req.userOrgId || null,
+                actorTeamId: req.userTeamId ?? null,
+                isAdmin: isOrgAdmin(req.userRole),
+            });
+            if (target.error) return res.status(target.error.status).json(target.error.body);
+            const sprint = target.sprint;
+            if (sprint) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
+                ownDueDate = validDueDate;
                 if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
@@ -245,6 +245,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                     validProjectId, taskNumber]
             );
             const newId = insertRes.rows[0].id;
+            if (validSprintId && ownDueDate) {
+                await client.query('UPDATE tasks SET pre_sprint_due_date = $1 WHERE id = $2', [ownDueDate, newId]);
+            }
             if (label_ids && Array.isArray(label_ids) && label_ids.length > 0) {
                 // syncLabels uses its own .query — re-bind to the tx client so
                 // the deletes/inserts join the transaction.
@@ -443,52 +446,47 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
         }
 
-        let newDueDate = task.due_date;
-        if (due_date !== undefined) {
-            newDueDate = (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) ? due_date : null;
-            // Bug #15: reject due_date earlier than the planned date.
-            if (newDueDate && task.planned_date && newDueDate < task.planned_date) {
-                return res.status(400).json({ error: 'Due date cannot be earlier than the task date' });
-            }
-        }
-
+        // The two scheduling dates and the pair rule between them (Bug #15).
+        const dates = resolveEditDates({
+            currentDueDate: task.due_date,
+            currentPlannedDate: task.planned_date ?? null,
+            requestedDueDate: due_date === undefined ? undefined : due_date,
+            requestedPlannedDate: planned_date === undefined ? undefined : planned_date,
+        });
+        if (dates.error) return res.status(dates.error.status).json(dates.error.body);
+        let newDueDate = dates.dueDate;
         // `planned_date` is the only scheduling field (D2).
-        let newPlannedDate = task.planned_date ?? null;
-        if (planned_date !== undefined) {
-            newPlannedDate = (planned_date && /^\d{4}-\d{2}-\d{2}$/.test(planned_date))
-                ? planned_date : null;
-            if (newPlannedDate && newDueDate && newDueDate < newPlannedDate) {
-                return res.status(400).json({ error: 'Due date cannot be earlier than the planned date' });
-            }
-        }
+        let newPlannedDate = dates.plannedDate;
 
+        // Sprint membership on edit, including what happens to the dates (see
+        // tasks.sprintAssignment). The agile gate keeps sprint mutation off
+        // entirely when the tenant disables it.
         let newSprintId = task.sprint_id;
         let newTeamId = task.team_id;
-        // Agile gate: when "Agile & Sprints" is disabled for the tenant,
-        // ignore sprint changes entirely (clearing is still harmless but we
-        // keep behaviour deterministic: no sprint mutations at all).
+        let newPreSprintDueDate = task.pre_sprint_due_date ?? null;
         const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
         const agileEnabledForTenant = isAgileFeatureEnabled((req as any).tenant, 'agile');
         if (sprint_id !== undefined && agileEnabledForTenant) {
-            if (sprint_id === null || sprint_id === '') {
-                newSprintId = null;
-            } else {
-                const sprint = (await req.db!.query(
-                    'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
-                    [sprint_id, req.userOrgId]
-                )).rows[0];
-                const callerIsOrgAdmin = isOrgAdmin(req.userRole);
-                if (sprint && (sprint.team_id === req.userTeamId || callerIsOrgAdmin)) {
-                    if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
-                        return res.status(409).json(sprintTeamMismatchBody());
-                    }
-                    newSprintId = sprint_id;
-                    newDueDate = sprint.end_date;
-                    if (newTeamId == null) newTeamId = teamAfterSprintMove(newTeamId, sprint.team_id);
-                } else {
-                    return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
-                }
-            }
+            const next = await planSprintEdit(req.db!, {
+                request: {
+                    sprintId: sprint_id,
+                    orgId: req.userOrgId || null,
+                    actorTeamId: req.userTeamId ?? null,
+                    isAdmin: isOrgAdmin(req.userRole),
+                },
+                current: {
+                    sprintId: task.sprint_id,
+                    teamId: task.team_id,
+                    dueDate: newDueDate,
+                    preSprintDueDate: newPreSprintDueDate,
+                },
+                requestedDueDate: due_date === undefined ? undefined : newDueDate,
+            });
+            if (next.error) return res.status(next.error.status).json(next.error.body);
+            newSprintId = next.sprintId;
+            newTeamId = next.teamId ?? newTeamId;
+            newDueDate = next.dueDate;
+            newPreSprintDueDate = next.preSprintDueDate;
         }
 
         // Resolve agile fields (only update if explicitly supplied)
@@ -566,13 +564,14 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
                 workflow_state_id = $9, parent_task_id = $10,
                 acceptance_criteria = $11, is_blocked = $12, blocked_reason = $13,
-                project_id = $14, task_number = $15, planned_date = $16, team_id = $18
+                project_id = $14, task_number = $15, planned_date = $16, team_id = $18,
+                pre_sprint_due_date = $19
               WHERE id = $17`,
             [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
                 newStoryPoints, newWitId, newWsId, newParentTaskId,
                 newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                 newIsBlocked, newBlockedReason, newProjectId, newTaskNumber,
-                newPlannedDate, id, newTeamId]
+                newPlannedDate, id, newTeamId, newPreSprintDueDate]
         );
 
         // Log a project assignment as a first-class history event so users

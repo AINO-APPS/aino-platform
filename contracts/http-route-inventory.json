@@ -9,7 +9,7 @@
   "totals": {
     "routerMounts": 34,
     "concreteEndpoints": 506,
-    "openApiOperations": 235
+    "openApiOperations": 236
   },
   "standaloneRoutes": [
     {
@@ -2666,6 +2666,11 @@
     {
       "method": "GET",
       "path": "/api/tasks/schedule-overlays",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/scheduled",
       "coverage": "operation"
     },
     {

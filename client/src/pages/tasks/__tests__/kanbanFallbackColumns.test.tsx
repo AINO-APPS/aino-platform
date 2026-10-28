@@ -41,13 +41,7 @@ function renderBoard(tasks: any[]) {
                 >
                     <KanbanBoard
                         tasks={tasks}
-                        dragOverCol={null}
                         sprintMode
-                        onDragOver={noop}
-                        onDragLeave={noop}
-                        onDrop={noop}
-                        onDragStart={noop}
-                        onDragEnd={noop}
                         onOpenDetail={noop}
                         onOpenComments={noop}
                     />

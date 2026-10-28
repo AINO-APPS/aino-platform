@@ -43,8 +43,9 @@ interface TaskCardProps {
     sprintMode?: boolean;
     onOpenDetail: (task: Task) => void;
     onOpenComments: (id: number | string) => void;
-    onDragStart: (e: React.DragEvent, id: number | string) => void;
-    onDragEnd: (e: React.DragEvent, id: number | string) => void;
+    /** HTML5 drag. Omitted on the board, where @dnd-kit owns dragging. */
+    onDragStart?: (e: React.DragEvent, id: number | string) => void;
+    onDragEnd?: (e: React.DragEvent, id: number | string) => void;
     /** "Updated by <name>" flash after a realtime delta. Non-blocking. */
     attribution?: { name: string } | null;
 }
@@ -111,9 +112,9 @@ export default function TaskCard({
             key={task.id}
             id={`task-${task.id}`}
             className={`${s["task-card"]} ${s.clickable} ${compact ? s["task-card-compact"] : ""} ${task.completed_at ? s["task-done"] : ""}`}
-            draggable
-            onDragStart={(e) => onDragStart(e, task.id)}
-            onDragEnd={(e) => onDragEnd(e, task.id)}
+            draggable={Boolean(onDragStart)}
+            onDragStart={onDragStart ? (e) => onDragStart(e, task.id) : undefined}
+            onDragEnd={onDragEnd ? (e) => onDragEnd(e, task.id) : undefined}
             onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (

@@ -1,5 +1,6 @@
 /** SQL ownership for the task domain. */
 import type { GitRefInput, TasksDb } from "./tasks.types";
+import { LEAVE_SPRINT, REMEMBER_DUE_DATE } from "./tasks.sprintRepository";
 
 export const findTask = async (db: TasksDb, id: number | string) =>
     (await db.query("SELECT * FROM tasks WHERE id = $1", [id])).rows[0];
@@ -113,10 +114,12 @@ export const setRank = async (db: TasksDb, id: number | string, rank: string) =>
 export const findManyInOrg = async (db: TasksDb, ids: number[], orgId: number | null) =>
     (await db.query("SELECT * FROM tasks WHERE id = ANY($1::int[]) AND org_id = $2", [ids, orgId])).rows;
 
-export const setSprint = async (db: TasksDb, id: number, sprintId: number | null, teamId?: number | null) =>
-    teamId !== undefined && teamId !== null
-        ? db.query("UPDATE tasks SET sprint_id = $1, team_id = $3 WHERE id = $2", [sprintId, id, teamId])
-        : db.query("UPDATE tasks SET sprint_id = $1 WHERE id = $2", [sprintId, id]);
+export const setSprint = async (db: TasksDb, id: number, sprintId: number | null, teamId?: number | null) => {
+    if (sprintId === null) return db.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE id = $1`, [id]);
+    return teamId !== undefined && teamId !== null
+        ? db.query(`UPDATE tasks SET ${REMEMBER_DUE_DATE}, sprint_id = $1, team_id = $3 WHERE id = $2`, [sprintId, id, teamId])
+        : db.query(`UPDATE tasks SET ${REMEMBER_DUE_DATE}, sprint_id = $1 WHERE id = $2`, [sprintId, id]);
+};
 
 export const setWorkflowState = async (db: TasksDb, id: number, workflowStateId: number | null) =>
     db.query("UPDATE tasks SET workflow_state_id = $1 WHERE id = $2", [workflowStateId, id]);
@@ -242,3 +245,9 @@ export const findTaskIdsByIssueKeys = async (
             SELECT UNNEST($2::text[]), UNNEST($3::int[])
         )`, [orgId, projectKeys, taskNumbers],
 )).rows;
+/** An active project in the caller's org, or none. */
+export const findActiveProject = async (db: TasksDb, projectId: number, orgId: number | null) =>
+    (await db.query(
+        "SELECT id FROM projects WHERE id = $1 AND org_id = $2 AND is_archived = FALSE",
+        [projectId, orgId],
+    )).rows[0] ?? null;

@@ -29,8 +29,8 @@ interface SprintTabProps {
     sprintMode: boolean;
     onOpenDetail: (task: any) => void;
     onOpenComments: (id: number | string) => void;
-    /** Opens the backlog create form from a column header "+". */
-    onAddTask?: () => void;
+    /** Creates a ticket in the running sprint, in the column's state. */
+    onAddTask?: (column: any) => void;
     boardDrag: any;
     boardAnnouncement: string;
     plan: boolean;
@@ -159,18 +159,12 @@ export default function SprintTab({
                 >
                     <KanbanBoard
                         tasks={tasks}
-                        dragOverCol={drag.dragOverCol}
+                        drag={drag}
                         sprintMode={sprintMode}
-                        onDragOver={drag.onDragOver}
-                        onDragLeave={drag.onDragLeave}
-                        onDrop={drag.onDrop}
-                        onDragStart={drag.onDragStart}
-                        onDragEnd={drag.onDragEnd}
                         onOpenDetail={onOpenDetail}
                         onOpenComments={onOpenComments}
-                        onAddTask={onAddTask ? () => onAddTask() : undefined}
+                        onAddTask={onAddTask}
                         boardDrag={boardDrag}
-                        draggingTaskId={drag.draggingTaskId}
                         targetPolicy={drag.targetPolicy}
                         wipWarning={boardDrag.wipWarning}
                         announcement={boardAnnouncement}

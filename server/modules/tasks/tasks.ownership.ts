@@ -170,8 +170,10 @@ export async function transferTicket(
     }
 
     await db.query(
-        "UPDATE tasks SET team_id = $1, sprint_id = $2 WHERE id = $3",
-        [team.id, clearedSprint ? null : task.sprint_id, options.taskId],
+        clearedSprint
+            ? `UPDATE tasks SET team_id = $1, sprint_id = NULL, due_date = pre_sprint_due_date, pre_sprint_due_date = NULL WHERE id = $2`
+            : "UPDATE tasks SET team_id = $1 WHERE id = $2",
+        [team.id, options.taskId],
     );
     const updated = (await db.query("SELECT * FROM tasks WHERE id = $1", [options.taskId])).rows[0];
 

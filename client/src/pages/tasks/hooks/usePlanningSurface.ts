@@ -1,26 +1,41 @@
 /**
- * Which planning surface a team gets: Sprint, or dated work.
+ * Which tabs a team gets, decided by its sprint state.
  *
- * They are alternatives, not companions. A team that plans in sprints puts work
- * in a sprint, so a second dated list beside it is noise. A team with no sprint
- * config has nowhere to put work but a date, so that dated list is the only way
- * its due dates mean anything. Backlog and Service Desk belong to both.
+ * A started sprint is the team's working surface: the Sprint board leads and
+ * Backlog / Scheduled sit beside it. With no active sprint there is no board to
+ * show, so the Sprint tab is hidden and the team works from Backlog and
+ * Scheduled. Service Desk belongs to every team.
  *
- * The gate is the team's own sprint config, which the profile reports as
- * `team_sprint_enabled`. It is deliberately not inferred from the sprint list:
- * `GET /tasks/available-sprints` materialises sprint rows as a side effect of
- * being read and only returns active/planned ones, so the list answers a
- * different question and would make the tab row flicker.
+ * The sprint list must already be narrowed to the selected team (an admin's
+ * picker or the user's own team) so one team's sprint never drives another's
+ * tabs.
  */
+import type { TasksView } from "./useTasksRoute";
 
-/** Does this team work in sprints? */
-export function isSprintEnabled(
-    currentUser: any,
-    agileEnabled: boolean,
-    availableSprints: any[],
-): boolean {
-    if (!agileEnabled) return false;
-    // `undefined` is an older server: fall back to the sprint list so an
-    // un-upgraded deploy keeps its Sprint tab instead of losing it.
-    return currentUser?.team_sprint_enabled ?? availableSprints.length > 0;
+export interface PlanningSurface {
+    tabs: TasksView[];
+    activeSprintId: number | string | null;
+}
+
+/**
+ * The tabs in the order they are shown. `PlanningTabs` renders exactly this
+ * list, so a surface added to the rule cannot silently miss the row (or appear
+ * in it without the rule agreeing).
+ */
+export const TAB_ORDER: TasksView[] = ["sprint", "backlog", "scheduled", "service-desk"];
+
+export function activeSprintOf(sprints: any[]): any | null {
+    return sprints.find((sprint) => sprint?.status === "active") ?? null;
+}
+
+export function planningTabs({
+    agileEnabled,
+    sprints,
+}: {
+    agileEnabled: boolean;
+    sprints: any[];
+}): PlanningSurface {
+    const active = agileEnabled ? activeSprintOf(sprints) : null;
+    const tabs = TAB_ORDER.filter((tab) => tab !== "sprint" || active != null);
+    return { tabs, activeSprintId: active?.id ?? null };
 }

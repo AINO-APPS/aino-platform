@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, AlertCircle, Package, X } from "../../constants/icons";
-import { getTasks, scheduleTask, unscheduleTask } from "../../api/tasks";
+import { getScheduled, scheduleTask, unscheduleTask, updateTask } from "../../api/tasks";
 import { getLocalToday } from "../../api/client";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { useToast } from "../../components/common/Toast";
 import TaskCard from "./TaskCard";
 import { formatDate, parseLocalDate } from "./utils";
-import { groupScheduled, nextDays, scheduledWindow, SCHEDULED_AHEAD_DAYS, SCHEDULED_PAST_DAYS } from "./scheduled";
+import { groupScheduled, nextDays, scheduledWindow, scheduleDateOf, SCHEDULED_AHEAD_DAYS, SCHEDULED_PAST_DAYS } from "./scheduled";
 import { useVisiblePoll } from "./hooks/useVisiblePoll";
 import ScheduleCalendar from "./ScheduleCalendar";
 import type { CalendarMode } from "./calendar";
@@ -30,10 +30,10 @@ const noopDrag = () => {};
 const EMPTY_SCOPE: Record<string, unknown> = {};
 
 /**
- * Scheduled — tasks planned onto a day (Backlog → Schedule, carry-forward,
- * the mobile app). Overdue first, then one section per day from today, a
- * week strip to jump, and per-card Reschedule / Back to backlog with Undo.
- * Kept in sync by `task_*` realtime events plus a visible-tab poll.
+ * Scheduled — every unsprinted ticket with a planned or due date. Overdue
+ * first, then one section per day, then Later; a week strip to jump, and
+ * per-card Reschedule / Back to backlog with Undo. Kept in sync by `task_*`
+ * realtime events plus a visible-tab poll.
  */
 export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOpenDetail, onOpenComments, version = 0, scopeParams = EMPTY_SCOPE }: ScheduledTabProps) {
   const toast = useToast() as any;
@@ -49,11 +49,8 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const load = useCallback(async () => {
-    const [start, end] = scheduledWindow(getLocalToday());
     try {
-      const res = await getTasks(undefined, {
-        ...(filters || {}), ...scopeParams, start_date: start, end_date: end,
-      } as any);
+      const res = await getScheduled({ ...(filters || {}), ...scopeParams } as any);
       setTasks(((res.data as any)?.tasks as any[]) || []);
       setError("");
     } catch {
@@ -87,10 +84,11 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   }, [version]);
 
   const groups = useMemo(() => groupScheduled(tasks, today), [tasks, today]);
-  const overdueCount = groups.find((g) => g.date === null)?.tasks.length ?? 0;
+  // `date === null` covers both Overdue and Later buckets; only Overdue counts.
+  const overdueCount = groups.find((g) => g.key === "overdue")?.tasks.length ?? 0;
   const countByDay = useMemo(() => {
     const m: Record<string, number> = {};
-    tasks.forEach((t) => { const d = t.planned_date?.slice(0, 10); if (d) m[d] = (m[d] || 0) + 1; });
+    tasks.forEach((t) => { const d = scheduleDateOf(t); if (d) m[d] = (m[d] || 0) + 1; });
     return m;
   }, [tasks]);
 
@@ -108,6 +106,10 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
 
   const doReschedule = async (task: any, date: string) => {
     const previous = task.planned_date?.slice(0, 10);
+    if (task.due_date && date > task.due_date.slice(0, 10)) {
+      toast.error("The planned day cannot be after the due date");
+      return;
+    }
     try {
       await scheduleTask(task.id, date);
       setRescheduleId(null);
@@ -127,16 +129,22 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   };
 
   const doUnschedule = async (task: any) => {
-    const previous = task.planned_date?.slice(0, 10);
+    const previousPlanned = task.planned_date?.slice(0, 10) || null;
+    const previousDue = task.due_date?.slice(0, 10) || null;
     try {
       await unscheduleTask(task.id);
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      void loadBacklog();
+      const undo = async () => {
+        if (previousDue) await updateTask(task.id, { due_date: previousDue });
+        if (previousPlanned) await scheduleTask(task.id, previousPlanned);
+        await load();
+        await loadBacklog();
+      };
       toast.success(
         <span>
           Moved to backlog
-          {previous && (
-            <button className={s["toast-action"]} onClick={() => scheduleTask(task.id, previous).then(load)}>Undo</button>
-          )}
+          <button className={s["toast-action"]} onClick={undo}>Undo</button>
         </span>,
         6000,
       );
@@ -204,13 +212,13 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         <div className={s.empty}>
           <CalendarDays size={36} strokeWidth={1.5} />
           <p>Nothing scheduled</p>
-          <span>Schedule tickets from the Backlog to plan them onto a day.</span>
+          <span>Give a backlog ticket a planned or due date and it moves here.</span>
         </div>
       ) : (
         groups.map((g) => (
           <div key={g.key} ref={(el) => { sectionRefs.current[g.key] = el; }} className={s.section}>
-            <div className={`${s["section-header"]} ${g.date === null ? s["section-overdue"] : g.date === today ? s["section-today"] : ""}`}>
-              {g.date === null ? <AlertCircle size={14} /> : <span className={s["section-dot"]} />}
+            <div className={`${s["section-header"]} ${g.key === "overdue" ? s["section-overdue"] : g.date === today ? s["section-today"] : ""}`}>
+              {g.key === "overdue" ? <AlertCircle size={14} /> : <span className={s["section-dot"]} />}
               <span>{g.label}</span>
               <span className={s["section-count"]}>{g.tasks.length}</span>
             </div>
@@ -225,7 +233,11 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
                     onDragEnd={noopDrag}
                   />
                   <div className={s.actions}>
-                    {g.date === null && <span className={s["was-date"]}>Planned {formatDate(task.planned_date)}</span>}
+                    {g.key !== "overdue" && g.key !== "later" && !task.planned_date && (
+                      <span className={s["was-date"]}>
+                        {task.planned_date ? `Planned ${formatDate(task.planned_date)}` : `Due ${formatDate(task.due_date)}`}
+                      </span>
+                    )}
                     {rescheduleId === task.id ? (
                       <span className={s.popover}>
                         <input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
@@ -251,7 +263,8 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
       )}
       {groups.length > 0 && (
         <p className={s.footnote}>
-          Showing the past {SCHEDULED_PAST_DAYS} days (overdue) and the next {SCHEDULED_AHEAD_DAYS} days.
+          Overdue first, then the next {SCHEDULED_AHEAD_DAYS} days day by day; anything further out is under Later.
+          Completed tickets older than {SCHEDULED_PAST_DAYS} days are hidden.
         </p>
       )}
       </>

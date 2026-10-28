@@ -1,3 +1,5 @@
+import { scheduleDateOf } from "./scheduled";
+
 /**
  * Calendar maths for the Schedule view.
  *
@@ -83,9 +85,13 @@ export interface ScheduledTask {
     [key: string]: unknown;
 }
 
-/** The planned day of a task. `planned_date` is the only scheduling field (D2). */
+/**
+ * The calendar day of a scheduled task: its planned date, else its due date,
+ * so a ticket in Scheduled for its deadline alone still has a cell.
+ */
 export function plannedDay(task: ScheduledTask): string | null {
-    return task.planned_date || null;
+    // One rule with the Scheduled list (see `scheduleDateOf`).
+    return scheduleDateOf(task);
 }
 
 /** Group tasks by their planned day. */

@@ -141,6 +141,57 @@ describe("task collection builder", () => {
         }
     });
 
+    describe("container placement (sprint > dated > backlog)", () => {
+        test("the backlog holds only tickets with no sprint and no date", () => {
+            const backlog = normalise(buildTaskCollection({ scope: "backlog", orgId: 1, visibility }).whereSql);
+            expect(backlog).toContain("t.sprint_id IS NULL");
+            expect(backlog).toContain("t.planned_date IS NULL");
+            expect(backlog).toContain("t.due_date IS NULL");
+        });
+
+        test("the backlog's Completed section lists finished tickets whatever their dates", () => {
+            const counted = normalise(buildCompletedQuery({ scope: "backlog", orgId: 1, visibility }).whereSql);
+            const listed = normalise(buildTaskCollection({
+                scope: "backlog", orgId: 1, visibility, filters: { completed: "completed" },
+            }).whereSql);
+            for (const completed of [counted, listed]) {
+                expect(completed).toContain("t.sprint_id IS NULL");
+                expect(completed).not.toContain("t.planned_date IS NULL");
+                expect(completed).not.toContain("t.due_date IS NULL");
+            }
+        });
+
+        test("scheduled holds every unsprinted ticket with either date, with no window", () => {
+            const scheduled = buildTaskCollection({ scope: "scheduled", orgId: 1, visibility, today: "2026-10-28" });
+            const sql = normalise(scheduled.whereSql);
+            expect(sql).toContain("t.sprint_id IS NULL");
+            expect(sql).toContain("(t.planned_date IS NOT NULL OR t.due_date IS NOT NULL)");
+            expect(sql).not.toMatch(/planned_date <= \$/);
+        });
+
+        test("scheduled drops completed history older than 30 days", () => {
+            const scheduled = buildTaskCollection({ scope: "scheduled", orgId: 1, visibility, today: "2026-10-28" });
+            expect(normalise(scheduled.whereSql)).toContain("t.completed_at IS NULL OR t.completed_at >=");
+            expect(scheduled.params).toContain("2026-09-28");
+        });
+
+        test("a planned-date range never returns tickets that are in a sprint", () => {
+            const range = buildTaskCollection({
+                scope: "schedule", orgId: 1, visibility, startDate: "2026-10-01", endDate: "2026-10-31",
+            });
+            expect(normalise(range.whereSql)).toContain("t.sprint_id IS NULL");
+        });
+
+        test("scheduled applies the same filters and visibility as the backlog", () => {
+            const backlog = buildTaskCollection({ scope: "backlog", orgId: 1, visibility, filters });
+            const scheduled = buildTaskCollection({ scope: "scheduled", orgId: 1, visibility, filters, today: "2026-10-28" });
+            for (const shared of ["t.team_id = $?", "t.priority = $?"]) {
+                expect(withoutParamNumbers(backlog.whereSql)).toContain(shared);
+                expect(withoutParamNumbers(scheduled.whereSql)).toContain(shared);
+            }
+        });
+    });
+
     test("orders each scope deterministically", () => {
         const backlog = buildTaskCollection({ scope: "backlog", orgId: 1, visibility });
         const board = buildTaskCollection({ scope: "board", orgId: 1, visibility, sprintId: 1 });

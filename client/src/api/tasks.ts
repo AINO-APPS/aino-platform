@@ -94,6 +94,8 @@ export const deleteTaskComment = (taskId: number | string, commentId: number | s
 
 // Backlog
 export const getBacklog = (filters?: Params) => API.get("/tasks/backlog", { params: filters });
+/** Unsprinted tickets with a planned or due date — the Scheduled tab. */
+export const getScheduled = (filters?: Params) => API.get("/tasks/scheduled", { params: filters });
 export const addBacklogTask = (data: AnyData) => API.post("/tasks/backlog", data);
 export const scheduleTask = (id: number | string, date: string) =>
     API.patch(`/tasks/${id}/schedule`, { date });

@@ -11,7 +11,28 @@ import { buildVisibilityPredicate, type TaskVisibility } from "./tasks.policy";
 
 export type { TaskVisibility };
 
-export type TaskCollectionScope = "backlog" | "board" | "schedule";
+/**
+ * Containers are mutually exclusive: a sprint wins over a date, and a date
+ * wins over the backlog.
+ *  - `backlog`   — no sprint, no planned/due date.
+ *  - `scheduled` — no sprint, a planned or due date (the Scheduled tab).
+ *  - `board`     — one sprint.
+ *  - `schedule`  — the legacy day/range lookup used by the planner and calendar.
+ */
+export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled";
+
+/** Completed scheduled work older than this drops out of the Scheduled tab. */
+export const SCHEDULED_HISTORY_DAYS = 30;
+
+const UNSPRINTED = "t.sprint_id IS NULL";
+const UNDATED = "t.planned_date IS NULL AND t.due_date IS NULL";
+const DATED = "(t.planned_date IS NOT NULL OR t.due_date IS NOT NULL)";
+
+function isoDaysBefore(iso: string, days: number): string {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString().slice(0, 10);
+}
 
 export interface TaskCollectionFilters {
     assignee?: string;
@@ -47,6 +68,8 @@ export interface TaskCollectionInput {
     endDate?: string;
     /** Schedule scope only: a single planned date. */
     date?: string;
+    /** Scheduled scope only: the caller's local today (YYYY-MM-DD). */
+    today?: string;
 }
 
 export interface TaskCollectionQuery {
@@ -76,6 +99,7 @@ const ORDER_BY: Record<TaskCollectionScope, string> = {
     // applies without touching it.
     backlog: "t.rank ASC NULLS LAST, t.created_at DESC",
     board: "t.created_at ASC",
+    scheduled: `COALESCE(t.planned_date, t.due_date) ASC, ${PRIORITY_ORDER}, t.created_at ASC`,
     schedule: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
 };
 
@@ -111,16 +135,29 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
 
     // ── Container scope ────────────────────────────────────────────────────
     if (input.scope === "backlog") {
-        // Backlog is the only container dimension: not in a sprint. A planned
-        // date is metadata and never removes a task from the backlog.
-        conditions.push("t.sprint_id IS NULL");
+        // The collapsed Completed section lists every finished unsprinted
+        // ticket, dated or not; the open list is undated only.
+        if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);
+        else conditions.push(UNSPRINTED, UNDATED);
+    } else if (input.scope === "scheduled") {
+        conditions.push(UNSPRINTED, DATED);
+        if (input.today) {
+            push(
+                `(t.completed_at IS NULL OR t.completed_at >= $${pi})`,
+                isoDaysBefore(input.today, SCHEDULED_HISTORY_DAYS),
+            );
+        }
     } else if (input.scope === "board") {
         push(`t.sprint_id = $${pi}`, input.sprintId);
     } else {
         if (input.sprintId !== undefined) {
             push(`t.sprint_id = $${pi}`, input.sprintId);
         } else if (input.startDate && input.endDate) {
-            push(`t.planned_date >= $${pi} AND t.planned_date <= $${pi + 1}`, input.startDate, input.endDate);
+            push(
+                `${UNSPRINTED} AND t.planned_date >= $${pi} AND t.planned_date <= $${pi + 1}`,
+                input.startDate,
+                input.endDate,
+            );
         } else if (input.date) {
             if (input.filters?.includeDue) {
                 push(

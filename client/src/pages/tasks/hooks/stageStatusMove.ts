@@ -15,7 +15,9 @@ interface StageStatusMoveArgs {
 /**
  * Ask before a status change, with one wording for pointer and keyboard.
  *
- * Staging lives here so no caller can mutate a ticket before the user answers;
+ * Staging lives here so every caller asks with the same wording. A pointer drop
+ * may show the card in its new column first (Jira behaviour) and roll it back
+ * on Cancel; a keyboard move changes nothing until the user accepts.
  * the dialog names the ticket and the target state, and `onConfirm` only runs
  * after the user accepts.
  */

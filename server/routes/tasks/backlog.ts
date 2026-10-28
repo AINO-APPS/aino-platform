@@ -1,5 +1,7 @@
-// Backlog endpoints — tasks with `date IS NULL AND sprint_id IS NULL`.
+// Backlog endpoints — the backlog is `sprint_id IS NULL` with no planned or
+// due date; dated unsprinted tickets live in Scheduled.
 //   GET   /backlog
+//   GET   /scheduled
 //   POST  /backlog
 //   PATCH /:id/schedule
 //   PATCH /:id/unschedule
@@ -10,10 +12,16 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
-const { findLastCompletedSprintStart } = require('../../modules/tasks/tasks.sprintRepository');
+const {
+    findLastCompletedSprintStart,
+    listScheduledTasks,
+    clearScheduledDates,
+} = require('../../modules/tasks/tasks.sprintRepository');
 const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
+const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
+const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { canAccessTask, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
@@ -168,6 +176,36 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
     }
 });
 
+// ─── Scheduled: unsprinted tickets that carry a planned or due date ──────
+// No date window: a ticket dated months ahead must still be visible somewhere
+// once dated work leaves the backlog. Completed history is trimmed to 30 days.
+router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const { assignee, label, priority, status, search } = req.query as Record<string, string>;
+        const actor = taskActorFromRequest(req);
+        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
+        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        const visibility = resolveTaskVisibility(actor, {
+            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
+        });
+        const collection = buildTaskCollection({
+            scope: 'scheduled',
+            orgId: req.userOrgId || null,
+            visibility,
+            today: getLocalToday(req),
+            filters: { assignee, label, priority, status, search },
+        });
+        const tasks = await listScheduledTasks(req.db!, collection.whereSql, collection.params);
+        res.json({ tasks: await enrichTasks(tasks, req.db) });
+    } catch (err) {
+        req.log.error({ err: err }, 'Error fetching scheduled tasks:');
+        res.status(500).json({ error: 'Failed to fetch scheduled tasks' });
+    }
+});
+
 // ─── Backlog: Create a backlog item (no date) ─────────────────────────────
 router.post('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
@@ -175,9 +213,8 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
 
-        if (!title || !title.trim()) return res.status(400).json({ error: 'Task title is required' });
-        if (title.trim().length > 200) return res.status(400).json({ error: 'Task title must be 200 characters or less' });
-        if (description && description.length > 5000) return res.status(400).json({ error: 'Task description must be 5000 characters or less' });
+        const invalid = validateCreatedFields({ title, description });
+        if (invalid) return res.status(invalid.status).json(invalid.body);
 
         // Stage 3: optional project assignment. Mirrors the validation in
         // routes/tasks/crud.js so a missing/invalid project returns 400
@@ -213,6 +250,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
+        let ownDueDate: string | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
@@ -230,6 +268,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             if (sprint && (callerIsOrgAdmin || sprint.team_id === req.userTeamId)) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
+                ownDueDate = validDueDate;
                 if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
@@ -294,6 +333,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
                     validProjectId, taskNumber]
             );
             const newId = insertRes.rows[0].id;
+            if (validSprintId && ownDueDate) {
+                await client.query('UPDATE tasks SET pre_sprint_due_date = $1 WHERE id = $2', [ownDueDate, newId]);
+            }
             if (label_ids && Array.isArray(label_ids) && label_ids.length > 0) {
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
@@ -341,7 +383,7 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
     }
 });
 
-// ─── Move a dated task back to backlog ────────────────────────────────────
+// ─── Move a dated task back to backlog (clears planned and due date) ─────
 router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -349,8 +391,14 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
-        await req.db!.query('UPDATE tasks SET planned_date = NULL WHERE id = $1', [id]);
+        // Back to backlog means undated: a remaining due date would keep the
+        // ticket in Scheduled. `?keep_due=1` clears only the planned day.
+        const keepDue = req.query.keep_due === '1' || req.query.keep_due === 'true';
+        await clearScheduledDates(req.db!, id, keepDue);
         await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date, 'backlog', null, req.db);
+        if (!keepDue && task.due_date) {
+            await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, null, null, req.db);
+        }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const enriched = await enrichTasks([updated], req.db);

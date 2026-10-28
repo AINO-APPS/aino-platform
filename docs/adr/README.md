@@ -33,6 +33,7 @@ decisions.
 | [012](ADR-012-default-tenant-has-no-data-privilege.md) | The default tenant has no data privilege | Accepted |
 | [013](ADR-013-ticket-team-ownership.md) | Tickets are owned by one team; membership is the visibility boundary | Accepted |
 | [014](ADR-014-workflow-transition-enforcement.md) | Workflow transitions are enforced server-side | Accepted |
+| [015](ADR-015-three-planning-containers.md) | Sprint, Scheduled and backlog are exclusive containers | Accepted |
 
 > 010 is reserved for the remaining GDAP-style JIT-access hardening. See
 > [`../PLATFORM_TENANT_SEPARATION_PLAN.md`](../PLATFORM_TENANT_SEPARATION_PLAN.md).

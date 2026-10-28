@@ -10,7 +10,7 @@
  * The card must stay fully opaque while it is being dragged.
  */
 import { describe, expect, test, vi } from "vitest";
-import { fireEvent, render, renderHook } from "@testing-library/react";
+import { act, fireEvent, render, renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TaskCard from "../TaskCard";
 import { TaskProvider } from "../TaskContext";
@@ -82,12 +82,19 @@ describe("board card drag affordance", () => {
             }),
         );
 
-        result.current.onDragStart(
-            { dataTransfer: { setData: vi.fn(), effectAllowed: "" } } as any,
-            task.id,
-        );
+        act(() => result.current.onDragStart(task.id));
 
         expect(card.className).not.toContain(cardStyles.dragging);
+    });
+
+    test("the floating board card is lifted and fully opaque", () => {
+        const css = fs.readFileSync(path.join(__dirname, "..", "KanbanBoard.module.css"), "utf8");
+        const overlay = css.match(/\.drag-overlay\s*\{[^}]*\}/)?.[0] ?? "";
+        expect(overlay).toMatch(/transform:\s*rotate\([^)]+\)\s*scale\(/);
+        expect(overlay).toMatch(/box-shadow/);
+        expect(overlay).not.toMatch(/opacity\s*:\s*(0?\.\d+)/);
+        // The drop settles with an animation; reduced motion turns it off.
+        expect(css).toMatch(/prefers-reduced-motion/);
     });
 
     test("the stylesheet does not dim a card that is being dragged", () => {
