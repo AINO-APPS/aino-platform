@@ -11,7 +11,7 @@ import TodayEventsCard from "../components/dashboard/TodayEventsCard";
 import EventReminderToast from "../components/notifications/EventReminderToast";
 import TasksSummary from "../components/dashboard/TasksSummary";
 import PendingApprovalsCard from "../components/dashboard/PendingApprovalsCard";
-import SprintProgressCard from "../components/dashboard/SprintProgressCard";
+import MyWorkCard from "../components/dashboard/MyWorkCard";
 import WorkTimerCard from "../components/dashboard/WorkTimerCard";
 import { useEventReminder } from "../hooks/useEventReminder";
 import useWebSocket from "../hooks/useWebSocket";
@@ -195,7 +195,7 @@ export default function Dashboard() {
         <WorkTimerCard />
         <TodayEventsCard events={todayEvents} tomorrowEvents={tomorrowEvents} />
         <TasksSummary taskSummary={taskSummary} />
-        <SprintProgressCard />
+        <MyWorkCard />
         {isManager && <PendingApprovalsCard />}
       </div>
 

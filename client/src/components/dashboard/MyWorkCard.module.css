@@ -1,0 +1,164 @@
+/* ============= MY WORK CARD (home: sprint tickets or this week) ============= */
+.card {
+  text-align: left !important;
+  padding: 1.2rem !important;
+  margin-bottom: 0;
+}
+
+.clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.6rem;
+  color: var(--text);
+}
+
+.title-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.done-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.arrow {
+  margin-left: auto;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.clickable:hover .arrow {
+  transform: translateX(2px);
+}
+
+.empty-text {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.1rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0.45rem 0 0.2rem;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.item:last-child { border-bottom: none; }
+.item:hover .item-title { color: var(--primary); }
+
+/* The dot carries the workflow state, not the priority (spec D9). The server
+   sends no state colour, so the categories map to the three tones the Tasks
+   page already uses. */
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+.t-progress { background: var(--warning, #f59e0b); }
+.t-review { background: var(--primary); }
+.t-neutral { background: var(--text-muted); }
+
+.priority {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.p-high { color: var(--danger, #ef4444); }
+.p-medium { color: var(--warning, #f59e0b); }
+.p-low { color: var(--text-muted); }
+
+.item-title {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.row-day {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--danger, #ef4444);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.state {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.more {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 0.45rem 0 0;
+  cursor: pointer;
+}
+
+/* Skeleton loader */
+.skeleton {
+  height: 100px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  border-radius: 8px;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

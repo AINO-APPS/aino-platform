@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-25",
+  "updated": "2026-10-29",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -752,6 +752,28 @@
         "status": "waived",
         "waiver": "Team mode is web-only configuration (D52); Android reads the resolved mode but has no editor to ship.",
         "phase": 3
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
+      }
+    },
+    {
+      "id": "home-my-work",
+      "name": "Home card shows the running sprint or this week, never the backlog",
+      "decision": "D53",
+      "phase": 3,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/components/dashboard/myWork.test.ts"
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/components/dashboard/myWork.test.ts"
+      },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/home/MyWorkLogicTest.kt"
       },
       "ios": {
         "status": "waived",

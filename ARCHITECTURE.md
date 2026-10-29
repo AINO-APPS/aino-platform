@@ -224,12 +224,15 @@ client/src/
 │   ├── search/                    # Global search (barrel: index.js)
 │   │   └── GlobalSearch.jsx       # Spotlight-style search overlay
 │   │
-│   ├── dashboard/                 # Dashboard widgets (barrel: index.js)
-│   │   ├── TasksSummary.jsx       # Today's task status breakdown
-│   │   ├── TimelineCard.jsx       # Activity timeline (clock events)
-│   │   ├── TodayEventsCard.jsx    # Upcoming calendar events widget
-│   │   ├── WeeklyChart.jsx        # Weekly work hours bar chart
-│   │   └── WidgetsGrid.jsx        # Responsive widget grid layout
+│   ├── dashboard/                 # Dashboard widgets (barrel: index.ts)
+│   │   ├── MyWorkCard.tsx         # My sprint tickets, or this week (rules: myWork.ts)
+│   │   ├── PendingApprovalsCard.tsx # Manager approval queue
+│   │   ├── TasksSummary.tsx       # Today's task status breakdown
+│   │   ├── TimelineCard.tsx       # Activity timeline (clock events)
+│   │   ├── TodayEventsCard.tsx    # Upcoming calendar events widget
+│   │   ├── WeeklyChart.tsx        # Weekly work hours bar chart
+│   │   ├── WidgetsGrid.tsx        # Responsive widget grid layout
+│   │   └── WorkTimerCard.tsx      # Clock-in/out timer widget
 │   │
 │   ├── notifications/             # Notification components (barrel: index.js)
 │   │   ├── NotificationBell.jsx   # Notification dropdown bell
