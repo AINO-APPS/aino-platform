@@ -55,6 +55,28 @@ the backlog (ADR-015, amended 2026-10-29).
 
 **Avoid:** "Backlog" as the name of a status.
 
+## Planned day
+
+The day a ticket is planned onto (`tasks.planned_date`). It is what puts an
+unsprinted ticket in **Scheduled**. A ticket in a sprint keeps a planned day it
+already had but cannot be given a new one.
+
+**Avoid:** "scheduled date" or "date" when the due date might be meant.
+
+## Due date
+
+The ticket's deadline (`tasks.due_date`). Never a container. While a ticket is in
+a sprint its due date is the sprint's end date; its own deadline is remembered
+and given back when it leaves.
+
+## Placement
+
+Moving a ticket between the three planning containers (sprint, Scheduled,
+backlog), together with the due-date bookkeeping that goes with it. A team
+transfer that takes a ticket out of its sprint is also a placement.
+
+**Avoid:** "assign" for sprint membership; assignment means the assignee.
+
 ## Sprint
 
 A time-boxed container owned by one team. A ticket is in at most one sprint. The

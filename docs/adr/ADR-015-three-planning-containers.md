@@ -1,7 +1,9 @@
 # ADR-015 — Three exclusive planning containers (sprint, Scheduled, backlog)
 
 - **Status:** Accepted (supersedes D1/D2 of `docs/TASKS_DESIGN_SPEC.md`);
-  amended 2026-10-29 — a due date is metadata, only a planned day is a container
+  amended 2026-10-29 — a due date is metadata, only a planned day is a container;
+  amended 2026-11-01 — sprint end-date moves re-time member due dates, and a
+  ticket in a sprint cannot be given a new planned day
 - **Date:** 2026-10-28
 
 ## Context
@@ -43,6 +45,28 @@ Three containers, mutually exclusive, decided in the server query builder
 - The Board landing view needs an **active** sprint; with none the Sprint tab is
   hidden and the team works from Backlog and Scheduled. The Plan split view is a
   Backlog action, not the landing view.
+
+## Amendment 2026-11-01 — placement rules on the write path
+
+The container rules above were enforced on reads but not on writes: bulk sprint
+moves and sprint carry-over skipped the due-date rule, so carried tickets kept the
+old sprint's end date and showed as overdue.
+
+- **Every** entry into a sprint applies the due-date rule, including bulk moves and
+  sprint → sprint carry-over. The remembered own due date survives sprint → sprint
+  moves and is restored only when the ticket leaves sprints altogether.
+- **Moving a sprint's end date re-times its tickets.** A member ticket whose due
+  date still equals the old end date takes the new one; a due date edited by hand
+  inside the sprint is left alone.
+- **A ticket in a sprint cannot be given a new planned day.**
+  `PATCH /tasks/:id/schedule` returns `409 IN_SPRINT`; `PUT /tasks/:id` ignores
+  `planned_date` for a sprinted ticket. A planned day the ticket already had when
+  it joined is kept (the sprint still wins) and takes effect again when it leaves.
+- Every placement write — create, PUT, joining or leaving a sprint, bulk, schedule,
+  unschedule, sprint completion, sprint deletion and team transfer — goes through
+  one placement module (`modules/tasks/tasks.placement.ts`), which owns the
+  completed-sprint freeze, history and audit in one transaction, and
+  realtime/notifications after commit.
 
 ## Consequences
 

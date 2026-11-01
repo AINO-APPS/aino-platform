@@ -26,8 +26,13 @@ export type QueryFn = <R extends QueryResultRow = QueryResultRow>(
  * `transaction` helpers.
  */
 export type TransactionFn = <T = unknown>(
-    asyncFn: (client: PoolClient) => Promise<T>,
+    asyncFn: (client: PoolClient, context: TransactionContext) => Promise<T>,
 ) => Promise<T>;
+
+/** See `platform/db/pool.ts`: callbacks run only after COMMIT. */
+export interface TransactionContext {
+    afterCommit(callback: () => unknown | Promise<unknown>): void;
+}
 
 /**
  * The per-request tenant database context attached by middleware as `req.db`.

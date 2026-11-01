@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
 import { logger } from "../../utils/logger";
+import type { TransactionContext } from "../../types/domain";
 import { installPgTypeParsers } from "./pgTypes";
 
 // DATE columns must reach the API as `YYYY-MM-DD` strings, not local-midnight
@@ -45,21 +46,39 @@ function makePoolQuery(targetPool: Pool) {
     };
 }
 
-/** Create a transaction function bound to the given pool. */
+/**
+ * Create a transaction function bound to the given pool.
+ *
+ * The callback's `afterCommit` registers side effects (realtime,
+ * notifications) that must only happen once the writes are durable: they run
+ * in order after COMMIT, are dropped on ROLLBACK, and a failing one is logged
+ * without failing the transaction.
+ */
 function makePoolTransaction(targetPool: Pool) {
-    return async function boundTransaction<T = unknown>(asyncFn: (client: PoolClient) => Promise<T>): Promise<T> {
+    return async function boundTransaction<T = unknown>(
+        asyncFn: (client: PoolClient, context: TransactionContext) => Promise<T>,
+    ): Promise<T> {
         const client = await targetPool.connect();
+        const pending: Array<() => unknown | Promise<unknown>> = [];
+        let result: T;
         try {
             await client.query("BEGIN");
-            const result = await asyncFn(client);
+            result = await asyncFn(client, { afterCommit: (callback) => { pending.push(callback); } });
             await client.query("COMMIT");
-            return result;
         } catch (err) {
             await client.query("ROLLBACK");
             throw err;
         } finally {
             client.release();
         }
+        for (const callback of pending) {
+            try {
+                await callback();
+            } catch (err) {
+                logger.error({ err }, "afterCommit callback failed");
+            }
+        }
+        return result;
     };
 }
 

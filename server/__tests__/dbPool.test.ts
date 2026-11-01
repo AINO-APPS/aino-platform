@@ -91,4 +91,54 @@ describe("database pool boundary", () => {
         expect(client.query.mock.calls.map((call: any[]) => call[0])).toEqual(["BEGIN", "ROLLBACK"]);
         expect(client.release).toHaveBeenCalledTimes(1);
     });
+
+    test("runs afterCommit callbacks in order, only once COMMIT has succeeded", async () => {
+        const log: string[] = [];
+        const client = {
+            query: jest.fn(async (sql: string) => { log.push(sql); return { rows: [] }; }),
+            release: jest.fn(),
+        };
+        mockConnect.mockResolvedValue(client);
+
+        await poolModule.makePoolTransaction(mockPool)(async (tx: any, { afterCommit }: any) => {
+            afterCommit(() => { log.push("first"); });
+            afterCommit(async () => { log.push("second"); });
+            await tx.query("UPDATE work");
+        });
+
+        expect(log).toEqual(["BEGIN", "UPDATE work", "COMMIT", "first", "second"]);
+    });
+
+    test("never runs afterCommit callbacks when the transaction rolls back", async () => {
+        const callback = jest.fn();
+        const client = { query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn() };
+        mockConnect.mockResolvedValue(client);
+
+        await expect(poolModule.makePoolTransaction(mockPool)(async (_tx: any, { afterCommit }: any) => {
+            afterCommit(callback);
+            throw new Error("work failed");
+        })).rejects.toThrow("work failed");
+
+        expect(callback).not.toHaveBeenCalled();
+    });
+
+    test("a failing afterCommit callback is logged and neither fails the transaction nor skips later ones", async () => {
+        const { logger } = require("../utils/logger");
+        const later = jest.fn();
+        const client = { query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn() };
+        mockConnect.mockResolvedValue(client);
+
+        const result = await poolModule.makePoolTransaction(mockPool)(async (_tx: any, { afterCommit }: any) => {
+            afterCommit(() => { throw new Error("broadcast down"); });
+            afterCommit(later);
+            return "committed";
+        });
+
+        expect(result).toBe("committed");
+        expect(later).toHaveBeenCalledTimes(1);
+        expect(logger.error).toHaveBeenCalledWith(
+            expect.objectContaining({ err: expect.any(Error) }),
+            expect.stringContaining("afterCommit"),
+        );
+    });
 });
