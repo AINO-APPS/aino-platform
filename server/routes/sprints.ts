@@ -219,7 +219,7 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
         res.status(500).json({ error: "Failed to delete sprint" });
     }
 });
-
+router.get("/:id/board", auth, loadUserContext, require("./_helpers/sprintBoard").getSprintBoard(loadAccessibleSprint));
 router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
