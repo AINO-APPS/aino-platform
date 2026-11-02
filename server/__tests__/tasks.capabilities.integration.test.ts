@@ -1,0 +1,345 @@
+import { Pool } from "pg";
+import { createTestDatabase } from "../test-support/pgTestDatabase";
+import { installPgTypeParsers } from "../platform/db/pgTypes";
+import { decideTicket, decideTickets, loadTicketDecisionContext, type DecisionTicket } from "../modules/tasks/tasks.capabilities";
+import type { TaskActor } from "../modules/tasks/tasks.policy";
+import { assertLifecycleMove, loadLifecycleContext } from "../modules/tasks/tasks.workflow";
+import { findFrozenSprintIds } from "../modules/tasks/tasks.sprintLifecycle";
+import { placeTickets } from "../modules/tasks/tasks.placement";
+
+installPgTypeParsers();
+const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
+const postgresDescribe = databaseUrl ? describe : describe.skip;
+const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", teamVisibility: true };
+const allowed = { allowed: true };
+const denied = (reason: string) => ({ allowed: false, reason });
+const actors = [
+    ["member in team", 1, 1, "employee", true],
+    ["member outside team", 1, 2, "employee", false],
+    ["member without team", 1, null, "employee", false],
+    ["assignee in team", 3, 1, "employee", true],
+    ["assignee outside team", 3, 2, "employee", false],
+    ["assignee without team", 3, null, "employee", true],
+    ["reporter in team", 2, 1, "employee", true],
+    ["reporter outside team", 2, 2, "employee", false],
+    ["reporter without team", 2, null, "employee", true],
+    ["admin in team", 4, 1, "super_admin", true],
+    ["admin outside team", 4, 2, "super_admin", true],
+    ["admin without team", 4, null, "super_admin", true],
+    ["non-member", 5, 2, "employee", false],
+    ["non-member without team", 5, null, "employee", false],
+] as const;
+const workflows = [
+    ["To Do", 101, [102, 105]],
+    ["In Progress", 102, [101, 103, 104, 105, 106]],
+    ["In Review", 103, [102, 104, 105]],
+    ["Done", 104, [102]],
+    ["Cancelled", 105, []],
+    ["Custom Testing", 106, [102, 103, 105]],
+] as const;
+const containers = [
+    ["backlog", null, null, false],
+    ["scheduled", null, "2026-11-03", false],
+    ["sprint", 10, "2026-11-03", false],
+    ["sprint", 11, null, false],
+    ["sprint", 12, null, false],
+    ["sprint", 13, null, true],
+] as const;
+
+postgresDescribe("ticket capabilities on PostgreSQL", () => {
+    let database: Awaited<ReturnType<typeof createTestDatabase>>;
+    let pool: Pool;
+
+    beforeAll(async () => {
+        database = await createTestDatabase(databaseUrl!, "capabilities");
+        pool = new Pool({ connectionString: database.url, max: 2 });
+        const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
+        await require("../platform/db/tenantSchema").initTenantSchema(query);
+        const migrations = await require("../platform/db/migrations").runTenantMigrations(query, { label: "capabilities" });
+        expect(migrations.failed).toEqual([]);
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (1, 'Capabilities', 'capabilities')");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
+        await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
+            (1, 'member', 'x', 'Member', 1, 1), (2, 'reporter', 'x', 'Reporter', 1, 1),
+            (3, 'assignee', 'x', 'Assignee', 1, 1)`);
+        await pool.query(`INSERT INTO workflow_states
+            (id, org_id, key, name, category, is_initial, is_terminal, is_active, sort_order, wip_limit) VALUES
+            (101, 1, 'todo', 'To Do', 'open', TRUE, FALSE, TRUE, 1, NULL),
+            (102, 1, 'progress', 'In Progress', 'in_progress', FALSE, FALSE, TRUE, 2, 1),
+            (103, 1, 'review', 'In Review', 'in_review', FALSE, FALSE, TRUE, 3, NULL),
+            (104, 1, 'done', 'Done', 'done', FALSE, TRUE, TRUE, 4, NULL),
+            (105, 1, 'cancelled', 'Cancelled', 'done', FALSE, TRUE, TRUE, 5, NULL),
+            (106, 1, 'testing', 'Custom Testing', 'in_review', FALSE, FALSE, TRUE, 6, NULL),
+            (107, 1, 'retired', 'Retired', 'open', FALSE, FALSE, FALSE, 7, NULL)`);
+        await pool.query(`INSERT INTO workflow_transitions (org_id, from_state_id, to_state_id) VALUES
+            (1,101,102), (1,101,105),
+            (1,102,101), (1,102,103), (1,102,104), (1,102,105), (1,102,106),
+            (1,103,102), (1,103,104), (1,103,105), (1,104,102),
+            (1,106,102), (1,106,103), (1,106,105)`);
+        await pool.query(`INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES
+            (10, 1, 'Planned', '2026-11-01', '2026-11-14', 'planned'),
+            (11, 1, 'Active', '2026-11-15', '2026-11-28', 'active'),
+            (12, 1, 'Paused', '2026-12-01', '2026-12-14', 'paused'),
+            (13, 1, 'Completed', '2026-10-01', '2026-10-14', 'completed'),
+            (20, 2, 'Other team', '2026-11-01', '2026-11-14', 'planned')`);
+    }, 120_000);
+
+    afterAll(async () => {
+        await pool?.end();
+        await database?.drop();
+    });
+
+    test("a deadline without a planned day stays in the backlog in both decision forms", async () => {
+        const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, due_date)
+            VALUES ('Deadline only', 2, 1, 1, '2026-11-30') RETURNING *`)).rows[0];
+        const context = await loadTicketDecisionContext(pool, member, [ticket]);
+
+        expect(decideTicket(member, ticket, context).container).toBe("backlog");
+        expect(decideTickets(member, [ticket], context)).toEqual([decideTicket(member, ticket, context)]);
+    });
+
+    test("a team member sees every other active state and all ticket actions", async () => {
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, assigned_to, org_id, team_id, workflow_state_id)
+            VALUES ('Start work', 2, 3, 1, 1, 101) RETURNING *`)).rows[0];
+        const context = await loadTicketDecisionContext(pool, member, [ticket]);
+
+        expect(decideTicket(member, ticket, context)).toEqual({
+            container: "backlog",
+            capabilities: {
+                transitions: [
+                    { to: 102, allowed: true },
+                    { to: 103, allowed: false, reason: "INVALID_TRANSITION" },
+                    { to: 104, allowed: false, reason: "INVALID_TRANSITION" },
+                    { to: 105, allowed: true },
+                    { to: 106, allowed: false, reason: "INVALID_TRANSITION" },
+                ],
+                can: {
+                    edit: { allowed: true },
+                    changeState: { allowed: true },
+                    cancel: { allowed: true },
+                    transfer: { allowed: false, reason: "ACCESS_DENIED" },
+                    delete: { allowed: true },
+                    placeInSprint: { allowed: true },
+                    schedule: { allowed: true },
+                },
+            },
+        });
+    });
+
+    test.each([
+        ["planned", 10, "IN_SPRINT"],
+        ["active", 11, "IN_SPRINT"],
+        ["paused", 12, "IN_SPRINT"],
+        ["completed", 13, "SPRINT_FROZEN"],
+    ])("a %s sprint wins over a planned day and blocks scheduling", async (_label, sprint, reason) => {
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, workflow_state_id, sprint_id, planned_date)
+            VALUES ('Sprint work', 2, 1, 1, 101, $1, '2026-11-03') RETURNING *`, [sprint])).rows[0];
+        const context = await loadTicketDecisionContext(pool, member, [ticket]);
+        const decision = decideTicket(member, ticket, context);
+
+        expect(decision.container).toBe("sprint");
+        expect(decision.capabilities.can.schedule).toEqual({ allowed: false, reason });
+        if (sprint === 13) {
+            expect(decision.capabilities.can.edit).toEqual({ allowed: false, reason: "SPRINT_FROZEN" });
+            expect(decision.capabilities.transitions).toEqual([102, 103, 104, 105, 106].map((to) => ({
+                to, allowed: false, reason: "SPRINT_FROZEN",
+            })));
+        }
+    });
+
+    describe.each(actors)("%s", (_label, userId, teamId, role, access) => {
+        test.each(workflows)("%s across all containers and sprint statuses", async (_stateName, stateId, legalTargets) => {
+            const actor: TaskActor = { ...member, userId, teamId, role };
+            const tickets: DecisionTicket[] = [];
+            for (const [, sprint, day] of containers) {
+                tickets.push((await pool.query(`INSERT INTO tasks
+                    (title, user_id, assigned_to, org_id, team_id, workflow_state_id, sprint_id, planned_date, due_date)
+                    VALUES ('Matrix', 2, 3, 1, 1, $1, $2, $3, '2026-11-30') RETURNING *`,
+                [stateId, sprint, day])).rows[0]);
+            }
+            const context = await loadTicketDecisionContext(pool, actor, tickets);
+            const decisions = decideTickets(actor, tickets, context);
+
+            for (const [index, [container, sprint, , frozen]] of containers.entries()) {
+                const write = !access ? denied("ACCESS_DENIED") : frozen ? denied("SPRINT_FROZEN") : allowed;
+                const status = stateId === 105 ? denied("CANCELLED_TERMINAL") : write;
+                const cancel = !write.allowed ? write : stateId === 105 ? denied("CANCELLED_TERMINAL")
+                    : stateId === 104 ? denied("INVALID_TRANSITION") : allowed;
+                expect(decisions[index]).toEqual({
+                    container,
+                    capabilities: {
+                        transitions: [101, 102, 103, 104, 105, 106].filter((to) => to !== stateId).map((to) => ({
+                            to,
+                            ...(!status.allowed ? status : (legalTargets as readonly number[]).includes(to)
+                                ? allowed : denied("INVALID_TRANSITION")),
+                        })),
+                        can: {
+                            edit: write,
+                            changeState: status,
+                            cancel,
+                            transfer: role === "super_admin" ? write : denied("ACCESS_DENIED"),
+                            delete: cancel,
+                            placeInSprint: write,
+                            schedule: !write.allowed ? write : sprint == null ? allowed : denied("IN_SPRINT"),
+                        },
+                    },
+                });
+                expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
+
+                if (frozen) {
+                    expect(await findFrozenSprintIds(pool as any, [sprint!])).toEqual([13]);
+                }
+                if (access && !frozen && stateId !== 105) {
+                    for (const transition of decisions[index].capabilities.transitions) {
+                        const conflict = await assertLifecycleMove(pool, 1, tickets[index],
+                            context.lifecycle.stateById.get(transition.to), context.lifecycle);
+                        expect(conflict?.body.code ?? null).toBe(transition.allowed ? null : transition.reason);
+                    }
+                }
+                if (access && sprint != null) {
+                    const transaction = require("../platform/db/pool").makePoolTransaction(pool);
+                    const results = await transaction((db: any, ctx: any) => placeTickets({
+                        db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 },
+                        effects: { changed: () => undefined },
+                    }, [tickets[index].id], { day: "2026-11-04" }));
+                    const schedule = decisions[index].capabilities.can.schedule;
+                    if (schedule.allowed) throw new Error("A sprinted ticket must refuse scheduling");
+                    expect(results[0]).toMatchObject({ ok: false, code: schedule.reason });
+                }
+            }
+        });
+
+    });
+
+    test.each([
+        ["own team's planned sprint", 10, true, undefined],
+        ["completed destination", 13, false, "SPRINT_FROZEN"],
+        ["another team's sprint", 20, false, "SPRINT_TEAM_MISMATCH"],
+        ["missing destination", 999, false, "ACCESS_DENIED"],
+    ])("placing into %s uses the selected destination", async (_label, targetSprintId, permitted, reason) => {
+            const actor = { ...member, role: "super_admin" };
+            const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, workflow_state_id)
+                VALUES ('Place me', 2, 1, 1, 101) RETURNING *`)).rows[0];
+            const context = await loadTicketDecisionContext(pool, actor, [ticket], { targetSprintId });
+            expect(decideTicket(actor, ticket, context).capabilities.can.placeInSprint)
+                .toEqual(permitted ? allowed : denied(reason!));
+            if (targetSprintId !== 999) {
+                const transaction = require("../platform/db/pool").makePoolTransaction(pool);
+                const results = await transaction((db: any, ctx: any) => placeTickets({
+                    db, afterCommit: ctx.afterCommit, actor: { userId: 1, orgId: 1 },
+                    effects: { changed: () => undefined },
+                }, [ticket.id], { sprint: targetSprintId }));
+                expect(results[0]).toMatchObject(permitted ? { ok: true } : { ok: false, code: reason });
+            }
+    });
+
+    test.each([
+        ["creator's teammate", 1, 1, "employee", true, false, false],
+        ["assignee", 3, 1, "employee", true, true, false],
+        ["reporter", 2, 1, "employee", true, true, true],
+        ["admin", 4, 2, "super_admin", true, true, true],
+        ["unrelated team", 1, 2, "employee", false, false, false],
+        ["cross-team assignee", 3, 2, "employee", true, true, false],
+    ] as const)("legacy visibility: %s agrees with existing access guards", async (_label, userId, teamId, role, edit, status, cancel) => {
+        const actor: TaskActor = { ...member, userId, teamId, role, teamVisibility: false };
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, assigned_to, org_id, team_id, workflow_state_id)
+            VALUES ('Legacy owner', 2, 3, 1, 2, 101) RETURNING *`)).rows[0];
+        const context = await loadTicketDecisionContext(pool, actor, [ticket]);
+        const decision = decideTicket(actor, ticket, context);
+        expect(decision.capabilities.can.edit).toEqual(edit ? allowed : denied("ACCESS_DENIED"));
+        expect(decision.capabilities.can.changeState).toEqual(status ? allowed : denied("ACCESS_DENIED"));
+        expect(decision.capabilities.can.cancel).toEqual(cancel ? allowed : denied("ACCESS_DENIED"));
+        expect(decision.capabilities.can.delete).toEqual(cancel ? allowed : denied("ACCESS_DENIED"));
+        expect(decision.capabilities.transitions.find((transition) => transition.to === 105))
+            .toEqual({ to: 105, ...(cancel ? allowed : denied("ACCESS_DENIED")) });
+        const guards = require("../routes/tasks/_helpers/access");
+        expect(await guards.canAccessTask(ticket, actor, pool)).toBe(edit);
+        expect(await guards.canChangeTaskStatus(ticket, actor, pool)).toBe(status);
+        expect(await guards.canCancelTask(ticket, actor, pool)).toBe(cancel);
+    });
+
+    test("a custom completed ticket must reopen before cancellation", async () => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query("UPDATE workflow_states SET is_terminal = TRUE WHERE id = 106");
+            const ticket = (await client.query(`INSERT INTO tasks
+                (title, user_id, org_id, team_id, workflow_state_id, completed_at)
+                VALUES ('Custom completed', 2, 1, 1, 106, NOW()) RETURNING *`)).rows[0];
+            const context = await loadTicketDecisionContext(client, member, [ticket]);
+            const decision = decideTicket(member, ticket, context);
+            expect(decision.capabilities.can.cancel).toEqual(denied("INVALID_TRANSITION"));
+            expect(decision.capabilities.can.delete).toEqual(denied("INVALID_TRANSITION"));
+            expect(decision.capabilities.transitions.find((transition) => transition.to === 105))
+                .toEqual({ to: 105, ...denied("INVALID_TRANSITION") });
+        } finally {
+            await client.query("ROLLBACK");
+            client.release();
+        }
+    });
+
+    test("WIP capacity never disables a ticket transition, but the write guard still checks it", async () => {
+        await pool.query(`INSERT INTO org_agile_settings (org_id, enable_wip_limits) VALUES (1, TRUE)
+            ON CONFLICT (org_id) DO UPDATE SET enable_wip_limits = TRUE`);
+        try {
+            const tickets = (await pool.query(`INSERT INTO tasks
+                (title, user_id, org_id, team_id, workflow_state_id)
+                VALUES ('Waiting', 2, 1, 1, 101), ('Fills column', 2, 1, 1, 102) RETURNING *`)).rows;
+            const lifecycle = await loadLifecycleContext(pool, 1);
+            const context = await loadTicketDecisionContext(pool, member, tickets, { lifecycle });
+            await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+            const withoutWip = await loadTicketDecisionContext(pool, member, tickets);
+            expect(decideTickets(member, tickets, context)).toEqual(decideTickets(member, tickets, withoutWip));
+            expect(decideTicket(member, tickets[0], context).capabilities.transitions).toEqual([
+                { to: 102, allowed: true },
+                { to: 103, allowed: false, reason: "INVALID_TRANSITION" },
+                { to: 104, allowed: false, reason: "INVALID_TRANSITION" },
+                { to: 105, allowed: true },
+                { to: 106, allowed: false, reason: "INVALID_TRANSITION" },
+            ]);
+            expect(await assertLifecycleMove(pool, 1, tickets[0], lifecycle.stateById.get(102), lifecycle))
+                .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
+        } finally {
+            await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+        }
+    });
+
+    test("custom states without stored rows use the existing derived graph", async () => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query("DELETE FROM workflow_transitions WHERE from_state_id = 106");
+            const ticket = (await client.query(`INSERT INTO tasks
+                (title, user_id, org_id, team_id, workflow_state_id)
+                VALUES ('Derived custom', 2, 1, 1, 106) RETURNING *`)).rows[0];
+            const context = await loadTicketDecisionContext(client, member, [ticket]);
+            expect(decideTicket(member, ticket, context).capabilities.transitions).toEqual([
+                { to: 101, allowed: false, reason: "INVALID_TRANSITION" },
+                { to: 102, allowed: true },
+                { to: 103, allowed: true },
+                { to: 104, allowed: true },
+                { to: 105, allowed: true },
+            ]);
+        } finally {
+            await client.query("ROLLBACK");
+            client.release();
+        }
+    });
+
+    test("a loaded batch remains decidable after its database connection closes", async () => {
+        const reader = new Pool({ connectionString: database.url, max: 1 });
+        const tickets = (await reader.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, workflow_state_id)
+            SELECT 'Batch ' || n, 2, 1, 1, 101 FROM generate_series(1, 20) n RETURNING *`)).rows;
+        const context = await loadTicketDecisionContext(reader, member, tickets);
+        await reader.end();
+
+        const decisions = decideTickets(member, tickets, context);
+        expect(decisions).toHaveLength(20);
+        expect(decisions[0].capabilities.can.changeState).toEqual(allowed);
+        expect(decideTickets(member, [], context)).toEqual([]);
+    });
+});

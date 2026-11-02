@@ -238,6 +238,15 @@ export function canReadTask(
 /** Writing has the same boundary as reading in the team-owned model. */
 export const canWriteTask = canReadTask;
 
+/** Flag-off cancellation retains the creator/admin-only legacy permission. */
+export function canCancelTask(task: TaskRowLike | null | undefined, actor: TaskActor): boolean {
+    if (!task) return false;
+    if (!actor.teamVisibility) {
+        return isOrgAdmin(actor.role) || Number(task.user_id) === Number(actor.userId);
+    }
+    return canWriteTask(task, actor);
+}
+
 /**
  * May this actor move the ticket's workflow state?
  *
