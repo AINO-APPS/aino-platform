@@ -124,7 +124,7 @@ export default function Tasks() {
   });
 
   const sprintsLoaded = !hasFeature("agile") || sprintsFetched;
-  const team = useTeamScope({ currentUser, availableSprints, setSelectedSprintId });
+  const team = useTeamScope({ currentUser, availableSprints, setSelectedSprintId, agileEnabled: hasFeature("agile") });
   const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, effectiveTeamId, visibleSprints, teamScopeParams } = team;
   const teamVisibility = hasFeature("team_visibility");
 
@@ -238,11 +238,10 @@ export default function Tasks() {
   // Mode follows the team on screen (an admin's picker), not the admin's own.
   const teamMode = useTeamMode(effectiveTeamId);
 
-  // Landing on the bare /tasks entry point opens the running sprint's board.
+  // Landing on the bare /tasks entry point opens the server-selected current sprint.
   useSprintLanding({
     pathname: location.pathname,
-    availableSprints: visibleSprints,
-    sprintsLoaded: sprintsLoaded && (!showTeamSwitcher || selectedTeamId !== null),
+    currentSprintId: team.currentSprintId, sprintsLoaded: sprintsLoaded && team.currentSprintLoaded && (!showTeamSwitcher || selectedTeamId !== null),
     agileEnabled: hasFeature("agile"),
     navigate,
   });
@@ -255,13 +254,12 @@ export default function Tasks() {
     navigate,
     setActiveTab,
     setSelectedSprintId,
-    availableSprints: visibleSprints,
-    sprintsLoaded: sprintsLoaded && (!showTeamSwitcher || selectedTeamId !== null),
+    currentSprintId: team.currentSprintId, sprintsLoaded: sprintsLoaded && team.currentSprintLoaded && (!showTeamSwitcher || selectedTeamId !== null),
   });
 
   useTeamSwitchNavigation({
     selectedTeamId,
-    visibleSprints,
+    currentSprintId: team.currentSprintId, currentSprintLoaded: team.currentSprintLoaded,
     activeTab: tasksRoute.route.view,
     goToView: tasksRoute.goToView,
   });
@@ -328,7 +326,7 @@ export default function Tasks() {
   const handleDelete = (task: any) => setTaskToDelete(task);
 
   const lifecycle = useTicketLifecycle({
-    availableSprints, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
+    availableSprints, currentSprintId: team.currentSprintId, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
     setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast,
   });
 
@@ -356,8 +354,8 @@ export default function Tasks() {
   // overlay that documents the complete shortcut set.
   const tasksPalette = useTasksPalette({
     sprintId: selectedSprintId,
+    currentSprintId: team.currentSprintId,
     agileEnabled: hasFeature("agile"),
-    sprints: visibleSprints,
     onOpenTask: (task) => detail.openTaskDetail(task),
     onGoToView: (view, sprintId) => {
       changeTab(view);
@@ -377,6 +375,7 @@ export default function Tasks() {
 
   const sprintActions = useSprintBoardActions({
     visibleSprints,
+    currentSprintId: team.currentSprintId,
     selectedSprintId,
     teamScopeParams,
     currentUser,
@@ -391,7 +390,7 @@ export default function Tasks() {
     <TaskProvider
       assignableUsers={assignableUsers}
       orgLabels={orgLabels}
-      availableSprints={visibleSprints}
+      availableSprints={visibleSprints} currentSprintId={team.currentSprintId}
       availableProjects={availableProjects}
       currentUser={currentUser}
       activeTab={activeTab}
@@ -455,6 +454,7 @@ export default function Tasks() {
             getColTasks={getColTasks}
             onSprintChanged={() => {
               queryClient.invalidateQueries({ queryKey: ["tasks", "availableSprints"] });
+              queryClient.invalidateQueries({ queryKey: ["tasks", "sprintList"] });
               fetchTasks();
               if (selectedSprintId) {
                 getSprintStats(selectedSprintId).then((r) => setSprintStats(r.data)).catch(() => {});

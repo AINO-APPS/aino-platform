@@ -66,6 +66,11 @@ export interface Sprint {
   carried_from_sprint_id?: number | null;
 }
 
+export interface SprintList {
+  sprints: Sprint[];
+  currentSprintId: number | null;
+}
+
 export interface SprintBaseline {
   id: number;
   sprint_id: number;

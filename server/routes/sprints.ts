@@ -32,6 +32,7 @@ const {
     sprintAlreadyActiveBody,
     startSprint,
     resumedEndDate,
+    sprintListResponse,
 } = require("../modules/tasks/tasks.sprintLifecycle");
 
 type RunningSprint = { id: number; name: string };
@@ -56,17 +57,16 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
                 req.userOrgId,
                 Number.isNaN(teamId as number) ? null : teamId,
             );
-            return res.json({ sprints });
+            return res.json(sprintListResponse(sprints, teamId != null && !Number.isNaN(teamId)));
         }
 
-        if (!req.userTeamId) return res.json({ sprints: [] });
-        res.json({ sprints: await findSprintsForTeam(req.db!, req.userTeamId) });
+        if (!req.userTeamId) return res.json(sprintListResponse([]));
+        res.json(sprintListResponse(await findSprintsForTeam(req.db!, req.userTeamId)));
     } catch (err) {
         req.log.error({ err }, "Error fetching sprints:");
         res.status(500).json({ error: "Failed to fetch sprints" });
     }
 });
-
 router.get("/active", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;

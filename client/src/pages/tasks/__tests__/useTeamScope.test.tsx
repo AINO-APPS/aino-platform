@@ -12,12 +12,16 @@ const TEAMS = [{ id: 1, name: "Payments" }, { id: 2, name: "Platform" }];
 vi.mock("../../../api/organization", () => ({
     getOrgTeams: vi.fn(async () => ({ data: TEAMS })),
 }));
+vi.mock("../../../api/tasks", () => ({
+    getSprints: vi.fn(async () => ({ data: { currentSprintId: null } })),
+}));
 
 const { useTeamScope, TEAM_SCOPE_STORAGE_KEY } = await import("../hooks/useTeamScope");
+const { getSprints } = await import("../../../api/tasks");
 
 const SPRINTS = [
     { id: 10, team_id: 1, status: "active" },
-    { id: 20, team_id: 2, status: "planned" },
+    { id: 20, team_id: 2, status: "paused" },
 ];
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -74,5 +78,58 @@ describe("team scope", () => {
 
         const again = scope("super_admin");
         await waitFor(() => expect(again.result.current.selectedTeamId).toBe(2));
+    });
+
+    test("selects the server's paused current sprint ahead of a planned sprint", async () => {
+        const setSelectedSprintId = vi.fn();
+        vi.mocked(getSprints).mockResolvedValueOnce({
+            data: {
+                currentSprintId: 31,
+                sprints: [{ id: 31, team_id: 1, status: "paused" }],
+            },
+        } as any);
+        const { result } = renderHook(
+            () => useTeamScope({
+                currentUser: { id: 5, role: "team_lead", team_id: 1 },
+                availableSprints: [{ id: 30, team_id: 1, status: "planned" }],
+                setSelectedSprintId,
+                agileEnabled: true,
+            }),
+            { wrapper },
+        );
+
+        await waitFor(() => {
+            expect(result.current.visibleSprints.map((sprint: any) => sprint.id)).toEqual([30, 31]);
+        });
+        await waitFor(() => {
+            const update = setSelectedSprintId.mock.calls.at(-1)?.[0];
+            expect(typeof update).toBe("function");
+            expect(update(null)).toBe(31);
+        });
+    });
+
+    test("team switching requests and selects the new team's current sprint", async () => {
+        const setSelectedSprintId = vi.fn();
+        vi.mocked(getSprints).mockImplementation(async (params: any) => ({
+            data: { currentSprintId: params?.team_id === 2 ? 20 : 10 },
+        } as any));
+        const { result } = renderHook(
+            () => useTeamScope({
+                currentUser: { id: 5, role: "super_admin", team_id: 1 },
+                availableSprints: SPRINTS,
+                setSelectedSprintId,
+                agileEnabled: true,
+            }),
+            { wrapper },
+        );
+
+        await waitFor(() => expect(result.current.selectedTeamId).toBe(1));
+        act(() => result.current.setSelectedTeamId(2));
+        await waitFor(() => expect(vi.mocked(getSprints)).toHaveBeenCalledWith({ team_id: 2 }));
+        await waitFor(() => {
+            const update = setSelectedSprintId.mock.calls.at(-1)?.[0];
+            expect(typeof update).toBe("function");
+            expect(update(null)).toBe(20);
+        });
     });
 });

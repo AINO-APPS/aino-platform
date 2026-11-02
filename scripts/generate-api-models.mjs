@@ -36,13 +36,14 @@ const MODELS = [
     "TicketCapabilities",
     "Task",
     "Sprint",
+    "SprintList",
     "SprintBaseline",
     "TaskListResponse",
     "BacklogResponse",
 ];
 
 const OUTPUTS = [
-    { platform: "web", path: "aino-platform/client/src/types/generated/tasks.ts" },
+    { platform: "web", path: "client/src/types/generated/tasks.ts" },
     {
         platform: "android",
         path: "aino-android/app/src/main/java/app/aino/mobile/feature/tasks/generated/TaskModelsGenerated.kt",
@@ -264,9 +265,9 @@ const RENDERERS = { web: renderTypeScript, android: renderKotlin, ios: renderSwi
 
 /** Resolve the current web checkout and any available sibling platform checkout. */
 function platformOutputPath(output) {
-    const relativePath = output.path.split("/").slice(1).join(path.sep);
-    if (output.platform === "web") return path.join(root, relativePath);
+    if (output.platform === "web") return path.join(root, output.path);
 
+    const relativePath = output.path.split("/").slice(1).join(path.sep);
     const repoName = `aino-${output.platform}`;
     for (let current = root; ; current = path.dirname(current)) {
         const candidate = path.join(current, repoName);
