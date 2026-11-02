@@ -10,6 +10,16 @@ export interface PlacementDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }>;
 }
 
+/**
+ * Serialize placement and sprint lifecycle work within an organization before
+ * either path takes task or sprint row locks.
+ */
+export async function acquirePlacementLifecycleLock(db: PlacementDb, orgId: number | null): Promise<void> {
+    await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `aino:ticket-placement:${orgId == null ? "null" : String(orgId)}`,
+    ]);
+}
+
 /** Lock and read tickets of one org. Missing or foreign ids are simply absent. */
 export async function lockTickets(db: PlacementDb, ids: number[], orgId: number | null): Promise<any[]> {
     return (await db.query(

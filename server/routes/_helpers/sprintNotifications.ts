@@ -19,6 +19,7 @@ interface ReqLike {
     db: any;
     tenantId?: number | null;
     userId?: number;
+    userOrgId?: number | null;
 }
 
 /**
@@ -32,7 +33,7 @@ async function sprintAudience(
     teamId: number,
     actorId: number | null | undefined,
 ): Promise<number[]> {
-    const rows = await findTeamMemberIds(req.db, teamId);
+    const rows = await findTeamMemberIds(req.db, teamId, req.userOrgId ?? null);
     const actor = Number(actorId);
     return rows
         .filter((id: number) => Number.isFinite(id) && id > 0 && id !== actor);

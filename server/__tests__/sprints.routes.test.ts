@@ -216,11 +216,11 @@ describe("DELETE /api/sprints/:id", () => {
         };
         mockTxClient.query.mockImplementation(async (sql: string) => {
             const normalized = sql.replace(/\s+/g, " ").trim();
-            if (normalized.startsWith("SELECT id, status FROM sprints WHERE id = $1 FOR UPDATE")) {
-                return { rows: [{ id: 1, status: "active" }], rowCount: 1 };
-            }
-            if (normalized.startsWith("SELECT id FROM tasks WHERE sprint_id = $1")) {
+            if (normalized.startsWith("SELECT t.id FROM tasks t")) {
                 return { rows: [{ id: before.id }], rowCount: 1 };
+            }
+            if (normalized.startsWith("SELECT s.id, s.status FROM sprints s")) {
+                return { rows: [{ id: 1, status: "active" }], rowCount: 1 };
             }
             if (normalized.startsWith("SELECT * FROM tasks WHERE id = ANY($1::int[])")) {
                 return { rows: [before], rowCount: 1 };
@@ -244,7 +244,7 @@ describe("DELETE /api/sprints/:id", () => {
 
         expect(res.status).toBe(200);
         expect(mockTransaction).toHaveBeenCalledTimes(1);
-        expect(mockTxClient.query.mock.calls.map(([sql]) => String(sql))).toContain("DELETE FROM sprints WHERE id = $1");
+        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("DELETE FROM sprints s"))).toBe(true);
         expect(mockQuery.mock.calls.some(([sql]) => String(sql).startsWith("DELETE FROM sprints"))).toBe(false);
         expect(mockTxClient.query.mock.calls.filter(([sql]) => String(sql).startsWith("INSERT INTO task_history"))).toHaveLength(2);
         expect(emitTaskUpdated).toHaveBeenCalledWith(
@@ -298,6 +298,10 @@ describe("PUT /api/sprints/:id", () => {
                 rows: [{ id: 1, team_id: 1, status: "planned", name: "Renamed" }],
                 rowCount: 1,
             });
+        mockTxClient.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ status: "planned" }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
         const res = await request(app)
             .put("/api/sprints/1")
@@ -349,6 +353,9 @@ describe("sprint end-date retiming", () => {
         const history: unknown[][] = [];
         mockTxClient.query.mockImplementation(async (sql: string, params: unknown[] = []) => {
             const normalized = sql.replace(/\s+/g, " ").trim();
+            if (normalized.startsWith("SELECT s.status FROM sprints s")) {
+                return { rows: [{ status: updatedSprint.status ?? "active" }], rowCount: 1 };
+            }
             if (normalized.startsWith("SELECT t.* FROM tasks t")) {
                 expect(normalized).toContain("t.due_date = $2");
                 return {
@@ -367,7 +374,7 @@ describe("sprint end-date retiming", () => {
                 history.push(params);
                 return { rows: [], rowCount: 1 };
             }
-            if (normalized.startsWith("UPDATE sprints SET")) {
+            if (normalized.startsWith("UPDATE sprints s SET")) {
                 return { rows: [], rowCount: 1 };
             }
             if (normalized.startsWith("UPDATE teams SET sprint_paused")) {
@@ -395,8 +402,18 @@ describe("sprint end-date retiming", () => {
 
         expect(res.status).toBe(200);
         expect(mockTransaction).toHaveBeenCalledTimes(1);
-        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET"))).toBe(true);
-        expect(mockQuery.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET"))).toBe(false);
+        const txSql = mockTxClient.query.mock.calls.map(([sql]) => String(sql).replace(/\s+/g, " ").trim());
+        const gate = txSql.findIndex((sql) => sql.includes("pg_advisory_xact_lock"));
+        const sprintRead = txSql.findIndex((sql) => sql.startsWith("SELECT s.status FROM sprints s"));
+        const memberLock = txSql.findIndex((sql) => sql.startsWith("SELECT t.* FROM tasks t"));
+        const sprintUpdateIndex = txSql.findIndex((sql) => sql.startsWith("UPDATE sprints s SET"));
+        expect(gate).toBeGreaterThanOrEqual(0);
+        expect(gate).toBeLessThan(sprintRead);
+        expect(sprintRead).toBeLessThan(memberLock);
+        expect(memberLock).toBeLessThan(sprintUpdateIndex);
+        const sprintUpdate = ([sql]: unknown[]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET");
+        expect(mockTxClient.query.mock.calls.some(sprintUpdate)).toBe(true);
+        expect(mockQuery.mock.calls.some(sprintUpdate)).toBe(false);
         expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-12", "2026-11-08"]);
         expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-12"]);
         expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
@@ -431,7 +448,7 @@ describe("sprint end-date retiming", () => {
 
         expect(res.status).toBe(200);
         expect(mockTransaction).toHaveBeenCalledTimes(1);
-        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET status = 'active'"))).toBe(true);
+        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET status = 'active'"))).toBe(true);
         expect(rows[0].due_date).toBe("2026-11-13");
         expect(rows[1].due_date).toBe("2026-11-08");
         expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-13"]);
@@ -452,8 +469,10 @@ describe("POST /api/sprints/:id/start", () => {
      */
     test("refuses to start a sprint while the team already has an active one", async () => {
         setupAuth();
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 })
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 });
+        mockTxClient.query
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [{ status: "planned" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
 
         const res = await request(app)
@@ -466,6 +485,7 @@ describe("POST /api/sprints/:id/start", () => {
         const sql = mockQuery.mock.calls.map((c: any[]) => String(c[0]));
         expect(sql.some((q) => /SET status = 'completed'/.test(q))).toBe(false);
         expect(sql.some((q) => /SET status = 'active'/.test(q))).toBe(false);
+        expect(mockTxClient.query.mock.calls.some(([query]: any[]) => /SET status = 'active'/.test(String(query)))).toBe(false);
     });
 });
 

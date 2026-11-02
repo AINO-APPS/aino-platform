@@ -97,11 +97,13 @@ async function completeAndRollover(
     db: Db,
     sprintId: number,
     nextSprintId: number,
+    orgId: number | null,
     tenantId?: number | null,
 ): Promise<number> {
     const result = await completeSprint(db, {
         sprintId,
         targetSprintId: nextSprintId,
+        orgId,
         effects: realtimeEffects({ db: db as any, tenantId }),
     });
     return result?.rolledOver ?? 0;
@@ -115,7 +117,7 @@ async function completeAndRollover(
  */
 async function reconcileTeam(
     db: Db,
-    team: { id: number; sprint_duration_weeks: number; sprint_start_date: string },
+    team: { id: number; org_id: number | null; sprint_duration_weeks: number; sprint_start_date: string },
     today: string,
     tenantId?: number | null,
 ): Promise<{ activeSprintId: number | null; transitioned: boolean }> {
@@ -163,7 +165,7 @@ async function reconcileTeam(
     // If a previous auto sprint is still active and it's NOT the current window,
     // complete + roll it into the current window's sprint.
     if (activePrev && activePrev.id !== current.id && activePrev.sprint_number < window.number) {
-        await completeAndRollover(db, activePrev.id, current.id, tenantId);
+        await completeAndRollover(db, activePrev.id, current.id, team.org_id, tenantId);
         transitioned = true;
     }
 
@@ -175,7 +177,7 @@ async function reconcileTeam(
             `UPDATE sprints SET status = 'active', started_at = COALESCE(started_at, NOW()) WHERE id = $1`,
             [current.id]
         );
-        await snapshotBurndown(db, current.id);
+        await snapshotBurndown(db, current.id, team.org_id);
         transitioned = true;
     }
 
@@ -194,7 +196,7 @@ export async function runSprintLifecycle(
     const today = new Date().toISOString().slice(0, 10);
 
     const teams = (await db.query(
-        `SELECT id, sprint_duration_weeks, sprint_start_date
+        `SELECT id, org_id, sprint_duration_weeks, sprint_start_date
            FROM teams
           WHERE sprint_mode = 'auto'
             AND sprint_paused = FALSE

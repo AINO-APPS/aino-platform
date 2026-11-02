@@ -54,7 +54,7 @@ describe("computeCurrentWindow", () => {
 // carried_over_from_sprint_id }.
 function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
     const state: any = {
-        sprints: initial.sprints ? [...initial.sprints] : ([] as any[]),
+        sprints: initial.sprints ? initial.sprints.map((sprint) => ({ org_id: 1, ...sprint })) : ([] as any[]),
         tasks: initial.tasks
             ? initial.tasks.map((task) => ({
                 org_id: 1,
@@ -75,6 +75,10 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
 
     async function query(sql: string, params: any[] = []) {
         const s = sql.replace(/\s+/g, " ").trim();
+
+        if (s.startsWith("SELECT pg_advisory_xact_lock")) {
+            return { rows: [], rowCount: 1 };
+        }
 
         // reconcileTeam: find current window sprint
         if (s.startsWith("SELECT * FROM sprints WHERE team_id = $1 AND sprint_number = $2 AND auto_managed = TRUE")) {
@@ -102,6 +106,7 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
             if (dup) return { rows: [], rowCount: 0 };
             const row = {
                 id: state.nextSprintId++,
+                org_id: 1,
                 team_id: teamId,
                 name,
                 start_date: start,
@@ -120,9 +125,9 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
 
         // snapshotBurndown task pull
         if (s.startsWith("SELECT t.story_points, ws.is_terminal, t.is_blocked")) {
-            const [sprintId] = params;
+            const [sprintId, orgId] = params;
             const rows = state.tasks
-                .filter((t: any) => t.sprint_id === sprintId)
+                .filter((t: any) => t.sprint_id === sprintId && t.org_id === orgId)
                 .map((t: any) => ({ story_points: t.story_points, is_terminal: t.is_terminal, is_blocked: t.is_blocked }));
             return { rows, rowCount: rows.length };
         }
@@ -135,16 +140,16 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
 
         // velocity computation
         if (s.includes("COALESCE(SUM(t.story_points), 0)::float AS velocity")) {
-            const [sprintId] = params;
-            const sprintTasks = state.tasks.filter((t: any) => t.sprint_id === sprintId);
+            const [sprintId, orgId] = params;
+            const sprintTasks = state.tasks.filter((t: any) => t.sprint_id === sprintId && t.org_id === orgId);
             const doneTasks = sprintTasks.filter((t: any) => t.is_terminal);
             const velocity = doneTasks.reduce((a: number, t: any) => a + (Number(t.story_points) || 0), 0);
             return { rows: [{ velocity, done_tasks: doneTasks.length, total_tasks: sprintTasks.length }], rowCount: 1 };
         }
 
-        if (s.startsWith("UPDATE sprints SET completed_at = COALESCE(completed_at, NOW())")) {
-            const [id] = params;
-            const row = state.sprints.find((r: any) => r.id === id);
+        if (s.startsWith("UPDATE sprints s SET completed_at = COALESCE(completed_at, NOW())")) {
+            const [id, orgId] = params;
+            const row = state.sprints.find((r: any) => r.id === id && r.org_id === orgId);
             return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
         }
 
@@ -152,16 +157,16 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
             return { rows: [{ org_id: 1, actor_id: 1 }], rowCount: 1 };
         }
 
-        if (s.startsWith("SELECT id, name, status, end_date FROM sprints WHERE id = $1 AND team_id = $2")) {
-            const [id, teamId] = params;
-            const row = state.sprints.find((r: any) => r.id === id && r.team_id === teamId);
+        if (s.startsWith("SELECT s.id, s.name, s.status, s.end_date FROM sprints s")) {
+            const [id, teamId, orgId] = params;
+            const row = state.sprints.find((r: any) => r.id === id && r.team_id === teamId && r.org_id === orgId);
             return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
         }
 
         if (s.startsWith("SELECT t.id, COALESCE(ws.is_terminal, FALSE) AS is_terminal FROM tasks t")) {
-            const [sprintId] = params;
+            const [sprintId, orgId] = params;
             const rows = state.tasks
-                .filter((t: any) => t.sprint_id === sprintId)
+                .filter((t: any) => t.sprint_id === sprintId && t.org_id === orgId)
                 .map((t: any) => ({ id: t.id, is_terminal: t.is_terminal }));
             return { rows, rowCount: rows.length };
         }
@@ -199,16 +204,16 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
             return { rows: [], rowCount: 1 };
         }
         if (s.startsWith("UPDATE tasks SET carried_over_from_sprint_id = $1")) {
-            const [originId, ids] = params;
-            const rows = state.tasks.filter((t: any) => ids.includes(t.id));
+            const [originId, ids, orgId] = params;
+            const rows = state.tasks.filter((t: any) => ids.includes(t.id) && t.org_id === orgId);
             for (const task of rows) task.carried_over_from_sprint_id = originId;
             return { rows: [], rowCount: rows.length };
         }
 
         // complete sprint
-        if (s.startsWith("UPDATE sprints SET status = 'completed'")) {
-            const [velocity, id] = params;
-            const row = state.sprints.find((r: any) => r.id === id);
+        if (s.startsWith("UPDATE sprints s SET status = 'completed'")) {
+            const [velocity, id, orgId] = params;
+            const row = state.sprints.find((r: any) => r.id === id && r.org_id === orgId);
             if (row) {
                 row.status = "completed";
                 row.completed_at = "now";
@@ -218,9 +223,9 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
         }
 
         // set carried_from_sprint_id on the new sprint
-        if (s.startsWith("UPDATE sprints SET carried_from_sprint_id = $1")) {
-            const [originId, id] = params;
-            const row = state.sprints.find((r: any) => r.id === id);
+        if (s.startsWith("UPDATE sprints target SET carried_from_sprint_id = $1")) {
+            const [originId, id, orgId] = params;
+            const row = state.sprints.find((r: any) => r.id === id && r.org_id === orgId);
             if (row && row.carried_from_sprint_id == null) row.carried_from_sprint_id = originId;
             return { rows: [], rowCount: 1 };
         }
@@ -237,7 +242,7 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
         }
 
         // runSprintLifecycle: teams query
-        if (s.startsWith("SELECT id, sprint_duration_weeks, sprint_start_date FROM teams")) {
+        if (s.startsWith("SELECT id, org_id, sprint_duration_weeks, sprint_start_date FROM teams")) {
             return { rows: state.__teams || [], rowCount: (state.__teams || []).length };
         }
 
@@ -255,7 +260,7 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
 }
 
 describe("reconcileTeam", () => {
-    const team = { id: 1, sprint_duration_weeks: 2, sprint_start_date: "2026-01-05" };
+    const team = { id: 1, org_id: 1, sprint_duration_weeks: 2, sprint_start_date: "2026-01-05" };
 
     test("auto-creates and starts the current window when none exists", async () => {
         const db = makeFakeDb();

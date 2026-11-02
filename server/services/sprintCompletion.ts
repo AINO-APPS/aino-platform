@@ -5,6 +5,7 @@ import {
     type PlacementEffects,
     type PlacementDb,
 } from "../modules/tasks/tasks.placement";
+import * as placementRepo from "../modules/tasks/tasks.placementRepository";
 import * as repo from "../modules/tasks/tasks.sprintRepository";
 
 interface SprintCompletionDb extends PlacementDb {
@@ -16,6 +17,7 @@ interface SprintCompletionDb extends PlacementDb {
 export interface CompleteSprintOptions {
     sprintId: number;
     targetSprintId: number | null;
+    orgId?: number | null;
     actor?: PlacementActor;
     effects: PlacementEffects;
 }
@@ -45,10 +47,15 @@ export async function completeSprint(
     options: CompleteSprintOptions,
 ): Promise<SprintCompletionResult | null> {
     return db.transaction(async (client, { afterCommit }) => {
-        const claimed = await repo.claimSprintCompletion(client, options.sprintId);
+        const orgId = options.actor ? options.actor.orgId : options.orgId;
+        if (orgId === undefined) throw new Error("Sprint completion requires an organization scope");
+
+        await placementRepo.acquirePlacementLifecycleLock(client, orgId);
+        const members = await repo.lockSprintCompletionMembers(client, options.sprintId, orgId);
+        const claimed = await repo.claimSprintCompletion(client, options.sprintId, orgId);
         if (!claimed) return null;
 
-        const team = await repo.findSprintCompletionActor(client, options.sprintId, Number(claimed.team_id));
+        const team = await repo.findSprintCompletionActor(client, options.sprintId, Number(claimed.team_id), orgId);
         const actor = options.actor ?? {
             userId: Number(team?.actor_id ?? 0),
             orgId: team?.org_id == null ? null : Number(team.org_id),
@@ -59,19 +66,18 @@ export async function completeSprint(
             if (Number(options.targetSprintId) === Number(options.sprintId)) {
                 throw new SprintCompletionError("TARGET_INVALID", "Cannot roll over to the sprint being completed");
             }
-            target = await repo.findRolloverTarget(client, options.targetSprintId, Number(claimed.team_id));
+            target = await repo.findRolloverTarget(client, options.targetSprintId, Number(claimed.team_id), orgId);
             if (!target || target.status === "completed") {
                 throw new SprintCompletionError("TARGET_INVALID", "Target sprint not found or completed");
             }
         }
 
-        const members = await repo.lockSprintCompletionMembers(client, options.sprintId);
         const unfinished = members
             .filter((row: { is_terminal: boolean }) => !row.is_terminal)
             .map((row: { id: number }) => Number(row.id));
 
-        await repo.snapshotBurndown(client, Number(options.sprintId));
-        const velocity = await repo.findSprintCompletionVelocity(client, options.sprintId);
+        await repo.snapshotBurndown(client, Number(options.sprintId), orgId);
+        const velocity = await repo.findSprintCompletionVelocity(client, options.sprintId, orgId);
         if (unfinished.length > 0 && actor.userId <= 0) {
             throw new Error("Cannot record automated sprint placement without a team actor");
         }
@@ -86,13 +92,13 @@ export async function completeSprint(
         }
 
         if (target && unfinished.length > 0) {
-            await repo.stampTicketCarryover(client, options.sprintId, unfinished);
+            await repo.stampTicketCarryover(client, options.sprintId, unfinished, orgId);
         }
         if (target) {
-            await repo.linkSprintCarryover(client, options.sprintId, Number(target.id));
+            await repo.linkSprintCarryover(client, options.sprintId, Number(target.id), orgId);
         }
 
-        const completed = await repo.finishSprint(client, options.sprintId, Number(velocity.velocity));
+        const completed = await repo.finishSprint(client, options.sprintId, Number(velocity.velocity), orgId);
 
         return {
             sprint: completed,

@@ -480,6 +480,34 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             expect((await pool.query("SELECT due_date FROM tasks WHERE id = $1", [foreign])).rows[0].due_date).toBe("2026-11-14");
         });
 
+        test("concurrent retiming and placement serialize before task and sprint locks", async () => {
+            const id = await ticket({
+                sprint_id: ALPHA_ACTIVE,
+                due_date: "2026-11-28",
+                pre_sprint_due_date: "2026-12-10",
+            });
+            const changes: PlacementChange[] = [];
+
+            const [, placed] = await Promise.all([
+                transaction((client, { afterCommit }) => placementModule.retimeSprintDueDates(
+                    context(client, afterCommit, changes), ALPHA_ACTIVE, "2026-11-28", "2026-12-05",
+                )),
+                transaction((client, { afterCommit }) => placementModule.placeTickets(
+                    context(client, afterCommit, changes), [id], "backlog",
+                )),
+            ]);
+
+            expect(placed[0]).toMatchObject({ id, ok: true });
+            expect((await pool.query(
+                "SELECT sprint_id, due_date, pre_sprint_due_date FROM tasks WHERE id = $1",
+                [id],
+            )).rows[0]).toMatchObject({
+                sprint_id: null,
+                due_date: "2026-12-10",
+                pre_sprint_due_date: null,
+            });
+        });
+
         test("an unchanged end date moves nothing", async () => {
             await ticket({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-14" });
             const changes: PlacementChange[] = [];

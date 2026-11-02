@@ -4,6 +4,7 @@ import type { TransactionContext } from "../types/domain";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { completeSprint } from "../services/sprintCompletion";
+import { placeTickets } from "../modules/tasks/tasks.placement";
 import { __test__ as schedulerTest } from "../services/sprintScheduler";
 
 installPgTypeParsers();
@@ -132,6 +133,38 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         expect(effects.changed).toHaveBeenCalledTimes(1);
     });
 
+    test("a completion request from another organization cannot claim the sprint", async () => {
+        const id = await ticket({ sprintId: 10, workflowStateId: openStateId });
+
+        const result = await completeSprint(db, {
+            sprintId: 10,
+            targetSprintId: null,
+            actor: { userId: 1, orgId: 2 },
+            effects,
+        });
+
+        expect(result).toBeNull();
+        expect((await pool.query("SELECT status FROM sprints WHERE id = 10")).rows[0].status).toBe("active");
+        expect((await pool.query("SELECT sprint_id FROM tasks WHERE id = $1", [id])).rows[0].sprint_id).toBe(10);
+    });
+
+    test("concurrent placement and completion serialize without losing the ticket", async () => {
+        const id = await ticket({ sprintId: 10, workflowStateId: openStateId });
+
+        const [placement, completion] = await Promise.all([
+            db.transaction((client, { afterCommit }) =>
+                placeTickets({ db: client, afterCommit, actor, effects }, [id], "backlog")),
+            completeSprint(db, { sprintId: 10, targetSprintId: null, actor, effects }),
+        ]);
+
+        expect(completion).not.toBeNull();
+        expect(placement[0]).toMatchObject({ id, ok: expect.any(Boolean) });
+        if (!placement[0].ok) expect(placement[0].code).toBe("SPRINT_FROZEN");
+        expect((await pool.query("SELECT status FROM sprints WHERE id = 10")).rows[0].status).toBe("completed");
+        expect((await pool.query("SELECT sprint_id FROM tasks WHERE id = $1", [id])).rows[0].sprint_id).toBeNull();
+        expect((await pool.query("SELECT id FROM task_history WHERE task_id = $1 AND field = 'sprint'", [id])).rows).toHaveLength(1);
+    });
+
     test("scheduler rollover uses the next sprint's end date and placement history", async () => {
         const id = await ticket({
             sprintId: 10,
@@ -140,7 +173,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
             preSprintDueDate: "2026-12-10",
         });
 
-        await schedulerTest.completeAndRollover(db, 10, 11);
+        await schedulerTest.completeAndRollover(db, 10, 11, 1);
 
         const moved = (await pool.query(
             "SELECT sprint_id, due_date, pre_sprint_due_date, carried_over_from_sprint_id FROM tasks WHERE id = $1",

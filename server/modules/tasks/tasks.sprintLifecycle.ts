@@ -1,3 +1,5 @@
+import { findSprintStatusInOrg } from "./tasks.sprintRepository";
+
 /**
  * Sprint lifecycle rules.
  *
@@ -162,6 +164,7 @@ export function resumedEndDate(endDate: string, pausedAt: string | Date | null |
 export interface ActivationDeps {
     db: SprintDbLike;
     tenantId: unknown;
+    orgId: number | null;
     invalidateActiveSprint: (tenantId: unknown, teamId: unknown) => Promise<unknown>;
     snapshotBurndown: (db: SprintDbLike, sprintId: number) => Promise<unknown>;
     notifyStarted: (sprint: any) => Promise<unknown>;
@@ -187,7 +190,9 @@ export async function startSprint(
     deps: ActivationDeps,
     sprint: { id: unknown; team_id: unknown; status?: string | null },
 ): Promise<{ sprint?: any; error?: { status: number; body: Record<string, unknown> } }> {
-    const refusal = activationRefusal(sprint);
+    const current = await findSprintStatusInOrg(deps.db as any, sprint.id, deps.orgId);
+    if (!current) return { error: { status: 404, body: { error: "Sprint not found" } } };
+    const refusal = activationRefusal(current);
     if (refusal) return { error: refusal };
     const running = await findOtherActiveSprint(deps.db, sprint.team_id, sprint.id);
     if (running) return { error: { status: 409, body: sprintAlreadyActiveBody(running) } };

@@ -120,6 +120,7 @@ export async function placeTickets(
     ticketIds: number[],
     target: PlacementTarget,
 ): Promise<PlacementResult[]> {
+    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
     const ids = [...new Set(ticketIds.map(Number))];
     const tickets = new Map((await repo.lockTickets(ctx.db, ids, ctx.actor.orgId)).map((row) => [Number(row.id), row]));
 
@@ -162,6 +163,7 @@ export async function transferTicket(
     ticketId: number,
     toTeamId: number,
 ): Promise<TransferPlacementResult> {
+    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
     const id = Number(ticketId);
     const [before] = await repo.lockTickets(ctx.db, [id], ctx.actor.orgId);
     if (!before) return refusedTransfer(id, "NOT_FOUND");
@@ -204,6 +206,7 @@ export async function retimeSprintDueDates(
     newEnd: string,
 ): Promise<number> {
     if (oldEnd === newEnd) return 0;
+    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
     const members = await repo.lockSprintMembersDueOn(ctx.db, sprintId, oldEnd, ctx.actor.orgId);
     for (const before of members) {
         const after = await repo.setDueDate(ctx.db, Number(before.id), newEnd);

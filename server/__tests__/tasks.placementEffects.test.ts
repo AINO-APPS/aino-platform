@@ -12,11 +12,15 @@ const ALICE = 1;
 const BOB = 2;
 const CAROL = 3;
 
-function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, { name: string }>) {
+function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, { name: string; orgId?: number }>) {
     return {
         query: jest.fn(async (sql: string, params: unknown[]) => {
             if (sql.includes("FROM users")) return { rows: (teamMembers[Number(params[0])] ?? []).map((id) => ({ id })), rowCount: 0 };
-            if (sql.includes("FROM sprints")) return { rows: [sprints[Number(params[0])]].filter(Boolean), rowCount: 1 };
+            if (sql.includes("FROM sprints")) {
+                const sprint = sprints[Number(params[0])];
+                const scoped = sql.includes("JOIN teams") && sql.includes("JOIN tasks");
+                return { rows: [sprint].filter((row) => row && (!scoped || (row.orgId ?? 1) === params[2])), rowCount: 1 };
+            }
             throw new Error(`unexpected query: ${sql}`);
         }),
     };
@@ -62,6 +66,21 @@ describe("realtime effects of a placement", () => {
         });
 
         expect(mockEmitTaskUpdated).toHaveBeenCalledTimes(1);
+        expect(mockNotifyUser).not.toHaveBeenCalled();
+    });
+
+    test("a ticket does not announce a sprint from another organization", async () => {
+        const effects = realtimeEffects({
+            db: fakeDb({ 10: [ALICE] }, { 5: { name: "Foreign sprint", orgId: 2 } }),
+            tenantId: 42,
+        });
+
+        await effects.changed({
+            before: { ...ticket, sprint_id: null },
+            after: { ...ticket, sprint_id: 5 },
+            actor,
+        });
+
         expect(mockNotifyUser).not.toHaveBeenCalled();
     });
 

@@ -48,7 +48,17 @@ export function realtimeEffects(options: {
             });
 
             if (!notify || after.sprint_id == null || String(after.sprint_id) === String(before.sprint_id ?? null)) return;
-            const sprint = (await db.query("SELECT name FROM sprints WHERE id = $1", [after.sprint_id])).rows[0];
+            const sprint = (await db.query(
+                `SELECT s.name
+                   FROM sprints s
+                   JOIN teams tm ON tm.id = s.team_id
+                   JOIN tasks t ON t.sprint_id = s.id AND t.team_id = s.team_id
+                  WHERE s.id = $1
+                    AND t.id = $2
+                    AND t.org_id IS NOT DISTINCT FROM $3
+                    AND tm.org_id IS NOT DISTINCT FROM $3`,
+                [after.sprint_id, after.id, after.org_id],
+            )).rows[0];
             if (!sprint) return;
             const { title, body, audience } = describeSprintTaskAdded({ task: after, sprint, actorId: actor.userId });
             for (const userId of audience) {

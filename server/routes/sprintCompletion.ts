@@ -31,10 +31,10 @@ router.get("/:id/completion-preview", auth, loadUserContext, async (req: Request
             return res.status(403).json({ error: "Access denied" });
         }
 
-        const tasks = await findSprintCarryoverTasks(req.db!, id);
+        const tasks = await findSprintCarryoverTasks(req.db!, id, req.userOrgId ?? null);
 
         // Default target: the next planned sprint for this team, else backlog.
-        const nextPlanned = await findNextPlannedSprint(req.db!, sprint.team_id, id);
+        const nextPlanned = await findNextPlannedSprint(req.db!, sprint.team_id, id, req.userOrgId ?? null);
 
         const plan = planCarryover(tasks, nextPlanned?.id ?? null);
 

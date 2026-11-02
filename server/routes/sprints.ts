@@ -20,12 +20,13 @@ const {
     lockSprintForDeletion,
     findSprintMemberIds,
     deleteSprint,
+    pauseSprintForOrg,
 } = require("../modules/tasks/tasks.sprintRepository");
 const { loadSprintForActor } = require("../modules/tasks/tasks.sprintAccess");
 const { placeTickets } = require("../modules/tasks/tasks.placement");
 const { realtimeEffects } = require("../modules/tasks/tasks.placementEffects");
 const { placementContext, sendPlacementRefusal, PlacementRefused } = require("./tasks/_helpers/placement");
-const { withSprintEndDateRetime } = require("./_helpers/sprintEndDate");
+const { withSprintLifecycleLock, withSprintEndDateRetime } = require("./_helpers/sprintEndDate");
 const {
     findOtherActiveSprint,
     sprintAlreadyActiveBody,
@@ -36,6 +37,7 @@ const {
 type RunningSprint = { id: number; name: string };
 const { notifySprintStarted, notifySprintCompleted } = require("./_helpers/sprintNotifications");
 const { snapshotBurndown } = require("./_helpers/sprintBurndown");
+const { acquirePlacementLifecycleLock } = require("../modules/tasks/tasks.placementRepository");
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
 async function loadAccessibleSprint(req: Request, res: Response, id: number) {
@@ -129,8 +131,8 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         const { name, start_date, end_date, goal, status } = req.body;
 
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
@@ -168,17 +170,13 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         }
 
         if (updates.length === 0) return res.status(400).json({ error: "No valid fields to update" });
-        params.push(id);
-        const updateSql = `UPDATE sprints SET ${updates.join(", ")} WHERE id = $${pi}`;
-        if (end_date !== undefined) {
-            await withSprintEndDateRetime(req, Number(id), sprint.end_date, end_date, (client: any) =>
-                client.query(updateSql, params));
-        } else {
-            await req.db!.query(updateSql, params);
-        }
+        params.push(id, req.userOrgId ?? null);
+        const updateSql = `UPDATE sprints s SET ${updates.join(", ")} WHERE s.id = $${pi} AND s.status <> 'completed' AND EXISTS (SELECT 1 FROM teams tm WHERE tm.id = s.team_id AND tm.org_id IS NOT DISTINCT FROM $${pi + 1})`;
+        const updatedInOrg = await withSprintEndDateRetime(req, Number(id), sprint.end_date, end_date ?? sprint.end_date, (client: any) => client.query(updateSql, params));
+        if (!updatedInOrg) return res.status(409).json({ error: "Sprint is no longer available for editing", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
+        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error updating sprint:");
@@ -190,10 +188,7 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
     try {
         const { id } = req.params;
 
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
-        )).rows[0];
+        const sprint = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
@@ -202,14 +197,15 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
         }
 
         const deleted = await req.db!.transaction!(async (client: any, { afterCommit }: any) => {
-            const lockedSprint = await lockSprintForDeletion(client, id);
+            await acquirePlacementLifecycleLock(client, taskActorFromRequest(req).orgId);
+            const members = await findSprintMemberIds(client, id, taskActorFromRequest(req).orgId);
+            const lockedSprint = await lockSprintForDeletion(client, id, taskActorFromRequest(req).orgId);
             if (!lockedSprint || lockedSprint.status === "completed") return false;
-            const members = await findSprintMemberIds(client, id);
             const context = placementContext(req, client, afterCommit);
             const results = await placeTickets(context, members, { sprint: null });
             const refusal = results.find((result: any) => !result.ok);
             if (refusal && !refusal.ok) throw new PlacementRefused(refusal);
-            await deleteSprint(client, id);
+            await deleteSprint(client, id, taskActorFromRequest(req).orgId);
             return true;
         });
         if (!deleted) {
@@ -228,8 +224,8 @@ router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Respon
     try {
         const { id } = req.params;
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         const actor = taskActorFromRequest(req);
@@ -409,23 +405,23 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
     try {
         const { id } = req.params;
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
-        // One active sprint per team, the baseline, the snapshot, the cache and
-        // the team notification all live in `startSprint`.
-        const started = await startSprint({
-            db: req.db!,
-            tenantId: req.tenantId,
-            invalidateActiveSprint: redis.invalidateActiveSprint,
-            snapshotBurndown,
-            notifyStarted: (target: any) => notifySprintStarted(req, target),
+        // Starting owns the baseline, snapshot, cache update and team notification.
+        const started = await withSprintLifecycleLock(req, (db: any, { afterCommit }: any) => startSprint({
+            db, tenantId: req.tenantId, orgId: req.userOrgId ?? null,
+            invalidateActiveSprint: async (tenantId: any, teamId: any) => {
+                afterCommit(() => redis.invalidateActiveSprint(tenantId, teamId).catch(() => undefined));
+            },
+            snapshotBurndown: (targetDb: any, sprintId: number) => snapshotBurndown(targetDb, sprintId, req.userOrgId ?? null),
+            notifyStarted: async (target: any) => { afterCommit(() => notifySprintStarted(req, target)); },
             commit: captureBaseline,
-        }, sprint);
+        }, sprint));
         if (started.error) return res.status(started.error.status).json(started.error.body);
-        const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
+        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
         return res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error starting sprint");
@@ -445,8 +441,8 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
         const { rolloverTo } = req.body || {};
 
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
@@ -516,22 +512,19 @@ router.post("/:id/pause", auth, loadUserContext, requireRole("team_lead"), async
     try {
         const { id } = req.params;
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "active") return res.status(400).json({ error: "Only an active sprint can be paused" });
 
-        await req.db!.query(
-            "UPDATE sprints SET status = 'paused', paused_at = NOW() WHERE id = $1",
-            [id]
-        );
-        // Freeze the auto-scheduler for this team while paused.
-        await req.db!.query("UPDATE teams SET sprint_paused = TRUE WHERE id = $1", [sprint.team_id]);
+        const paused = await withSprintLifecycleLock(req, (client: any) =>
+            pauseSprintForOrg(client, id, sprint.team_id, req.userOrgId ?? null));
+        if (!paused) return res.status(409).json({ error: "Sprint is no longer active", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
+        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error pausing sprint");
@@ -545,8 +538,8 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
     try {
         const { id } = req.params;
         const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
-            [id, req.userOrgId]
+            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
+            [id, req.userOrgId ?? null]
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
@@ -555,16 +548,23 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
         if (running) return sprintAlreadyActive(res, running);
 
         const newEnd = resumedEndDate(sprint.end_date, sprint.paused_at);
-        await withSprintEndDateRetime(req, Number(id), sprint.end_date, newEnd, async (client: any) => {
+        const resumed = await withSprintEndDateRetime(req, Number(id), sprint.end_date, newEnd, async (client: any) => {
             await client.query(
-                "UPDATE sprints SET status = 'active', paused_at = NULL, end_date = $2 WHERE id = $1",
-                [id, newEnd]
+                `UPDATE sprints s
+                    SET status = 'active', paused_at = NULL, end_date = $2
+                  WHERE s.id = $1
+                    AND EXISTS (SELECT 1 FROM teams tm WHERE tm.id = s.team_id AND tm.org_id IS NOT DISTINCT FROM $3)`,
+                [id, newEnd, req.userOrgId ?? null]
             );
-            await client.query("UPDATE teams SET sprint_paused = FALSE WHERE id = $1", [sprint.team_id]);
-        });
+            await client.query(
+                "UPDATE teams SET sprint_paused = FALSE WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
+                [sprint.team_id, req.userOrgId ?? null],
+            );
+        }, "paused");
+        if (!resumed) return res.status(409).json({ error: "Sprint is no longer available for resume", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
+        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error resuming sprint");
@@ -629,7 +629,7 @@ router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Res
         // Take a fresh snapshot for today if the sprint is active so the
         // chart is always up-to-date when an admin opens it.
         if (sprint.status === "active") {
-            await snapshotBurndown(req.db, id);
+            await snapshotBurndown(req.db, id, req.userOrgId ?? null);
         }
 
         const snapshots = (await req.db!.query(
