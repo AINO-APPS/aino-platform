@@ -138,6 +138,8 @@ export const createSprint = (data: AnyData) => API.post("/sprints", data);
 export const updateSprint = (id: number | string, data: AnyData) => API.put(`/sprints/${id}`, data);
 export const deleteSprint = (id: number | string) => API.delete(`/sprints/${id}`);
 export const getSprintTasks = (id: number | string) => API.get(`/sprints/${id}/tasks`);
+export const getSprintBoard = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/sprints/${id}/board`, { signal });
 export const getSprintStats = (id: number | string) => API.get(`/sprints/${id}/stats`);
 export const startSprint = (id: number | string) => API.post(`/sprints/${id}/start`);
 export const completeSprint = (id: number | string, rolloverTo?: number | string) =>

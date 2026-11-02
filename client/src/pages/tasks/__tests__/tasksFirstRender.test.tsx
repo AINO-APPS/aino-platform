@@ -64,6 +64,7 @@ vi.mock("../TasksOverlays", () => ({ default: () => null }));
 
 vi.mock("../../../api/tasks", () => ({
     getTasks: vi.fn().mockResolvedValue({ data: { tasks: [], stats: {} } }),
+    getSprintBoard: vi.fn().mockResolvedValue({ data: { columns: [], tickets: [] } }),
     getBacklog: vi.fn().mockResolvedValue({ data: {
         tasks: [], summary: { total: 0, byStatus: {}, byPriority: {} }, pagination: { total: 0 },
     } }),
@@ -93,7 +94,7 @@ vi.mock("../../../api/organization", () => ({
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Tasks from "../../Tasks";
-import { getAvailableSprints, getBacklog, getTasks } from "../../../api/tasks";
+import { getAvailableSprints, getBacklog, getSprintBoard, getTasks } from "../../../api/tasks";
 
 function renderAt(path: string) {
     const queryClient = new QueryClient({
@@ -159,7 +160,8 @@ describe("Tasks first render from the URL", () => {
     test("the board deep link never requests the backlog it is not showing", async () => {
         renderAt("/tasks/sprint/12");
 
-        await waitFor(() => expect(getTasks).toHaveBeenCalled());
+        await waitFor(() => expect(getSprintBoard).toHaveBeenCalledWith(12, expect.anything()));
+        expect(getTasks).not.toHaveBeenCalled();
         expect(getBacklog).not.toHaveBeenCalled();
     });
 

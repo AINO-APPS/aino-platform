@@ -16,14 +16,10 @@ import {
     type DropAnimation,
 } from "@dnd-kit/core";
 import TaskCard from "./TaskCard";
-import { useAgileConfig } from "../../AgileConfigContext";
 import { useIsPhone } from "../../hooks/useViewportWidth";
 import { useSwipe } from "./hooks/useSwipe";
-import {
-    allowAllTargets,
-    boardColumns,
-    type TargetPolicy,
-} from "./hooks/boardTargets";
+import type { BoardColumn } from "./boardTypes";
+import { boardTargetDecision, reasonCopy } from "./ticketCapabilities";
 import s from "./KanbanBoard.module.css";
 
 type Id = number | string;
@@ -36,11 +32,11 @@ interface BoardPointerDrag {
     onDragOver: (columnId: Id | null) => void;
     onDragCancel: () => void;
     dropOnColumn: (taskId: Id, column: any) => boolean;
-    targetPolicy?: TargetPolicy;
 }
 
 interface KanbanBoardProps {
     tasks: any[];
+    columns: BoardColumn[];
     sprintMode?: boolean;
     /** Pointer drag (mouse and touch). Without it, cards are not draggable. */
     drag?: BoardPointerDrag;
@@ -57,9 +53,6 @@ interface KanbanBoardProps {
         /** Drop any keyboard lift, e.g. when a pointer drag starts. */
         reset?: () => void;
     };
-    /** Which columns may receive a card. Defaults to the drag hook's policy. */
-    targetPolicy?: TargetPolicy;
-    wipWarning?: string | null;
     announcement?: string;
     /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
     attribution?: Record<string, { name: string }>;
@@ -67,7 +60,7 @@ interface KanbanBoardProps {
     onAddTask?: (column: any) => void;
 }
 
-const colId = (col: any): Id => col.id || col.key;
+const colId = (col: BoardColumn): Id => col.id ?? col.key ?? col.stateId;
 
 /** The card settles into its new slot instead of vanishing on release. */
 const dropAnimation: DropAnimation = {
@@ -129,33 +122,25 @@ function DroppableColumn({
 
 export default function KanbanBoard({
     tasks,
+    columns,
     sprintMode,
     drag,
     onOpenDetail,
     onOpenComments,
     boardDrag,
-    targetPolicy,
-    wipWarning,
     announcement,
     onAddTask,
     attribution,
 }: KanbanBoardProps) {
-    const { workflowStates, features } = useAgileConfig() as any;
-    // Cancelled is a terminal state, not a work-in-progress column: a cancelled
-    // ticket leaves the board rather than sitting in a fifth column.
-    const boardStates = boardColumns(workflowStates);
-    const policy = targetPolicy ?? drag?.targetPolicy ?? allowAllTargets;
     // On a phone the board is one column at a time, swiped between.
     const isPhone = useIsPhone();
     const [phoneColumn, setPhoneColumn] = useState(0);
-    const columnCount = boardStates.length;
+    const columnCount = columns.length;
     const swipe = useSwipe(
         () => setPhoneColumn((index) => Math.min(columnCount - 1, index + 1)),
         () => setPhoneColumn((index) => Math.max(0, index - 1)),
     );
-    const visibleColumns = isPhone
-        ? boardStates.slice(phoneColumn, phoneColumn + 1)
-        : boardStates;
+    const visibleColumns = isPhone ? columns.slice(phoneColumn, phoneColumn + 1) : columns;
 
     // A small movement threshold keeps clicks (open detail) working; touch
     // waits for a short press so the board still scrolls.
@@ -170,7 +155,8 @@ export default function KanbanBoard({
         tasks.filter(
             (t) =>
                 (col.key && t.workflow_state_key === col.key) ||
-                (t.workflow_state_id && col.id && t.workflow_state_id === col.id),
+                (t.workflow_state_id != null &&
+                    String(t.workflow_state_id) === String(col.stateId)),
         );
     const draggedId = drag?.draggingTaskId ?? boardDrag?.draggingId ?? null;
     const draggedTask = draggedId != null ? tasks.find((task) => task.id === draggedId) : undefined;
@@ -181,7 +167,7 @@ export default function KanbanBoard({
     const columnOf = (overId: unknown) => {
         const key = String(overId ?? "");
         if (!key.startsWith("col:")) return null;
-        return boardStates.find((col: any) => String(colId(col)) === key.slice(4)) ?? null;
+        return columns.find((col) => String(colId(col)) === key.slice(4)) ?? null;
     };
 
     const handleDragStart = (event: DragStartEvent) => {
@@ -212,11 +198,6 @@ export default function KanbanBoard({
             onDragCancel={() => drag?.onDragCancel()}
         >
             <div className={s["kanban-board"]} data-phone={isPhone ? "true" : undefined}>
-                {wipWarning && (
-                    <div className={s["wip-warning"]} role="status">
-                        {wipWarning}
-                    </div>
-                )}
                 <div className="sr-only" role="status" aria-live="polite">
                     {announcement}
                 </div>
@@ -231,7 +212,7 @@ export default function KanbanBoard({
                             ‹
                         </button>
                         <span className={s["phone-column-label"]} aria-live="polite">
-                            {boardStates[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
+                            {columns[phoneColumn]?.name} ({phoneColumn + 1}/{columnCount})
                         </span>
                         <button
                             type="button"
@@ -244,9 +225,14 @@ export default function KanbanBoard({
                     </div>
                 )}
                 <div className={s["kanban-columns"]} {...(isPhone && draggedId == null ? swipe : {})}>
-                    {visibleColumns.map((col: any) => {
+                    {visibleColumns.map((col) => {
                         const colTasks = getColTasks(col);
-                        const disabledReason = draggedTask ? policy(draggedTask, col) : null;
+                        const decision = draggedTask
+                            ? boardTargetDecision(draggedTask, col)
+                            : null;
+                        const disabledReason = decision && !decision.allowed
+                            ? reasonCopy(decision.reason)
+                            : null;
                         const isDragOver =
                             !disabledReason &&
                             drag?.dragOverCol != null &&
@@ -257,8 +243,6 @@ export default function KanbanBoard({
                             (boardDrag.overColumn === col.id || boardDrag.overColumn === col.key);
                         // The column the card came from is not a drop target.
                         const isSource = draggedTask != null && colTasks.some((t) => t.id === draggedTask.id);
-                        const wipExceeded =
-                            features.wipLimits && col.wip_limit && colTasks.length > col.wip_limit;
 
                         return (
                             <DroppableColumn
@@ -266,7 +250,7 @@ export default function KanbanBoard({
                                 col={col}
                                 disabled={Boolean(disabledReason)}
                                 data-column-key={col.key}
-                                className={`${s["kanban-column"]} ${isDragOver || isKeyboardOver ? s["drag-over"] : ""} ${wipExceeded ? s["wip-exceeded"] : ""} ${disabledReason ? s["column-disabled"] : ""}`}
+                                className={`${s["kanban-column"]} ${isDragOver || isKeyboardOver ? s["drag-over"] : ""} ${disabledReason ? s["column-disabled"] : ""}`}
                                 style={{ "--col-color": col.color } as React.CSSProperties}
                                 aria-disabled={disabledReason ? true : undefined}
                                 title={disabledReason ?? undefined}
@@ -279,8 +263,8 @@ export default function KanbanBoard({
                                         </span>
                                     </div>
                                     <span className={s["column-count"]}>
-                                        {colTasks.length}
-                                        {features.wipLimits && col.wip_limit ? ` / ${col.wip_limit}` : ""}
+                                        {col.count}
+                                        {col.limit != null ? ` / ${col.limit}` : ""}
                                     </span>
                                     {onAddTask && (
                                         <button

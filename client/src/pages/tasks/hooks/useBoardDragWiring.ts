@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useBoardDrag, type BoardColumn, type MoveOutcome } from "./useBoardDrag";
-import type { TargetPolicy } from "./boardTargets";
 import type { ShowConfirm } from "./useConfirmDialog";
 import { stageStatusMove } from "./stageStatusMove";
-import { useWorkflowTargetPolicy } from "./useWorkflowTargetPolicy";
 
 interface UseBoardDragWiringArgs {
     tasks: any[];
@@ -12,7 +10,6 @@ interface UseBoardDragWiringArgs {
     closeConfirm: () => void;
     /** Commit an accepted move. Returns false when the server refused it. */
     onMove: (task: any, column: BoardColumn) => Promise<boolean> | boolean;
-    targetPolicy?: TargetPolicy;
 }
 
 /**
@@ -28,16 +25,12 @@ export function useBoardDragWiring({
     showConfirm,
     closeConfirm,
     onMove,
-    targetPolicy,
 }: UseBoardDragWiringArgs) {
     const [announcement, setAnnouncement] = useState("");
-    // Keyboard navigation refuses the same columns as pointer drag.
-    const policy = useWorkflowTargetPolicy(tasks, targetPolicy);
 
     const boardDrag = useBoardDrag({
         tasks,
         columns,
-        targetPolicy: policy,
         onAnnounce: setAnnouncement,
         onRequestMove: (task, column, notice) =>
             new Promise<MoveOutcome>((resolve) => {

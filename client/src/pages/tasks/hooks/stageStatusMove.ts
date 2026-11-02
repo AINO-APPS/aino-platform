@@ -1,5 +1,5 @@
 import type { ShowConfirm } from "./useConfirmDialog";
-import type { BoardColumn, BoardTask } from "./boardTargets";
+import type { BoardColumn, BoardTask } from "../boardTypes";
 
 interface StageStatusMoveArgs {
     /** The column the ticket is being dropped into. */

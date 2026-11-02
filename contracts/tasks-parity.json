@@ -922,6 +922,16 @@
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },
     {
+      "id": "server-board-capabilities",
+      "name": "Sprint board renders server transition and WIP decisions",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native board capability rendering is tracked separately in ticket 09." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
       "id": "server-ticket-list-membership",
       "name": "Scheduled and backlog membership render the server container",
       "decision": "D51",

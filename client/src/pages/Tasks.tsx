@@ -2,7 +2,7 @@ import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as Gly
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects, assignTaskToSprint } from "../api/tasks";
+import { getTasks, getSprintBoard, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getSprintStats, getProjects, assignTaskToSprint } from "../api/tasks";
 import { getLocalToday } from "../api/client";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
@@ -13,7 +13,6 @@ import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import "highlight.js/styles/github-dark.css";
 
 import { COLUMNS } from "./tasks/constants";
-import KanbanBoard from "./tasks/KanbanBoard";
 import SprintImportPanel from "./tasks/SprintImportPanel";
 import BacklogTab from "./tasks/BacklogTab";
 import TasksHeader from "./tasks/TasksHeader";
@@ -40,8 +39,9 @@ import { useDragDrop } from "./tasks/hooks/useDragDrop";
 import { useTasksRoute, showsBacklog, sprintIdFrom, tasksViewPath } from "./tasks/hooks/useTasksRoute";
 import { useTasksRouteSync, useTaskDeepLink, useSprintLanding } from "./tasks/hooks/useTasksRouteSync";
 import { useUndoToast } from "./tasks/hooks/useUndoToast";
-import { boardColumns } from "./tasks/hooks/boardTargets";
 import { useBoardDragWiring } from "./tasks/hooks/useBoardDragWiring";
+import { useTaskDeltas } from "./tasks/hooks/useTaskDeltas";
+import type { BoardColumn } from "./tasks/boardTypes";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
@@ -66,6 +66,7 @@ export default function Tasks() {
   const navigate = useNavigate();
   const location = useLocation();
   const [tasks, setTasks] = useState<any[]>([]);
+  const [sprintColumns, setSprintColumns] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({
     total: 0,
     done: 0,
@@ -137,6 +138,8 @@ export default function Tasks() {
   }, [hasFeature, activeTab]);
   const [sprintStats, setSprintStats] = useState<any>(null);
   const { unitLabel, features, initialState, terminalStates, workflowStates } = useAgileConfig() as any;
+  const workflowStatesRef = useRef(workflowStates);
+  workflowStatesRef.current = workflowStates;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
   const { confirmDialog, showConfirm, closeConfirm, cancelConfirm } = useConfirmDialog() as any;
@@ -157,12 +160,37 @@ export default function Tasks() {
       try {
         const params: any = { ...filters.plannerFilters };
         if (activeTab === "sprint" && selectedSprintId) {
-          params.sprint_id = selectedSprintId;
-          const res = await getTasks(undefined as any, params, signal as any);
-          setTasks((res.data as any).tasks);
-          setStats((res.data as any).stats);
+          if (tasksRoute.route.plan) {
+            params.sprint_id = selectedSprintId;
+            const res = await getTasks(undefined as any, params, signal);
+            setTasks((res.data as any).tasks);
+            setStats((res.data as any).stats);
+            setSprintColumns([]);
+          } else {
+            const { data: board } = await getSprintBoard(selectedSprintId, signal);
+            const columns = Array.isArray((board as any).columns) ? (board as any).columns : [];
+            setTasks(Array.isArray((board as any).tickets) ? (board as any).tickets : []);
+            setSprintColumns(columns);
+            const total = columns.reduce((sum: number, column: any) => sum + column.count, 0);
+            const countIn = (category: string) => columns.reduce(
+              (sum: number, column: any) =>
+                sum + (workflowStatesRef.current.find((state: any) =>
+                  String(state.id) === String(column.stateId) &&
+                  state.category === category,
+                ) ? column.count : 0),
+              0,
+            );
+            const done = countIn("done");
+            setStats({
+              total,
+              done,
+              inProgress: countIn("in_progress"),
+              percent: total > 0 ? Math.round((done / total) * 100) : 0,
+            });
+          }
         } else {
           setTasks([]);
+          setSprintColumns([]);
           setStats({ total: 0, done: 0, inProgress: 0, percent: 0 });
         }
         setError("");
@@ -172,8 +200,31 @@ export default function Tasks() {
         setLoading(false);
       }
     },
-    [date, activeTab, selectedSprintId, filters.plannerFilters],
+    [date, activeTab, selectedSprintId, filters.plannerFilters, tasksRoute.route.plan],
   );
+
+  const boardColumns: BoardColumn[] = sprintColumns.map((column) => {
+    const state = workflowStates.find(
+      (candidate: any) => String(candidate.id) === String(column.stateId),
+    );
+    return {
+      ...column,
+      id: column.stateId,
+      key: state?.key,
+      name: state?.name ?? `State #${column.stateId}`,
+      category: state?.category,
+      is_initial: state?.is_initial,
+      is_terminal: state?.is_terminal,
+      color: state?.color,
+    };
+  });
+
+  const boardDeltas = useTaskDeltas(setTasks, {
+    enabled: activeTab === "sprint" && !tasksRoute.route.plan && selectedSprintId != null,
+    container: "sprint",
+    onRefresh: fetchTasks,
+    shouldRefresh: (frame) => tasks.some((task) => String(task.id) === String(frame.taskId)),
+  });
 
   const backlog = useBacklog({
     activeTab,
@@ -214,13 +265,14 @@ export default function Tasks() {
     showConfirm,
     closeConfirm,
     setError,
+    onBoardRefresh: fetchTasks,
   });
 
   // Keyboard board navigation only. Pointer drag lives in `useDragDrop`; both
   // paths stage the move behind the same confirmation and commit it once.
   const { boardDrag, announcement: boardAnnouncement } = useBoardDragWiring({
     tasks,
-    columns: boardColumns(workflowStates),
+    columns: boardColumns,
     showConfirm,
     closeConfirm,
     onMove: (task: any, column: any) => drag.commitMove(task, column),
@@ -471,6 +523,7 @@ export default function Tasks() {
             }}
             loading={loading}
             tasks={tasks}
+            columns={boardColumns}
             drag={drag}
             sprintMode={sprintMode}
             onOpenDetail={detail.openTaskDetail}
@@ -478,6 +531,7 @@ export default function Tasks() {
             onAddTask={selectedSprintId ? sprintActions.addToColumn : undefined}
             boardDrag={boardDrag}
             boardAnnouncement={boardAnnouncement}
+            attribution={{ ...backlog.attribution, ...boardDeltas.attribution }}
             plan={tasksRoute.route.plan}
             sprintPlan={sprintPlan}
             epics={epics.epics}
