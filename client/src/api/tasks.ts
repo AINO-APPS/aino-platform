@@ -1,4 +1,5 @@
 import API, { type AnyData, type Params } from "./client";
+import type { SprintList } from "../types/generated/tasks";
 
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
@@ -129,7 +130,7 @@ export const getTaskTime = (from?: string, to?: string) =>
     API.get("/tracker/task-time", { params: { from, to } });
 
 // Sprints
-export const getSprints = () => API.get("/sprints");
+export const getSprints = (params?: AnyData) => API.get<SprintList>("/sprints", { params });
 export const getActiveSprint = () => API.get("/sprints/active");
 export const createSprint = (data: AnyData) => API.post("/sprints", data);
 export const updateSprint = (id: number | string, data: AnyData) => API.put(`/sprints/${id}`, data);

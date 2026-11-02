@@ -30,6 +30,14 @@ export function displaySprintStatus(sprint: SprintLike | null | undefined): stri
     return isSprintActive(sprint) ? "active" : (sprint.status ?? "unknown");
 }
 
+export function sprintListResponse<T extends SprintLike>(sprints: T[], teamScoped = true) {
+    const current = teamScoped
+        ? sprints.find((sprint) => sprint.status === "active")
+            ?? sprints.find((sprint) => sprint.status === "paused")
+        : null;
+    return { sprints, currentSprintId: current?.id ?? null };
+}
+
 export interface CarryoverTask {
     id: number | string;
     title?: string;

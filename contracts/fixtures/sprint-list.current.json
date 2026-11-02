@@ -1,0 +1,15 @@
+{
+  "schema": "../../openapi.json#/components/schemas/SprintList",
+  "data": {
+    "sprints": [
+      {
+        "id": 31,
+        "team_id": 7,
+        "name": "Sprint 12",
+        "status": "paused",
+        "auto_managed": false
+      }
+    ],
+    "currentSprintId": 31
+  }
+}

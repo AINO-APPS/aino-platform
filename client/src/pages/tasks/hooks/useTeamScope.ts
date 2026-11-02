@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getOrgTeams } from "../../../api/organization";
+import { getSprints } from "../../../api/tasks";
 
 export type TeamScope = number | "unassigned";
 
@@ -35,8 +36,9 @@ export function useTeamScope(options: {
     currentUser: any;
     availableSprints: any[];
     setSelectedSprintId: (id: any) => void;
+    agileEnabled?: boolean;
 }) {
-    const { currentUser, availableSprints, setSelectedSprintId } = options;
+    const { currentUser, availableSprints, setSelectedSprintId, agileEnabled = false } = options;
     const showTeamSwitcher = TEAM_PICKER_ROLES.includes(String(currentUser?.role));
     const [selectedTeamId, setSelectedTeamId] = useState<TeamScope | null>(null);
 
@@ -68,7 +70,7 @@ export function useTeamScope(options: {
         ? (typeof selectedTeamId === "number" ? selectedTeamId : null)
         : (currentUser?.team_id != null ? Number(currentUser.team_id) : null);
 
-    const visibleSprints = useMemo(() => {
+    const teamSprints = useMemo(() => {
         if (showTeamSwitcher && selectedTeamId === null) return EMPTY;
         if (effectiveTeamId == null) return showTeamSwitcher ? EMPTY : availableSprints;
         return availableSprints.filter(
@@ -89,19 +91,49 @@ export function useTeamScope(options: {
         return { team_id: selectedTeamId };
     }, [showTeamSwitcher, selectedTeamId, currentUser?.role, effectiveTeamId]);
 
-    // Keep a valid sprint selected — the active one — when the team changes.
+    const hasSelectedTeam = !showTeamSwitcher || selectedTeamId !== null;
+    const hasTeamScope = !("unassigned" in teamScopeParams);
+    const currentSprintQueryEnabled = agileEnabled && hasSelectedTeam && hasTeamScope;
+    const { data: sprintList, isFetched: currentSprintFetched } = useQuery({
+        queryKey: ["tasks", "sprintList", teamScopeParams],
+        enabled: currentSprintQueryEnabled,
+        queryFn: async () => {
+            try {
+                return (await getSprints(teamScopeParams)).data as any;
+            } catch (err: any) {
+                if (err?.response?.status === 403) return { currentSprintId: null };
+                throw err;
+            }
+        },
+    });
+    const currentSprintId = sprintList?.currentSprintId ?? null;
+    const currentSprintLoaded = !currentSprintQueryEnabled || currentSprintFetched;
+    const visibleSprints = useMemo(() => {
+        const currentSprint = sprintList?.sprints?.find(
+            (sprint: any) => sprint.id === currentSprintId,
+        );
+        if (!currentSprint || teamSprints.some((sprint: any) => sprint.id === currentSprintId)) {
+            return teamSprints;
+        }
+        return [...teamSprints, currentSprint];
+    }, [teamSprints, sprintList?.sprints, currentSprintId]);
+
+    // Keep a valid sprint selected — the server's current one — on team changes.
     useEffect(() => {
         if (!visibleSprints.length) {
             setSelectedSprintId(null);
             return;
         }
+        if (!currentSprintLoaded) return;
         setSelectedSprintId((prev: any) =>
             prev && visibleSprints.some((sprint: any) => sprint.id === prev)
                 ? prev
-                : (visibleSprints.find((sprint: any) => sprint.status === "active")?.id
-                    ?? visibleSprints[0].id),
+                : (currentSprintId != null
+                    && visibleSprints.some((sprint: any) => sprint.id === currentSprintId)
+                    ? currentSprintId
+                    : visibleSprints[0].id),
         );
-    }, [visibleSprints, setSelectedSprintId]);
+    }, [visibleSprints, currentSprintId, currentSprintLoaded, setSelectedSprintId]);
 
     const changeTeam = useCallback((value: TeamScope) => {
         setSelectedTeamId(value);
@@ -121,5 +153,7 @@ export function useTeamScope(options: {
         effectiveTeamId,
         visibleSprints,
         teamScopeParams,
+        currentSprintId,
+        currentSprintLoaded,
     };
 }

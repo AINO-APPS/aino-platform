@@ -174,7 +174,48 @@ describe("GET /api/sprints", () => {
             .get("/api/sprints")
             .set("Cookie", authCookie());
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ sprints: [] });
+        expect(res.body).toEqual({ sprints: [], currentSprintId: null });
+    });
+
+    test.each([
+        ["active takes precedence over paused", [
+            { id: 21, status: "paused" },
+            { id: 22, status: "active" },
+        ], 22],
+        ["a paused sprint is current when there is no active sprint", [
+            { id: 23, status: "paused" },
+        ], 23],
+        ["planned and completed sprints are never current", [
+            { id: 24, status: "planned" },
+            { id: 25, status: "completed" },
+        ], null],
+    ])("%s", async (_description, sprints, currentSprintId) => {
+        setupAuth("team_lead");
+        mockQuery.mockResolvedValueOnce({ rows: sprints, rowCount: sprints.length });
+
+        const res = await request(app)
+            .get("/api/sprints")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentSprintId).toBe(currentSprintId);
+        expect(res.body.sprints).toEqual(sprints);
+    });
+
+    test("an org admin gets the current sprint for the requested team", async () => {
+        setupAuth("super_admin");
+        mockQuery.mockResolvedValueOnce({
+            rows: [{ id: 31, status: "paused", team_id: 7 }],
+            rowCount: 1,
+        });
+
+        const res = await request(app)
+            .get("/api/sprints?team_id=7")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentSprintId).toBe(31);
+        expect(res.body.sprints).toEqual([{ id: 31, status: "paused", team_id: 7 }]);
     });
 });
 

@@ -1,10 +1,10 @@
 /**
- * Which tabs a team gets, decided by its sprint state.
+ * Which tabs a team gets, decided by the server's currentSprintId.
  *
  * Sprint and Scheduled are **alternatives**, never companions: a team that
  * plans work in a sprint plans it there, and a dated list beside it is noise.
- * So a started sprint shows the Sprint board, Backlog and Service Desk; with no
- * started sprint there is no board to show, Scheduled takes its place, and the
+ * So a current sprint shows the Sprint board, Backlog and Service Desk; with no
+ * current sprint there is no board to show, Scheduled takes its place, and the
  * team works from Backlog and Scheduled. Service Desk belongs to every team.
  *
  * Every entry point must agree: the tab row, the URL guard and the command
@@ -18,7 +18,7 @@ import type { TasksView } from "./useTasksRoute";
 
 export interface PlanningSurface {
     tabs: TasksView[];
-    activeSprintId: number | string | null;
+    currentSprintId: number | string | null;
 }
 
 /**
@@ -28,26 +28,22 @@ export interface PlanningSurface {
  */
 export const TAB_ORDER: TasksView[] = ["sprint", "backlog", "service-desk"];
 
-/** Shown instead of the Sprint board when no sprint is running. */
+/** Shown instead of the Sprint board when there is no current sprint. */
 export const DATED_TAB: TasksView = "scheduled";
 
-/** With no running sprint the dated list takes the board's place. */
+/** With no current sprint the dated list takes the board's place. */
 const DATED_ORDER: TasksView[] = ["backlog", "scheduled", "service-desk"];
-
-export function activeSprintOf(sprints: any[]): any | null {
-    return sprints.find((sprint) => sprint?.status === "active") ?? null;
-}
 
 export function planningTabs({
     agileEnabled,
-    sprints,
+    currentSprintId,
 }: {
     agileEnabled: boolean;
-    sprints: any[];
+    currentSprintId: number | string | null;
 }): PlanningSurface {
-    const active = agileEnabled ? activeSprintOf(sprints) : null;
+    const current = agileEnabled ? currentSprintId : null;
     // `TAB_ORDER` holds the sprint-led set; the dated surface replaces the
-    // board when nothing is running, so the two can never both be offered.
-    const tabs: TasksView[] = active ? [...TAB_ORDER] : [...DATED_ORDER];
-    return { tabs, activeSprintId: active?.id ?? null };
+    // board when there is no current sprint, so the two can never both be offered.
+    const tabs: TasksView[] = current ? [...TAB_ORDER] : [...DATED_ORDER];
+    return { tabs, currentSprintId: current };
 }
