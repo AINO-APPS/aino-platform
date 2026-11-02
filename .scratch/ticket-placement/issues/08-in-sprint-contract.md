@@ -5,7 +5,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-human
+**Status:** done (2026-11-02)
 
 ## Context
 
