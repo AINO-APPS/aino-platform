@@ -6,26 +6,22 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import type { TransactionContext } from "../../types/domain";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
 const { canAccessTask, canCancelTask, canChangeTaskStatus, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
 const { isOrgAdmin, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
-const { frozenSprintError } = require("./_helpers/sprintFreeze");
 const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
-    findActorName, findManyInOrg, setSprint, setWorkflowState, setAssignee,
+    findActorName, findManyInOrg, setWorkflowState, setAssignee,
 } = require("../../modules/tasks/tasks.repository");
 const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
-const {
-    canMoveIntoTeamSprint,
-    sprintTeamMismatchBody,
-    teamAfterSprintMove,
-} = require("../../modules/tasks/tasks.ownership");
-const { describeSprintTaskAdded, taskNotificationLink } = require("../../modules/tasks/tasks.notifications");
-const { notifyUser } = require("../../realtime/fanout");
 const { assertLifecycleMove, loadLifecycleContext, stateOf } = require("../../modules/tasks/tasks.workflow");
 const { announceStatusMove } = require("./_helpers/statusEvents");
+const { placeTickets } = require("../../modules/tasks/tasks.placement");
+const { placementContext } = require("./_helpers/placement");
+import type { PlacementTarget } from "../../modules/tasks/tasks.placement";
 
 const router = express.Router();
 
@@ -48,27 +44,6 @@ function parseIds(raw: unknown): number[] {
         .filter((value) => !Number.isNaN(value)))];
 }
 
-/**
- * A bulk move into a sprint is the same event as a single one, so it uses the
- * same notifier. Never throws: a failed notification must not lose the move.
- */
-async function notifyBulkSprintAdded(req: Request, task: any, sprintId: number): Promise<void> {
-    const sprint = await findSprintInOrg(req.db!, sprintId, req.userOrgId);
-    if (!sprint) return;
-    const { title, body, audience } = describeSprintTaskAdded({ task, sprint, actorId: req.userId });
-    for (const userId of audience) {
-        await notifyUser(
-            req.db!,
-            req.tenantId,
-            userId,
-            "sprint",
-            title,
-            body,
-            { link: taskNotificationLink(task.id), linkTaskId: task.id, actorId: req.userId },
-        ).catch(() => undefined);
-    }
-}
-
 router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const ids = parseIds(req.body?.ids);
@@ -80,6 +55,72 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
 
         const tasks = await findManyInOrg(req.db!, ids, req.userOrgId);
         const actor = taskActorFromRequest(req);
+
+        if (action === "move_to_sprint") {
+            const sprintId = value === null || value === "" ? null : Number.parseInt(String(value), 10);
+            const sprint = sprintId === null ? null : await findSprintInOrg(req.db!, sprintId, req.userOrgId);
+            const eligible: any[] = [];
+            const resultById = new Map<number, BulkResult>();
+
+            for (const task of tasks) {
+                if (!await canAccessTask(task, actor, req.db)) {
+                    resultById.set(task.id, { id: task.id, ok: false, error: "Not found" });
+                } else if (sprintId !== null && (
+                    !sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))
+                )) {
+                    resultById.set(task.id, {
+                        id: task.id,
+                        ok: false,
+                        error: "Invalid sprint or sprint does not belong to your team",
+                    });
+                } else {
+                    eligible.push(task);
+                }
+            }
+
+            if (eligible.length > 0) {
+                const target: PlacementTarget = sprintId === null ? { sprint: null } : { sprint: sprintId };
+                const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) =>
+                    placeTickets(
+                        placementContext(req, client, afterCommit),
+                        eligible.map((task) => task.id),
+                        target,
+                    ));
+
+                for (const result of placed) {
+                    if (result.ok) {
+                        const task = eligible.find((candidate) => candidate.id === result.id);
+                        resultById.set(result.id, {
+                            id: result.id,
+                            ok: true,
+                            previous: { sprint_id: task?.sprint_id },
+                        });
+                    } else {
+                        resultById.set(result.id, {
+                            id: result.id,
+                            ok: false,
+                            error: result.error,
+                            code: result.code,
+                        });
+                    }
+                }
+            }
+
+            const results: BulkResult[] = [];
+            for (const task of tasks) {
+                const result = resultById.get(task.id);
+                if (result) results.push(result);
+            }
+            const changed = results.filter((result) => result.ok);
+            return res.json({
+                action,
+                requested: ids.length,
+                changed: changed.length,
+                failed: results.length - changed.length,
+                results,
+            });
+        }
+
         // Loaded once per batch: every ticket is validated against the same
         // graph and WIP setting, including tickets moved earlier in the loop.
         const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
@@ -93,45 +134,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             }
 
             try {
-                // A completed sprint is immutable (D11). The single-task routes
-                // enforce this; a bulk action must not be a way around it.
-                const nextSprintId = action === "move_to_sprint"
-                    ? (value === null || value === "" ? null : Number.parseInt(String(value), 10))
-                    : undefined;
-                const frozen = await frozenSprintError(req, task, nextSprintId);
-                if (frozen) {
-                    results.push({ id: task.id, ok: false, error: frozen.error });
-                    continue;
-                }
-
-                if (action === "move_to_sprint") {
-                    const sprintId = nextSprintId as number | null;
-                    let adoptTeamId: number | null = null;
-                    if (sprintId !== null) {
-                        const sprint = await findSprintInOrg(req.db!, sprintId, req.userOrgId);
-                        if (!sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))) {
-                            results.push({ id: task.id, ok: false, error: "Invalid sprint or sprint does not belong to your team" });
-                            continue;
-                        }
-                        if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
-                            const mismatch = sprintTeamMismatchBody();
-                            results.push({
-                                id: task.id,
-                                ok: false,
-                                error: mismatch.error as string,
-                                code: mismatch.code as string,
-                            });
-                            continue;
-                        }
-                        if (task.team_id == null) adoptTeamId = teamAfterSprintMove(task.team_id, sprint.team_id);
-                    }
-                    await setSprint(req.db!, task.id, sprintId, adoptTeamId);
-                    await logHistory(task.id, req.userId, "updated", "sprint", task.sprint_id, sprintId, null, req.db);
-                    if (sprintId !== null) {
-                        await notifyBulkSprintAdded(req, task, sprintId);
-                    }
-                    results.push({ id: task.id, ok: true, previous: { sprint_id: task.sprint_id } });
-                } else if (action === "status") {
+                if (action === "status") {
                     if (!await canChangeTaskStatus(task, actor, req.db)) {
                         results.push({ id: task.id, ok: false, error: STATUS_FORBIDDEN });
                         continue;

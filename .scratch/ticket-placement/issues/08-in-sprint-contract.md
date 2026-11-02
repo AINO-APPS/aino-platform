@@ -5,7 +5,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 ## Context
 
@@ -14,10 +14,21 @@
 
 ## Acceptance criteria
 
-- [ ] `contracts/openapi.json` documents `409` with `code: IN_SPRINT` on the
+- [x] `contracts/openapi.json` documents `409` with `code: IN_SPRINT` on the
       schedule endpoint; `npm run contracts:validate` passes and generated models
       are refreshed.
-- [ ] Web (`client/`) and Android (`aino-android`) schedule callers checked: either
+- [x] Web (`client/`) and Android (`aino-android`) schedule callers checked: either
       unreachable for sprinted tickets, or they show the server message.
-- [ ] Android `TaskRepository.kt:64-66` KDoc corrected to "planned day only"
+- [x] Android `TaskRepository.kt:64-66` KDoc corrected to "planned day only"
       (review finding B8).
+
+## Comments
+
+- Added the `409 IN_SPRINT` response example to the schedule contract and confirmed
+  generated models are current. Web scheduling uses only backlog/Scheduled
+  collections, which exclude sprint tickets; Android task details can attempt a
+  schedule, so the view model now displays the server's refusal message.
+- Corrected the Android Scheduled KDoc to "planned day only".
+- Validation: `npm run contracts:validate` (52 tests), `npm run check:guardrails`,
+  and Android `TaskScheduleErrorTest` plus `TaskRepositoryTest` passed.
+- Platform commits: `dcca06ee`, `973b7df6`; Android commit: `ba7672c4`.

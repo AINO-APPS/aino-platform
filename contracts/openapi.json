@@ -16487,6 +16487,24 @@
               }
             }
           },
+          "409": {
+            "description": "Ticket is in a sprint and cannot be scheduled to a day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "inSprint": {
+                    "value": {
+                      "error": "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
+                      "code": "IN_SPRINT"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {

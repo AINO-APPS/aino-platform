@@ -400,6 +400,8 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
             expect(result).toMatchObject({
                 ok: true,
+                oldTeamId: ALPHA,
+                clearedSprint: { id: ALPHA_PLANNED, name: "Alpha 1" },
                 task: { team_id: BETA, sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20", pre_sprint_due_date: null },
             });
             expect(await history(id)).toEqual([
