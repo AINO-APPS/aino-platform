@@ -10,6 +10,9 @@ inside a transaction.
 
 ## Context
 
+- Note → ticket `routes/notes.ts:541` inserts `sprint_id` / `planned_date`
+  directly (spec B10); service-desk mirror `tasks.serviceDesk.ts:30` and
+  carry-forward `routes/tasks/carryForward.ts:90` insert `planned_date`.
 - Create `routes/tasks/crud.ts:235-266`; PUT `crud.ts:374-601` (via
   `planSprintEdit`, `tasks.sprintAssignment.ts:57-121`); quick-add
   `routes/tasks/backlog.ts:323-337`; schedule/unschedule `backlog.ts:362-399`;
@@ -29,3 +32,7 @@ inside a transaction.
       `task_updated` from the handler.
 - [ ] Route tests assert HTTP mapping only; mocked-SQL tests that asserted the
       replaced fragments are deleted.
+- [ ] Note → ticket, service-desk mirror and carry-forward create with no
+      container and place in the same transaction.
+- [ ] `node scripts/check-placement-writes.mjs` baseline lowered for every file
+      this issue touches.

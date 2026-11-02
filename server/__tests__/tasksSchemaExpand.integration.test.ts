@@ -5,6 +5,11 @@ import { Pool } from "pg";
 import type { PoolClient } from "pg";
 import type { QueryFn } from "../types/domain";
 import type { SchemaQuery } from "../platform/db/schemaTypes";
+import { installPgTypeParsers } from "../platform/db/pgTypes";
+
+// Production registers the DATE-as-string parser when platform/db/pool.ts
+// loads; this suite builds its own Pool, so it must register it too.
+installPgTypeParsers();
 
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
 const migrationsDir = path.join(__dirname, "..", "platform", "db", "migrations");
@@ -183,7 +188,10 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
                AND NOT tgisinternal
              ORDER BY tgname
         `);
-        return [columns.rows, indexes.rows, constraints.rows, triggers.rows];
+        // Each run uses a random schema name, which index and trigger
+        // definitions embed; strip it so fresh and upgraded tenants compare.
+        const snapshot = [columns.rows, indexes.rows, constraints.rows, triggers.rows];
+        return JSON.parse(JSON.stringify(snapshot).replace(/tasks_schema_[0-9a-f]{32}\./g, ""));
     }
 
     it("backfills legacy tasks, owns completion timestamps, converges fresh and upgraded tenants, and reruns safely", async () => {
@@ -227,7 +235,7 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
                 rank: string;
                 completed_at: Date | null;
             }>(`
-                SELECT t.id, t.planned_date, t.due_date, ws.category,
+                SELECT t.id, t.title, t.planned_date, t.due_date, ws.category,
                        t.team_id, t.rank, t.completed_at
                   FROM tasks t
                   JOIN workflow_states ws ON ws.id = t.workflow_state_id

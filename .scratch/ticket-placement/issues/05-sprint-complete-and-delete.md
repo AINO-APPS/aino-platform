@@ -14,6 +14,9 @@ double-completion race.
   burndown snapshot, velocity, carry-over raw SQL (`:447-451`) or `LEAVE_SPRINT`
   (`:462`), provenance, status flip, cache invalidation, team notification.
 - Deletion `routes/sprints.ts:173-190`: `LEAVE_SPRINT` then delete.
+- Auto-sprint rollover `services/sprintScheduler.ts:121-150` (`completeAndRollover`)
+  repeats the manual carry-over with raw SQL (spec B9); it moves to placement
+  in this issue too.
 - Spec P8, P11, P12.
 
 ## Acceptance criteria
@@ -31,3 +34,7 @@ double-completion race.
 - [ ] Deletion places members out of the sprint in the same transaction as the
       `DELETE`, with per-ticket history and realtime.
 - [ ] PostgreSQL test: two concurrent completions → exactly one succeeds.
+- [ ] The scheduler's `completeAndRollover` uses the same transactional path;
+      its carried tickets get the next sprint's end as `due_date`.
+- [ ] `node scripts/check-placement-writes.mjs` baseline lowered for
+      `routes/sprints.ts` and `services/sprintScheduler.ts`.

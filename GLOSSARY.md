@@ -83,6 +83,12 @@ A time-boxed container owned by one team. A ticket is in at most one sprint. The
 board shows exactly one sprint at a time. Sprint lifecycle: planned, active,
 paused, completed.
 
+## Scope baseline
+
+What a sprint committed to when it started (`sprint_baselines`). Scope change
+is the difference between the sprint's current tickets and the latest baseline,
+worked out when it is read; moving a ticket does not record a new baseline.
+
 ## Board
 
 The Kanban view of one sprint, with one column per active workflow state.

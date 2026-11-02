@@ -47,6 +47,11 @@ jobs:
       - name: Forbid SQL in route files
         run: npm run check:sql-routes
 
+      # ADR-015: only the placement module writes sprint / planned day /
+      # due-date bookkeeping. Legacy writers may only shrink.
+      - name: Enforce a single placement writer
+        run: npm run check:placement-writes
+
       - name: Enforce client and desktop refactor ratchets
         run: |
           npm run check:client-file-sizes
@@ -58,6 +63,22 @@ jobs:
   # wall-clock CI time is now max(server, client) instead of their sum.
   server:
     runs-on: ubuntu-latest
+
+    # Real PostgreSQL for the suites gated on TASKS_SCHEMA_TEST_DATABASE_URL
+    # (migrations and ticket placement). Everything else still mocks the DB.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: aino_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v6
@@ -113,6 +134,7 @@ jobs:
         env:
           JWT_SECRET: ci-test-secret
           DATABASE_URL: postgresql://unused:unused@localhost:5432/unused
+          TASKS_SCHEMA_TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/aino_test
         run: npm run test:ci
 
       - name: Upload coverage

@@ -1,3 +1,7 @@
+## Before you build or commit
+
+Read `.github/copilot-instructions.md` for verified build, test and guardrail commands; run `npm run check:guardrails` before committing. Work on a feature branch: pushes to `master` deploy to production.
+
 ## Agent skills
 
 ### Issue tracker

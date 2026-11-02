@@ -10,6 +10,10 @@ import crypto from "crypto";
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
 import type { TransactionContext } from "../types/domain";
+import { installPgTypeParsers } from "../platform/db/pgTypes";
+
+// DATE columns arrive as `YYYY-MM-DD`, as in production (platform/db/pgTypes.ts).
+installPgTypeParsers();
 import * as placementModule from "../modules/tasks/tasks.placement";
 import type { PlacementChange, PlacementTarget } from "../modules/tasks/tasks.placement";
 

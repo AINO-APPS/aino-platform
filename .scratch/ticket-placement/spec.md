@@ -26,6 +26,8 @@ they disagree:
 | B5 | `PATCH /:id/schedule` writes `planned_date` with no team, freeze or in-sprint check; `PUT` can set it on a sprinted ticket. | `routes/tasks/backlog.ts:362-399`, `crud.ts:563-568` |
 | B6 | Editing or resuming a sprint changes `end_date` but not its tickets' due dates. | `routes/sprints.ts:145-147, 557-560` |
 | ~~B7~~ | *Not a defect (2026-11-01).* Scope change is computed at read time against the latest baseline (`routes/sprintBaseline.ts:51`); writing a snapshot per move would zero that delta. | — |
+| B9 | *Found by the placement-writes guard (2026-11-01).* The auto-sprint scheduler rolls unfinished tickets forward with raw SQL, keeping the old sprint's end as `due_date` — B2 again, on the automatic path. | `services/sprintScheduler.ts:133-140` |
+| B10 | *Found by the guard.* Creating a ticket from a note inserts `sprint_id` / `planned_date` directly, so a ticket created into a sprint never remembers its own due date. | `routes/notes.ts:541` |
 | B8 | Realtime and notifications are emitted synchronously inside handlers, some before the write is safe; there is no post-commit hook. | `routes/tasks/_helpers/statusEvents.ts:53-63` |
 
 Write paths today: create (`crud.ts:235-249`), quick-add (`backlog.ts:323-337`),
