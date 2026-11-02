@@ -99,12 +99,12 @@ export default function TasksHeader({
     showTeamSwitcher = false,
     onPlanSprint,
 }: TasksHeaderProps) {
-    const { assignableUsers, orgLabels, availableSprints, currentUser } =
+    const { assignableUsers, orgLabels, availableSprints, currentUser, currentSprintId } =
         useTaskCtx() as any;
     const { hasFeature } = useFeatures() as any;
-    const currentSprint = availableSprints.find(
-        (sp: any) => sp.id === selectedSprintId,
-    );
+    const currentSprint =
+        availableSprints.find((sp: any) => sp.id === selectedSprintId)
+        || availableSprints.find((sp: any) => sp.id === currentSprintId);
     // The selected team (admin switcher) wins; otherwise the user's own team
     // from GET /profile, then the sprint's team for an admin browsing it.
     const selectedTeam = teams.find(
@@ -235,7 +235,7 @@ export default function TasksHeader({
                         setActiveTab={setActiveTab}
                         agileEnabled={hasFeature("agile")}
                         backlogCount={backlogTasks.length}
-                        availableSprints={availableSprints}
+                        currentSprintId={currentSprintId}
                         setSelectedSprintId={setSelectedSprintId}
                     />
 

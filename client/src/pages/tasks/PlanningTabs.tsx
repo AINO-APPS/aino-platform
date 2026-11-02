@@ -1,9 +1,9 @@
 /**
  * The Tasks tab row.
  *
- * Driven by the selected team's sprint state (see `planningTabs`): a running
- * sprint leads with the Sprint board, Backlog and Scheduled sit beside it; with
- * no active sprint the Sprint tab is hidden. Service Desk always renders.
+ * Driven by the selected team's server-selected current sprint: Sprint and
+ * Backlog sit beside each other when present; otherwise Scheduled replaces it.
+ * Service Desk always renders.
  */
 import React from "react";
 import { CalendarDays, Package, Headset } from "../../constants/icons";
@@ -16,8 +16,7 @@ interface PlanningTabsProps {
     setActiveTab: (tab: string) => void;
     agileEnabled: boolean;
     backlogCount: number;
-    /** Sprints of the selected team only. */
-    availableSprints: any[];
+    currentSprintId: number | string | null;
     setSelectedSprintId: (id: number | null) => void;
 }
 
@@ -42,10 +41,10 @@ export default function PlanningTabs({
     setActiveTab,
     agileEnabled,
     backlogCount,
-    availableSprints,
+    currentSprintId,
     setSelectedSprintId,
 }: PlanningTabsProps) {
-    const { tabs, activeSprintId }: PlanningSurface = planningTabs({ agileEnabled, sprints: availableSprints });
+    const { tabs, currentSprintId: sprintId }: PlanningSurface = planningTabs({ agileEnabled, currentSprintId });
     return (
         <div className={s["tab-switcher"]} role="tablist" aria-label="Tasks views">
             {tabs.map((tab) => (
@@ -56,7 +55,7 @@ export default function PlanningTabs({
                     className={`${s["tab-btn"]} ${activeTab === tab ? s["tab-active"] : ""}`}
                     title={tab === "scheduled" ? "Unsprinted tickets with a planned day" : undefined}
                     onClick={() => {
-                        if (tab === "sprint") setSelectedSprintId(activeSprintId as number);
+                        if (tab === "sprint") setSelectedSprintId(sprintId as number);
                         setActiveTab(tab);
                     }}
                 >

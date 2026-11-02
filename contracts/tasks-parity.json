@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-29",
+  "updated": "2026-11-02",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -867,6 +867,28 @@
       "ios": {
         "status": "waived",
         "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
+      }
+    },
+    {
+      "id": "server-selected-current-sprint",
+      "name": "Server-selected current sprint drives team landing and sprint defaults",
+      "decision": "D50",
+      "phase": 1,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/tasksLanding.test.ts"
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/tasksLanding.test.ts"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "Android's client migration is tracked in ticket 08 and is intentionally outside this web/desktop change."
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "iOS renders the Tasks module through the web bundle and inherits the web behavior."
       }
     }
   ],

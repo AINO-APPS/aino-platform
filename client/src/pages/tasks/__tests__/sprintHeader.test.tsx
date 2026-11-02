@@ -29,7 +29,11 @@ const sprint = {
     auto_managed: true,
 };
 
-function renderHeader(currentUser: Record<string, unknown>) {
+function renderHeader(
+    currentUser: Record<string, unknown>,
+    selectedSprintId: number | null = sprint.id,
+    currentSprintId: number | null = sprint.id,
+) {
     return render(
         <MemoryRouter>
             <ToastProvider>
@@ -37,6 +41,7 @@ function renderHeader(currentUser: Record<string, unknown>) {
                     assignableUsers={[]}
                     orgLabels={[]}
                     availableSprints={[sprint] as any}
+                    currentSprintId={currentSprintId}
                     availableProjects={[]}
                     currentUser={currentUser as any}
                     activeTab="sprint"
@@ -44,7 +49,7 @@ function renderHeader(currentUser: Record<string, unknown>) {
                     <TasksHeader
                         activeTab="sprint"
                         setActiveTab={vi.fn()}
-                        selectedSprintId={sprint.id}
+                        selectedSprintId={selectedSprintId}
                         setSelectedSprintId={vi.fn()}
                         backlogTasks={[]}
                         filterCount={0}
@@ -101,5 +106,15 @@ describe("Sprint tab header", () => {
 
         const heading = screen.getByRole("heading", { level: 2 });
         expect(heading).not.toHaveTextContent("Team —");
+    });
+
+    test("uses currentSprintId while the selected sprint is not initialized", () => {
+        renderHeader(
+            { id: 1, role: "employee", team_id: 1, team_name: "Payments" },
+            null,
+            sprint.id,
+        );
+
+        expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Payments — #3");
     });
 });

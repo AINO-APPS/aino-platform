@@ -8,6 +8,7 @@ const SPRINT_MANAGERS = ["team_lead", "manager", "hr_admin", "super_admin", "pla
 
 interface SprintActionsOptions {
     visibleSprints: any[];
+    currentSprintId: number | string | null;
     selectedSprintId: any;
     teamScopeParams: Record<string, unknown>;
     currentUser: any;
@@ -23,12 +24,13 @@ interface SprintActionsOptions {
  *
  * A column "+" creates the ticket in the sprint on screen, in that column's
  * state (Jira board behaviour), never in the backlog. "Plan sprint" opens the
- * backlog-beside-sprint view for the running sprint, else the next planned
+ * backlog-beside-sprint view for the current sprint, else the next planned
  * one; sprints are created in Admin → Teams, so with none there is only an
  * explanation to give.
  */
 export function useSprintBoardActions({
     visibleSprints,
+    currentSprintId,
     selectedSprintId,
     teamScopeParams,
     currentUser,
@@ -58,7 +60,7 @@ export function useSprintBoardActions({
 
     const planSprint = () => {
         const target =
-            visibleSprints.find((sprint) => sprint.status === "active") ??
+            visibleSprints.find((sprint) => sprint.id === currentSprintId) ??
             visibleSprints.find((sprint) => sprint.status === "planned");
         if (target) {
             setSelectedSprintId(target.id);
