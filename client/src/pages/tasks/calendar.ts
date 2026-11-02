@@ -76,6 +76,8 @@ export function weekDays(anchor: string, today = toDateString(new Date())): Cale
 }
 
 export interface ScheduledTask {
+    container?: string;
+    capabilities?: import("../../types/generated/tasks").TicketCapabilities;
     id: number | string;
     title?: string;
     planned_date?: string | null;
@@ -124,7 +126,7 @@ export function overdueTasks(tasks: ScheduledTask[], today = toDateString(new Da
     });
 }
 
-/** The unscheduled tray: backlog work with no planned day. */
+/** The server-selected backlog work in the unscheduled tray. */
 export function unscheduledTasks(tasks: ScheduledTask[]): ScheduledTask[] {
-    return tasks.filter((task) => !plannedDay(task));
+    return tasks.filter((task) => task.container === "backlog");
 }

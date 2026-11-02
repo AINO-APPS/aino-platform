@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { updateTaskStatus } from "../../../api/tasks";
 import type { Task } from "../../../types";
-import type { BoardColumn, TargetPolicy } from "./boardTargets";
-import { moveAdvisory } from "./boardTargets";
-import { useWorkflowTargetPolicy } from "./useWorkflowTargetPolicy";
+import type { BoardColumn } from "../boardTypes";
+import { doneAdvisory } from "../boardTypes";
+import { boardTargetDecision, reasonCopy, writeError } from "../ticketCapabilities";
 import type { ShowConfirm } from "./useConfirmDialog";
 import { stageStatusMove } from "./stageStatusMove";
 
@@ -13,12 +13,13 @@ interface UseDragDropArgs {
     showConfirm: ShowConfirm;
     closeConfirm: () => void;
     setError: (msg: string) => void;
-    targetPolicy?: TargetPolicy;
+    onBoardRefresh?: () => void;
 }
 
 type Id = number | string;
 
-const columnKey = (column: BoardColumn) => (column.key ?? column.id) as string;
+const targetState = (column: BoardColumn) => String(column.stateId);
+const columnKey = (column: BoardColumn) => column.key ?? targetState(column);
 
 /**
  * The board's pointer drag state and its one move path.
@@ -37,11 +38,8 @@ export function useDragDrop({
     showConfirm,
     closeConfirm,
     setError,
-    targetPolicy,
+    onBoardRefresh,
 }: UseDragDropArgs) {
-    // The board refuses illegal and over-limit columns before a drop, using
-    // the same graph and WIP setting the server enforces.
-    const policy = useWorkflowTargetPolicy(tasks, targetPolicy);
     const [draggingTaskId, setDraggingTaskId] = useState<Id | null>(null);
     const [dragOverCol, setDragOverCol] = useState<Id | null>(null);
     const tasksRef = useRef(tasks);
@@ -66,30 +64,28 @@ export function useDragDrop({
     const sendMove = useCallback(
         async (task: Task, column: BoardColumn): Promise<boolean> => {
             try {
-                // Sent by key (back-compat with the default workflow); the
-                // server resolves it to the workflow state id.
-                await updateTaskStatus(task.id, columnKey(column));
+                const { data: fresh } = await updateTaskStatus(task.id, targetState(column));
+                setTasks((previous) =>
+                    previous.map((candidate) =>
+                        candidate.id === task.id ? fresh : candidate,
+                    ),
+                );
+                onBoardRefresh?.();
                 return true;
             } catch (err) {
                 // Snap back so the board never claims a move the server refused.
                 placeCard(task.id, task.workflow_state_key as string, task.workflow_state_id);
-                const error = err as { response?: { data?: { error?: string; code?: string } } };
-                const apiMsg = error?.response?.data?.error;
-                setError(
-                    error?.response?.data?.code === "WIP_EXCEEDED"
-                        ? apiMsg || "WIP limit reached for this column."
-                        : apiMsg || "Failed to move item",
-                );
+                setError(writeError(err, "Failed to move item"));
                 return false;
             }
         },
-        [placeCard, setError],
+        [placeCard, setError, setTasks, onBoardRefresh],
     );
 
     /** Accept a column: one optimistic update, one PATCH, roll back on error. */
     const commitMove = useCallback(
         async (task: Task, column: BoardColumn): Promise<boolean> => {
-            placeCard(task.id, columnKey(column), typeof column.id === "number" ? column.id : null);
+            placeCard(task.id, columnKey(column), column.stateId);
             return sendMove(task, column);
         },
         [placeCard, sendMove],
@@ -117,16 +113,20 @@ export function useDragDrop({
             clearDragState();
             const task = tasksRef.current.find((candidate) => candidate.id === taskId);
             if (!task) return false;
-            if (task.workflow_state_key === column.key || (column.id && task.workflow_state_id === column.id)) {
+            if (
+                (task.workflow_state_key && column.key === task.workflow_state_key) ||
+                (task.workflow_state_id != null &&
+                    String(task.workflow_state_id) === String(column.stateId))
+            ) {
                 return false;
             }
-            const rejection = policy(task, column);
-            if (rejection) {
-                setError(rejection);
+            const decision = boardTargetDecision(task, column);
+            if (!decision.allowed) {
+                setError(reasonCopy(decision.reason));
                 return false;
             }
-            const notice = moveAdvisory(task, column, tasksRef.current);
-            placeCard(task.id, columnKey(column), typeof column.id === "number" ? column.id : null);
+            const notice = doneAdvisory(task, column);
+            placeCard(task.id, columnKey(column), column.stateId);
             stageStatusMove(task, {
                 column,
                 notice,
@@ -137,7 +137,7 @@ export function useDragDrop({
             });
             return true;
         },
-        [clearDragState, policy, setError, placeCard, showConfirm, closeConfirm, sendMove],
+        [clearDragState, setError, placeCard, showConfirm, closeConfirm, sendMove],
     );
 
     return {
@@ -148,6 +148,5 @@ export function useDragDrop({
         onDragCancel: clearDragState,
         dropOnColumn,
         commitMove,
-        targetPolicy: policy,
     };
 }

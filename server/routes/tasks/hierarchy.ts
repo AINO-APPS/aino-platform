@@ -10,6 +10,8 @@ const { loadUserContext } = require('../../middleware/rbac');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { loadAccessibleTask } = require('./_helpers/access');
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
+const { enrichTaskSummaries } = require('./_helpers/enrich');
 import * as taskService from "../../modules/tasks/tasks.service";
 
 const router = express.Router();
@@ -22,7 +24,11 @@ router.get('/:id/children', auth, loadUserContext, async (req: Request, res: Res
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task id' });
         const task = await loadAccessibleTask(req, res, id);
         if (!task) return;
-        res.json(await taskService.getChildren(req.db!, id));
+        const result = await taskService.getChildren(req.db!, id);
+        res.json({
+            ...result,
+            children: await enrichTaskSummaries(result.children, req.db, taskActorFromRequest(req)),
+        });
     } catch (err) {
         req.log.error({ err }, 'Error fetching children');
         res.status(500).json({ error: 'Failed to fetch children' });
@@ -39,7 +45,10 @@ router.get('/:id/parent', auth, loadUserContext, async (req: Request, res: Respo
         if (!task) return;
         if (!task.parent_task_id) return res.json({ parent: null });
         const parent = await taskService.getParent(req.db!, task.parent_task_id);
-        res.json({ parent: parent || null });
+        const enrichedParent = parent
+            ? (await enrichTaskSummaries([parent], req.db, taskActorFromRequest(req)))[0]
+            : null;
+        res.json({ parent: enrichedParent });
     } catch (err) {
         req.log.error({ err }, 'Error fetching parent');
         res.status(500).json({ error: 'Failed to fetch parent' });

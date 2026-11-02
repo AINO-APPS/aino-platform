@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
-import { applyTaskDelta, type DeltaField } from "./taskDeltas";
+import { type DeltaField } from "./taskDeltas";
+import { getTaskDetail } from "../../../api/tasks";
 
 export interface TaskDeltaFrame {
     taskId: number;
@@ -16,23 +17,34 @@ export interface Attribution {
 }
 
 /**
- * Apply realtime field deltas to the tasks a view already holds.
- *
- * Only the fields in the frame are patched, so two people editing different
- * fields of the same ticket both survive. The later write wins per field, and
- * the affected card gets a short-lived "Updated by <name>" attribution that
- * never blocks interaction.
+ * Realtime is an invalidation, never a per-user capability decision.
  */
 export function useTaskDeltas(
     setTasks: (updater: (tasks: any[]) => any[]) => void,
-    options: { enabled?: boolean; attributionMs?: number } = {},
+    options: {
+        enabled?: boolean;
+        attributionMs?: number;
+        container?: string;
+        onRefresh?: () => void;
+        shouldRefresh?: (frame: TaskDeltaFrame) => boolean;
+    } = {},
 ) {
-    const { enabled = true, attributionMs = 4000 } = options;
+    const {
+        enabled = true,
+        attributionMs = 4000,
+        container,
+        onRefresh,
+        shouldRefresh,
+    } = options;
     const [attribution, setAttribution] = useState<Record<string, Attribution>>({});
     // Per-task timestamp of the last delta applied, so an out-of-order frame
     // cannot roll a field back.
     const appliedAt = useRef<Record<string, string>>({});
     const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const requests = useRef<Record<string, number>>({});
+    useEffect(() => () => {
+        Object.values(timers.current).forEach(clearTimeout);
+    }, []);
 
     const clear = useCallback((taskId: number | string) => {
         setAttribution((current) => {
@@ -44,20 +56,27 @@ export function useTaskDeltas(
     }, []);
 
     const onFrame = useCallback(
-        (frame: TaskDeltaFrame) => {
-            if (!frame?.taskId || !frame.fields) return;
+        async (frame: TaskDeltaFrame) => {
+            if (!frame?.taskId) return;
+            if (shouldRefresh && !shouldRefresh(frame)) return;
             const key = String(frame.taskId);
             const previous = appliedAt.current[key];
             if (frame.at && previous && frame.at < previous) return;
             if (frame.at) appliedAt.current[key] = frame.at;
 
-            setTasks((tasks) =>
-                tasks.map((task) =>
-                    String(task.id) === key
-                        ? applyTaskDelta(task, { fields: frame.fields!, at: frame.at }, previous)
-                        : task,
-                ),
-            );
+            const request = (requests.current[key] || 0) + 1;
+            requests.current[key] = request;
+            try {
+                const { data: fresh } = await getTaskDetail(frame.taskId);
+                if (requests.current[key] !== request) return;
+                setTasks((tasks) => tasks.map((task) => String(task.id) === key ? fresh : task)
+                    .filter((task) => !container || task.container === container));
+                onRefresh?.();
+            } catch {
+                // Keep the last fetched decision on transient failures.
+                onRefresh?.();
+                return;
+            }
 
             const name = frame.actor?.name;
             if (!name) return;
@@ -68,7 +87,7 @@ export function useTaskDeltas(
             if (timers.current[key]) clearTimeout(timers.current[key]);
             timers.current[key] = setTimeout(() => clear(key), attributionMs);
         },
-        [setTasks, attributionMs, clear],
+        [setTasks, attributionMs, clear, container, onRefresh, shouldRefresh],
     );
 
     useRealtimeEvent(["task_updated"], (msg) => onFrame(msg.data as TaskDeltaFrame), enabled);

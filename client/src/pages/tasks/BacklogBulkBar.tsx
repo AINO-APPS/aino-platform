@@ -1,6 +1,6 @@
 import React from "react";
 import BulkActionBar from "./BulkActionBar";
-import { COLUMNS } from "./constants";
+import { transitionOptions } from "./ticketCapabilities";
 import { useAgileConfig } from "../../AgileConfigContext";
 
 interface BacklogBulkBarProps {
@@ -11,7 +11,9 @@ interface BacklogBulkBarProps {
         /** Lifecycle-aware status apply: names skipped tickets before sending. */
         applyStatus?: (status: string) => void;
         clear: () => void;
+        selectedIds?: Array<number | string>;
     };
+    tasks?: any[];
     availableSprints: any[];
     assignableUsers: any[];
     onOfferUndo: (label: string) => void;
@@ -30,14 +32,16 @@ export default function BacklogBulkBar({
     assignableUsers,
     onOfferUndo,
     onConfirmCancel,
+    tasks = [],
 }: BacklogBulkBarProps) {
     const { workflowStates } = useAgileConfig() as any;
-    // Tenant states when configured; the built-in columns otherwise. Cancelled
-    // has its own action (Cancel tickets), so it is not a status choice here.
-    const statuses = (workflowStates && workflowStates.length > 0
-        ? workflowStates.map((state: any) => ({ key: state.key, label: state.name }))
-        : COLUMNS.map((col: any) => ({ key: col.id, label: col.label }))
-    ).filter((status: any) => status.key !== "cancelled");
+    const tickets = (bulk.selectedIds || []).map((id) =>
+        tasks.find((task) => String(task.id) === String(id)) || { id, title: `#${id}` });
+    const targets = tickets.flatMap((ticket) => transitionOptions(ticket, workflowStates));
+    const statuses = [...new Set(targets.map((target) => target.key))].map((key) => {
+        const entries = targets.filter((target) => target.key === key);
+        return { ...entries[0], allowed: entries.some((entry) => entry.allowed) };
+    });
 
     return (
         <BulkActionBar
@@ -45,6 +49,8 @@ export default function BacklogBulkBar({
             applying={bulk.applying}
             sprints={availableSprints}
             statuses={statuses}
+            tickets={tickets}
+            states={workflowStates}
             users={assignableUsers}
             onMoveToSprint={(sprintId) => {
                 void bulk.apply("move_to_sprint", sprintId);

@@ -46,20 +46,29 @@ describe("tabs follow the selected team's sprint state", () => {
 
     test("an active sprint shows Sprint and Backlog, and no Scheduled", () => {
         // Scheduled is the alternative to the board, not a companion (ADR-015).
-        expect(planningTabs({ agileEnabled: true, sprints: [active, planned] })).toEqual({
+        expect(planningTabs({ agileEnabled: true, currentSprintId: active.id })).toEqual({
             tabs: ["sprint", "backlog", "service-desk"],
-            activeSprintId: 12,
+            currentSprintId: 12,
         });
     });
 
     test("no active sprint hides Sprint; Backlog and Scheduled remain", () => {
-        expect(planningTabs({ agileEnabled: true, sprints: [planned] })).toEqual({
+        expect(planningTabs({ agileEnabled: true, currentSprintId: null })).toEqual({
             tabs: ["backlog", "scheduled", "service-desk"],
-            activeSprintId: null,
+            currentSprintId: null,
         });
     });
 
     test("agile off never offers Sprint", () => {
-        expect(planningTabs({ agileEnabled: false, sprints: [active] }).tabs).not.toContain("sprint");
+        expect(planningTabs({ agileEnabled: false, currentSprintId: active.id }).tabs).not.toContain("sprint");
+    });
+
+    test("a paused current sprint is the sprint landing target", () => {
+        const pausedCurrentSprintId = 19;
+        expect(planningTabs({ agileEnabled: true, currentSprintId: pausedCurrentSprintId })).toEqual({
+            tabs: ["sprint", "backlog", "service-desk"],
+            currentSprintId: pausedCurrentSprintId,
+        });
+        expect(landingTasksPath("/tasks", pausedCurrentSprintId)).toBe("/tasks/sprint/19");
     });
 });

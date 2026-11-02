@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-29",
+  "updated": "2026-11-02",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -868,6 +868,98 @@
         "status": "waived",
         "waiver": "iOS renders the whole Tasks module in a scoped WKWebView over the web bundle (D36), so it inherits this surface rather than shipping its own implementation."
       }
+    },
+    {
+      "id": "android-server-ticket-container",
+      "name": "Android list membership follows the server-provided ticket container",
+      "decision": "D2",
+      "phase": 1,
+      "web": {
+        "status": "planned"
+      },
+      "desktop": {
+        "status": "planned"
+      },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/PlanAlignmentTest.kt"
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "iOS renders the Tasks module through the web bundle and inherits the web container behavior."
+      }
+    },
+    {
+      "id": "server-selected-current-sprint",
+      "name": "Server-selected current sprint drives team landing and sprint defaults",
+      "decision": "D50",
+      "phase": 1,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/tasksLanding.test.ts"
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/tasksLanding.test.ts"
+      },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/SprintLandingTest.kt"
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "iOS renders the Tasks module through the web bundle and inherits the web behavior."
+      }
+    },
+    {
+      "id": "server-ticket-action-rendering",
+      "name": "Status, action and bulk controls render server capabilities and denial reasons",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskCapabilitiesRenderingTest.kt" },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-board-capabilities",
+      "name": "Sprint board renders server transition and WIP decisions",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskCapabilitiesRenderingTest.kt" },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-ticket-list-membership",
+      "name": "Scheduled and backlog membership render the server container",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/PlanAlignmentTest.kt" },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-my-work-membership",
+      "name": "My Work reads the server-selected container",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/components/dashboard/MyWorkCard.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/dashboard/MyWorkCard.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native container adoption is tracked separately in ticket 08." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-ticket-freshness",
+      "name": "Writes replace enriched tickets and realtime refetches per-user capabilities",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt" },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     }
   ],
   "non_goals": [

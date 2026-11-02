@@ -69,14 +69,6 @@
   white-space: nowrap;
 }
 
-.wip-warning {
-  padding: 8px 12px;
-  border: 1px solid var(--warning, #f59e0b);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
-  color: var(--text);
-  font-size: var(--font-meta-size);
-}
 /* Columns are a faint step off the page, never tinted by status: colour lives
    only in the header dot. The header sticks while a long column scrolls. */
 .kanban-column {
@@ -121,7 +113,6 @@
 .column-add:hover { background: var(--bg-hover); color: var(--text); }
 .column-add:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .column-count { font-size: 11px; font-weight: 600; background: var(--bg-hover); border-radius: var(--radius-full); padding: 0 7px; height: 18px; line-height: 18px; color: var(--text-muted); min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
-.wip-exceeded .column-count { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger-ink); }
 .drop-indicator { display: grid; place-items: center; height: 56px; font-size: 12px; color: var(--primary); font-weight: 500; border: 1.5px dashed color-mix(in srgb, var(--primary) 60%, transparent); background: color-mix(in srgb, var(--primary) 6%, transparent); border-radius: 6px; }
 .column-tasks { display: flex; flex-direction: column; gap: 6px; min-height: 60px; padding: 8px; flex: 1 1 auto; }
 .column-empty { display: grid; place-items: center; height: 56px; color: var(--text-muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 6px; }

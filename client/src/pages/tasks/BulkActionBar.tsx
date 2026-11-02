@@ -1,12 +1,16 @@
 import React from "react";
 import { X } from "../../constants/icons";
 import s from "./BulkActionBar.module.css";
+import { actionDecision, reasonCopy } from "./ticketCapabilities";
+import BulkAvailability from "./BulkAvailability";
 
 interface BulkActionBarProps {
     count: number;
     applying: boolean;
     sprints: Array<{ id: number | string; name: string }>;
-    statuses: Array<{ key: string; label: string }>;
+    statuses: Array<{ key: string; label: string; allowed?: boolean; reason?: string }>;
+    tickets?: any[];
+    states?: any[];
     users: Array<{ id: number | string; full_name?: string; username?: string }>;
     onMoveToSprint: (sprintId: number | string | null) => void;
     onStatus: (status: string) => void;
@@ -32,8 +36,15 @@ export default function BulkActionBar({
     onAssign,
     onDelete,
     onClear,
+    tickets = [],
+    states = [],
 }: BulkActionBarProps) {
     if (count === 0) return null;
+    const availability = (action: "placeInSprint" | "edit" | "delete") => {
+        const decisions = tickets.map((ticket) => actionDecision(ticket, action));
+        const allowed = decisions.some((decision) => decision.allowed);
+        return { disabled: applying || !allowed, title: allowed ? undefined : reasonCopy(decisions[0]?.reason) };
+    };
 
     return (
         <div className={s["bulk-bar"]} role="region" aria-label="Bulk actions">
@@ -45,7 +56,7 @@ export default function BulkActionBar({
                 <span className={s["bulk-label"]}>Sprint</span>
                 <select
                     className={s["bulk-select"]}
-                    disabled={applying}
+                    {...availability("placeInSprint")}
                     defaultValue=""
                     onChange={(event) => {
                         const value = event.target.value;
@@ -70,7 +81,8 @@ export default function BulkActionBar({
                 <span className={s["bulk-label"]}>Status</span>
                 <select
                     className={s["bulk-select"]}
-                    disabled={applying}
+                    disabled={applying || !statuses.some((status) => status.allowed)}
+                    title={statuses.some((status) => status.allowed) ? undefined : reasonCopy(statuses[0]?.reason)}
                     defaultValue=""
                     onChange={(event) => {
                         if (event.target.value) onStatus(event.target.value);
@@ -79,7 +91,7 @@ export default function BulkActionBar({
                 >
                     <option value="">Set status…</option>
                     {statuses.map((status) => (
-                        <option key={status.key} value={status.key}>
+                        <option key={status.key} value={status.key} disabled={!status.allowed} title={!status.allowed ? reasonCopy(status.reason) : undefined}>
                             {status.label}
                         </option>
                     ))}
@@ -90,7 +102,7 @@ export default function BulkActionBar({
                 <span className={s["bulk-label"]}>Assignee</span>
                 <select
                     className={s["bulk-select"]}
-                    disabled={applying}
+                    {...availability("edit")}
                     defaultValue=""
                     onChange={(event) => {
                         const value = event.target.value;
@@ -112,11 +124,12 @@ export default function BulkActionBar({
             <button
                 type="button"
                 className={s["bulk-delete"]}
-                disabled={applying}
+                {...availability("delete")}
                 onClick={onDelete}
             >
                 Delete
             </button>
+            <BulkAvailability tickets={tickets} states={states} />
 
             <button
                 type="button"

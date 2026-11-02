@@ -14,6 +14,7 @@ import { addDays, parseDateString, startOfWeek, toDateString } from "../../pages
 
 /** The subset of the enriched task row the card reads. */
 export interface MyWorkTask {
+    container?: string;
     id: number | string;
     title: string;
     priority?: string | null;

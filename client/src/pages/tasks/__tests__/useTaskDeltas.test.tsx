@@ -1,129 +1,74 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTaskDeltas } from "../hooks/useTaskDeltas";
-import { applyTaskDelta, isEmptyDelta } from "../hooks/taskDeltas";
 import { REALTIME_EVENT } from "../../../hooks/useWebSocket";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
+import { getTaskDetail } from "../../../api/tasks";
 
-function emit(data: unknown) {
-    act(() => {
-        window.dispatchEvent(
-            new CustomEvent(REALTIME_EVENT, {
-                detail: { type: "task_updated", data },
-            }),
-        );
+vi.mock("../../../api/tasks", () => ({ getTaskDetail: vi.fn() }));
+async function emit(data: unknown) {
+    await act(async () => {
+        window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
+            detail: { type: "task_updated", data },
+        }));
     });
 }
 
-describe("useTaskDeltas", () => {
+describe("realtime ticket freshness", () => {
     beforeEach(() => {
         vi.useFakeTimers();
+        vi.mocked(getTaskDetail).mockReset().mockResolvedValue({ data: ticket } as any);
+    });
+    afterEach(() => vi.useRealTimers());
+
+    test("a successful refetch attributes the affected card, then clears the attribution", async () => {
+        const { result } = renderHook(() => useTaskDeltas(vi.fn(), { attributionMs: 1000 }));
+        await emit({ taskId: 42, actor: { id: 3, name: "Ada" }, at: "2026-11-02T10:00:00Z" });
+        expect(result.current.attribution["42"]).toMatchObject({ name: "Ada" });
+        act(() => vi.advanceTimersByTime(1000));
+        expect(result.current.attribution["42"]).toBeUndefined();
     });
 
-    afterEach(() => {
-        vi.useRealTimers();
-    });
-
-    test("a delta patches only the fields it carries", () => {
-        let tasks = [{ id: 7, title: "Original", priority: "medium", assigned_to: 2 }];
-        const setTasks = vi.fn((updater: (t: any[]) => any[]) => {
-            tasks = updater(tasks);
-        });
+    test("a failed refetch retains the last fetched ticket", async () => {
+        vi.mocked(getTaskDetail).mockRejectedValue(new Error("offline"));
+        let tasks = [ticket];
+        const setTasks = (updater: any) => { tasks = updater(tasks); };
         renderHook(() => useTaskDeltas(setTasks));
-
-        emit({
-            taskId: 7,
-            fields: { title: "Renamed" },
-            actor: { id: 3, name: "Ada" },
-            at: "2026-10-25T10:00:00.000Z",
-        });
-
-        expect(tasks[0]).toMatchObject({
-            title: "Renamed",
-            priority: "medium",
-            assigned_to: 2,
-        });
+        await emit({ taskId: 42, fields: { title: "Not authoritative" } });
+        expect(tasks).toEqual([ticket]);
     });
 
-    test("the affected card is attributed to the actor", () => {
-        const setTasks = vi.fn();
-        const { result } = renderHook(() => useTaskDeltas(setTasks));
-
-        emit({
-            taskId: 7,
-            fields: { title: "Renamed" },
-            actor: { id: 3, name: "Ada Lovelace" },
-            at: "2026-10-25T10:00:00.000Z",
-        });
-
-        expect(result.current.attribution["7"]).toMatchObject({ name: "Ada Lovelace" });
+    test("an older timestamp cannot replace a newer refetched ticket", async () => {
+        const fresh = { ...ticket, title: "Newer" };
+        vi.mocked(getTaskDetail).mockResolvedValue({ data: fresh } as any);
+        let tasks = [ticket];
+        renderHook(() => useTaskDeltas((updater) => { tasks = updater(tasks); }));
+        await emit({ taskId: 42, at: "2026-11-02T10:00:01Z" });
+        await emit({ taskId: 42, at: "2026-11-02T10:00:00Z" });
+        expect(tasks).toEqual([fresh]);
+        expect(getTaskDetail).toHaveBeenCalledTimes(1);
     });
 
-    test("the attribution clears itself without blocking the card", () => {
-        const setTasks = vi.fn();
-        const { result } = renderHook(() => useTaskDeltas(setTasks, { attributionMs: 1000 }));
+    test("a board refresh only follows events for tickets on the shown board", async () => {
+        const onRefresh = vi.fn();
+        renderHook(() => useTaskDeltas(vi.fn(), {
+            container: "sprint",
+            onRefresh,
+            shouldRefresh: (frame) => frame.taskId === ticket.id,
+        }));
 
-        emit({
-            taskId: 7,
-            fields: { title: "Renamed" },
-            actor: { id: 3, name: "Ada" },
-            at: "2026-10-25T10:00:00.000Z",
+        await emit({ taskId: 999 });
+        expect(getTaskDetail).not.toHaveBeenCalled();
+        expect(onRefresh).not.toHaveBeenCalled();
+
+        await act(async () => {
+            window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
+                detail: { type: "task_updated", data: { taskId: ticket.id } },
+            }));
+            await Promise.resolve();
+            await Promise.resolve();
         });
-        expect(result.current.attribution["7"]).toBeTruthy();
-
-        act(() => {
-            vi.advanceTimersByTime(1000);
-        });
-        expect(result.current.attribution["7"]).toBeUndefined();
-    });
-
-    test("an out-of-order frame is ignored", () => {
-        let tasks = [{ id: 7, title: "Second" }];
-        const setTasks = vi.fn((updater: (t: any[]) => any[]) => {
-            tasks = updater(tasks);
-        });
-        renderHook(() => useTaskDeltas(setTasks));
-
-        emit({
-            taskId: 7,
-            fields: { title: "Second" },
-            actor: { id: 3, name: "Ada" },
-            at: "2026-10-25T10:00:01.000Z",
-        });
-        emit({
-            taskId: 7,
-            fields: { title: "First" },
-            actor: { id: 4, name: "Grace" },
-            at: "2026-10-25T09:59:00.000Z",
-        });
-
-        expect(tasks[0].title).toBe("Second");
-    });
-
-    test("a frame without fields is ignored", () => {
-        const setTasks = vi.fn();
-        renderHook(() => useTaskDeltas(setTasks));
-        emit({ taskId: 7, action: "deleted" });
-        expect(setTasks).not.toHaveBeenCalled();
-    });
-});
-
-describe("taskDeltas helpers", () => {
-    test("applying a delta leaves untouched fields alone", () => {
-        const task = { id: 1, title: "A", priority: "low" };
-        expect(applyTaskDelta(task, { fields: { priority: "high" } })).toEqual({
-            id: 1,
-            title: "A",
-            priority: "high",
-        });
-    });
-
-    test("unknown fields are dropped", () => {
-        const task = { id: 1, title: "A" };
-        expect(applyTaskDelta(task, { fields: { secret: "leak" } as any })).toEqual(task);
-    });
-
-    test("an empty delta is recognised", () => {
-        expect(isEmptyDelta({})).toBe(true);
-        expect(isEmptyDelta({ title: "x" })).toBe(false);
+        expect(getTaskDetail).toHaveBeenCalledWith(ticket.id);
+        expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 });

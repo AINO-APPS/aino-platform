@@ -22,25 +22,17 @@
  * container, not membership.
  */
 import type { TransactionContext } from "../../types/domain";
-import { canMoveIntoTeamSprint, sprintTeamMismatchBody, teamAfterSprintMove } from "./tasks.ownership";
+import { teamAfterSprintMove } from "./tasks.ownership";
 import * as repo from "./tasks.placementRepository";
 import type { HistoryRow, PlacementDb } from "./tasks.placementRepository";
+import type { TaskActor } from "./tasks.policy";
+import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
+import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
+import { placementRefusal } from "./tasks.placementRules";
+import type { PlacementTarget } from "./tasks.placementRules";
+export { placementRefusal, type PlacementTarget } from "./tasks.placementRules";
 
 export type { PlacementDb } from "./tasks.placementRepository";
-
-/**
- * Where a ticket should end up.
- *
- * - `{ sprint: id }` — join that sprint.
- * - `{ sprint: null }` — leave the sprint, keeping any planned day.
- * - `{ day }` — plan it onto a day (Scheduled). Refused while in a sprint.
- * - `"backlog"` — back to the backlog: out of any sprint and off any day.
- */
-export type PlacementTarget =
-    | { sprint: number }
-    | { sprint: null }
-    | { day: string }
-    | "backlog";
 
 /** Who is moving tickets, and from where (for the audit row). */
 export interface PlacementActor {
@@ -66,9 +58,12 @@ export interface PlacementContext {
     afterCommit: TransactionContext["afterCommit"];
     actor: PlacementActor;
     effects: PlacementEffects;
+    /** Present for user writes; sprint lifecycle maintenance is a system operation. */
+    ticketActor?: TaskActor;
 }
 
 export type PlacementRefusalCode =
+    | "ACCESS_DENIED"
     | "NOT_FOUND"
     | "SPRINT_NOT_FOUND"
     | "SPRINT_FROZEN"
@@ -92,11 +87,9 @@ export type TransferPlacementResult =
     | Extract<PlacementResult, { ok: false }>;
 
 const REFUSALS: Record<PlacementRefusalCode, string> = {
+    ...CAPABILITY_DENIAL_MESSAGES,
     NOT_FOUND: "Ticket not found.",
     SPRINT_NOT_FOUND: "Sprint not found.",
-    SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
-    SPRINT_TEAM_MISMATCH: String(sprintTeamMismatchBody().error),
-    IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
     TEAM_NOT_FOUND: "Team not found in this organization.",
     TEAM_UNCHANGED: "This ticket already belongs to that team.",
 };
@@ -127,18 +120,31 @@ export async function placeTickets(
     const targetSprintId = joinsSprint(target) ? Number(target.sprint) : null;
     const sprints = await lockSprints(ctx, [targetSprintId, ...[...tickets.values()].map((t) => t.sprint_id)]);
     const targetSprint = targetSprintId == null ? null : sprints.get(targetSprintId) ?? null;
-    if (targetSprintId != null && !targetSprint) return ids.map((id) => refused(id, "SPRINT_NOT_FOUND"));
+    if (targetSprintId != null && !targetSprint && !ctx.ticketActor) {
+        return ids.map((id) => refused(id, "SPRINT_NOT_FOUND"));
+    }
+    const context = ctx.ticketActor ? await loadTicketDecisionContext(ctx.db, ctx.ticketActor, [...tickets.values()],
+        targetSprintId == null ? {} : { targetSprintId }) : null;
+    if (context) {
+        context.sprints = sprints;
+        if (targetSprintId != null) context.targetSprint = targetSprint;
+    }
 
     const decisions = ids.map((id) => {
         const before = tickets.get(id);
-        const code: PlacementRefusalCode | null = before ? refusalFor(before, target, targetSprint, sprints) : "NOT_FOUND";
+        const action = plansDay(target) ? "schedule" : joinsSprint(target) ? "placeInSprint" : "edit";
+        const verdict = before && context && ctx.ticketActor
+            ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
+        const code = !before ? "NOT_FOUND" : verdict
+            ? verdict.allowed ? null : verdict.reason
+            : placementRefusal(before, target, targetSprint, sprints);
         return { id, before, code };
     });
 
     const results: PlacementResult[] = [];
     for (const { id, before, code } of decisions) {
         if (code) {
-            results.push(refused(id, code));
+            results.push(refused(id, code as PlacementRefusalCode));
             continue;
         }
         if (alreadyThere(before, target)) {
@@ -153,13 +159,13 @@ export async function placeTickets(
 }
 
 /**
- * Move a ticket to another team (admin-only; the caller checks the role).
+ * Move a ticket to another team (the transfer capability is admin-only).
  * Leaving the team means leaving its sprint, which is an ordinary sprint exit:
  * the own due date comes back and a planned day it already had puts it in
  * Scheduled.
  */
 export async function transferTicket(
-    ctx: PlacementContext,
+    ctx: PlacementContext & { ticketActor: TaskActor },
     ticketId: number,
     toTeamId: number,
 ): Promise<TransferPlacementResult> {
@@ -167,6 +173,9 @@ export async function transferTicket(
     const id = Number(ticketId);
     const [before] = await repo.lockTickets(ctx.db, [id], ctx.actor.orgId);
     if (!before) return refusedTransfer(id, "NOT_FOUND");
+    const context = await loadTicketDecisionContext(ctx.db, ctx.ticketActor, [before]);
+    const verdict = decideTicket(ctx.ticketActor, before, context).capabilities.can.transfer;
+    if (!verdict.allowed) return refusedTransfer(id, verdict.reason as PlacementRefusalCode);
 
     const team = await repo.findTeamInOrg(ctx.db, toTeamId, ctx.actor.orgId);
     if (!team) return refusedTransfer(id, "TEAM_NOT_FOUND");
@@ -174,7 +183,9 @@ export async function transferTicket(
 
     const sprints = await lockSprints(ctx, [before.sprint_id]);
     const origin = before.sprint_id == null ? null : sprints.get(Number(before.sprint_id));
-    if (origin?.status === "completed") return refusedTransfer(id, "SPRINT_FROZEN");
+    context.sprints = sprints;
+    const lockedVerdict = decideTicket(ctx.ticketActor, before, context).capabilities.can.transfer;
+    if (!lockedVerdict.allowed) return refusedTransfer(id, lockedVerdict.reason as PlacementRefusalCode);
 
     const clearedSprint = origin != null && !same(origin.team_id, team.id)
         ? { id: Number(origin.id), name: origin.name }
@@ -227,20 +238,6 @@ async function lockSprints(ctx: PlacementContext, ids: Array<number | null | und
     const wanted = [...new Set(ids.filter((id): id is number => id != null).map(Number))];
     const rows = await repo.lockSprints(ctx.db, wanted, ctx.actor.orgId);
     return new Map(rows.map((row) => [Number(row.id), row]));
-}
-
-function refusalFor(
-    ticket: any,
-    target: PlacementTarget,
-    targetSprint: any,
-    sprints: Map<number, any>,
-): PlacementRefusalCode | null {
-    const origin = ticket.sprint_id == null ? null : sprints.get(Number(ticket.sprint_id));
-    const staysInOrigin = origin != null && targetSprint != null && same(targetSprint.id, origin.id);
-    if ((origin?.status === "completed" && !staysInOrigin) || targetSprint?.status === "completed") return "SPRINT_FROZEN";
-    if (targetSprint && !canMoveIntoTeamSprint(ticket.team_id, targetSprint.team_id)) return "SPRINT_TEAM_MISMATCH";
-    if (plansDay(target) && ticket.sprint_id != null) return "IN_SPRINT";
-    return null;
 }
 
 function alreadyThere(ticket: any, target: PlacementTarget): boolean {

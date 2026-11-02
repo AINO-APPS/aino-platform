@@ -7,8 +7,10 @@ import {
     getSprintBurndown,
     updateSprint,
 } from "../../../api/tasks";
+import { writeError } from "../ticketCapabilities";
 
 interface UseSprintPlanArgs {
+    onReplaced?: (ticket: any) => void;
     sprintId: number | string | null;
     fetchTasks: () => void;
     fetchBacklog: () => void;
@@ -24,6 +26,7 @@ export function useSprintPlan({
     fetchTasks,
     fetchBacklog,
     onError,
+    onReplaced,
 }: UseSprintPlanArgs) {
     const queryClient = useQueryClient();
     const [velocity, setVelocity] = useState<{ sprints: any[]; average: number }>({
@@ -78,28 +81,30 @@ export function useSprintPlan({
         async (taskId: number | string) => {
             if (!sprintId) return;
             try {
-                await assignTaskToSprint(taskId, sprintId);
+                const { data } = await assignTaskToSprint(taskId, sprintId);
+                onReplaced?.(data);
                 // Both lists update immediately; the reload confirms it.
                 fetchBacklog();
                 fetchTasks();
-            } catch {
-                onError?.("Failed to move task into the sprint");
+            } catch (error) {
+                onError?.(writeError(error, "Failed to move task into the sprint"));
             }
         },
-        [sprintId, fetchBacklog, fetchTasks, onError],
+        [sprintId, fetchBacklog, fetchTasks, onError, onReplaced],
     );
 
     const moveToBacklog = useCallback(
         async (taskId: number | string) => {
             try {
-                await assignTaskToSprint(taskId, "");
+                const { data } = await assignTaskToSprint(taskId, "");
+                onReplaced?.(data);
                 fetchBacklog();
                 fetchTasks();
-            } catch {
-                onError?.("Failed to move task back to the backlog");
+            } catch (error) {
+                onError?.(writeError(error, "Failed to move task back to the backlog"));
             }
         },
-        [fetchBacklog, fetchTasks, onError],
+        [fetchBacklog, fetchTasks, onError, onReplaced],
     );
 
     const saveGoal = useCallback(

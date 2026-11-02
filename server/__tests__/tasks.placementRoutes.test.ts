@@ -11,6 +11,7 @@ export {};
 const mockPlaceTickets = jest.fn();
 const mockTransferTicket = jest.fn();
 jest.mock("../modules/tasks/tasks.placement", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.placement"),
     placeTickets: (...args: unknown[]) => mockPlaceTickets(...args),
     transferTicket: (...args: unknown[]) => mockTransferTicket(...args),
 }));

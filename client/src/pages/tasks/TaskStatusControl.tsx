@@ -1,6 +1,5 @@
 import { useAgileConfig } from "../../AgileConfigContext";
-import { useFeatures } from "../../FeaturesContext";
-import { canChangeTaskStatus, currentStatusOption, statusOptions, STATUS_FORBIDDEN, type StatusOption } from "./taskStatus";
+import { decisionProps, transitionOptions } from "./ticketCapabilities";
 import s from "./TaskDetailModal.module.css";
 
 interface Props {
@@ -14,32 +13,24 @@ interface Props {
  * scheduled and backlog alike — matching the mobile apps, and limited to the
  * people the server lets change status.
  */
-export default function TaskStatusControl({ task, currentUser, onChange }: Props) {
+export default function TaskStatusControl({ task, onChange }: Props) {
     const { workflowStates } = (useAgileConfig() as any) || {};
-    const { hasFeature } = useFeatures() as any;
-    const options = statusOptions(workflowStates);
-    const current = currentStatusOption(task, workflowStates, options);
-    const allowed = canChangeTaskStatus(task, currentUser?.id, currentUser?.role, {
-        teamId: currentUser?.team_id ?? null,
-        teamVisibility: hasFeature("team_visibility"),
-    });
+    const options = transitionOptions(task, workflowStates);
 
     return (
-        <div className={s["detail-status-bar"]} title={allowed ? undefined : STATUS_FORBIDDEN} data-testid="task-status-control">
+        <div className={s["detail-status-bar"]} data-testid="task-status-control">
             <span className={s["detail-status-label"]}>Status:</span>
-            {options.map((option: StatusOption) => {
-                const active = current?.key === option.key;
+            {!task?.capabilities && <button type="button" {...decisionProps(undefined)}>Change status</button>}
+            {options.map((option) => {
                 return (
                     <button
                         key={option.key}
                         type="button"
-                        className={`${s["detail-status-btn"]} ${active ? s["detail-status-active"] : ""}`}
-                        style={{ "--col-color": option.color, "--col-ink": option.ink } as React.CSSProperties}
-                        disabled={active || !allowed}
-                        aria-pressed={active}
+                        className={s["detail-status-btn"]}
+                        style={{ "--col-color": option.color, "--col-ink": "var(--text)" } as React.CSSProperties}
+                        {...decisionProps(option)}
                         onClick={() => onChange(task, { id: option.key, label: option.label })}
                     >
-                        {option.icon ? `${option.icon} ` : ""}
                         {option.label}
                     </button>
                 );

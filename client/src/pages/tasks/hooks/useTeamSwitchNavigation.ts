@@ -5,17 +5,19 @@ import { useEffect, useRef } from "react";
  *
  * The tabs follow the selected team's sprint state, so after a switch the
  * current URL can name a surface that team does not have. A team with a
- * running sprint opens on its board; otherwise a Sprint view falls back to the
+ * current sprint opens on its board; otherwise a Sprint view falls back to the
  * backlog. Non-surface views (Service Desk) are left alone.
  */
 export function useTeamSwitchNavigation({
     selectedTeamId,
-    visibleSprints,
+    currentSprintId,
+    currentSprintLoaded = true,
     activeTab,
     goToView,
 }: {
     selectedTeamId: unknown;
-    visibleSprints: any[];
+    currentSprintId: number | string | null;
+    currentSprintLoaded?: boolean;
     activeTab: string;
     goToView: (view: any, sprintId?: any) => void;
 }) {
@@ -23,12 +25,15 @@ export function useTeamSwitchNavigation({
 
     useEffect(() => {
         const before = previous.current;
+        if (before === null) {
+            previous.current = selectedTeamId;
+            return;
+        }
+        if (before === selectedTeamId || !currentSprintLoaded) return;
         previous.current = selectedTeamId;
-        if (before === null || before === selectedTeamId) return;
         if (!["sprint", "backlog", "scheduled"].includes(activeTab)) return;
-        const active = visibleSprints.find((sprint) => sprint.status === "active");
-        if (active) goToView("sprint", active.id);
+        if (currentSprintId != null) goToView("sprint", currentSprintId);
         else if (activeTab === "sprint") goToView("backlog");
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedTeamId]);
+    }, [selectedTeamId, currentSprintId, currentSprintLoaded]);
 }

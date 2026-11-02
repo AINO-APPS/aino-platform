@@ -9,6 +9,7 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import ticket from "../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const getBacklog = vi.fn();
 const getScheduled = vi.fn();
@@ -62,6 +63,16 @@ beforeEach(() => {
 });
 
 describe("MyWorkCard", () => {
+    test("My Work reads the server container even when date and sprint metadata disagree", async () => {
+        hasFeature.mockReturnValue(false);
+        getTasks.mockResolvedValueOnce({ data: { tasks: [
+            { ...ticket, id: 1, title: "Server scheduled", assigned_to: 7, container: "scheduled", planned_date: nextMonday(), sprint_id: 999 },
+            { ...ticket, id: 2, title: "Not scheduled", assigned_to: 7, container: "backlog", planned_date: nextMonday() },
+        ] } });
+        renderCard();
+        await screen.findByText("Server scheduled");
+        expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
+    });
     test("an empty week says so and never falls back to the backlog", async () => {
         hasFeature.mockReturnValue(true);
         getActiveSprint.mockResolvedValue({ data: { sprint: null } });
@@ -90,9 +101,9 @@ describe("MyWorkCard", () => {
         getSprintTasks.mockResolvedValue({
             data: {
                 tasks: [
-                    { id: 1, title: "Mine", assigned_to: 7, workflow_state_name: "In Progress" },
-                    { id: 2, title: "Theirs", assigned_to: 999 },
-                    { id: 3, title: "Cancelled", assigned_to: 7, workflow_state_key: "cancelled" },
+                    { ...ticket, container: "sprint", id: 1, title: "Mine", assigned_to: 7, workflow_state_name: "In Progress" },
+                    { ...ticket, container: "sprint", id: 2, title: "Theirs", assigned_to: 999 },
+                    { ...ticket, container: "sprint", id: 3, title: "Cancelled", assigned_to: 7, workflow_state_key: "cancelled" },
                 ],
             },
         });
@@ -123,7 +134,7 @@ describe("MyWorkCard", () => {
         hasFeature.mockReturnValue(true);
         getActiveSprint.mockResolvedValue({ data: { sprint: null } });
         getTasks
-            .mockResolvedValueOnce({ data: { tasks: [{ id: 1, title: "This week", assigned_to: 7, planned_date: nextMonday() }] } })
+            .mockResolvedValueOnce({ data: { tasks: [{ ...ticket, container: "scheduled", id: 1, title: "This week", assigned_to: 7, planned_date: nextMonday() }] } })
             .mockRejectedValueOnce(new Error("overdue lookup failed"));
 
         renderCard();

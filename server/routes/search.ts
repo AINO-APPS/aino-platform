@@ -6,9 +6,10 @@ import { loadUserContext, ROLE_LEVEL } from "../middleware/rbac";
 import { requireTenant } from "../middleware/tenant";
 import { isMobileClient } from "../middleware/webOnly";
 import * as redis from "../redis";
-import { isFeatureEnabled } from "../utils/planCatalog";
 import { createSearchService } from "../modules/search/search.service";
 import type { SearchDb } from "../modules/search/search.types";
+import { taskActorFromRequest } from "../modules/tasks/tasks.policy";
+const { enrichTaskSummaries } = require("./tasks/_helpers/enrich");
 
 const router = express.Router();
 const service = createSearchService({
@@ -24,18 +25,32 @@ router.use(auth, loadUserContext, requireTenant);
  */
 router.get("/", async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
         const results = await service.search(req.db as unknown as SearchDb, {
             query: typeof req.query.q === "string" ? req.query.q : undefined,
             tenantId: req.tenantId == null ? null : Number(req.tenantId),
-            userId: req.userId!,
-            orgId: req.userOrgId || null,
-            teamId: req.userTeamId ?? null,
-            role: req.userRole ?? null,
-            teamVisibility: isFeatureEnabled((req.tenant as any) ?? null, "team_visibility"),
+            ...actor,
             canReadAuditLogs: (ROLE_LEVEL[req.userRole as string] || 1) >= ROLE_LEVEL.hr_admin,
         });
+        const tasks = await enrichTaskSummaries(results.tasks, req.db, actor);
+        const enrichedResults = {
+            ...results,
+            tasks: tasks.map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                description: task.description,
+                workflow_state_key: task.workflow_state_key,
+                priority: task.priority,
+                planned_date: task.planned_date,
+                due_date: task.due_date,
+                sprint_id: task.sprint_id,
+                snippet: task.snippet,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
+        };
         // Audit logs are admin data and administration is web-only.
-        res.json(isMobileClient(req) ? { ...results, logs: [] } : results);
+        res.json(isMobileClient(req) ? { ...enrichedResults, logs: [] } : enrichedResults);
     } catch (err) {
         req.log.error({ err }, "Global search error");
         res.status(500).json({ error: "Search failed" });

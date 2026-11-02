@@ -101,6 +101,13 @@ function routeQueries(overrides: Array<[RegExp, any[]]> = []) {
             };
         }
         if (/FROM workflow_states/.test(sql)) {
+            if (/ORDER BY sort_order ASC, id ASC/.test(sql)) return {
+                rows: [
+                    { id: 11, key: "pending", name: "New", category: "open", is_terminal: false },
+                    { id: 99, key: "cancelled", name: "Cancelled", category: "done", is_terminal: true },
+                ],
+                rowCount: 2,
+            };
             const wanted = params?.[0];
             const rows = wanted === "cancelled" || wanted === 99
                 ? [{ id: 99, key: "cancelled", name: "Cancelled", category: "done", is_terminal: true }]
@@ -169,7 +176,7 @@ describe("a completed ticket cannot be cancelled", () => {
             .set("Cookie", authCookie(1));
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "TASK_COMPLETED" });
+        expect(res.body).toMatchObject({ code: "INVALID_TRANSITION" });
         const sqls = mockQuery.mock.calls.map(([sql]: any[]) => String(sql));
         expect(sqls.some((sql) => /UPDATE tasks SET workflow_state_id/i.test(sql))).toBe(false);
     });
@@ -188,7 +195,7 @@ describe("a completed ticket cannot be cancelled", () => {
             .set("Cookie", authCookie(1));
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "TASK_COMPLETED" });
+        expect(res.body).toMatchObject({ code: "CANCELLED_TERMINAL" });
     });
 
     test("still cancels an open ticket", async () => {

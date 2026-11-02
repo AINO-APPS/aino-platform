@@ -10,14 +10,19 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import PlanningTabs from "../PlanningTabs";
 
-function renderTabs(sprints: any[], agile = true, onTab = vi.fn(), onSprint = vi.fn()) {
+function renderTabs(
+    currentSprintId: number | null,
+    agile = true,
+    onTab = vi.fn(),
+    onSprint = vi.fn(),
+) {
     render(
         <PlanningTabs
             activeTab="backlog"
             setActiveTab={onTab}
             agileEnabled={agile}
             backlogCount={0}
-            availableSprints={sprints}
+            currentSprintId={currentSprintId}
             setSelectedSprintId={onSprint}
         />,
     );
@@ -26,7 +31,7 @@ function renderTabs(sprints: any[], agile = true, onTab = vi.fn(), onSprint = vi
 
 describe("planning tabs follow the team's sprint state", () => {
     test("an active sprint offers Sprint, Backlog and Service Desk — never Scheduled", () => {
-        renderTabs([{ id: 7, status: "active" }]);
+        renderTabs(7);
         // Sprint and Scheduled are alternatives (ADR-015).
         for (const name of [/^Sprint$/, /Backlog/, /Service Desk/]) {
             expect(screen.getByRole("tab", { name })).toBeTruthy();
@@ -35,24 +40,27 @@ describe("planning tabs follow the team's sprint state", () => {
     });
 
     test("only a planned sprint hides the Sprint tab", () => {
-        renderTabs([{ id: 8, status: "planned" }]);
+        renderTabs(null);
         expect(screen.queryByRole("tab", { name: /^Sprint$/ })).toBeNull();
         expect(screen.getByRole("tab", { name: /Backlog/ })).toBeTruthy();
         expect(screen.getByRole("tab", { name: /Scheduled/ })).toBeTruthy();
     });
 
     test("agile off hides Sprint even with an active sprint", () => {
-        renderTabs([{ id: 7, status: "active" }], false);
+        renderTabs(7, false);
         expect(screen.queryByRole("tab", { name: /^Sprint$/ })).toBeNull();
     });
 
     test("choosing Sprint opens the active sprint, not a planned one", () => {
-        const { onTab, onSprint } = renderTabs([
-            { id: 8, status: "planned" },
-            { id: 7, status: "active" },
-        ]);
+        const { onTab, onSprint } = renderTabs(7);
         fireEvent.click(screen.getByRole("tab", { name: /^Sprint$/ }));
         expect(onSprint).toHaveBeenCalledWith(7);
         expect(onTab).toHaveBeenCalledWith("sprint");
+    });
+
+    test("a paused current sprint offers Sprint and remains the selected board", () => {
+        const { onSprint } = renderTabs(19);
+        fireEvent.click(screen.getByRole("tab", { name: /^Sprint$/ }));
+        expect(onSprint).toHaveBeenCalledWith(19);
     });
 });

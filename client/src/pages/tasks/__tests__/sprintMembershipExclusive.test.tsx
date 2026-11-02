@@ -109,8 +109,9 @@ vi.mock("../hooks/useConfirmDialog", () => ({
 }));
 
 import Tasks from "../../Tasks";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
-const TICKET = { id: 7, title: "Refund webhook retries", issue_key: "PAY-142", priority: "high", workflow_state_key: "pending" };
+const TICKET = { ...ticket, id: 7, title: "Refund webhook retries", issue_key: "PAY-142", priority: "high", workflow_state_key: "pending" };
 
 /** The server state: one ticket, in or out of the sprint. */
 let sprintIdOfTicket: number | null = null;
@@ -141,7 +142,7 @@ beforeEach(() => {
 
     getTasks.mockReset().mockImplementation(async () => ({
         data: {
-            tasks: sprintIdOfTicket === null ? [] : [{ ...TICKET, sprint_id: sprintIdOfTicket }],
+            tasks: sprintIdOfTicket === null ? [] : [{ ...TICKET, container: "sprint", sprint_id: sprintIdOfTicket }],
             stats: { total: 0, done: 0, inProgress: 0, percent: 0 },
         },
     }));
@@ -153,7 +154,7 @@ beforeEach(() => {
 
     assignTaskToSprint.mockReset().mockImplementation(async () => {
         sprintIdOfTicket = 1;
-        return { data: {} };
+        return { data: { ...TICKET, container: "sprint", sprint_id: 1 } };
     });
 });
 

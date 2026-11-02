@@ -209,6 +209,8 @@ function nextMonday(base: string): string {
 }
 
 interface ScheduleControlProps {
+    disabled?: boolean;
+    title?: string;
     open: boolean;
     date: string;
     onOpen: () => void;
@@ -218,7 +220,7 @@ interface ScheduleControlProps {
 }
 
 /** "Schedule to a day": an org-themed button with quick picks and a date input. */
-export function ScheduleControl({ open, date, onOpen, onClose, onDateChange, onConfirm }: ScheduleControlProps) {
+export function ScheduleControl({ open, date, onOpen, onClose, onDateChange, onConfirm, disabled = false, title }: ScheduleControlProps) {
     const today = getLocalToday();
     const quick = [
         { label: "Today", value: today },
@@ -232,13 +234,14 @@ export function ScheduleControl({ open, date, onOpen, onClose, onDateChange, onC
                 className={s["schedule-btn"]}
                 aria-label="Schedule to a day"
                 aria-expanded={open}
-                title="Schedule to a day"
+                title={title || "Schedule to a day"}
+                disabled={disabled}
                 onClick={open ? onClose : onOpen}
             >
                 <CalendarDays size={13} aria-hidden="true" />
                 <span className={s["schedule-btn-text"]}>Schedule</span>
             </button>
-            {open && (
+            {open && !disabled && (
                 <div className={s["schedule-pop"]} role="dialog" aria-label="Schedule to a day">
                     <div className={s["schedule-pop-head"]}>
                         <span>Schedule to a day</span>

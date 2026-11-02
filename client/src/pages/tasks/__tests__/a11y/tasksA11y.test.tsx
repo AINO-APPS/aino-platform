@@ -46,9 +46,9 @@ const task = {
 };
 
 const columns = [
-    { id: 1, key: "pending", name: "New", category: "open", color: "#6b7280" },
-    { id: 2, key: "in_progress", name: "In Progress", category: "in_progress", color: "#f59e0b" },
-    { id: 3, key: "done", name: "Done", category: "done", color: "#10b981", is_terminal: true },
+    { id: 1, stateId: 1, key: "pending", name: "New", category: "open", color: "#6b7280", count: 0, limit: null, accepting: true },
+    { id: 2, stateId: 2, key: "in_progress", name: "In Progress", category: "in_progress", color: "#f59e0b", count: 1, limit: null, accepting: true },
+    { id: 3, stateId: 3, key: "done", name: "Done", category: "done", color: "#10b981", is_terminal: true, count: 0, limit: null, accepting: true },
 ];
 
 function wrap(node: React.ReactNode) {
@@ -108,6 +108,7 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
         const { container } = wrap(
             <KanbanBoard
                 tasks={[task]}
+                columns={columns as any}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
                 announcement="Moved Refund webhook retries to In Progress"
@@ -232,6 +233,7 @@ describe("drag results and undo are announced", () => {
         wrap(
             <KanbanBoard
                 tasks={[task]}
+                columns={columns as any}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
                 announcement="Moved Refund webhook retries to In Progress"

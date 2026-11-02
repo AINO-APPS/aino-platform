@@ -78,10 +78,122 @@ function setupAuth(role = "team_lead", extra: Record<string, any> = {}) {
         }); // loadUserContext
 }
 
-describe("POST /api/sprints", () => {
+describe("API sprint routes", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    });
+
+    describe("GET /api/sprints/:id/board", () => {
+        const sprint = {
+            id: 10, team_id: 1, name: "Sprint 10", status: "active",
+            start_date: "2026-11-01", end_date: "2026-11-14", org_id: 1,
+            team_name: "Alpha",
+        };
+        const states = [
+            { id: 101, key: "todo", name: "To Do", category: "open", sort_order: 1, is_active: true, is_initial: true, wip_limit: 2 },
+            { id: 102, key: "progress", name: "In Progress", category: "in_progress", sort_order: 2, is_active: true, is_initial: false, wip_limit: null },
+            { id: 103, key: "cancelled", name: "Cancelled", category: "done", sort_order: 3, is_active: true, is_initial: false, wip_limit: null },
+        ];
+        const tickets = [
+            { id: 201, title: "First", user_id: 1, assigned_to: null, org_id: 1, team_id: 1, sprint_id: 10, workflow_state_id: 101 },
+            { id: 202, title: "Second", user_id: 1, assigned_to: null, org_id: 1, team_id: 1, sprint_id: 10, workflow_state_id: 101 },
+        ];
+        const cancelledTicket = {
+            id: 203, title: "Cancelled", user_id: 1, assigned_to: null,
+            org_id: 1, team_id: 1, sprint_id: 10, workflow_state_id: 103,
+        };
+
+        function setupBoardReads(options: {
+            wipEnabled?: boolean;
+            sprint?: Record<string, any> | null;
+            counts?: Array<{ state_id: number; count: string | number }>;
+            boardTickets?: any[];
+        } = {}) {
+            mockQuery.mockReset();
+            mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+            mockQuery.mockImplementation(async (query: string) => {
+                const sql = String(query);
+                if (/SELECT value FROM app_settings/.test(sql)) return { rows: [], rowCount: 0 };
+                if (/SELECT token_version FROM users/.test(sql)) return { rows: [{ token_version: 0 }], rowCount: 1 };
+                if (/SELECT role, org_id, team_id, department_id, manager_id, is_active FROM users/.test(sql)) {
+                    return { rows: [{
+                        role: "employee", org_id: 1, team_id: 1, department_id: 1,
+                        manager_id: null, is_active: true,
+                    }], rowCount: 1 };
+                }
+                if (/SELECT s\.\*, t\.org_id, t\.name AS team_name/.test(sql)) {
+                    return { rows: options.sprint === undefined ? [sprint] : options.sprint ? [options.sprint] : [], rowCount: 1 };
+                }
+                if (/FROM workflow_states/.test(sql) && /ORDER BY sort_order/.test(sql)) {
+                    return { rows: states, rowCount: states.length };
+                }
+                if (/FROM workflow_transitions/.test(sql)) {
+                    return { rows: [{ from_state_id: 101, to_state_id: 102 }, { from_state_id: 101, to_state_id: 103 }], rowCount: 2 };
+                }
+                if (/FROM org_agile_settings/.test(sql)) {
+                    return { rows: [{ enable_wip_limits: options.wipEnabled ?? true }], rowCount: 1 };
+                }
+                if (/FROM tasks t/.test(sql) && /workflow_state_key/.test(sql)) {
+                    const rows = options.boardTickets ?? tickets;
+                    const boardRows = sql.includes("active.key = 'cancelled'")
+                        ? rows.filter((ticket) => ticket.workflow_state_id !== 103)
+                        : rows;
+                    return { rows: boardRows, rowCount: boardRows.length };
+                }
+                if (/GROUP BY t\.workflow_state_id/.test(sql)) {
+                    return { rows: options.counts ?? [{ state_id: 101, count: "2" }, { state_id: 102, count: "0" }], rowCount: 2 };
+                }
+                if (/SELECT s\.id, s\.team_id, s\.status, t\.org_id FROM sprints/.test(sql)) {
+                    return { rows: [sprint], rowCount: 1 };
+                }
+                if (/FROM workflow_states/.test(sql)) return { rows: states, rowCount: states.length };
+                if (/FROM users/.test(sql)) return { rows: [{ id: 1, team_id: 1 }], rowCount: 1 };
+                if (/FROM sprints/.test(sql)) return { rows: [sprint], rowCount: 1 };
+                return { rows: [], rowCount: 0 };
+            });
+        }
+
+        test("returns ordered active columns, marks a full WIP column closed, and excludes Cancelled", async () => {
+            setupBoardReads({
+                counts: [{ state_id: 101, count: "2" }, { state_id: 102, count: "0" }, { state_id: 103, count: "1" }],
+                boardTickets: [...tickets, cancelledTicket],
+            });
+
+            const res = await request(app).get("/api/sprints/10/board").set("Cookie", authCookie());
+
+            expect(res.status).toBe(200);
+            expect(res.body.sprint).toMatchObject({ id: 10, name: "Sprint 10", status: "active" });
+            expect(res.body.columns).toEqual([
+                { stateId: 101, count: 2, limit: 2, accepting: false },
+                { stateId: 102, count: 0, limit: null, accepting: true },
+            ]);
+            expect(res.body.tickets.map((ticket: any) => ticket.id)).toEqual([201, 202]);
+            expect(res.body.tickets.every((ticket: any) => ticket.container === "sprint" && ticket.capabilities)).toBe(true);
+            expect(mockQuery.mock.calls.some(([sql]: any[]) =>
+                String(sql).includes("active.key = 'cancelled'"))).toBe(true);
+        });
+
+        test("accepts tickets when org WIP limits are disabled, even at the configured limit", async () => {
+            setupBoardReads({ wipEnabled: false });
+
+            const res = await request(app).get("/api/sprints/10/board").set("Cookie", authCookie());
+
+            expect(res.status).toBe(200);
+            expect(res.body.columns[0]).toEqual({ stateId: 101, count: 2, limit: 2, accepting: true });
+        });
+
+        test.each([
+            ["a sprint in another team", { ...sprint, team_id: 2 }, 403],
+            ["a missing sprint", null, 404],
+            ["a sprint outside the org", { ...sprint, team_id: 2, org_id: 2 }, 404],
+        ])("preserves sprint access behavior for %s", async (_label, accessibleSprint, status) => {
+            setupBoardReads({ sprint: accessibleSprint as any });
+
+            const res = await request(app).get("/api/sprints/10/board").set("Cookie", authCookie());
+
+            expect(res.status).toBe(status);
+        });
     });
 
     test("returns 401 without auth", async () => {
@@ -174,7 +286,48 @@ describe("GET /api/sprints", () => {
             .get("/api/sprints")
             .set("Cookie", authCookie());
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ sprints: [] });
+        expect(res.body).toEqual({ sprints: [], currentSprintId: null });
+    });
+
+    test.each([
+        ["active takes precedence over paused", [
+            { id: 21, status: "paused" },
+            { id: 22, status: "active" },
+        ], 22],
+        ["a paused sprint is current when there is no active sprint", [
+            { id: 23, status: "paused" },
+        ], 23],
+        ["planned and completed sprints are never current", [
+            { id: 24, status: "planned" },
+            { id: 25, status: "completed" },
+        ], null],
+    ])("%s", async (_description, sprints, currentSprintId) => {
+        setupAuth("team_lead");
+        mockQuery.mockResolvedValueOnce({ rows: sprints, rowCount: sprints.length });
+
+        const res = await request(app)
+            .get("/api/sprints")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentSprintId).toBe(currentSprintId);
+        expect(res.body.sprints).toEqual(sprints);
+    });
+
+    test("an org admin gets the current sprint for the requested team", async () => {
+        setupAuth("super_admin");
+        mockQuery.mockResolvedValueOnce({
+            rows: [{ id: 31, status: "paused", team_id: 7 }],
+            rowCount: 1,
+        });
+
+        const res = await request(app)
+            .get("/api/sprints?team_id=7")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.currentSprintId).toBe(31);
+        expect(res.body.sprints).toEqual([{ id: 31, status: "paused", team_id: 7 }]);
     });
 });
 

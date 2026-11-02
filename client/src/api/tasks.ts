@@ -1,4 +1,5 @@
 import API, { type AnyData, type Params } from "./client";
+import type { SprintList } from "../types/generated/tasks";
 
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
@@ -13,6 +14,8 @@ export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);
 export const deleteTask = (id: number | string) => API.delete(`/tasks/${id}`);
+export const transferTask = (id: number | string, teamId: number | string) =>
+    API.post(`/tasks/${id}/transfer`, { team_id: teamId });
 export const carryForwardTasks = () => API.post("/tasks/carry-forward");
 export const getAssignableUsers = () => API.get("/tasks/assignable-users");
 export const getTaskLabels = () => API.get("/tasks/labels");
@@ -129,12 +132,14 @@ export const getTaskTime = (from?: string, to?: string) =>
     API.get("/tracker/task-time", { params: { from, to } });
 
 // Sprints
-export const getSprints = () => API.get("/sprints");
+export const getSprints = (params?: AnyData) => API.get<SprintList>("/sprints", { params });
 export const getActiveSprint = () => API.get("/sprints/active");
 export const createSprint = (data: AnyData) => API.post("/sprints", data);
 export const updateSprint = (id: number | string, data: AnyData) => API.put(`/sprints/${id}`, data);
 export const deleteSprint = (id: number | string) => API.delete(`/sprints/${id}`);
 export const getSprintTasks = (id: number | string) => API.get(`/sprints/${id}/tasks`);
+export const getSprintBoard = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/sprints/${id}/board`, { signal });
 export const getSprintStats = (id: number | string) => API.get(`/sprints/${id}/stats`);
 export const startSprint = (id: number | string) => API.post(`/sprints/${id}/start`);
 export const completeSprint = (id: number | string, rolloverTo?: number | string) =>

@@ -5,6 +5,7 @@ import EpicPanel from "./EpicPanel";
 import AsyncSection from "../../components/common/AsyncSection";
 import { useCardDensity } from "./TaskContext";
 import s from "./SprintPlan.module.css";
+import { actionDecision, decisionProps } from "./ticketCapabilities";
 
 interface SprintPlanProps {
     backlogTasks: any[];
@@ -165,6 +166,7 @@ export default function SprintPlan({
                                     type="button"
                                     className={s["plan-move"]}
                                     aria-label={`Move ${task.title} into the sprint`}
+                                    {...decisionProps(actionDecision(task, "placeInSprint"))}
                                     onClick={() => onMoveToSprint(task.id)}
                                 >
                                     <ChevronRight size={14} aria-hidden="true" />
@@ -267,6 +269,7 @@ export default function SprintPlan({
                                     type="button"
                                     className={s["plan-move"]}
                                     aria-label={`Move ${task.title} back to the backlog`}
+                                    {...decisionProps(actionDecision(task, "placeInSprint"))}
                                     onClick={() => onMoveToBacklog(task.id)}
                                 >
                                     <ChevronLeft size={14} aria-hidden="true" />

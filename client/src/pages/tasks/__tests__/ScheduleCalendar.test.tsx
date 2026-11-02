@@ -1,15 +1,16 @@
 import { describe, expect, test, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ScheduleCalendar from "../ScheduleCalendar";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const tasks = [
-    { id: 1, title: "Refund webhook", planned_date: "2026-10-25", story_points: 5 },
-    { id: 2, title: "Ledger fix", planned_date: "2026-10-25", story_points: 3 },
-    { id: 3, title: "Overdue item", planned_date: "2026-10-20", story_points: 2 },
+    { ...ticket, container: "scheduled", id: 1, title: "Refund webhook", planned_date: "2026-10-25", story_points: 5 },
+    { ...ticket, container: "scheduled", id: 2, title: "Ledger fix", planned_date: "2026-10-25", story_points: 3 },
+    { ...ticket, container: "scheduled", id: 3, title: "Overdue item", planned_date: "2026-10-20", story_points: 2 },
 ];
 
 const backlogTasks = [
-    { id: 9, title: "Unscheduled work", story_points: 8 },
+    { ...ticket, id: 9, title: "Unscheduled work", story_points: 8 },
 ];
 
 function renderCalendar(overrides: Record<string, unknown> = {}) {

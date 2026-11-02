@@ -4,7 +4,7 @@ import { Zap, CalendarDays } from "../../constants/icons";
 import { useAuth } from "../../AuthContext";
 import { useFeatures } from "../../FeaturesContext";
 import useWebSocket from "../../hooks/useWebSocket";
-import { getActiveSprint, getSprintTasks, getTasks } from "../../api/tasks";
+import { getActiveSprint, getSprintTasks, getTasks, getTaskDetail } from "../../api/tasks";
 import {
     capGroups,
     myDoneCount,
@@ -64,8 +64,8 @@ const MyWorkCard = memo(function MyWorkCard() {
         ]);
         if (cancelledRef.current) return;
 
-        const weekRows = (weekRes.data.tasks as MyWorkTask[]) || [];
-        const overdueRows = (overdueRes?.data.tasks as MyWorkTask[]) || [];
+        const weekRows = ((weekRes.data.tasks as MyWorkTask[]) || []).filter((task) => task.container === "scheduled");
+        const overdueRows = ((overdueRes?.data.tasks as MyWorkTask[]) || []).filter((task) => task.container === "scheduled");
         const capped = capGroups(weekGroups(myOpenTasks(overdueRows, userId), myOpenTasks(weekRows, userId), range.start));
         setGroups(capped.groups);
         setHidden(capped.hidden);
@@ -77,7 +77,7 @@ const MyWorkCard = memo(function MyWorkCard() {
         if (cancelledRef.current) return;
         // The sprint endpoint returns the whole sprint; "my work" is the subset
         // assigned to me, exactly as the counts beside it are.
-        const rows = (taskRes.data.tasks as MyWorkTask[]) || [];
+        const rows = ((taskRes.data.tasks as MyWorkTask[]) || []).filter((task) => task.container === "sprint");
         const capped = capGroups(sprintGroups(myOpenTasks(rows, userId)));
         setGroups(capped.groups);
         setHidden(capped.hidden);
@@ -144,7 +144,9 @@ const MyWorkCard = memo(function MyWorkCard() {
     }, [loadCard]);
 
     useWebSocket(useCallback((msg: any) => {
-        if (msg.type === "task_assigned" || msg.type === "task_updated") loadCard();
+        if (msg.type === "task_updated" && msg.data?.taskId) {
+            void getTaskDetail(msg.data.taskId).catch(() => null).then(loadCard);
+        } else if (msg.type === "task_assigned") loadCard();
     }, [loadCard]));
 
     const openAll = useCallback(() => {

@@ -15,6 +15,7 @@ const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logAction } = require("../utils/audit");
 const { enrichTasks } = require("./tasks/_helpers/enrich");
+const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
 
 const router = express.Router();
 // Projects are part of the Agile feature bundle — same gate as /api/agile
@@ -279,7 +280,7 @@ router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Respon
         ]);
         const tasks = tasksRes.rows;
         const total = countRes.rows[0]?.total ?? tasks.length;
-        const enriched = await enrichTasks(tasks, req.db);
+        const enriched = await enrichTasks(tasks, req.db, taskActorFromRequest(req));
         res.json({
             tasks: enriched,
             pagination: { limit, offset, total, hasMore: offset + enriched.length < total },

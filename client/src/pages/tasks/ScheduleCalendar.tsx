@@ -28,6 +28,7 @@ import {
     type OverlayVisibility,
 } from "./overlays";
 import s from "./ScheduleCalendar.module.css";
+import { actionDecision, decisionProps } from "./ticketCapabilities";
 
 interface ScheduleCalendarProps {
     tasks: ScheduledTask[];
@@ -195,7 +196,8 @@ export default function ScheduleCalendar({
                                     type="button"
                                     className={`${s["day-task"]} ${(task as any).completed_at ? s["day-task-done"] : ""}`}
                                     style={chipStyle(task)}
-                                    draggable
+                                    draggable={actionDecision(task, "schedule").allowed}
+                                    title={decisionProps(actionDecision(task, "schedule")).title}
                                     onDragStart={() => setDraggingId(task.id)}
                                     onClick={() => onOpenDetail(task)}
                                 >
@@ -260,7 +262,8 @@ export default function ScheduleCalendar({
                                             type="button"
                                             className={`${s["day-task"]} ${(task as any).completed_at ? s["day-task-done"] : ""}`}
                                             style={chipStyle(task)}
-                                            draggable
+                                            draggable={actionDecision(task, "schedule").allowed}
+                                            title={decisionProps(actionDecision(task, "schedule")).title}
                                             onDragStart={() => setDraggingId(task.id)}
                                             onClick={() => onOpenDetail(task)}
                                         >
@@ -292,7 +295,8 @@ export default function ScheduleCalendar({
                                 <button
                                     type="button"
                                     className={s["tray-item"]}
-                                    draggable
+                                    draggable={actionDecision(task, "schedule").allowed}
+                                    title={decisionProps(actionDecision(task, "schedule")).title}
                                     onDragStart={() => setDraggingId(task.id)}
                                     onClick={() => onOpenDetail(task)}
                                 >

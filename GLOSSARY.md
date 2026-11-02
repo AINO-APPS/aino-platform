@@ -43,6 +43,15 @@ An allowed move from one workflow state to another, recorded in
 `workflow_transitions` and enforced server-side. Not every pair is legal. See
 [ADR-014](docs/adr/ADR-014-workflow-transition-enforcement.md).
 
+## Capability
+
+What the current user may do to a ticket right now, given its workflow state,
+container, team and the user's role. Decided by the server and sent with the
+ticket; clients render it and never derive it.
+
+**Avoid:** "permission" for the per-ticket answer (a permission is a role's
+standing grant); calling the container or column WIP status a capability.
+
 ## Backlog
 
 The set of tickets with no sprint **and no planned day** (`sprint_id IS NULL
@@ -82,6 +91,14 @@ transfer that takes a ticket out of its sprint is also a placement.
 A time-boxed container owned by one team. A ticket is in at most one sprint. The
 board shows exactly one sprint at a time. Sprint lifecycle: planned, active,
 paused, completed.
+
+## Current sprint
+
+The one sprint a team lands on: its active sprint, otherwise its paused sprint,
+otherwise none. Planned and completed sprints are never current. Decided by the
+server.
+
+**Avoid:** "active sprint" when a paused sprint would also qualify.
 
 ## Scope baseline
 

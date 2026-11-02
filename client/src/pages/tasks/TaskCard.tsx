@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { Check, Copy } from "../../constants/icons";
 import { CardBody } from "./TaskCardParts";
 import { useToast } from "../../components/common/Toast";
-import { useCardDensity } from "./TaskContext";
+import { useCardDensity, useTaskCtx } from "./TaskContext";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { currentStatusOption, statusOptions } from "./taskStatus";
 import TaskCardMenu from "./TaskCardMenu";
+import { decisionProps, transitionOptions } from "./ticketCapabilities";
 import s from "./TaskCard.module.css";
 import type { Task } from "../../types";
 
@@ -39,6 +40,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 interface TaskCardProps {
+    onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     task: any;
     sprintMode?: boolean;
     onOpenDetail: (task: Task) => void;
@@ -65,7 +67,9 @@ export default function TaskCard({
     onDragStart,
     onDragEnd,
     attribution,
+    onStatusChange,
 }: TaskCardProps) {
+    const context = useTaskCtx();
     const compact = useCardDensity() === "compact";
     const toast = useToast() as any;
     const { workflowStates, features } = useAgileConfig() as any;
@@ -158,6 +162,11 @@ export default function TaskCard({
                                 { label: "Open task", onSelect: () => onOpenDetail(task) },
                                 { label: `Copy ${issueKey}`, onSelect: () => void copyKey() },
                                 { label: "Comments", onSelect: () => onOpenComments(task.id) },
+                                ...transitionOptions(task, workflowStates).map((target) => ({
+                                    label: target.label, ...decisionProps(target),
+                                    onSelect: () => (onStatusChange || context?.onStatusChange)?.(task, { id: target.key, label: target.label }),
+                                })),
+                                ...(!task.capabilities ? [{ label: "Change status", ...decisionProps(undefined), onSelect: () => {} }] : []),
                             ]}
                         />
                     </span>
