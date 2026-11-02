@@ -35,7 +35,7 @@ router.get("/by-key/:key", auth, loadUserContext, async (req: Request, res: Resp
             return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
 
-        const enriched = await enrichTasks([task], req.db);
+        const enriched = await enrichTasks([task], req.db, taskActorFromRequest(req));
         res.json(enriched[0]);
     } catch (err) {
         req.log.error({ err }, "Error resolving issue key:");

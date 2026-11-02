@@ -1,0 +1,54 @@
+{
+  "id": 42,
+  "title": "Review the release plan",
+  "priority": "high",
+  "workflow_state_id": 102,
+  "workflow_state_key": "in_progress",
+  "workflow_state_name": "In Progress",
+  "workflow_state_category": "in_progress",
+  "planned_date": null,
+  "due_date": null,
+  "completed_at": null,
+  "sprint_id": null,
+  "container": "backlog",
+  "capabilities": {
+    "transitions": [
+      {
+        "to": 101,
+        "allowed": false,
+        "reason": "INVALID_TRANSITION"
+      },
+      {
+        "to": 103,
+        "allowed": true
+      }
+    ],
+    "can": {
+      "edit": {
+        "allowed": true
+      },
+      "changeState": {
+        "allowed": true
+      },
+      "cancel": {
+        "allowed": true
+      },
+      "transfer": {
+        "allowed": false,
+        "reason": "ACCESS_DENIED"
+      },
+      "delete": {
+        "allowed": true
+      },
+      "placeInSprint": {
+        "allowed": true
+      },
+      "schedule": {
+        "allowed": true
+      }
+    }
+  },
+  "team_id": 7,
+  "rank": null,
+  "is_blocked": false
+}

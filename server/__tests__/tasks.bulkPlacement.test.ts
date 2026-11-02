@@ -30,6 +30,7 @@ jest.mock("../utils/audit", () => ({
 
 const mockPlaceTickets: jest.Mock = jest.fn();
 jest.mock("../modules/tasks/tasks.placement", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.placement"),
     placeTickets: (...args: unknown[]) => mockPlaceTickets(...args),
 }));
 

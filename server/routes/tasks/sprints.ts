@@ -120,7 +120,7 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
                 { sprint: leaving ? null : Number(sprint_id) },
             )));
 
-        const enriched = await enrichTasks([placed.task], req.db);
+        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
         res.json(enriched[0]);
     } catch (err) {
         if (sendPlacementRefusal(res, err)) return;
