@@ -10,14 +10,15 @@ import type { TransactionContext } from "../../types/domain";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
-const { canAccessTask, canCancelTask, canChangeTaskStatus, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
-const { isOrgAdmin, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
+const { ticketActionConflict } = require("./_helpers/access");
+const { loadTicketDecisionContext } = require("../../modules/tasks/tasks.capabilities");
+const { taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
     findActorName, findManyInOrg, setWorkflowState, setAssignee,
 } = require("../../modules/tasks/tasks.repository");
 const { findSprintInOrg } = require("../../modules/tasks/tasks.sprintRepository");
-const { assertLifecycleMove, loadLifecycleContext, stateOf } = require("../../modules/tasks/tasks.workflow");
+const { assertLifecycleMove, stateOf } = require("../../modules/tasks/tasks.workflow");
 const { announceStatusMove } = require("./_helpers/statusEvents");
 const { placeTickets } = require("../../modules/tasks/tasks.placement");
 const { placementContext } = require("./_helpers/placement");
@@ -56,6 +57,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
         const tasks = await findManyInOrg(req.db!, ids, req.userOrgId);
         const actor = taskActorFromRequest(req);
 
+        const decisionContext = await loadTicketDecisionContext(req.db!, actor, tasks);
         if (action === "move_to_sprint") {
             const sprintId = value === null || value === "" ? null : Number.parseInt(String(value), 10);
             const sprint = sprintId === null ? null : await findSprintInOrg(req.db!, sprintId, req.userOrgId);
@@ -63,16 +65,10 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             const resultById = new Map<number, BulkResult>();
 
             for (const task of tasks) {
-                if (!await canAccessTask(task, actor, req.db)) {
-                    resultById.set(task.id, { id: task.id, ok: false, error: "Not found" });
-                } else if (sprintId !== null && (
-                    !sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))
-                )) {
-                    resultById.set(task.id, {
-                        id: task.id,
-                        ok: false,
-                        error: "Invalid sprint or sprint does not belong to your team",
-                    });
+                const refusal = await ticketActionConflict(req.db!, actor, task, "placeInSprint",
+                    { ...decisionContext, targetSprint: sprintId === null ? undefined : sprint ?? null });
+                if (refusal) {
+                    resultById.set(task.id, { id: task.id, ok: false, error: refusal.body.error, code: refusal.body.code });
                 } else {
                     eligible.push(task);
                 }
@@ -123,39 +119,28 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
 
         // Loaded once per batch: every ticket is validated against the same
         // graph and WIP setting, including tickets moved earlier in the loop.
-        const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
+        const lifecycle = decisionContext.lifecycle;
         const name = await findActorName(req.db!, req.userId);
 
         const results: BulkResult[] = [];
         for (const task of tasks) {
-            if (!await canAccessTask(task, actor, req.db)) {
-                results.push({ id: task.id, ok: false, error: "Not found" });
-                continue;
-            }
-
             try {
                 if (action === "status") {
-                    if (!await canChangeTaskStatus(task, actor, req.db)) {
-                        results.push({ id: task.id, ok: false, error: STATUS_FORBIDDEN });
-                        continue;
-                    }
                     const target = await resolveWorkflowState(value, req.userOrgId, req.db);
                     if (!target) {
                         results.push({ id: task.id, ok: false, error: "Invalid status" });
                         continue;
                     }
-                    // Re-entering the same state changes nothing: no history,
-                    // audit or notification for a no-op.
-                    if (String(task.workflow_state_id ?? "") === String(target.id)) {
-                        results.push({ id: task.id, ok: true, previous: { workflow_state_id: task.workflow_state_id } });
-                        continue;
-                    }
                     // Bulk is not a way around the lifecycle: an illegal
                     // transition or a full column skips that one ticket and
                     // leaves the rest of the batch to apply.
-                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle);
+                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle, actor, decisionContext);
                     if (conflict) {
                         results.push({ id: task.id, ok: false, error: conflict.body.error, code: conflict.body.code });
+                        continue;
+                    }
+                    if (String(task.workflow_state_id ?? "") === String(target.id)) {
+                        results.push({ id: task.id, ok: true, previous: { workflow_state_id: task.workflow_state_id } });
                         continue;
                     }
                     await setWorkflowState(req.db!, task.id, target.id);
@@ -172,25 +157,19 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         previous: { workflow_state_id: task.workflow_state_id },
                     });
                 } else if (action === "assign") {
+                    const refusal = await ticketActionConflict(req.db!, actor, task, "edit", decisionContext);
+                    if (refusal) {
+                        results.push({ id: task.id, ok: false, error: refusal.body.error, code: refusal.body.code });
+                        continue;
+                    }
                     const assignee = value === null || value === "" ? null : Number.parseInt(String(value), 10);
                     await setAssignee(req.db!, task.id, assignee);
                     await logHistory(task.id, req.userId, "updated", "assigned_to", task.assigned_to, assignee, null, req.db);
                     results.push({ id: task.id, ok: true, previous: { assigned_to: task.assigned_to } });
                 } else {
-                    if (!await canCancelTask(task, actor, req.db)) {
-                        results.push({ id: task.id, ok: false, error: ACCESS_DENIED });
-                        continue;
-                    }
-                    // Cancelling is for open work: a ticket that already reached
-                    // a terminal state was finished or already abandoned, and
-                    // re-stating it would rewrite what happened.
-                    if (task.completed_at) {
-                        results.push({
-                            id: task.id,
-                            ok: false,
-                            error: "This ticket is already completed or cancelled",
-                            code: "TASK_COMPLETED",
-                        });
+                    const refusal = await ticketActionConflict(req.db!, actor, task, "delete", decisionContext);
+                    if (refusal) {
+                        results.push({ id: task.id, ok: false, error: refusal.body.error, code: refusal.body.code });
                         continue;
                     }
                     // Tickets are cancelled, never hard-deleted: the record and
@@ -200,7 +179,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         results.push({ id: task.id, ok: false, error: "No cancelled workflow state is available" });
                         continue;
                     }
-                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, cancelled, lifecycle);
+                    const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, cancelled, lifecycle, actor, decisionContext);
                     if (conflict) {
                         results.push({ id: task.id, ok: false, error: conflict.body.error, code: conflict.body.code });
                         continue;

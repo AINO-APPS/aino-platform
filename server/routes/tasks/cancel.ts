@@ -15,12 +15,12 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { logHistory } = require('./_helpers/logHistory');
-const { canCancelTask, ACCESS_DENIED } = require('./_helpers/access');
+const { ticketActionConflict } = require('./_helpers/access');
 const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
-const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { findActorName, findTask, setWorkflowState } = require('../../modules/tasks/tasks.repository');
 const { getOrCreateCancelledState } = require('./_helpers/agile');
-const { assertLifecycleMove, loadLifecycleContext, stateOf } = require('../../modules/tasks/tasks.workflow');
+const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
+const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { announceStatusMove } = require('./_helpers/statusEvents');
 
 const router = express.Router();
@@ -31,33 +31,17 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
         const task = await findTask(req.db!, id);
         if (!task) return res.status(404).json({ error: 'Task not found' });
-        // Cancelling is a team write: any member of the owning team may do it,
-        // and so may the creator/assignee and org admins.
-        if (!await canCancelTask(task, taskActorFromRequest(req), req.db)) {
-            return res.status(403).json({ error: ACCESS_DENIED });
-        }
-
-        const frozen = await frozenSprintError(req, task);
-        if (frozen) return res.status(409).json(frozen);
-
-        // Cancelling is for open work. A ticket that already reached a terminal
-        // state was either finished or already abandoned, and re-stating it as
-        // cancelled would rewrite what happened. Refuse instead of silently
-        // overwriting the outcome.
-        if (task.completed_at) {
-            return res.status(409).json({
-                error: 'This ticket is already completed or cancelled and cannot be cancelled again.',
-                code: 'TASK_COMPLETED',
-            });
-        }
-
         const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
         if (!cancelled) return res.status(400).json({ error: 'No cancelled workflow state is available' });
+        const actor = taskActorFromRequest(req);
+        const context = await loadTicketDecisionContext(req.db!, actor, [task]);
+        const refusal = await ticketActionConflict(req.db!, actor, task, "cancel", context);
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         // Cancel is a transition like any other: the graph must allow it (Done
         // is refused above) and the target has no WIP limit.
-        const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
-        const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, cancelled, lifecycle);
+        const lifecycle = context.lifecycle;
+        const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, cancelled, lifecycle, actor, context);
         if (conflict) return res.status(conflict.status).json(conflict.body);
 
         const name = await findActorName(req.db!, req.userId);

@@ -118,7 +118,7 @@ describe("POST /api/tasks/bulk cancel", () => {
         );
         expect(byId[10]).toMatchObject({ ok: true });
         expect(byId[11]).toMatchObject({ ok: false });
-        expect(byId[11].error).toMatch(/already completed or cancelled/i);
+        expect(byId[11].code).toBe("INVALID_TRANSITION");
         expect(res.body.changed).toBe(1);
     });
 

@@ -221,15 +221,20 @@ describe("Tenant Isolation - Tasks", () => {
 
     test("does not notify mention targets outside requester org", async () => {
         setupAuth();
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, team_id: 1, title: "Scoped Task" }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ team_id: 1, org_id: 1 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ team_id: 1, org_id: 1 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ id: 501 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-            .mockResolvedValueOnce({ rows: [{ id: 501, task_id: 88, user_id: 1, content: '<span data-user-id="999">@x</span>', username: "testuser", full_name: "Test User", avatar: null }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ username: "testuser", full_name: "Test User" }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        mockQuery.mockImplementation(async (sql: string) => {
+            if (/SELECT \* FROM tasks/.test(sql)) return {
+                rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, team_id: 1, title: "Scoped Task" }], rowCount: 1,
+            };
+            if (/INSERT INTO task_comments/.test(sql)) return { rows: [{ id: 501 }], rowCount: 1 };
+            if (/FROM task_comments tc/.test(sql)) return {
+                rows: [{ id: 501, task_id: 88, user_id: 1, content: '<span data-user-id="999">@x</span>', username: "testuser", full_name: "Test User", avatar: null }],
+                rowCount: 1,
+            };
+            if (/SELECT username, full_name FROM users/.test(sql)) return {
+                rows: [{ username: "testuser", full_name: "Test User" }], rowCount: 1,
+            };
+            return { rows: [], rowCount: 0 };
+        });
 
         const res = await request(app)
             .post("/api/tasks/88/comments")
@@ -294,6 +299,7 @@ describe("task realtime fan-out (task_updated)", () => {
             // change resolves a real `workflow_states` row. Honour the id/key
             // the caller asked for so a state change is actually detected.
             if (/FROM workflow_states/.test(sql)) {
+                if (/ORDER BY sort_order ASC, id ASC/.test(sql)) return { rows: states, rowCount: states.length };
                 const wanted = params?.[0];
                 // The cancel route looks the state up by key/name, not by id.
                 if (/key = 'cancelled'/.test(sql)) {
@@ -323,7 +329,7 @@ describe("task realtime fan-out (task_updated)", () => {
     test("status change notifies assignee, creator and actor once each", async () => {
         setupAuth();
         routeQueries([
-            [/SELECT \* FROM tasks WHERE id = \$1/, [task]],
+            [/SELECT \* FROM tasks WHERE id = \$1/, [{ ...task, workflow_state_id: 11 }]],
             [/SELECT team_id, org_id FROM users/, [{ team_id: 1, org_id: 1 }]],
         ]);
 

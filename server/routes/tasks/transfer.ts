@@ -14,10 +14,11 @@ const redis = require("../../redis");
 const { placementContext, PlacementRefused, sendPlacementRefusal } = require("./_helpers/placement");
 const { enrichTasks } = require("./_helpers/enrich");
 const {
-    isOrgAdmin,
     taskActorFromRequest,
 } = require("../../modules/tasks/tasks.policy");
 const { transferTicket } = require("../../modules/tasks/tasks.placement");
+const { findTask } = require("../../modules/tasks/tasks.repository");
+const { ticketActionConflict } = require("./_helpers/access");
 
 const router = express.Router();
 
@@ -27,10 +28,10 @@ router.post("/:id/transfer", auth, loadUserContext, async (req: Request, res: Re
         if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid task ID" });
 
         const actor = taskActorFromRequest(req);
-        if (!isOrgAdmin(actor.role)) {
-            return res.status(403).json({ error: "Only an org admin can transfer a ticket" });
-        }
-
+        const task = await findTask(req.db!, id);
+        if (!task) return res.status(404).json({ error: "Task not found" });
+        const refusal = await ticketActionConflict(req.db!, actor, task, "transfer");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
         const requestedTeamId = parseInt(String(req.body?.team_id), 10);
         if (Number.isNaN(requestedTeamId)) {
             return res.status(400).json({ error: "team_id is required" });

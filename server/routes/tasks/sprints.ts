@@ -9,12 +9,13 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { requireFeature } = require('../../middleware/tenant');
 
-const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { ticketActionConflict, denyTaskAccess } = require("./_helpers/access");
 const { isOrgAdmin, taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { findTask, findSprintInOrg } = require('../../modules/tasks/tasks.sprintRepository');
+const { findTask } = require('../../modules/tasks/tasks.sprintRepository');
+const { resolveSprintTarget } = require('../../modules/tasks/tasks.sprintAssignment');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 
@@ -99,16 +100,18 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
         const { sprint_id } = req.body;
 
         const task = await findTask(req.db!, id);
-        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
+        const actor = taskActorFromRequest(req);
+        if (!task) return denyTaskAccess(res, task, actor);
+        const refusal = await ticketActionConflict(req.db!, actor, task, "edit");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         const leaving = sprint_id === null || sprint_id === undefined || sprint_id === '';
         if (!leaving) {
-            // Org admins may target any sprint in their org; others only their
-            // own team's. The org join is kept in both branches (Bug #7).
-            const sprint = await findSprintInOrg(req.db!, sprint_id, req.userOrgId);
-            if (!sprint || (!isOrgAdmin(req.userRole) && sprint.team_id !== req.userTeamId)) {
-                return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
-            }
+            const target = await resolveSprintTarget(req.db!, {
+                sprintId: sprint_id, orgId: actor.orgId, actorTeamId: actor.teamId,
+                isAdmin: isOrgAdmin(actor.role), ticket: task, actor,
+            });
+            if (target.error) return res.status(target.error.status).json(target.error.body);
         }
 
         // Team rule, due-date bookkeeping, history, audit, realtime and the

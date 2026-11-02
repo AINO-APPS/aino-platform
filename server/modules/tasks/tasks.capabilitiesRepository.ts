@@ -1,4 +1,4 @@
-import type { LifecycleDb } from "./tasks.workflow";
+import type { LifecycleDb } from "./tasks.workflowRules";
 import type { SprintLike } from "./tasks.sprintLifecycle";
 
 export async function findDecisionSprints(db: LifecycleDb, ids: number[], orgId: number | null): Promise<SprintLike[]> {

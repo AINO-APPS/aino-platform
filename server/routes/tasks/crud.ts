@@ -19,18 +19,18 @@ const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
 
-const { canAccessTask, canChangeTaskStatus, denyTaskAccess, STATUS_FORBIDDEN, ACCESS_DENIED } = require("./_helpers/access");
+const { ticketActionConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
     resolveTaskVisibility,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
-const { frozenSprintError } = require('./_helpers/sprintFreeze');
 const { enrichTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusEvents');
-const { assertLifecycleMove, loadLifecycleContext, stateOf } = require('../../modules/tasks/tasks.workflow');
+const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
+const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
@@ -290,11 +290,13 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const actor = taskActorFromRequest(req);
-        if (!await canAccessTask(task, actor, req.db)) return denyTaskAccess(res, task, actor);
-        if (!await canChangeTaskStatus(task, actor, req.db)) return res.status(403).json({ error: STATUS_FORBIDDEN });
-
-        const frozen = await frozenSprintError(req, task);
-        if (frozen) return res.status(409).json(frozen);
+        if (!task) return denyTaskAccess(res, task, actor);
+        if (actor.orgId != null && task.org_id != null && Number(task.org_id) !== Number(actor.orgId)) {
+            return denyTaskAccess(res, task, actor);
+        }
+        const decisionContext = await loadTicketDecisionContext(req.db!, actor, [task]);
+        const refusal = await ticketActionConflict(req.db!, actor, task, "changeState", decisionContext);
+        if (refusal && refusal.body.code !== "INVALID_TRANSITION") return res.status(refusal.status).json(refusal.body);
 
         // Resolve target workflow state. Accept either a numeric workflow_state_id
         // or a state key (the default keys are pending/in_progress/in_review/done).
@@ -308,8 +310,8 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         // One helper for every write path. It refuses a move the transition
         // graph does not allow (409 INVALID_TRANSITION) and a destination
         // column that is already full (409 WIP_EXCEEDED).
-        const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
-        const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle);
+        const lifecycle = decisionContext.lifecycle;
+        const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, target, lifecycle, actor, decisionContext);
         if (conflict) return res.status(conflict.status).json(conflict.body);
 
         // ── Phase 3: cycle-time start marker ────────────────────────────────
@@ -374,11 +376,12 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         const actor = taskActorFromRequest(req);
-        if (!await canAccessTask(task, actor, req.db)) return denyTaskAccess(res, task, actor);
-
-        // A completed sprint accepts no task writes.
-        const frozen = await frozenSprintError(req, task, sprint_id === undefined ? undefined : sprint_id);
-        if (frozen) return res.status(409).json(frozen);
+        if (!task) return denyTaskAccess(res, task, actor);
+        const changesState = workflow_state_id !== undefined
+            && String(workflow_state_id ?? "") !== String(task.workflow_state_id ?? "");
+        const decisionContext = await loadTicketDecisionContext(req.db!, actor, [task]);
+        const refusal = await ticketActionConflict(req.db!, actor, task, changesState ? "changeState" : "edit", decisionContext);
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         // Stage 3: allow assigning a task to a project *only if it has none
         // yet*. Re-keying an existing task (PROJ-12 → OTHER-7) would orphan
@@ -454,6 +457,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 orgId: req.userOrgId || null,
                 actorTeamId: req.userTeamId ?? null,
                 isAdmin: isOrgAdmin(req.userRole),
+                ticket: task,
+                actor,
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             requestedSprint = target.sprint ?? null;
@@ -504,18 +509,12 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 if (!newWsRow) return res.status(400).json({ error: 'Invalid workflow_state' });
             }
             newWsId = newWsRow ? newWsRow.id : null;
-            // Bug #13 (Stage 2): only check permission when the state actually
-            // changed. `completed_at` is derived by the database trigger, so
-            // this route never writes it.
             stateChanged = String(newWsId ?? '') !== String(task.workflow_state_id ?? '');
             if (stateChanged) {
-                if (!await canChangeTaskStatus(task, actor, req.db)) {
-                    return res.status(403).json({ error: STATUS_FORBIDDEN });
-                }
                 // The full update is another way into the lifecycle: it applies
                 // the same transition graph and WIP capacity as PATCH.
-                lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
-                const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, newWsRow, lifecycle);
+                lifecycle = decisionContext.lifecycle;
+                const conflict = await assertLifecycleMove(req.db!, req.userOrgId, task, newWsRow, lifecycle, actor, decisionContext);
                 if (conflict) return res.status(conflict.status).json(conflict.body);
             }
         }

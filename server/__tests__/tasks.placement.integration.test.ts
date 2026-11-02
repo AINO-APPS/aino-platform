@@ -387,7 +387,10 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         async function transfer(id: number, toTeamId: number) {
             const changes: PlacementChange[] = [];
             const result = await transaction((client, { afterCommit }) =>
-                placementModule.transferTicket(context(client, afterCommit, changes), id, toTeamId));
+                placementModule.transferTicket({
+                    ...context(client, afterCommit, changes),
+                    ticketActor: { ...ACTOR, teamId: null, role: "super_admin", teamVisibility: true },
+                }, id, toTeamId));
             return { result, changes };
         }
 
