@@ -1,6 +1,5 @@
 {
   "modules/tasks/tasks.ownership.ts": 2,
-  "modules/tasks/tasks.repository.ts": 7,
   "modules/tasks/tasks.sprintRepository.ts": 3,
   "routes/sprints.ts": 4,
   "services/sprintScheduler.ts": 1
