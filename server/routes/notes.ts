@@ -9,6 +9,7 @@ const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
 const { findLinkedTask, insertNoteTicket } = require("../modules/tasks/tasks.notes");
+const { loadUserContext } = require("../middleware/rbac");
 const noteTickets = require("./notes/_helpers/tickets");
 
 const router = express.Router();
@@ -240,7 +241,7 @@ router.delete("/links", async (req: Request, res: Response) => {
 });
 
 // Get all linked entities for a page (enriched with details)
-router.get("/links/:pageId", async (req: Request, res: Response) => {
+router.get("/links/:pageId", loadUserContext, async (req: Request, res: Response) => {
     try {
         const pageId = req.params.pageId;
         const links = (await req.db!.query(
@@ -256,7 +257,7 @@ router.get("/links/:pageId", async (req: Request, res: Response) => {
             let detail = null;
             try {
                 if (link.entity_type === "task") {
-                    detail = await findLinkedTask(req.db!, link.entity_id);
+                    detail = await findLinkedTask(req.db!, link.entity_id, req.userOrgId ?? null);
                     if (detail) linkedTickets.set(Number(detail.id), detail);
                 } else if (link.entity_type === "calendar_event") {
                     const r = (await req.db!.query(

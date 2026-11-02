@@ -22,11 +22,12 @@
  * container, not membership.
  */
 import type { TransactionContext } from "../../types/domain";
-import { sprintTeamMismatchBody, teamAfterSprintMove } from "./tasks.ownership";
+import { teamAfterSprintMove } from "./tasks.ownership";
 import * as repo from "./tasks.placementRepository";
 import type { HistoryRow, PlacementDb } from "./tasks.placementRepository";
 import type { TaskActor } from "./tasks.policy";
 import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
+import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
 import { placementRefusal } from "./tasks.placementRules";
 import type { PlacementTarget } from "./tasks.placementRules";
 export { placementRefusal, type PlacementTarget } from "./tasks.placementRules";
@@ -86,12 +87,9 @@ export type TransferPlacementResult =
     | Extract<PlacementResult, { ok: false }>;
 
 const REFUSALS: Record<PlacementRefusalCode, string> = {
-    ACCESS_DENIED: "Access denied",
+    ...CAPABILITY_DENIAL_MESSAGES,
     NOT_FOUND: "Ticket not found.",
     SPRINT_NOT_FOUND: "Sprint not found.",
-    SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
-    SPRINT_TEAM_MISMATCH: String(sprintTeamMismatchBody().error),
-    IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
     TEAM_NOT_FOUND: "Team not found in this organization.",
     TEAM_UNCHANGED: "This ticket already belongs to that team.",
 };

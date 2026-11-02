@@ -26,7 +26,19 @@ test("the current-sprint fixture matches the sprint-list contract", () => {
     }],
     currentSprintId: 31,
   });
+
   assert.deepEqual(fixture.data.sprints[0], fixture.data.sprints.find(
     (sprint) => sprint.id === fixture.data.currentSprintId,
   ));
+});
+
+test("the sprint-list contract preserves no current sprint alongside planned and completed sprints", () => {
+  const noCurrent = JSON.parse(fs.readFileSync(
+    path.join(root, "fixtures/sprint-list.no-current.json"),
+    "utf8",
+  ));
+  assert.equal(noCurrent.schema, fixture.schema);
+  assert.ok(api.components.schemas.SprintList.properties.currentSprintId.type.includes("null"));
+  assert.equal(noCurrent.data.currentSprintId, null);
+  assert.deepEqual(noCurrent.data.sprints.map((sprint) => sprint.status), ["planned", "completed"]);
 });

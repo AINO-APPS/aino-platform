@@ -43,6 +43,7 @@ deliberately excluded and remains a column/write-guard concern.
 
 `tasks.writeGuards.ts` adapts a decision action to a conflict. Access refusals
 remain 403 (404 for another org); lifecycle and placement conflicts remain 409.
+Guards and placement share capability denial text in `tasks.denialMessages.ts`.
 Cancellation of completed work now uses `INVALID_TRANSITION`, and cancellation
 or state changes on Cancelled tickets use `CANCELLED_TERMINAL`, matching the
 decision rather than the former `TASK_COMPLETED`/graph-only codes. Read access
@@ -75,3 +76,5 @@ It skips when that URL is unset.
 `routes/notes/_helpers/tickets.ts` owns Notes' endpoint-specific ticket summaries
 and embedded sprint stats. It retains the shared `enrichTaskSummaries` pipeline
 for containers and capabilities; Notes routes keep their reads and error handling.
+Linked-ticket lookups receive the actor's org from the route's loaded user
+context; links to another organization's tickets return no details.

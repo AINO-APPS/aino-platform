@@ -1,0 +1,10 @@
+{
+  "schema": "../../openapi.json#/components/schemas/SprintList",
+  "data": {
+    "sprints": [
+      { "id": 20, "team_id": 7, "name": "Future sprint", "status": "planned", "auto_managed": false },
+      { "id": 19, "team_id": 7, "name": "Completed sprint", "status": "completed", "auto_managed": false }
+    ],
+    "currentSprintId": null
+  }
+}
