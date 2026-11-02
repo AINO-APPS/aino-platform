@@ -58,7 +58,7 @@ router.post("/:id/transfer", auth, loadUserContext, async (req: Request, res: Re
             }
         }
 
-        const enriched = await enrichTasks([updated], req.db);
+        const enriched = await enrichTasks([updated], req.db, actor);
 
         res.json({
             task: enriched[0],

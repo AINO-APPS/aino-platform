@@ -11,7 +11,7 @@ const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
 const { ticketActionConflict } = require("./_helpers/access");
-const { loadTicketDecisionContext } = require("../../modules/tasks/tasks.capabilities");
+const { decideTicket, loadTicketDecisionContext } = require("../../modules/tasks/tasks.capabilities");
 const { taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { resolveWorkflowState, getOrCreateCancelledState } = require("./_helpers/agile");
 const {
@@ -22,6 +22,7 @@ const { assertLifecycleMove, stateOf } = require("../../modules/tasks/tasks.work
 const { announceStatusMove } = require("./_helpers/statusEvents");
 const { placeTickets } = require("../../modules/tasks/tasks.placement");
 const { placementContext } = require("./_helpers/placement");
+const { enrichTasks } = require("./_helpers/enrich");
 import type { PlacementTarget } from "../../modules/tasks/tasks.placement";
 
 const router = express.Router();
@@ -32,6 +33,7 @@ type BulkAction = (typeof ACTIONS)[number];
 interface BulkResult {
     id: number;
     ok: boolean;
+    ticket?: any;
     error?: string;
     /** Stable machine code for a skipped ticket (`INVALID_TRANSITION`, `WIP_EXCEEDED`, …). */
     code?: string;
@@ -63,8 +65,11 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             const sprint = sprintId === null ? null : await findSprintInOrg(req.db!, sprintId, req.userOrgId);
             const eligible: any[] = [];
             const resultById = new Map<number, BulkResult>();
+            const visibleIds = new Set<number>();
 
             for (const task of tasks) {
+                const edit = decideTicket(actor, task, decisionContext).capabilities.can.edit;
+                if (edit.allowed || edit.reason === "SPRINT_FROZEN") visibleIds.add(Number(task.id));
                 const refusal = await ticketActionConflict(req.db!, actor, task, "placeInSprint",
                     { ...decisionContext, targetSprint: sprintId === null ? undefined : sprint ?? null });
                 if (refusal) {
@@ -107,6 +112,13 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                 const result = resultById.get(task.id);
                 if (result) results.push(result);
             }
+            const freshTasks = await findManyInOrg(req.db!, [...visibleIds], req.userOrgId);
+            const enriched = await enrichTasks(freshTasks, req.db, actor);
+            const enrichedById = new Map(enriched.map((ticket: any) => [Number(ticket.id), ticket]));
+            for (const result of results) {
+                const ticket = enrichedById.get(result.id);
+                if (ticket) result.ticket = ticket;
+            }
             const changed = results.filter((result) => result.ok);
             return res.json({
                 action,
@@ -121,9 +133,12 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
         // graph and WIP setting, including tickets moved earlier in the loop.
         const lifecycle = decisionContext.lifecycle;
         const name = await findActorName(req.db!, req.userId);
+        const visibleIds = new Set<number>();
 
         const results: BulkResult[] = [];
         for (const task of tasks) {
+            const edit = decideTicket(actor, task, decisionContext).capabilities.can.edit;
+            if (edit.allowed || edit.reason === "SPRINT_FROZEN") visibleIds.add(Number(task.id));
             try {
                 if (action === "status") {
                     const target = await resolveWorkflowState(value, req.userOrgId, req.db);
@@ -205,6 +220,13 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             }
         }
 
+        const freshTasks = await findManyInOrg(req.db!, [...visibleIds], req.userOrgId);
+        const enriched = await enrichTasks(freshTasks, req.db, actor, lifecycle);
+        const enrichedById = new Map(enriched.map((ticket: any) => [Number(ticket.id), ticket]));
+        for (const result of results) {
+            const ticket = enrichedById.get(result.id);
+            if (ticket) result.ticket = ticket;
+        }
         const changed = results.filter((result) => result.ok);
         res.json({
             action,

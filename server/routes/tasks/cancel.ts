@@ -22,6 +22,7 @@ const { getOrCreateCancelledState } = require('./_helpers/agile');
 const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { announceStatusMove } = require('./_helpers/statusEvents');
+const { enrichTasks } = require('./_helpers/enrich');
 
 const router = express.Router();
 
@@ -49,6 +50,7 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         await logHistory(id, req.userId, 'cancelled', 'workflow_state', task.workflow_state_id, cancelled.id, null, req.db);
 
         const updated = await findTask(req.db!, id);
+        const enriched = await enrichTasks([updated], req.db, actor, lifecycle);
         await announceStatusMove(req, {
             task: updated,
             from: stateOf(lifecycle, task),
@@ -58,7 +60,7 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
             action: 'updated',
             fields: { workflow_state_id: cancelled.id },
         });
-        res.json({ cancelled: true, id, task: updated });
+        res.json({ cancelled: true, id, task: enriched[0] });
     } catch (err) {
         req.log.error({ err: err }, 'Error cancelling task:');
         res.status(500).json({ error: 'Failed to cancel task' });

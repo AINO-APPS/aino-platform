@@ -14,6 +14,8 @@ const { requireTenant } = require("../middleware/tenant");
 const { parseWorkDays, isJsDowWorkDay } = require("../utils/workDays");
 const { canSelfApprove, selfApprovalError } = require("../utils/selfApproval");
 const { applyManualEntryDecision } = require("../utils/manualEntryDecision");
+const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { enrichTasks } = require("./tasks/_helpers/enrich");
 
 const router = express.Router();
 router.use(auth, loadUserContext, requireTenant);
@@ -763,7 +765,7 @@ router.get("/member/:userId/tasks", async (req: Request, res: Response) => {
             [targetUserId, targetDate]
         )).rows;
 
-        res.json(tasks);
+        res.json(await enrichTasks(tasks, req.db, taskActorFromRequest(req)));
     } catch (err) {
         req.log.error({ err }, "GET /member/:userId/tasks error");
         res.status(500).json({ error: "Failed to fetch member tasks" });
