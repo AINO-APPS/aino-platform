@@ -918,7 +918,7 @@
       "phase": 1,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native capability controls are tracked separately in ticket 09." },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskCapabilitiesRenderingTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },
     {
@@ -928,7 +928,7 @@
       "phase": 1,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintBoard.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native board capability rendering is tracked separately in ticket 09." },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskCapabilitiesRenderingTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },
     {
@@ -938,7 +938,7 @@
       "phase": 1,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native container adoption is tracked separately in ticket 08." },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/PlanAlignmentTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },
     {
@@ -958,7 +958,7 @@
       "phase": 1,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native enriched-response replacement is tracked separately in ticket 09." },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     }
   ],
