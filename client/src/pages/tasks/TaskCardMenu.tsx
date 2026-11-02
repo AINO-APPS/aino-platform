@@ -6,6 +6,8 @@ import s from "./TaskCardMenu.module.css";
 export interface TaskCardMenuItem {
     label: string;
     onSelect: () => void;
+    disabled?: boolean;
+    title?: string;
 }
 
 interface TaskCardMenuProps {
@@ -82,11 +84,11 @@ export default function TaskCardMenu({ label, items }: TaskCardMenuProps) {
     }, [open]);
 
     useEffect(() => {
-        if (open) menuRef.current?.querySelector("button")?.focus();
+        if (open) menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     }, [open]);
 
     const move = (delta: number) => {
-        const buttons = Array.from(menuRef.current?.querySelectorAll("button") ?? []);
+        const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
         if (buttons.length === 0) return;
         const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
         const next = (index + delta + buttons.length) % buttons.length;
@@ -135,11 +137,13 @@ export default function TaskCardMenu({ label, items }: TaskCardMenuProps) {
                                 key={item.label}
                                 type="button"
                                 role="menuitem"
+                                disabled={item.disabled}
+                                title={item.title}
                                 className={s["menu-item"]}
                                 onClick={(event) => {
                                     event.stopPropagation();
                                     setOpen(false);
-                                    item.onSelect();
+                                    if (!item.disabled) item.onSelect();
                                 }}
                             >
                                 {item.label}

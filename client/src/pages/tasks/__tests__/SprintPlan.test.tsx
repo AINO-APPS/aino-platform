@@ -4,13 +4,14 @@ import fs from "node:fs";
 import path from "node:path";
 import SprintPlan from "../SprintPlan";
 import { TaskProvider } from "../TaskContext";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const backlogTasks = [
-    { id: 1, issue_key: "PAY-1", title: "Refund webhook", story_points: 5 },
-    { id: 2, issue_key: "PAY-2", title: "Ledger fix", story_points: 3 },
+    { ...ticket, id: 1, issue_key: "PAY-1", title: "Refund webhook", story_points: 5 },
+    { ...ticket, id: 2, issue_key: "PAY-2", title: "Ledger fix", story_points: 3 },
 ];
 const sprintTasks = [
-    { id: 3, issue_key: "PAY-3", title: "Retry backoff", story_points: 8 },
+    { ...ticket, container: "sprint", id: 3, issue_key: "PAY-3", title: "Retry backoff", story_points: 8 },
 ];
 
 function planProps(overrides: Record<string, unknown> = {}): any {
@@ -39,6 +40,15 @@ function renderPlan(overrides: Record<string, unknown> = {}) {
 }
 
 describe("SprintPlan", () => {
+    test("placement controls render the ticket's server decision and denial copy", () => {
+        const denied = {
+            ...ticket, capabilities: { ...ticket.capabilities, can: { ...ticket.capabilities.can, placeInSprint: { allowed: false, reason: "SPRINT_FROZEN" } } },
+        };
+        renderPlan({ backlogTasks: [denied], sprintTasks: [] });
+        const move = screen.getByRole("button", { name: /Move Review the release plan into the sprint/ });
+        expect(move).toBeDisabled();
+        expect(move).toHaveAttribute("title", "This sprint is frozen. Move the ticket out first.");
+    });
     test("backlog and sprint are visible simultaneously", () => {
         renderPlan();
         expect(screen.getByRole("region", { name: "Backlog" })).toBeTruthy();

@@ -5,6 +5,7 @@ import { CardBody, ScheduleControl } from "./TaskCardParts";
 import { useAgileConfig } from "../../AgileConfigContext";
 import IssueKey from "./IssueKey";
 import TaskCardMenu from "./TaskCardMenu";
+import { actionDecision, decisionProps, transitionOptions } from "./ticketCapabilities";
 import { useCardDensity } from "./TaskContext";
 import s from "./BacklogTab.module.css";
 import c from "./TaskCard.module.css";
@@ -72,12 +73,13 @@ export default function BacklogCard({
         statusOptions(workflowStates)[0];
     const issueKey = task.issue_key || `#${task.id}`;
     const selected = selection?.isSelected(task.id) ?? false;
+    const canReorder = Boolean(reorder) && actionDecision(task, "edit").allowed;
     const openSchedule = () => {
         setScheduleTaskId(task.id);
         setScheduleDate(getLocalToday());
     };
 
-    const titleSlot = editingTitle ? (
+    const titleSlot = editingTitle && actionDecision(task, "edit").allowed ? (
         <input
             className={s["backlog-inline-input"]}
             value={titleDraft}
@@ -88,7 +90,7 @@ export default function BacklogCard({
             onBlur={() => {
                 setEditingTitle(false);
                 const next = titleDraft.trim();
-                if (next && next !== task.title) {
+                if (next && next !== task.title && actionDecision(task, "edit").allowed) {
                     void onInlineEdit?.(task, { title: next });
                 } else {
                     setTitleDraft(task.title ?? "");
@@ -109,11 +111,11 @@ export default function BacklogCard({
     ) : (
         <span
             onDoubleClick={(event) => {
-                if (!onInlineEdit) return;
+                if (!onInlineEdit || !actionDecision(task, "edit").allowed) return;
                 event.stopPropagation();
                 setEditingTitle(true);
             }}
-            title={onInlineEdit ? "Double-click to edit" : undefined}
+            title={decisionProps(actionDecision(task, "edit")).title || (onInlineEdit ? "Double-click to edit" : undefined)}
         >
             {task.title}
         </span>
@@ -135,25 +137,25 @@ export default function BacklogCard({
             )}
             <div
                 className={`${c["task-card"]} ${c.clickable} ${s["backlog-card"]} ${compact ? c["task-card-compact"] : ""} ${task.completed_at ? c["task-done"] : ""} ${selected ? c["task-card-selected"] : ""} ${reorder?.draggingId === task.id ? s["backlog-card-dragging"] : ""} ${reorder?.overId === task.id ? s["backlog-card-over"] : ""}`}
-                draggable={Boolean(reorder)}
-                onDragStart={() => reorder?.onDragStart(task.id)}
+                draggable={canReorder}
+                onDragStart={() => { if (canReorder) reorder?.onDragStart(task.id); }}
                 onDragOver={(e) => {
-                    if (!reorder) return;
+                    if (!reorder || !canReorder) return;
                     e.preventDefault();
                     reorder.onDragOver(task.id);
                 }}
                 onDrop={(e) => {
-                    if (!reorder) return;
+                    if (!reorder || !canReorder) return;
                     e.preventDefault();
                     reorder.onDrop(task.id);
                 }}
-                tabIndex={reorder ? 0 : undefined}
+                tabIndex={canReorder ? 0 : undefined}
                 role={reorder ? "listitem" : undefined}
                 aria-roledescription={reorder ? "sortable backlog item" : undefined}
                 aria-grabbed={reorder ? reorder.draggingId === task.id : undefined}
                 data-task-id={reorder ? String(task.id) : undefined}
-                onKeyDown={(e) => reorder?.onKeyDown(e, task.id)}
-                onTouchStart={(e) => reorder?.onTouchStart?.(e, task.id)}
+                onKeyDown={(e) => { if (canReorder) reorder?.onKeyDown(e, task.id); }}
+                onTouchStart={(e) => { if (canReorder) reorder?.onTouchStart?.(e, task.id); }}
                 onTouchMove={(e) => reorder?.onTouchMove?.(e)}
                 onTouchEnd={() => reorder?.onTouchEnd?.()}
                 onClick={(e) => {
@@ -176,6 +178,7 @@ export default function BacklogCard({
                     actionsSlot={
                         <span className={s["backlog-actions"]}>
                             <ScheduleControl
+                                {...decisionProps(actionDecision(task, "schedule"))}
                                 open={scheduleTaskId === task.id}
                                 date={scheduleDate}
                                 onOpen={openSchedule}
@@ -188,9 +191,16 @@ export default function BacklogCard({
                                 items={[
                                     { label: "Open task", onSelect: () => onOpenDetail(task) },
                                     ...(onAddToSprint
-                                        ? [{ label: "Add to sprint", onSelect: () => onAddToSprint(task) }]
+                                        ? [{ label: "Add to sprint", ...decisionProps(actionDecision(task, "placeInSprint")), onSelect: () => onAddToSprint(task) }]
                                         : []),
-                                    { label: "Schedule to a day", onSelect: openSchedule },
+                                    { label: "Schedule to a day", ...decisionProps(actionDecision(task, "schedule")), onSelect: openSchedule },
+                                    ...(onInlineEdit ? [{
+                                        label: "Edit title", ...decisionProps(actionDecision(task, "edit")),
+                                        onSelect: () => setEditingTitle(true),
+                                    }, ...transitionOptions(task, workflowStates).map((option) => ({
+                                        label: option.label, ...decisionProps(option),
+                                        onSelect: () => void onInlineEdit(task, { workflow_state_id: option.to }),
+                                    }))] : []),
                                 ]}
                             />
                         </span>

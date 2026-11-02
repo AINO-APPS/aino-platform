@@ -230,7 +230,7 @@ export default function Tasks() {
     sprintId: selectedSprintId,
     fetchTasks,
     fetchBacklog: backlog.fetchBacklog,
-    onError: setError,
+    onError: setError, onReplaced: detail.replaceTicket,
   });
 
   // Epics: the rollup list and the URL-backed epic filter.
@@ -327,7 +327,7 @@ export default function Tasks() {
 
   const lifecycle = useTicketLifecycle({
     availableSprints, currentSprintId: team.currentSprintId, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
-    setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast,
+    setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast, onReplaced: detail.replaceTicket,
   });
 
   const confirmDeleteWithRefresh = async () => {
@@ -387,7 +387,7 @@ export default function Tasks() {
   });
 
   return (
-    <TaskProvider
+    <TaskProvider onStatusChange={detail.handleDetailStatusChange}
       assignableUsers={assignableUsers}
       orgLabels={orgLabels}
       availableSprints={visibleSprints} currentSprintId={team.currentSprintId}
@@ -496,7 +496,7 @@ export default function Tasks() {
             attribution={backlog.attribution}
             bulkBar={
               <BacklogBulkBar
-                bulk={backlog.bulk}
+                bulk={backlog.bulk} tasks={backlog.backlogTasks}
                 availableSprints={availableSprints}
                 assignableUsers={assignableUsers}
                 onOfferUndo={offerUndo}
@@ -514,7 +514,7 @@ export default function Tasks() {
           />
         )}
 
-        {activeTab === "scheduled" && (<ScheduledTab filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
+        {activeTab === "scheduled" && (<ScheduledTab updatedTicket={detail.detailTask} filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}
 
         <InlineCommentPanel
@@ -552,7 +552,7 @@ export default function Tasks() {
           onDeleteComment={detail.handleDetailDeleteComment}
           onSchedule={backlog.handleScheduleTask}
           onUnschedule={backlog.handleUnscheduleTask}
-          onStatusChange={detail.handleDetailStatusChange}
+          onStatusChange={detail.handleDetailStatusChange} onReplaced={detail.replaceTicket}
           showConfirm={showConfirm}
           closeConfirm={closeConfirm}
           fetchTasks={fetchTasks}

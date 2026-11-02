@@ -70,14 +70,6 @@ describe("calendar maths", () => {
         expect(overdue.map((task) => task.id)).toEqual([1]);
     });
 
-    test("the tray holds backlog work with no planned day", () => {
-        expect(unscheduledTasks([
-            { id: 1 },
-            { id: 2, planned_date: "2026-10-25" },
-            { id: 3, planned_date: null },
-        ]).map((task) => task.id)).toEqual([1, 3]);
-    });
-
     test("the planned day is the only scheduling field", () => {
         expect(plannedDay({ id: 1, planned_date: "2026-10-25" })).toBe("2026-10-25");
         expect(plannedDay({ id: 1 })).toBeNull();

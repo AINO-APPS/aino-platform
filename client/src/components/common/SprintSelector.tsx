@@ -8,13 +8,14 @@ interface SprintSelectorProps {
     selected: number | string | "";
     onChange: (sprintId: number | "") => void;
     disabled?: boolean;
+    title?: string;
     showBadge?: boolean;
 }
 
 /**
  * Reusable sprint selector dropdown.
  */
-export default function SprintSelector({ sprints, selected, onChange, disabled = false, showBadge = true }: SprintSelectorProps) {
+export default function SprintSelector({ sprints, selected, onChange, disabled = false, title, showBadge = true }: SprintSelectorProps) {
     if (!sprints || sprints.length === 0) return null;
 
     return (
@@ -24,6 +25,8 @@ export default function SprintSelector({ sprints, selected, onChange, disabled =
                 value={selected || ""}
                 onChange={(e) => onChange(e.target.value ? parseInt(e.target.value, 10) : "")}
                 disabled={disabled}
+                title={title}
+                aria-label="Sprint"
             >
                 <option value="">Backlog (no sprint)</option>
                 {sprints.map((sp) => (

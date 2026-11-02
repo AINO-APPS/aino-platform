@@ -9,6 +9,7 @@ import { useBacklogReorder } from "./useBacklogReorder";
 import { useUndo } from "./useUndo";
 import { describeSkipped, useBulkSelection, type BulkAction, type BulkResult } from "./useBulkSelection";
 import { useTaskDeltas } from "./useTaskDeltas";
+import { writeError } from "../ticketCapabilities";
 import { useApplyBulkStatus } from "./useApplyBulkStatus";
 import type { Task } from "../../../types";
 
@@ -17,10 +18,9 @@ import type { Task } from "../../../types";
  *
  * The bulk endpoint reports each task's prior value, so undo replays those
  * values through the same endpoint rather than refetching and hoping. A
- * deleted task cannot be restored this way — the row is gone — so delete is
- * the one action whose undo is a refetch.
+ * cancelled ticket cannot be reopened, so delete's undo only refetches.
  */
-async function reverseBulkAction(action: BulkAction, applied: BulkResult[]): Promise<void> {
+async function reverseBulkAction(action: BulkAction, applied: BulkResult[], onResults: (results: BulkResult[]) => void): Promise<void> {
     if (action === "delete" || applied.length === 0) return;
 
     if (action === "move_to_sprint") {
@@ -31,7 +31,8 @@ async function reverseBulkAction(action: BulkAction, applied: BulkResult[]): Pro
             bySprint.set(sprintId, [...(bySprint.get(sprintId) ?? []), result.id]);
         });
         for (const [sprintId, group] of bySprint) {
-            await bulkTaskAction({ ids: group, action: "move_to_sprint", value: sprintId });
+            const { data } = await bulkTaskAction({ ids: group, action: "move_to_sprint", value: sprintId });
+            onResults(data.results || []);
         }
         return;
     }
@@ -44,7 +45,8 @@ async function reverseBulkAction(action: BulkAction, applied: BulkResult[]): Pro
             byState.set(stateId, [...(byState.get(stateId) ?? []), result.id]);
         });
         for (const [stateId, group] of byState) {
-            await bulkTaskAction({ ids: group, action: "status", value: stateId });
+            const { data } = await bulkTaskAction({ ids: group, action: "status", value: stateId });
+            onResults(data.results || []);
         }
         return;
     }
@@ -56,7 +58,8 @@ async function reverseBulkAction(action: BulkAction, applied: BulkResult[]): Pro
             byAssignee.set(assignee, [...(byAssignee.get(assignee) ?? []), result.id]);
         });
         for (const [assignee, group] of byAssignee) {
-            await bulkTaskAction({ ids: group, action: "assign", value: assignee });
+            const { data } = await bulkTaskAction({ ids: group, action: "assign", value: assignee });
+            onResults(data.results || []);
         }
     }
 }
@@ -110,6 +113,11 @@ export function useBacklog({
     onMoved,
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
+    const replaceTicket = (fresh: Task) => setBacklogTasks((current) =>
+        current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
+    const replaceResults = (results: BulkResult[]) => {
+        results.forEach((result) => { if (result.ok && result.task) replaceTicket(result.task); });
+    };
     const [backlogLoading, setBacklogLoading] = useState(false);
     // A load failure belongs to this section, not just the page-level banner:
     // the Plan view must be able to say "this pane failed" and offer a retry.
@@ -168,15 +176,25 @@ export function useBacklog({
     // Bulk actions are backlog-only. Selection is keyed by id, so it survives
     // reordering, and one undo reverses the whole batch.
     const bulk = useBulkSelection({
+        tasks: backlogTasks,
         onApplied: (action, changed, results) => {
+            replaceResults(results);
             // The server reports what each task was before the action, so undo
             // can put it back rather than merely refetching and hoping.
             const applied = results.filter((result) => result.ok && result.previous);
             undo.register({
                 label: `Bulk ${action.replace(/_/g, " ")} (${changed})`,
                 undo: async () => {
-                    await reverseBulkAction(action, applied);
-                    await fetchBacklog(true);
+                    try {
+                        await reverseBulkAction(action, applied, (restored) => {
+                            replaceResults(restored);
+                            const skipped = describeSkipped(restored, backlogTasks);
+                            if (skipped) setError(skipped);
+                        });
+                        await fetchBacklog(true);
+                    } catch (error) {
+                        setError(writeError(error, "Failed to undo bulk action"));
+                    }
                 },
             });
             // Skipped tickets are named after the fact too: the server is the
@@ -231,7 +249,7 @@ export function useBacklog({
                 completed_count?: number;
                 pagination?: { total?: number };
             };
-            setBacklogTasks(data.tasks);
+            setBacklogTasks(data.tasks.filter((task) => task.container === "backlog"));
             if (typeof data.completed_count === "number") {
                 setCompletedCount(data.completed_count);
             }
@@ -382,14 +400,15 @@ export function useBacklog({
             async () => {
                 closeConfirm();
                 try {
-                    await scheduleTask(taskId, dateToUse);
+                    const { data } = await scheduleTask(taskId, dateToUse);
+                    replaceTicket(data as Task);
                     setScheduleTaskId(null);
                     fetchBacklog(true);
                     if (dateToUse === date) fetchTasks();
                     if (closeAfter) closeAfter();
                     onScheduled?.(taskId, dateToUse);
-                } catch {
-                    setError("Failed to schedule task");
+                } catch (error) {
+                    setError(writeError(error, "Failed to schedule task"));
                 }
             },
             { confirmText: "Schedule" },
@@ -407,12 +426,13 @@ export function useBacklog({
             async () => {
                 closeConfirm();
                 try {
-                    await unscheduleTask(taskId);
+                    const { data } = await unscheduleTask(taskId);
+                    replaceTicket(data as Task);
                     fetchTasks();
                     if (backlogOpen || activeTab === "backlog" || activeTab === "sprint") fetchBacklog(true);
                     if (closeAfter) closeAfter();
-                } catch {
-                    setError("Failed to move task to backlog");
+                } catch (error) {
+                    setError(writeError(error, "Failed to move task to backlog"));
                 }
             },
             { confirmText: "Move to Backlog" },
@@ -423,12 +443,14 @@ export function useBacklog({
         if (!importConfigTask || !selectedSprintId) return;
         const importedId = importConfigTask.id;
         try {
-            await assignTaskToSprint(importedId, selectedSprintId);
+            const assigned = await assignTaskToSprint(importedId, selectedSprintId);
+            replaceTicket(assigned.data as Task);
             if (importAssignedTo || importDueDate) {
-                await updateTask(importedId, {
+                const updated = await updateTask(importedId, {
                     assigned_to: importAssignedTo || null,
                     due_date: importDueDate || null,
                 });
+                replaceTicket(updated.data as Task);
             }
             setBacklogTasks((prev) => prev.filter((t) => t.id !== importedId));
             setImportConfigTask(null);
@@ -436,8 +458,8 @@ export function useBacklog({
             setImportDueDate("");
             fetchTasks();
             fetchBacklog(true);
-        } catch {
-            setError("Failed to import task to sprint");
+        } catch (error) {
+            setError(writeError(error, "Failed to import task to sprint"));
         }
     };
 
@@ -452,7 +474,9 @@ export function useBacklog({
     // without a refetch and without flicker. `task_assigned` still refetches
     // because it can add a row that is not on screen yet.
     const deltas = useTaskDeltas(setBacklogTasks, {
-        enabled: activeTab === "backlog",
+        enabled: activeTab === "backlog" || activeTab === "sprint",
+        container: "backlog",
+        onRefresh: refreshVisible,
     });
     useRealtimeEvent(["task_assigned"], refreshVisible);
     // Teammates' edits never reach this user's socket; poll while visible.
@@ -480,7 +504,7 @@ export function useBacklog({
             }
             const res = await getBacklog(params);
             const data = res.data as { tasks?: Task[] };
-            setCompletedTasks(data.tasks || []);
+            setCompletedTasks((data.tasks || []).filter((task: Task) => task.container === "backlog"));
             setCompletedShowingAll(showAll);
         } catch {
             setError("Failed to load completed work");

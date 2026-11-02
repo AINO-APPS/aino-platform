@@ -6,8 +6,9 @@ import CommentSection from "../../components/profile/CommentSection";
 import SprintSelector from "../../components/common/SprintSelector";
 import LabelSelector from "./LabelSelector";
 import { PRIORITIES } from "./constants";
-import { canCancelTask, currentStatusOption, statusOptions } from "./taskStatus";
-import { useFeatures } from "../../FeaturesContext";
+import { currentStatusOption, statusOptions } from "./taskStatus";
+import { actionDecision, decisionProps } from "./ticketCapabilities";
+import TicketDetailActions from "./TicketDetailActions";
 import { formatDueDate, isDueOverdue, getAvatarUrl } from "./utils";
 import { useTaskCtx } from "./TaskContext";
 import {
@@ -49,7 +50,7 @@ interface TaskDetailModalProps {
         id: number | string,
         title: string,
         onClose: () => void,
-        dueDate: string,
+        plannedDate: string,
     ) => void;
     onUnschedule: (
         id: number | string,
@@ -62,6 +63,7 @@ interface TaskDetailModalProps {
     fetchTasks?: () => void;
     fetchBacklog?: () => void;
     setError?: (msg: string) => void;
+    onReplaced?: (ticket: any) => void;
 }
 
 export default function TaskDetailModal({
@@ -89,6 +91,7 @@ export default function TaskDetailModal({
     fetchTasks,
     fetchBacklog,
     setError,
+    onReplaced,
 }: TaskDetailModalProps) {
     const {
         assignableUsers,
@@ -99,8 +102,6 @@ export default function TaskDetailModal({
         activeTab,
     } = useTaskCtx() as any;
     const { typeById, workflowStates } = useAgileConfig() as any;
-    const { hasFeature } = useFeatures() as any;
-    const canCancel = canCancelTask(detailTask, currentUser?.id, currentUser?.role, { teamId: currentUser?.team_id ?? null, teamVisibility: hasFeature("team_visibility") });
     const { fields: customFields } = useCustomFields() as unknown as { fields: any[] };
     // Pull custom-field values once on open so the read-only summary has data.
     const [customValues, setCustomValues] = useState<Record<string, unknown>>(
@@ -212,7 +213,7 @@ export default function TaskDetailModal({
     const plannedDate = detailTask.planned_date || null;
     // A task is "backlog" only if it has neither a scheduled date nor a sprint
     // assignment. Sprint tickets without a daily-planner date are NOT backlog.
-    const isBacklogItem = !detailTask.sprint_id;
+    const isBacklogItem = detailTask.container === "backlog";
 
     return (
         <TaskDetailSheet
@@ -273,26 +274,10 @@ export default function TaskDetailModal({
                 <>
                     {!detailEditing && (
                         <>
-                            <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={onStartEdit}
-                            >
-                                <Pencil
-                                    size={13}
-                                    style={{ marginRight: 4, verticalAlign: "middle" }}
-                                />
-                                Edit
-                            </button>
-                            {canCancel && (
-                                <button
-                                    className="btn btn-danger btn-sm"
-                                    onClick={() => onDelete(detailTask)}
-                                    title="Cancelling keeps the ticket and its history; it leaves the open work."
-                                >
-                                    <Trash2 size={13} style={{ marginRight: 4, verticalAlign: "middle" }} />
-                                    Cancel ticket
-                                </button>
-                            )}
+                            <TicketDetailActions task={detailTask} onEdit={onStartEdit}
+                                onCancel={() => onDelete(detailTask)}
+                                onReplaced={(ticket) => onReplaced?.(ticket)}
+                                onError={(message) => setError?.(message)} />
                         </>
                     )}
                     {detailEditing && (
@@ -300,6 +285,7 @@ export default function TaskDetailModal({
                             <button
                                 className="btn btn-primary btn-sm"
                                 onClick={handleSaveEdit}
+                                {...decisionProps(actionDecision(detailTask, "edit"))}
                             >
                                 <Save
                                     size={13}
@@ -319,7 +305,7 @@ export default function TaskDetailModal({
             }
         >
             <div className={s["detail-modal-body"]}>
-                    {detailEditing ? (
+                    {detailEditing && actionDecision(detailTask, "edit").allowed ? (
                         /* ─── EDIT MODE ─── */
                         <div className={s["detail-edit-section"]}>
                             <div className="form-group">
@@ -375,6 +361,7 @@ export default function TaskDetailModal({
                                     </label>
                                     <input
                                         id="task-planned-date"
+                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
                                         type="date"
                                         value={editPlannedDate}
                                         onChange={(e) => setEditPlannedDate(e.target.value)}
@@ -384,8 +371,7 @@ export default function TaskDetailModal({
                                         id="task-planned-date-hint"
                                         className={s["form-extra-hint"]}
                                     >
-                                        When this is scheduled to be worked on. Does not
-                                        remove it from the backlog.
+                                        The planned day places unsprinted work in Scheduled.
                                     </small>
                                 </div>
                                 <div className={s["form-extra-group"]}>
@@ -406,6 +392,7 @@ export default function TaskDetailModal({
                                     </small>
                                 </div>
                                 <SprintSelector
+                                    {...decisionProps(actionDecision(detailTask, "placeInSprint"))}
                                     sprints={availableSprints}
                                     selected={editSprintId as any}
                                     onChange={(id: any) => {
@@ -502,15 +489,16 @@ export default function TaskDetailModal({
                                 />
                             </div>
                             <div className={s["detail-edit-buttons"]}>
-                                {isBacklogItem || activeTab === "backlog" ? (
+                                {detailTask.container !== "scheduled" ? (
                                     <button
+                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
                                         className="btn btn-secondary btn-sm"
                                         onClick={() =>
                                             onSchedule(
                                                 detailTask.id,
                                                 detailTask.title,
                                                 onClose,
-                                                editDueDate,
+                                                editPlannedDate,
                                             )
                                         }
                                     >
@@ -522,6 +510,7 @@ export default function TaskDetailModal({
                                     </button>
                                 ) : (
                                     <button
+                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
                                         className="btn btn-secondary btn-sm"
                                         onClick={() =>
                                             onUnschedule(detailTask.id, detailTask.title, onClose)

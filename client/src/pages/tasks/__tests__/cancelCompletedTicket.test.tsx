@@ -1,16 +1,10 @@
-/**
- * Cancelling is for open work.
- *
- * A completed ticket already reached a terminal state, so the detail view must
- * not offer "Cancel ticket" for it — the server refuses the move, and offering
- * a button that always fails is worse than not offering it. An open ticket
- * still shows the action.
- */
+/** Cancellation renders the server decision, not completion or actor rules. */
 import { describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TaskDetailModal from "../TaskDetailModal";
 import { ToastProvider } from "../../../components/common/Toast";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 vi.mock("../../../AgileConfigContext", () => ({
     useAgileConfig: () => ({
@@ -46,6 +40,7 @@ vi.mock("../../../api/customFields", () => ({
 }));
 
 const baseTask = {
+    ...ticket,
     id: 7,
     title: "Refund webhook retries",
     issue_key: "PAY-142",
@@ -94,7 +89,7 @@ describe("cancel ticket affordance", () => {
         expect(screen.queryByText("Cancel ticket")).not.toBeNull();
     });
 
-    test("a completed ticket does not offer Cancel ticket", () => {
+    test("a server-denied cancellation stays visible with its reason", () => {
         renderModal({
             ...baseTask,
             workflow_state_id: 12,
@@ -102,7 +97,9 @@ describe("cancel ticket affordance", () => {
             workflow_state_name: "Done",
             workflow_state_category: "done",
             completed_at: "2026-10-20T10:00:00.000Z",
+            capabilities: { ...ticket.capabilities, can: { ...ticket.capabilities.can, cancel: { allowed: false, reason: "INVALID_TRANSITION" } } },
         });
-        expect(screen.queryByText("Cancel ticket")).toBeNull();
+        expect(screen.getByRole("button", { name: "Cancel ticket" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Cancel ticket" })).toHaveAttribute("title", "This workflow transition is not allowed.");
     });
 });

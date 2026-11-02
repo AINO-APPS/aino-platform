@@ -1,9 +1,11 @@
 import { useCallback, useState } from "react";
 import { bulkTaskAction } from "../../../api/tasks";
+import { actionDecision, reasonCopy, writeError } from "../ticketCapabilities";
 
 export type BulkAction = "move_to_sprint" | "status" | "assign" | "delete";
 
 interface UseBulkSelectionArgs {
+    tasks?: any[];
     onApplied?: (action: BulkAction, changed: number, results: BulkResult[]) => void;
     onError?: (message: string) => void;
 }
@@ -16,6 +18,7 @@ export interface BulkResult {
     /** Stable machine code for a skipped ticket. */
     code?: string;
     previous?: Record<string, unknown>;
+    task?: any;
 }
 
 /** The tickets the server skipped, named for the error banner. */
@@ -27,9 +30,9 @@ export function describeSkipped(
     if (skipped.length === 0) return null;
     const titles = skipped.map((result) => {
         const task = tasks.find((candidate) => String(candidate.id) === String(result.id));
-        return task?.title || `#${result.id}`;
+        return `${task?.title || `#${result.id}`}: ${result.code ? reasonCopy(result.code) : result.error || reasonCopy()}`;
     });
-    return `${skipped.length} ticket(s) skipped: ${titles.join(", ")} (${skipped[0].error || "not allowed"})`;
+    return `${skipped.length} ticket(s) skipped: ${titles.join("; ")}`;
 }
 
 /**
@@ -39,7 +42,7 @@ export function describeSkipped(
  * on navigation. A bulk action applies to exactly the selected set, and the
  * whole batch is one undo step.
  */
-export function useBulkSelection({ onApplied, onError }: UseBulkSelectionArgs = {}) {
+export function useBulkSelection({ tasks = [], onApplied, onError }: UseBulkSelectionArgs = {}) {
     const [selected, setSelected] = useState<Set<number | string>>(new Set());
     const [applying, setApplying] = useState(false);
 
@@ -65,24 +68,33 @@ export function useBulkSelection({ onApplied, onError }: UseBulkSelectionArgs = 
             if (selected.size === 0) return null;
             setApplying(true);
             try {
-                const res = await bulkTaskAction({
-                    ids: [...selected],
+                const skipped: BulkResult[] = [];
+                const ids = [...selected].filter((id) => {
+                    const task = tasks.find((entry) => String(entry.id) === String(id));
+                    const decision = action === "status"
+                        ? task?.capabilities?.transitions?.find((target: any) => String(target.to) === String(value))
+                        : actionDecision(task, action === "move_to_sprint" ? "placeInSprint" : action === "delete" ? "delete" : "edit");
+                    if (decision?.allowed === true) return true;
+                    skipped.push({ id: Number(id), ok: false, ...(decision?.reason ? { code: decision.reason } : {}) });
+                    return false;
+                });
+                const res = ids.length ? await bulkTaskAction({
+                    ids,
                     action,
                     value,
-                });
+                }) : null;
                 const changed = res?.data?.changed ?? 0;
-                onApplied?.(action, changed, res?.data?.results ?? []);
-                return res?.data ?? null;
+                const results = [...(res?.data?.results ?? []), ...skipped];
+                onApplied?.(action, changed, results);
+                return { ...res?.data, changed, results };
             } catch (err) {
-                const message = (err as { response?: { data?: { error?: string } } })
-                    ?.response?.data?.error;
-                onError?.(message || "Failed to apply bulk action");
+                onError?.(writeError(err, "Failed to apply bulk action"));
                 return null;
             } finally {
                 setApplying(false);
             }
         },
-        [selected, onApplied, onError],
+        [selected, tasks, onApplied, onError],
     );
 
     return {

@@ -12,6 +12,7 @@ export type CardDensity = "comfortable" | "compact";
  * BacklogTab, and TaskDetailModal.
  */
 interface TaskContextValue {
+    onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     assignableUsers: User[];
     orgLabels: TaskLabel[];
     availableSprints: Sprint[];
@@ -26,6 +27,7 @@ interface TaskContextValue {
 const TaskContext = createContext<TaskContextValue | null>(null);
 
 interface TaskProviderProps {
+    onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     children: React.ReactNode;
     assignableUsers: User[];
     orgLabels: TaskLabel[];
@@ -38,6 +40,7 @@ interface TaskProviderProps {
 }
 
 export function TaskProvider({
+    onStatusChange,
     children,
     assignableUsers,
     orgLabels,
@@ -50,6 +53,7 @@ export function TaskProvider({
 }: TaskProviderProps) {
     const value = useMemo(
         () => ({
+            onStatusChange,
             assignableUsers,
             orgLabels,
             availableSprints,
@@ -60,6 +64,7 @@ export function TaskProvider({
             cardDensity,
         }),
         [
+            onStatusChange,
             assignableUsers,
             orgLabels,
             availableSprints,

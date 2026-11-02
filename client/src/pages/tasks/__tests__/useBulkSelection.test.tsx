@@ -1,6 +1,9 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useBulkSelection } from "../hooks/useBulkSelection";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
+
+const tasks = [1, 2, 3, 4, 7].map((id) => ({ ...ticket, id }));
 
 const bulkTaskAction = vi.fn();
 
@@ -37,17 +40,17 @@ describe("useBulkSelection", () => {
 
     test("the action applies to exactly the selected set", async () => {
         bulkTaskAction.mockResolvedValue({ data: { changed: 2 } });
-        const { result } = renderHook(() => useBulkSelection());
+        const { result } = renderHook(() => useBulkSelection({ tasks }));
 
         act(() => result.current.selectAll([4, 7]));
         await act(async () => {
-            await result.current.apply("status", "done");
+            await result.current.apply("status", "103");
         });
 
         expect(bulkTaskAction).toHaveBeenCalledWith({
             ids: [4, 7],
             action: "status",
-            value: "done",
+            value: "103",
         });
     });
 
@@ -63,7 +66,7 @@ describe("useBulkSelection", () => {
     test("a failed action reports the server message", async () => {
         bulkTaskAction.mockRejectedValue({ response: { data: { error: "No tasks selected" } } });
         const onError = vi.fn();
-        const { result } = renderHook(() => useBulkSelection({ onError }));
+        const { result } = renderHook(() => useBulkSelection({ onError, tasks }));
 
         act(() => result.current.selectAll([1]));
         await act(async () => {
@@ -95,7 +98,7 @@ describe("useBulkSelection", () => {
             },
         });
         const onApplied = vi.fn();
-        const { result } = renderHook(() => useBulkSelection({ onApplied }));
+        const { result } = renderHook(() => useBulkSelection({ onApplied, tasks }));
 
         act(() => result.current.selectAll([1, 2, 3]));
         await act(async () => {
