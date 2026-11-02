@@ -120,11 +120,15 @@ test("being added to a sprint notifies the assignee", () => {
 
 test("bulk move-to-sprint emits the same added-to-sprint event", () => {
   const source = read("server/routes/tasks/bulk.ts");
-  assert.ok(source.includes("describeSprintTaskAdded"), "bulk move does not notify");
-  // Moving work OUT of a sprint is not "added to a sprint".
+  assert.ok(source.includes("placeTickets("), "bulk move bypasses placement");
   assert.ok(
-    /sprintId !== null[\s\S]{0,120}notifyBulkSprintAdded/.test(source),
-    "bulk move must only notify when a sprint is actually set",
+    source.includes("placementContext(req, client, afterCommit)"),
+    "bulk placement must use the shared post-commit effects",
+  );
+  const effects = read("server/modules/tasks/tasks.placementEffects.ts");
+  assert.ok(
+    effects.includes("after.sprint_id == null || String(after.sprint_id) === String(before.sprint_id ?? null)"),
+    "placement should notify only when a ticket joins a sprint",
   );
 });
 
