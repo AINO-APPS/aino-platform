@@ -24,7 +24,7 @@ const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
-const { canAccessTask, denyTaskAccess } = require('./_helpers/access');
+const { ticketActionConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
@@ -374,7 +374,9 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         }
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
+        if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "schedule");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
             placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], { day: date })));
@@ -394,7 +396,9 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const { id } = req.params;
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
+        if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         // The planned day is the container, so clearing it returns the ticket
         // to the backlog; its own due date (a deadline) is left alone.

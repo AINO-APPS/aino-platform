@@ -5,7 +5,10 @@ import { decideTicket, decideTickets, loadTicketDecisionContext, type DecisionTi
 import type { TaskActor } from "../modules/tasks/tasks.policy";
 import { assertLifecycleMove, loadLifecycleContext } from "../modules/tasks/tasks.workflow";
 import { findFrozenSprintIds } from "../modules/tasks/tasks.sprintLifecycle";
-import { placeTickets } from "../modules/tasks/tasks.placement";
+import { placeTickets, transferTicket } from "../modules/tasks/tasks.placement";
+import { ticketActionConflict } from "../modules/tasks/tasks.writeGuards";
+import { buildSprintBoardColumns } from "../modules/tasks/tasks.board";
+import { findSprintBoardCounts } from "../modules/tasks/tasks.sprintRepository";
 
 installPgTypeParsers();
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
@@ -61,7 +64,8 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'member', 'x', 'Member', 1, 1), (2, 'reporter', 'x', 'Reporter', 1, 1),
-            (3, 'assignee', 'x', 'Assignee', 1, 1)`);
+            (3, 'assignee', 'x', 'Assignee', 1, 1),
+            (4, 'admin', 'x', 'Admin', 1, 1), (5, 'outsider', 'x', 'Outsider', 1, 2)`);
         await pool.query(`INSERT INTO workflow_states
             (id, org_id, key, name, category, is_initial, is_terminal, is_active, sort_order, wip_limit) VALUES
             (101, 1, 'todo', 'To Do', 'open', TRUE, FALSE, TRUE, 1, NULL),
@@ -161,6 +165,8 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             }
             const context = await loadTicketDecisionContext(pool, actor, tickets);
             const decisions = decideTickets(actor, tickets, context);
+            const placementContext = await loadTicketDecisionContext(pool, actor, tickets,
+                { targetSprintId: 10, lifecycle: context.lifecycle });
 
             for (const [index, [container, sprint, , frozen]] of containers.entries()) {
                 const write = !access ? denied("ACCESS_DENIED") : frozen ? denied("SPRINT_FROZEN") : allowed;
@@ -187,26 +193,46 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     },
                 });
                 expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
+                for (const action of ["edit", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
+                    const verdict = decisions[index].capabilities.can[action];
+                    const conflict = await ticketActionConflict(pool, actor, tickets[index], action, context);
+                    expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);
+                    if (!verdict.allowed) {
+                        expect(conflict?.status).toBe(verdict.reason === "ACCESS_DENIED" ? 403 : 409);
+                    }
+                }
 
                 if (frozen) {
                     expect(await findFrozenSprintIds(pool as any, [sprint!])).toEqual([13]);
                 }
-                if (access && !frozen && stateId !== 105) {
+                {
                     for (const transition of decisions[index].capabilities.transitions) {
                         const conflict = await assertLifecycleMove(pool, 1, tickets[index],
-                            context.lifecycle.stateById.get(transition.to), context.lifecycle);
+                            context.lifecycle.stateById.get(transition.to), context.lifecycle, actor);
                         expect(conflict?.body.code ?? null).toBe(transition.allowed ? null : transition.reason);
+                        if (!transition.allowed) expect(conflict?.status).toBe(transition.reason === "ACCESS_DENIED" ? 403 : 409);
                     }
                 }
-                if (access && sprint != null) {
+                {
                     const transaction = require("../platform/db/pool").makePoolTransaction(pool);
                     const results = await transaction((db: any, ctx: any) => placeTickets({
-                        db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 },
+                        db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 }, ticketActor: actor,
                         effects: { changed: () => undefined },
                     }, [tickets[index].id], { day: "2026-11-04" }));
                     const schedule = decisions[index].capabilities.can.schedule;
-                    if (schedule.allowed) throw new Error("A sprinted ticket must refuse scheduling");
-                    expect(results[0]).toMatchObject({ ok: false, code: schedule.reason });
+                    expect(results[0]).toMatchObject(schedule.allowed ? { ok: true } : { ok: false, code: schedule.reason });
+                    const placement = decideTicket(actor, tickets[index], placementContext).capabilities.can.placeInSprint;
+                    const placed = await transaction((db: any, ctx: any) => placeTickets({
+                        db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 }, ticketActor: actor,
+                        effects: { changed: () => undefined },
+                    }, [tickets[index].id], { sprint: 10 }));
+                    expect(placed[0]).toMatchObject(placement.allowed ? { ok: true } : { ok: false, code: placement.reason });
+                    const transfer = decisions[index].capabilities.can.transfer;
+                    const transferred = await transaction((db: any, ctx: any) => transferTicket({
+                        db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 }, ticketActor: actor,
+                        effects: { changed: () => undefined },
+                    }, tickets[index].id, 2));
+                    expect(transferred).toMatchObject(transfer.allowed ? { ok: true } : { ok: false, code: transfer.reason });
                 }
             }
         });
@@ -225,10 +251,10 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             const context = await loadTicketDecisionContext(pool, actor, [ticket], { targetSprintId });
             expect(decideTicket(actor, ticket, context).capabilities.can.placeInSprint)
                 .toEqual(permitted ? allowed : denied(reason!));
-            if (targetSprintId !== 999) {
+            {
                 const transaction = require("../platform/db/pool").makePoolTransaction(pool);
                 const results = await transaction((db: any, ctx: any) => placeTickets({
-                    db, afterCommit: ctx.afterCommit, actor: { userId: 1, orgId: 1 },
+                    db, afterCommit: ctx.afterCommit, actor: { userId: 1, orgId: 1 }, ticketActor: actor,
                     effects: { changed: () => undefined },
                 }, [ticket.id], { sprint: targetSprintId }));
                 expect(results[0]).toMatchObject(permitted ? { ok: true } : { ok: false, code: reason });
@@ -257,8 +283,10 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             .toEqual({ to: 105, ...(cancel ? allowed : denied("ACCESS_DENIED")) });
         const guards = require("../routes/tasks/_helpers/access");
         expect(await guards.canAccessTask(ticket, actor, pool)).toBe(edit);
-        expect(await guards.canChangeTaskStatus(ticket, actor, pool)).toBe(status);
-        expect(await guards.canCancelTask(ticket, actor, pool)).toBe(cancel);
+        expect(await guards.ticketActionConflict(pool, actor, ticket, "changeState", context))
+            .toEqual(status ? null : expect.objectContaining({ status: 403, body: expect.objectContaining({ code: "ACCESS_DENIED" }) }));
+        expect(await guards.ticketActionConflict(pool, actor, ticket, "cancel", context))
+            .toEqual(cancel ? null : expect.objectContaining({ status: 403, body: expect.objectContaining({ code: "ACCESS_DENIED" }) }));
     });
 
     test("a custom completed ticket must reopen before cancellation", async () => {
@@ -300,10 +328,51 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 { to: 105, allowed: true },
                 { to: 106, allowed: false, reason: "INVALID_TRANSITION" },
             ]);
-            expect(await assertLifecycleMove(pool, 1, tickets[0], lifecycle.stateById.get(102), lifecycle))
+            expect(await assertLifecycleMove(pool, 1, tickets[0], lifecycle.stateById.get(102), lifecycle, member))
                 .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
+            expect(await assertLifecycleMove(pool, 1, tickets[0], withoutWip.lifecycle.stateById.get(102),
+                withoutWip.lifecycle, member)).toBeNull();
+            expect(await assertLifecycleMove(pool, 1, tickets[1], lifecycle.stateById.get(102), lifecycle, member)).toBeNull();
         } finally {
             await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+        }
+    });
+
+    test("board WIP status agrees with the PostgreSQL write guard and excludes Cancelled occupancy", async () => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query("UPDATE workflow_states SET is_active = TRUE, sort_order = 8, wip_limit = 1 WHERE id = 107");
+            await client.query(`INSERT INTO workflow_transitions (org_id, from_state_id, to_state_id)
+                VALUES (1, 106, 107) ON CONFLICT (from_state_id, to_state_id) DO NOTHING`);
+            await client.query(`INSERT INTO org_agile_settings (org_id, enable_wip_limits) VALUES (1, TRUE)
+                ON CONFLICT (org_id) DO UPDATE SET enable_wip_limits = TRUE`);
+            const tickets = (await client.query(`INSERT INTO tasks
+                (title, user_id, org_id, team_id, workflow_state_id, sprint_id)
+                VALUES ('Board source', 2, 1, 1, 106, 11),
+                       ('Board target', 2, 1, 1, 107, NULL),
+                       ('Board cancelled', 2, 1, 1, 105, 11)
+                RETURNING *`)).rows;
+            const lifecycle = await loadLifecycleContext(client, 1);
+            const columns = buildSprintBoardColumns(lifecycle, await findSprintBoardCounts(client, 1));
+            const targetColumn = columns.find((column) => column.stateId === 107);
+            expect(targetColumn).toEqual({ stateId: 107, count: 1, limit: 1, accepting: false });
+            expect(columns.some((column) => column.stateId === 105)).toBe(false);
+            expect(await assertLifecycleMove(client, 1, tickets[0], lifecycle.stateById.get(107), lifecycle, member))
+                .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
+
+            await client.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+            const disabledLifecycle = await loadLifecycleContext(client, 1);
+            const disabledColumns = buildSprintBoardColumns(
+                disabledLifecycle,
+                await findSprintBoardCounts(client, 1),
+            );
+            expect(disabledColumns.find((column) => column.stateId === 107)?.accepting).toBe(true);
+            expect(await assertLifecycleMove(client, 1, tickets[0], disabledLifecycle.stateById.get(107), disabledLifecycle, member))
+                .toBeNull();
+        } finally {
+            await client.query("ROLLBACK");
+            client.release();
         }
     });
 

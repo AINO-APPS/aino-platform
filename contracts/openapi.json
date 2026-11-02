@@ -17157,6 +17157,105 @@
         }
       }
     },
+    "/api/sprints/{id}/board": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Read a sprint board with column WIP status",
+        "operationId": "get_api_sprints_id_board",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint, active board columns, and enriched non-Cancelled tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintBoard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sprint id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sprint is not accessible to the current actor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sprint not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sprints": {
       "get": {
         "tags": [
@@ -21856,6 +21955,62 @@
           "name",
           "status",
           "auto_managed"
+        ],
+        "additionalProperties": false
+      },
+      "SprintBoardColumn": {
+        "type": "object",
+        "properties": {
+          "stateId": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "accepting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stateId",
+          "count",
+          "limit",
+          "accepting"
+        ],
+        "additionalProperties": false
+      },
+      "SprintBoard": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "$ref": "#/components/schemas/Sprint"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SprintBoardColumn"
+            }
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "sprint",
+          "columns",
+          "tickets"
         ],
         "additionalProperties": false
       },

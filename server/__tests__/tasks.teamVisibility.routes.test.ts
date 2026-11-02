@@ -122,6 +122,10 @@ function fixtureQuery(sql: string, params: unknown[] = []): { rows: any[]; rowCo
         return { rows: [], rowCount: 0 };
     }
     match = text.match(/FROM users WHERE id = \$1/);
+    if (/SELECT id, team_id FROM users WHERE id = ANY/.test(text)) {
+        const users = (params[0] as number[]).map((id) => USERS[id]).filter(Boolean);
+        return { rows: users, rowCount: users.length };
+    }
     if (match && /^SELECT/.test(text)) {
         const user = USERS[Number(params[0])];
         return { rows: user ? [{ ...user }] : [], rowCount: user ? 1 : 0 };

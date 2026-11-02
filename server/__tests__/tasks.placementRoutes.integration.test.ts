@@ -315,6 +315,43 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(await row(created.body.id)).toEqual(before);
     });
 
+    const guardedWrites = [
+        ["patch", "/status", { status: "in_progress" }],
+        ["put", "", { title: "Edited" }],
+        ["delete", "", {}],
+        ["patch", "/schedule", { date: "2026-11-06" }],
+        ["patch", "/assign-sprint", { sprint_id: 10 }],
+        ["post", "/transfer", { team_id: 2 }],
+    ] as const;
+
+    test.each(guardedWrites)("%s %s refuses another team's ticket with the decision reason", async (method, suffix, body) => {
+        const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id)
+            VALUES ('Other team', 1, 1, 2) RETURNING id`)).rows[0];
+        const response = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
+
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe("ACCESS_DENIED");
+    });
+
+    test.each(guardedWrites)("%s %s preserves the frozen sprint denial status", async (method, suffix, body) => {
+        const created = await request(app).post("/api/tasks/backlog").send({ title: "Frozen", sprint_id: 10 });
+        await pool.query("UPDATE sprints SET status = 'completed' WHERE id = 10");
+        const response = await request(app)[method](`/api/tasks/${created.body.id}${suffix}`).send(body);
+
+        expect(response.status).toBe(method === "post" ? 403 : 409);
+        expect(response.body.code).toBe(method === "post" ? "ACCESS_DENIED" : "SPRINT_FROZEN");
+    });
+
+    test.each(guardedWrites)("%s %s hides a different organization's ticket", async (method, suffix, body) => {
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (2, 'Other', 'other')");
+        const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id)
+            VALUES ('Private', 1, 2, 1) RETURNING id`)).rows[0];
+        const response = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe("Task not found");
+    });
+
     test("the detail editor's full save (sprint_id: null) still plans the day", async () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "New" });
 
