@@ -30,9 +30,17 @@
  * background job runner (per tenant) and unit-tested directly with a mock db.
  */
 import { logger } from "../utils/logger";
+import { snapshotBurndown } from "../modules/tasks/tasks.sprintRepository";
+import { realtimeEffects } from "../modules/tasks/tasks.placementEffects";
+import { completeSprint } from "./sprintCompletion";
+import type { PlacementDb } from "../modules/tasks/tasks.placement";
+import type { TransactionContext } from "../types/domain";
 
-type Query = (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount?: number | null }>;
-interface Db { query: Query; }
+interface Db extends PlacementDb {
+    transaction<T>(
+        callback: (client: PlacementDb, context: TransactionContext) => Promise<T>,
+    ): Promise<T>;
+}
 
 const DAY_MS = 86400000;
 
@@ -80,75 +88,23 @@ export function computeCurrentWindow(startDate: string, durationWeeks: number, t
     };
 }
 
-/** Take a daily burndown snapshot for a sprint (UPSERT on (sprint_id, date)). */
-async function snapshotBurndown(db: Db, sprintId: number): Promise<void> {
-    const tasks = (await db.query(
-        `SELECT t.story_points, ws.is_terminal, t.is_blocked
-           FROM tasks t
-           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1`,
-        [sprintId]
-    )).rows;
-
-    const num = (v: any) => (v == null ? 0 : Number(v));
-    let total = 0, done = 0, blocked = 0, openCount = 0;
-    for (const t of tasks) {
-        const sp = num(t.story_points);
-        total += sp;
-        if (t.is_terminal) done += sp;
-        else openCount += 1;
-        if (t.is_blocked) blocked += sp;
-    }
-    const remaining = total - done;
-
-    await db.query(
-        `INSERT INTO sprint_burndown_snapshots (sprint_id, snapshot_date, total_points, done_points, remaining_points, blocked_points, open_tasks)
-         VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)
-         ON CONFLICT (sprint_id, snapshot_date)
-         DO UPDATE SET total_points = EXCLUDED.total_points,
-                       done_points = EXCLUDED.done_points,
-                       remaining_points = EXCLUDED.remaining_points,
-                       blocked_points = EXCLUDED.blocked_points,
-                       open_tasks = EXCLUDED.open_tasks`,
-        [sprintId, total, done, remaining, blocked, openCount]
-    );
-}
-
 /**
  * Complete an auto sprint: snapshot, compute velocity, mark completed, and roll
  * incomplete tickets into `nextSprintId` (stamping carry-over provenance).
  * Returns the number of tickets rolled over.
  */
-async function completeAndRollover(db: Db, sprintId: number, nextSprintId: number): Promise<number> {
-    await snapshotBurndown(db, sprintId);
-
-    const velocityRow = (await db.query(
-        `SELECT COALESCE(SUM(t.story_points), 0)::float AS velocity
-           FROM tasks t
-           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1 AND COALESCE(ws.is_terminal, FALSE) = TRUE`,
-        [sprintId]
-    )).rows[0];
-
-    const rolled = await db.query(
-        `UPDATE tasks
-            SET sprint_id = $1,
-                carried_over_from_sprint_id = $2
-          WHERE sprint_id = $2
-            AND COALESCE((SELECT is_terminal FROM workflow_states WHERE id = tasks.workflow_state_id), FALSE) = FALSE`,
-        [nextSprintId, sprintId]
-    );
-
-    await db.query(
-        `UPDATE sprints
-            SET status = 'completed',
-                completed_at = COALESCE(completed_at, NOW()),
-                velocity_points = $1
-          WHERE id = $2`,
-        [velocityRow.velocity, sprintId]
-    );
-
-    return rolled.rowCount || 0;
+async function completeAndRollover(
+    db: Db,
+    sprintId: number,
+    nextSprintId: number,
+    tenantId?: number | null,
+): Promise<number> {
+    const result = await completeSprint(db, {
+        sprintId,
+        targetSprintId: nextSprintId,
+        effects: realtimeEffects({ db: db as any, tenantId }),
+    });
+    return result?.rolledOver ?? 0;
 }
 
 /**
@@ -161,6 +117,7 @@ async function reconcileTeam(
     db: Db,
     team: { id: number; sprint_duration_weeks: number; sprint_start_date: string },
     today: string,
+    tenantId?: number | null,
 ): Promise<{ activeSprintId: number | null; transitioned: boolean }> {
     const window = computeCurrentWindow(team.sprint_start_date, team.sprint_duration_weeks, today);
 
@@ -206,11 +163,7 @@ async function reconcileTeam(
     // If a previous auto sprint is still active and it's NOT the current window,
     // complete + roll it into the current window's sprint.
     if (activePrev && activePrev.id !== current.id && activePrev.sprint_number < window.number) {
-        await completeAndRollover(db, activePrev.id, current.id);
-        await db.query(
-            `UPDATE sprints SET carried_from_sprint_id = $1 WHERE id = $2 AND carried_from_sprint_id IS NULL`,
-            [activePrev.id, current.id]
-        );
+        await completeAndRollover(db, activePrev.id, current.id, tenantId);
         transitioned = true;
     }
 
@@ -252,7 +205,7 @@ export async function runSprintLifecycle(
     let transitions = 0;
     for (const team of teams) {
         try {
-            const { transitioned } = await reconcileTeam(db, team, today);
+            const { transitioned } = await reconcileTeam(db, team, today, tenantId);
             if (transitioned) {
                 transitions++;
                 if (redisLike) {

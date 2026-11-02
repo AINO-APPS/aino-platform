@@ -20,7 +20,7 @@ export async function listScheduledTasks(db: SprintDb, whereSql: string, params:
 }
 
 export interface SprintDb {
-    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
+    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>;
 }
 
 /** One sprint, scoped to the requester's org. */
@@ -189,6 +189,133 @@ export async function upsertBurndownSnapshot(
                        open_tasks = EXCLUDED.open_tasks`,
         [sprintId, totals.total, totals.done, totals.remaining, totals.blocked, totals.openTasks],
     );
+}
+
+/** Snapshot one sprint using the same read/write transaction client. */
+export async function snapshotBurndown(db: SprintDb, sprintId: number): Promise<void> {
+    const tasks = await findSprintBurndownInputs(db, sprintId);
+    let total = 0;
+    let done = 0;
+    let blocked = 0;
+    let openTasks = 0;
+    for (const task of tasks) {
+        const points = task.story_points == null ? 0 : Number(task.story_points);
+        total += points;
+        if (task.is_terminal) done += points;
+        else openTasks++;
+        if (task.is_blocked) blocked += points;
+    }
+    await upsertBurndownSnapshot(db, sprintId, {
+        total,
+        done,
+        remaining: total - done,
+        blocked,
+        openTasks,
+    });
+}
+
+export async function claimSprintCompletion(db: SprintDb, sprintId: number): Promise<any | null> {
+    return (await db.query(
+        `UPDATE sprints
+            SET completed_at = COALESCE(completed_at, NOW())
+          WHERE id = $1 AND status <> 'completed'
+      RETURNING *`,
+        [sprintId],
+    )).rows[0] ?? null;
+}
+
+export async function findSprintCompletionActor(db: SprintDb, sprintId: number, teamId: number): Promise<any | null> {
+    return (await db.query(
+        `SELECT tm.org_id,
+                COALESCE(
+                    tm.lead_id,
+                    (SELECT u.id FROM users u WHERE u.team_id = tm.id AND u.is_active = TRUE ORDER BY u.id LIMIT 1),
+                    (SELECT t.user_id FROM tasks t WHERE t.sprint_id = $1 ORDER BY t.id LIMIT 1)
+                ) AS actor_id
+           FROM teams tm
+          WHERE tm.id = $2`,
+        [sprintId, teamId],
+    )).rows[0] ?? null;
+}
+
+export async function findRolloverTarget(db: SprintDb, targetSprintId: number, teamId: number): Promise<any | null> {
+    return (await db.query(
+        `SELECT id, name, status, end_date
+           FROM sprints
+          WHERE id = $1 AND team_id = $2
+          FOR SHARE`,
+        [targetSprintId, teamId],
+    )).rows[0] ?? null;
+}
+
+export async function lockSprintCompletionMembers(db: SprintDb, sprintId: number): Promise<any[]> {
+    return (await db.query(
+        `SELECT t.id, COALESCE(ws.is_terminal, FALSE) AS is_terminal
+           FROM tasks t
+           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+          WHERE t.sprint_id = $1
+          ORDER BY t.id
+            FOR UPDATE OF t`,
+        [sprintId],
+    )).rows;
+}
+
+export async function findSprintCompletionVelocity(db: SprintDb, sprintId: number): Promise<any> {
+    return (await db.query(
+        `SELECT COALESCE(SUM(t.story_points), 0)::float AS velocity,
+                COUNT(*) FILTER (WHERE ws.is_terminal) AS done_tasks,
+                COUNT(*) AS total_tasks
+           FROM tasks t
+           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+          WHERE t.sprint_id = $1`,
+        [sprintId],
+    )).rows[0];
+}
+
+export async function stampTicketCarryover(db: SprintDb, sprintId: number, taskIds: number[]): Promise<void> {
+    await db.query(
+        "UPDATE tasks SET carried_over_from_sprint_id = $1 WHERE id = ANY($2::int[])",
+        [sprintId, taskIds],
+    );
+}
+
+export async function linkSprintCarryover(db: SprintDb, sprintId: number, targetSprintId: number): Promise<void> {
+    await db.query(
+        `UPDATE sprints
+            SET carried_from_sprint_id = $1
+          WHERE id = $2 AND carried_from_sprint_id IS NULL`,
+        [sprintId, targetSprintId],
+    );
+}
+
+export async function finishSprint(db: SprintDb, sprintId: number, velocity: number): Promise<any> {
+    return (await db.query(
+        `UPDATE sprints
+            SET status = 'completed',
+                completed_at = COALESCE(completed_at, NOW()),
+                velocity_points = $1
+          WHERE id = $2
+      RETURNING *`,
+        [velocity, sprintId],
+    )).rows[0];
+}
+
+export async function lockSprintForDeletion(db: SprintDb, sprintId: number | string): Promise<any | null> {
+    return (await db.query(
+        "SELECT id, status FROM sprints WHERE id = $1 FOR UPDATE",
+        [sprintId],
+    )).rows[0] ?? null;
+}
+
+export async function findSprintMemberIds(db: SprintDb, sprintId: number | string): Promise<number[]> {
+    return (await db.query(
+        "SELECT id FROM tasks WHERE sprint_id = $1 ORDER BY id",
+        [sprintId],
+    )).rows.map((task: { id: number }) => Number(task.id));
+}
+
+export async function deleteSprint(db: SprintDb, sprintId: number | string): Promise<void> {
+    await db.query("DELETE FROM sprints WHERE id = $1", [sprintId]);
 }
 
 /** Active members of a team, for a sprint-wide notification. */

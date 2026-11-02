@@ -27,12 +27,22 @@ jest.mock("../utils/audit", () => ({
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
 }));
 
+jest.mock("../utils/taskNotifications", () => ({
+    emitTaskUpdated: jest.fn(),
+    notifyTaskAssigned: jest.fn(),
+}));
+
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
 const mockQuery: jest.Mock = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
 const mockTxClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
-const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient));
+const mockTransaction: jest.Mock = jest.fn(async (fn: any) => {
+    const callbacks: Array<() => unknown> = [];
+    const result = await fn(mockTxClient, { afterCommit: (callback: () => unknown) => callbacks.push(callback) });
+    for (const callback of callbacks) await callback();
+    return result;
+});
 
 jest.mock("../db", () => ({
     pool: { end: jest.fn() },
@@ -46,6 +56,7 @@ jest.mock("../db", () => ({
 }));
 
 const { app } = require("../index");
+const { emitTaskUpdated } = require("../utils/taskNotifications");
 
 const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
@@ -171,7 +182,12 @@ describe("DELETE /api/sprints/:id", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => {
+            const callbacks: Array<() => unknown> = [];
+            const result = await fn(mockTxClient, { afterCommit: (callback: () => unknown) => callbacks.push(callback) });
+            for (const callback of callbacks) await callback();
+            return result;
+        });
     });
 
     test("returns 403 for non-team_lead", async () => {
@@ -181,6 +197,63 @@ describe("DELETE /api/sprints/:id", () => {
             .set(CSRF)
             .set("Cookie", authCookie());
         expect(res.status).toBe(403);
+    });
+
+    test("places sprint members and deletes the sprint on the transaction client", async () => {
+        setupAuth();
+        mockQuery.mockResolvedValueOnce({
+            rows: [{ id: 1, team_id: 1, status: "active", name: "Sprint 1" }],
+            rowCount: 1,
+        });
+        const before = {
+            id: 42,
+            org_id: 1,
+            team_id: 1,
+            sprint_id: 1,
+            planned_date: "2026-03-04",
+            due_date: "2026-03-14",
+            pre_sprint_due_date: "2026-02-20",
+        };
+        mockTxClient.query.mockImplementation(async (sql: string) => {
+            const normalized = sql.replace(/\s+/g, " ").trim();
+            if (normalized.startsWith("SELECT id, status FROM sprints WHERE id = $1 FOR UPDATE")) {
+                return { rows: [{ id: 1, status: "active" }], rowCount: 1 };
+            }
+            if (normalized.startsWith("SELECT id FROM tasks WHERE sprint_id = $1")) {
+                return { rows: [{ id: before.id }], rowCount: 1 };
+            }
+            if (normalized.startsWith("SELECT * FROM tasks WHERE id = ANY($1::int[])")) {
+                return { rows: [before], rowCount: 1 };
+            }
+            if (normalized.startsWith("SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id")) {
+                return { rows: [{ id: 1, team_id: 1, status: "active", name: "Sprint 1" }], rowCount: 1 };
+            }
+            if (normalized.startsWith("UPDATE tasks SET sprint_id = NULL")) {
+                return {
+                    rows: [{ ...before, sprint_id: null, due_date: before.pre_sprint_due_date, pre_sprint_due_date: null }],
+                    rowCount: 1,
+                };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        const res = await request(app)
+            .delete("/api/sprints/1")
+            .set(CSRF)
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(mockTransaction).toHaveBeenCalledTimes(1);
+        expect(mockTxClient.query.mock.calls.map(([sql]) => String(sql))).toContain("DELETE FROM sprints WHERE id = $1");
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).startsWith("DELETE FROM sprints"))).toBe(false);
+        expect(mockTxClient.query.mock.calls.filter(([sql]) => String(sql).startsWith("INSERT INTO task_history"))).toHaveLength(2);
+        expect(emitTaskUpdated).toHaveBeenCalledWith(
+            null,
+            42,
+            "updated",
+            expect.any(Array),
+            expect.objectContaining({ fields: expect.objectContaining({ sprint_id: null, due_date: "2026-02-20" }) }),
+        );
     });
 });
 

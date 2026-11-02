@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response } from "express";
+import { completeSprint, SprintCompletionError } from "../services/sprintCompletion";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
@@ -13,8 +14,17 @@ const {
     taskActorFromRequest,
 } = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
-const { findSprintsForOrg, findSprintsForTeam, LEAVE_SPRINT } = require("../modules/tasks/tasks.sprintRepository");
+const {
+    findSprintsForOrg,
+    findSprintsForTeam,
+    lockSprintForDeletion,
+    findSprintMemberIds,
+    deleteSprint,
+} = require("../modules/tasks/tasks.sprintRepository");
 const { loadSprintForActor } = require("../modules/tasks/tasks.sprintAccess");
+const { placeTickets } = require("../modules/tasks/tasks.placement");
+const { realtimeEffects } = require("../modules/tasks/tasks.placementEffects");
+const { placementContext, sendPlacementRefusal, PlacementRefused } = require("./tasks/_helpers/placement");
 const {
     findOtherActiveSprint,
     sprintAlreadyActiveBody,
@@ -181,11 +191,28 @@ router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (re
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
-        await req.db!.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE sprint_id = $1`, [id]);
-        await req.db!.query("DELETE FROM sprints WHERE id = $1", [id]);
-        await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
+        if (sprint.status === "completed") {
+            return res.status(409).json({ error: "This sprint is completed and cannot be deleted", code: "SPRINT_FROZEN" });
+        }
+
+        const deleted = await req.db!.transaction!(async (client: any, { afterCommit }: any) => {
+            const lockedSprint = await lockSprintForDeletion(client, id);
+            if (!lockedSprint || lockedSprint.status === "completed") return false;
+            const members = await findSprintMemberIds(client, id);
+            const context = placementContext(req, client, afterCommit);
+            const results = await placeTickets(context, members, { sprint: null });
+            const refusal = results.find((result: any) => !result.ok);
+            if (refusal && !refusal.ok) throw new PlacementRefused(refusal);
+            await deleteSprint(client, id);
+            return true;
+        });
+        if (!deleted) {
+            return res.status(409).json({ error: "Sprint is no longer available for deletion", code: "SPRINT_FROZEN" });
+        }
+        await redis.invalidateActiveSprint(req.tenantId, sprint.team_id).catch(() => undefined);
         res.json({ message: "Sprint deleted successfully" });
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err }, "Error deleting sprint:");
         res.status(500).json({ error: "Failed to delete sprint" });
     }
@@ -417,88 +444,58 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
-        if (sprint.status === "completed") return res.status(400).json({ error: "Sprint already completed" });
+        if (sprint.status === "completed") return res.status(409).json({ error: "Sprint already completed" });
 
-        // Capture final burndown snapshot before rollover so the chart shows
-        // the true endpoint, not the post-rollover state.
-        await snapshotBurndown(req.db, parseInt(String(id), 10));
-
-        // Compute velocity = sum of completed (terminal-state) points
-        const velocityRow = (await req.db!.query(
-            `SELECT COALESCE(SUM(t.story_points), 0)::float AS velocity,
-                    COUNT(*) FILTER (WHERE ws.is_terminal) AS done_tasks,
-                    COUNT(*) AS total_tasks
-               FROM tasks t
-               LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-              WHERE t.sprint_id = $1`,
-            [id]
-        )).rows[0];
-
-        let rolledOver = 0;
+        let targetSprintId: number | null = null;
         if (rolloverTo && rolloverTo !== "backlog") {
-            const targetId = parseInt(rolloverTo, 10);
-            if (isNaN(targetId)) return res.status(400).json({ error: "Invalid rolloverTo sprint id" });
+            targetSprintId = parseInt(String(rolloverTo), 10);
+            if (isNaN(targetSprintId)) return res.status(400).json({ error: "Invalid rolloverTo sprint id" });
             const target = (await req.db!.query(
-                "SELECT id, status FROM sprints WHERE id = $1 AND team_id = $2",
-                [targetId, sprint.team_id]
+                "SELECT id, name, status FROM sprints WHERE id = $1 AND team_id = $2",
+                [targetSprintId, sprint.team_id]
             )).rows[0];
             if (!target) return res.status(400).json({ error: "Target sprint not found" });
             if (target.status === "completed") return res.status(400).json({ error: "Cannot roll over to a completed sprint" });
-            const r = await req.db!.query(
-                `UPDATE tasks SET sprint_id = $1, carried_over_from_sprint_id = $2
-                  WHERE sprint_id = $2
-                    AND COALESCE((SELECT is_terminal FROM workflow_states WHERE id = tasks.workflow_state_id), FALSE) = FALSE`,
-                [targetId, id]
-            );
-            rolledOver = r.rowCount;
-            // Record provenance on the target sprint so Insights can show a
-            // "Carried Forward" list that links back to this origin sprint.
-            await req.db!.query(
-                `UPDATE sprints SET carried_from_sprint_id = $1 WHERE id = $2 AND carried_from_sprint_id IS NULL`,
-                [id, targetId]
-            );
-        } else {
-            const r = await req.db!.query(
-                `UPDATE tasks SET ${LEAVE_SPRINT}
-                  WHERE sprint_id = $1
-                    AND COALESCE((SELECT is_terminal FROM workflow_states WHERE id = tasks.workflow_state_id), FALSE) = FALSE`,
-                [id]
-            );
-            rolledOver = r.rowCount;
         }
 
-        await req.db!.query(
-            `UPDATE sprints
-                SET status = 'completed',
-                    completed_at = NOW(),
-                    velocity_points = $1
-              WHERE id = $2`,
-            [velocityRow.velocity, id]
-        );
+        const actor = taskActorFromRequest(req);
+        const xff = req.headers?.["x-forwarded-for"];
+        const completion = await completeSprint(req.db! as any, {
+            sprintId: Number(id),
+            targetSprintId,
+            actor: {
+                userId: actor.userId,
+                orgId: actor.orgId,
+                ip: req.ip || (Array.isArray(xff) ? xff[0] : xff) || null,
+                userAgent: req.headers?.["user-agent"] || null,
+            },
+            effects: realtimeEffects({ db: req.db, tenantId: req.tenantId }),
+        });
+        if (!completion) return res.status(409).json({ error: "Sprint already completed" });
 
-        await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
+        await redis.invalidateActiveSprint(req.tenantId, sprint.team_id).catch(() => undefined);
 
         // Tell the team what actually moved, not just that the sprint closed.
         await notifySprintCompleted(req, sprint, {
             sprintName: sprint.name,
-            doneTasks: Number(velocityRow.done_tasks),
-            totalTasks: Number(velocityRow.total_tasks),
-            velocity: Number(velocityRow.velocity),
-            rolledOver,
-            rolloverTarget: rolloverTo && rolloverTo !== "backlog"
-                ? (await req.db!.query("SELECT name FROM sprints WHERE id = $1", [rolloverTo])).rows[0]?.name || "the next sprint"
-                : "the backlog",
-        });
+            doneTasks: completion.doneTasks,
+            totalTasks: completion.totalTasks,
+            velocity: completion.velocity,
+            rolledOver: completion.rolledOver,
+            rolloverTarget: completion.rolloverTarget,
+        }).catch(() => undefined);
 
-        const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
         res.json({
-            sprint: updated,
-            velocity: Number(velocityRow.velocity),
-            doneTasks: Number(velocityRow.done_tasks),
-            totalTasks: Number(velocityRow.total_tasks),
-            rolledOver,
+            sprint: completion.sprint,
+            velocity: completion.velocity,
+            doneTasks: completion.doneTasks,
+            totalTasks: completion.totalTasks,
+            rolledOver: completion.rolledOver,
         });
     } catch (err) {
+        if (err instanceof SprintCompletionError) {
+            return res.status(err.code === "TARGET_INVALID" ? 400 : 409).json({ error: err.message, code: err.code });
+        }
         req.log.error({ err }, "Error completing sprint");
         res.status(500).json({ error: "Failed to complete sprint" });
     }

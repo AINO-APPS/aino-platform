@@ -11,6 +11,10 @@
  */
 import { computeCurrentWindow, runSprintLifecycle, __test__ } from "../services/sprintScheduler";
 
+jest.mock("../modules/tasks/tasks.placementEffects", () => ({
+    realtimeEffects: () => ({ changed: jest.fn() }),
+}));
+
 describe("computeCurrentWindow", () => {
     test("returns window #1 on the start date", () => {
         const w = computeCurrentWindow("2026-01-05", 2, "2026-01-05");
@@ -51,10 +55,22 @@ describe("computeCurrentWindow", () => {
 function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
     const state: any = {
         sprints: initial.sprints ? [...initial.sprints] : ([] as any[]),
-        tasks: initial.tasks ? [...initial.tasks] : ([] as any[]),
+        tasks: initial.tasks
+            ? initial.tasks.map((task) => ({
+                org_id: 1,
+                team_id: 1,
+                due_date: null,
+                planned_date: null,
+                pre_sprint_due_date: null,
+                ...task,
+            }))
+            : ([] as any[]),
         snapshots: [] as any[],
         nextSprintId: 100,
         __teams: [] as any[],
+        users: [{ id: 1, team_id: 1, is_active: true }],
+        history: [] as any[],
+        audits: [] as any[],
     };
 
     async function query(sql: string, params: any[] = []) {
@@ -120,24 +136,73 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
         // velocity computation
         if (s.includes("COALESCE(SUM(t.story_points), 0)::float AS velocity")) {
             const [sprintId] = params;
-            const velocity = state.tasks
-                .filter((t: any) => t.sprint_id === sprintId && t.is_terminal)
-                .reduce((a: number, t: any) => a + (Number(t.story_points) || 0), 0);
-            return { rows: [{ velocity }], rowCount: 1 };
+            const sprintTasks = state.tasks.filter((t: any) => t.sprint_id === sprintId);
+            const doneTasks = sprintTasks.filter((t: any) => t.is_terminal);
+            const velocity = doneTasks.reduce((a: number, t: any) => a + (Number(t.story_points) || 0), 0);
+            return { rows: [{ velocity, done_tasks: doneTasks.length, total_tasks: sprintTasks.length }], rowCount: 1 };
         }
 
-        // rollover UPDATE tasks ... SET sprint_id, carried_over_from_sprint_id
-        if (s.startsWith("UPDATE tasks SET sprint_id = $1, carried_over_from_sprint_id = $2")) {
-            const [nextId, originId] = params;
-            let count = 0;
-            for (const t of state.tasks) {
-                if (t.sprint_id === originId && !t.is_terminal) {
-                    t.sprint_id = nextId;
-                    t.carried_over_from_sprint_id = originId;
-                    count++;
-                }
+        if (s.startsWith("UPDATE sprints SET completed_at = COALESCE(completed_at, NOW())")) {
+            const [id] = params;
+            const row = state.sprints.find((r: any) => r.id === id);
+            return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+        }
+
+        if (s.startsWith("SELECT tm.org_id, COALESCE(")) {
+            return { rows: [{ org_id: 1, actor_id: 1 }], rowCount: 1 };
+        }
+
+        if (s.startsWith("SELECT id, name, status, end_date FROM sprints WHERE id = $1 AND team_id = $2")) {
+            const [id, teamId] = params;
+            const row = state.sprints.find((r: any) => r.id === id && r.team_id === teamId);
+            return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+        }
+
+        if (s.startsWith("SELECT t.id, COALESCE(ws.is_terminal, FALSE) AS is_terminal FROM tasks t")) {
+            const [sprintId] = params;
+            const rows = state.tasks
+                .filter((t: any) => t.sprint_id === sprintId)
+                .map((t: any) => ({ id: t.id, is_terminal: t.is_terminal }));
+            return { rows, rowCount: rows.length };
+        }
+
+        if (s.startsWith("SELECT * FROM tasks WHERE id = ANY($1::int[])")) {
+            const [ids, orgId] = params;
+            const rows = state.tasks.filter((t: any) => ids.includes(t.id) && t.org_id === orgId);
+            return { rows, rowCount: rows.length };
+        }
+
+        if (s.startsWith("SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id")) {
+            const [ids, orgId] = params;
+            const rows = state.sprints.filter((r: any) => ids.includes(r.id) && (r.org_id ?? 1) === orgId);
+            return { rows, rowCount: rows.length };
+        }
+
+        if (/^UPDATE tasks SET pre_sprint_due_date = CASE/.test(s)) {
+            const [sprintId, dueDate, teamId, taskId] = params;
+            const task = state.tasks.find((t: any) => t.id === taskId);
+            if (task) {
+                if (task.sprint_id == null) task.pre_sprint_due_date = task.due_date;
+                task.sprint_id = sprintId;
+                task.due_date = dueDate;
+                task.team_id = teamId;
             }
-            return { rows: [], rowCount: count };
+            return { rows: task ? [task] : [], rowCount: task ? 1 : 0 };
+        }
+
+        if (s.startsWith("INSERT INTO task_history")) {
+            state.history.push(params);
+            return { rows: [], rowCount: 1 };
+        }
+        if (s.startsWith("INSERT INTO audit_logs")) {
+            state.audits.push(params);
+            return { rows: [], rowCount: 1 };
+        }
+        if (s.startsWith("UPDATE tasks SET carried_over_from_sprint_id = $1")) {
+            const [originId, ids] = params;
+            const rows = state.tasks.filter((t: any) => ids.includes(t.id));
+            for (const task of rows) task.carried_over_from_sprint_id = originId;
+            return { rows: [], rowCount: rows.length };
         }
 
         // complete sprint
@@ -149,7 +214,7 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
                 row.completed_at = "now";
                 row.velocity_points = velocity;
             }
-            return { rows: [], rowCount: 1 };
+            return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
         }
 
         // set carried_from_sprint_id on the new sprint
@@ -179,7 +244,14 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
         throw new Error("Unhandled SQL in fake db: " + s);
     }
 
-    return { query, state: state as any };
+    async function transaction(fn: any) {
+        const afterCommit: Array<() => unknown> = [];
+        const result = await fn({ query }, { afterCommit: (callback: () => unknown) => afterCommit.push(callback) });
+        for (const callback of afterCommit) await callback();
+        return result;
+    }
+
+    return { query, transaction, state: state as any };
 }
 
 describe("reconcileTeam", () => {
@@ -221,7 +293,16 @@ describe("reconcileTeam", () => {
             ],
             tasks: [
                 { id: 1, sprint_id: 50, story_points: 3, is_terminal: true, is_blocked: false, carried_over_from_sprint_id: null },
-                { id: 2, sprint_id: 50, story_points: 5, is_terminal: false, is_blocked: false, carried_over_from_sprint_id: null },
+                {
+                    id: 2,
+                    sprint_id: 50,
+                    story_points: 5,
+                    is_terminal: false,
+                    is_blocked: false,
+                    due_date: "2026-01-18",
+                    pre_sprint_due_date: "2026-02-04",
+                    carried_over_from_sprint_id: null,
+                },
             ],
         });
 
@@ -240,6 +321,8 @@ describe("reconcileTeam", () => {
         const rolled = db.state.tasks.find((t: any) => t.id === 2);
         expect(rolled.sprint_id).toBe(s2.id);
         expect(rolled.carried_over_from_sprint_id).toBe(50);
+        expect(rolled.due_date).toBe(s2.end_date);
+        expect(rolled.pre_sprint_due_date).toBe("2026-02-04");
 
         // The done task stays in sprint 1.
         const done = db.state.tasks.find((t: any) => t.id === 1);

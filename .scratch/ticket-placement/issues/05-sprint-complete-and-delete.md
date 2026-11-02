@@ -6,7 +6,7 @@ double-completion race.
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-02)
 
 ## Context
 
@@ -21,20 +21,28 @@ double-completion race.
 
 ## Acceptance criteria
 
-- [ ] Completion claims the sprint with
+- [x] Completion claims the sprint with
       `UPDATE … WHERE id = $1 AND status <> 'completed' RETURNING`; a second
       concurrent request gets 409 and moves nothing.
-- [ ] Burndown snapshot, velocity, ticket placement, provenance and status flip
+- [x] Burndown snapshot, velocity, ticket placement, provenance and status flip
       commit or roll back together.
-- [ ] Carried tickets get the **target** sprint's end as `due_date` and keep their
+- [x] Carried tickets get the **target** sprint's end as `due_date` and keep their
       remembered own due date.
-- [ ] Tickets moved out keep their planned day (→ Scheduled) and get their own due
+- [x] Tickets moved out keep their planned day (→ Scheduled) and get their own due
       date back.
-- [ ] Cache invalidation and the team notification run after commit.
-- [ ] Deletion places members out of the sprint in the same transaction as the
+- [x] Cache invalidation and the team notification run after commit.
+- [x] Deletion places members out of the sprint in the same transaction as the
       `DELETE`, with per-ticket history and realtime.
-- [ ] PostgreSQL test: two concurrent completions → exactly one succeeds.
-- [ ] The scheduler's `completeAndRollover` uses the same transactional path;
+- [x] PostgreSQL test: two concurrent completions → exactly one succeeds.
+- [x] The scheduler's `completeAndRollover` uses the same transactional path;
       its carried tickets get the next sprint's end as `due_date`.
-- [ ] `node scripts/check-placement-writes.mjs` baseline lowered for
+- [x] `node scripts/check-placement-writes.mjs` baseline lowered for
       `routes/sprints.ts` and `services/sprintScheduler.ts`.
+
+## Completion notes
+
+- Manual and scheduled sprint completion share the transactional lifecycle path;
+  placements and provenance are committed together with burndown and velocity.
+- Sprint deletion places members before deleting, with post-commit realtime.
+- Verified focused Jest suites, the PostgreSQL concurrency/rollover suite,
+  server typecheck, placement-write guard, and repository guardrails.
