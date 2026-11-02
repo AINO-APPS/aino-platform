@@ -6,7 +6,7 @@ from whatever ticket it already has.
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

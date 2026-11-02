@@ -7,7 +7,7 @@ disabled and a reason shown, action buttons follow `can`, lists follow
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

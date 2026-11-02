@@ -6,7 +6,7 @@ Clients get everything the board needs in one read.
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

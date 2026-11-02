@@ -8,7 +8,7 @@ Android).
 
 **Blocked by:** 05, 08
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

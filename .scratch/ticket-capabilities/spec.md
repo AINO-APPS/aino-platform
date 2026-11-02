@@ -1,6 +1,6 @@
 # Spec — Ticket capabilities: the server decides, clients render
 
-**Status:** ready-for-agent
+**Status:** implemented
 **Date:** 2026-11-02
 **Branch:** `feat/ticket-capabilities`, cut from main after `feat/ticket-placement` merges
 **Surfaces:** server, contracts, web/desktop, Android. iOS is out of scope (it inherits the fields through generated models).

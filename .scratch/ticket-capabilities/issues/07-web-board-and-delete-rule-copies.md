@@ -7,7 +7,7 @@ and board rule copies are deleted (fixes B9 on web/desktop).
 
 **Blocked by:** 05, 06
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

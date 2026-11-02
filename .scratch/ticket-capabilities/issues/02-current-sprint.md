@@ -7,7 +7,7 @@ its Sprint view (fixes B7 on web/desktop).
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

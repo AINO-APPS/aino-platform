@@ -8,7 +8,7 @@ team keeps its Sprint view (fixes B7) and the Scheduled rule can no longer drift
 
 **Blocked by:** 02, 03
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 

@@ -7,7 +7,7 @@ table-driven suite against real PostgreSQL. No route uses it yet.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
 ## Context
 
