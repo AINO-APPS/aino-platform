@@ -116,7 +116,7 @@ export function useBacklog({
     const replaceTicket = (fresh: Task) => setBacklogTasks((current) =>
         current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
     const replaceResults = (results: BulkResult[]) => {
-        results.forEach((result) => { if (result.ok && result.task) replaceTicket(result.task); });
+        results.forEach((result) => { if (result.ticket) replaceTicket(result.ticket); });
     };
     const [backlogLoading, setBacklogLoading] = useState(false);
     // A load failure belongs to this section, not just the page-level banner:

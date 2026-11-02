@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { bulkTaskAction } from "../../../api/tasks";
 import { actionDecision, reasonCopy, writeError } from "../ticketCapabilities";
+import type { Task } from "../../../types";
 
 export type BulkAction = "move_to_sprint" | "status" | "assign" | "delete";
 
@@ -18,7 +19,7 @@ export interface BulkResult {
     /** Stable machine code for a skipped ticket. */
     code?: string;
     previous?: Record<string, unknown>;
-    task?: any;
+    ticket?: Task;
 }
 
 /** The tickets the server skipped, named for the error banner. */
