@@ -131,7 +131,7 @@ export async function placeTickets(
 
     const decisions = ids.map((id) => {
         const before = tickets.get(id);
-        const code: PlacementRefusalCode | null = before ? refusalFor(before, target, targetSprint, sprints) : "NOT_FOUND";
+        const code: PlacementRefusalCode | null = before ? placementRefusal(before, target, targetSprint, sprints) : "NOT_FOUND";
         return { id, before, code };
     });
 
@@ -229,12 +229,12 @@ async function lockSprints(ctx: PlacementContext, ids: Array<number | null | und
     return new Map(rows.map((row) => [Number(row.id), row]));
 }
 
-function refusalFor(
+export function placementRefusal(
     ticket: any,
     target: PlacementTarget,
     targetSprint: any,
     sprints: Map<number, any>,
-): PlacementRefusalCode | null {
+): "SPRINT_FROZEN" | "SPRINT_TEAM_MISMATCH" | "IN_SPRINT" | null {
     const origin = ticket.sprint_id == null ? null : sprints.get(Number(ticket.sprint_id));
     const staysInOrigin = origin != null && targetSprint != null && same(targetSprint.id, origin.id);
     if ((origin?.status === "completed" && !staysInOrigin) || targetSprint?.status === "completed") return "SPRINT_FROZEN";
