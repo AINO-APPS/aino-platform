@@ -8,9 +8,8 @@ const auth = require("../middleware/auth");
 const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
-const { findLinkedTask, insertNoteTicket, searchTasksForLinking } = require("../modules/tasks/tasks.notes");
-const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
-const { enrichTaskSummaries } = require("./tasks/_helpers/enrich");
+const { findLinkedTask, insertNoteTicket } = require("../modules/tasks/tasks.notes");
+const noteTickets = require("./notes/_helpers/tickets");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -276,27 +275,7 @@ router.get("/links/:pageId", async (req: Request, res: Response) => {
             enriched.push({ ...link, detail });
         }
 
-        const tickets = await enrichTaskSummaries(
-            [...linkedTickets.values()],
-            req.db,
-            taskActorFromRequest(req),
-        );
-        const ticketById = new Map(tickets.map((ticket: any) => [Number(ticket.id), {
-            id: ticket.id,
-            title: ticket.title,
-            status: ticket.status,
-            priority: ticket.priority,
-            date: ticket.date,
-            due_date: ticket.due_date,
-            sprint_id: ticket.sprint_id,
-            container: ticket.container,
-            capabilities: ticket.capabilities,
-        }]));
-        res.json({
-            links: enriched.map((link) => link.entity_type === "task"
-                ? { ...link, detail: ticketById.get(Number(link.entity_id)) ?? null }
-                : link),
-        });
+        res.json({ links: await noteTickets.linkedTickets(enriched, linkedTickets, req) });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/links error");
         res.status(500).json({ error: "Failed to fetch links" });
@@ -375,14 +354,7 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
         )).rows;
 
         res.json({
-            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
-                id: task.id,
-                title: task.title,
-                status: task.status,
-                priority: task.priority,
-                container: task.container,
-                capabilities: task.capabilities,
-            })),
+            tasks: await noteTickets.dailyTasks(tasks, req),
             hoursWorked,
             timeEntries: timeEntries.length > 0,
             meetings,
@@ -482,16 +454,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         res.json({
             report: { id: report.id, fullName: report.full_name },
-            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
-                id: task.id,
-                title: task.title,
-                status: task.status,
-                priority: task.priority,
-                date: task.date,
-                completed_at: task.completed_at,
-                container: task.container,
-                capabilities: task.capabilities,
-            })),
+            tasks: await noteTickets.oneOnOneTasks(tasks, req),
             leaves,
             sprint,
             hoursThisWeek,
@@ -598,16 +561,7 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
                 sprintId ? { sprint: sprintId } : { day: dateStr },
             )).task;
         });
-        const enriched = await enrichTaskSummaries([placed], req.db, taskActorFromRequest(req));
-        const task = {
-            id: placed.id,
-            title: placed.title,
-            date: placed.planned_date ?? null,
-            priority: placed.priority,
-            sprint_id: placed.sprint_id ?? null,
-            container: enriched[0].container,
-            capabilities: enriched[0].capabilities,
-        };
+        const task = await noteTickets.convertedTask(placed, req);
 
         // Also link the task to the note page if pageId is provided
         if (pageId) {
@@ -661,32 +615,7 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
             [sprint.id],
         )).rows;
 
-        // Stats bucket by workflow-state category (D6) rather than by key: the
-        // key is org-configurable, so matching on it silently reported zero
-        // once the legacy `tasks.status` column was dropped.
-        const total = tasks.length;
-        const bucket = (category: string) =>
-            tasks.filter((t: { status_category: string | null }) => t.status_category === category).length;
-        const done = bucket("done");
-        const inProgress = bucket("in_progress");
-        const inReview = bucket("in_review");
-        const pending = bucket("open");
-
-        res.json({
-            sprint,
-            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
-                id: task.id,
-                title: task.title,
-                status: task.status,
-                status_category: task.status_category,
-                priority: task.priority,
-                assigned_to: task.assigned_to,
-                assignee_name: task.assignee_name,
-                container: task.container,
-                capabilities: task.capabilities,
-            })),
-            stats: { total, done, inProgress, inReview, pending },
-        });
+        res.json(await noteTickets.sprintEmbed(sprint, tasks, req));
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/sprint-embed error");
         res.status(500).json({ error: "Failed to fetch sprint data" });
@@ -701,22 +630,7 @@ router.get("/search-tasks", async (req: Request, res: Response) => {
 
         // Same visibility policy as the Plan lists.
         const userRow = (await req.db!.query("SELECT id, org_id, team_id, role FROM users WHERE id = $1", [req.userId])).rows[0];
-        const { isFeatureEnabled } = require("../utils/planCatalog");
-        const { taskActorFromUser } = require("../modules/tasks/tasks.policy");
-        const actor = taskActorFromUser(userRow, isFeatureEnabled((req as any).tenant ?? null, "team_visibility"));
-        const rows = await searchTasksForLinking(req.db!, actor, q);
-        const tasks = await enrichTaskSummaries(rows, req.db, actor);
-        res.json({
-            tasks: tasks.map((task: any) => ({
-                id: task.id,
-                title: task.title,
-                status: task.status,
-                priority: task.priority,
-                date: task.date,
-                container: task.container,
-                capabilities: task.capabilities,
-            })),
-        });
+        res.json({ tasks: await noteTickets.searchTasks(userRow, q, req) });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/search-tasks error");
         res.status(500).json({ error: "Failed to search tasks" });
