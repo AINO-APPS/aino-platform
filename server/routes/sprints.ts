@@ -25,6 +25,7 @@ const { loadSprintForActor } = require("../modules/tasks/tasks.sprintAccess");
 const { placeTickets } = require("../modules/tasks/tasks.placement");
 const { realtimeEffects } = require("../modules/tasks/tasks.placementEffects");
 const { placementContext, sendPlacementRefusal, PlacementRefused } = require("./tasks/_helpers/placement");
+const { withSprintEndDateRetime } = require("./_helpers/sprintEndDate");
 const {
     findOtherActiveSprint,
     sprintAlreadyActiveBody,
@@ -167,9 +168,14 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         }
 
         if (updates.length === 0) return res.status(400).json({ error: "No valid fields to update" });
-
         params.push(id);
-        await req.db!.query(`UPDATE sprints SET ${updates.join(", ")} WHERE id = $${pi}`, params);
+        const updateSql = `UPDATE sprints SET ${updates.join(", ")} WHERE id = $${pi}`;
+        if (end_date !== undefined) {
+            await withSprintEndDateRetime(req, Number(id), sprint.end_date, end_date, (client: any) =>
+                client.query(updateSql, params));
+        } else {
+            await req.db!.query(updateSql, params);
+        }
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];
@@ -534,10 +540,7 @@ router.post("/:id/pause", auth, loadUserContext, requireRole("team_lead"), async
 });
 
 // ─── Sprint lifecycle: RESUME ───────────────────────────────────────────────
-//
-// Resumes a paused sprint. Shifts end_date forward by the paused duration so
-// the team doesn't lose the days they were paused, re-activates it, and clears
-// the team pause flag so the auto-scheduler resumes. Restricted to team_lead+.
+// Re-activates, shifts end_date by the pause duration, and restarts the team's auto-scheduler.
 router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -552,12 +555,13 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
         if (running) return sprintAlreadyActive(res, running);
 
         const newEnd = resumedEndDate(sprint.end_date, sprint.paused_at);
-
-        await req.db!.query(
-            "UPDATE sprints SET status = 'active', paused_at = NULL, end_date = $2 WHERE id = $1",
-            [id, newEnd]
-        );
-        await req.db!.query("UPDATE teams SET sprint_paused = FALSE WHERE id = $1", [sprint.team_id]);
+        await withSprintEndDateRetime(req, Number(id), sprint.end_date, newEnd, async (client: any) => {
+            await client.query(
+                "UPDATE sprints SET status = 'active', paused_at = NULL, end_date = $2 WHERE id = $1",
+                [id, newEnd]
+            );
+            await client.query("UPDATE teams SET sprint_paused = FALSE WHERE id = $1", [sprint.team_id]);
+        });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
         const updated = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [id])).rows[0];

@@ -5,7 +5,7 @@ whenever `end_date` changes (B6, ADR-015 amendment 2026-11-01).
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-02)
 
 ## Context
 
@@ -15,8 +15,18 @@ whenever `end_date` changes (B6, ADR-015 amendment 2026-11-01).
 
 ## Acceptance criteria
 
-- [ ] Changing `end_date` and re-timing members commit together.
-- [ ] Only members whose `due_date` equals the old end move; hand-edited due
+- [x] Changing `end_date` and re-timing members commit together.
+- [x] Only members whose `due_date` equals the old end move; hand-edited due
       dates stay.
-- [ ] Re-timed tickets get a due-date history row and `task_updated` after commit.
-- [ ] Completed sprints cannot change `end_date` (existing freeze holds).
+- [x] Re-timed tickets get a due-date history row and `task_updated` after commit.
+- [x] Completed sprints cannot change `end_date` (existing freeze holds).
+
+## Comments
+
+Sprint edits and resume now update the sprint and call
+`retimeSprintDueDates` within one transaction. Only tickets whose due date
+matches the previous end date are retimed; each receives due-date history and
+post-commit `task_updated`. The completed-sprint freeze remains enforced.
+
+Validation: `npx jest __tests__/sprints.routes.test.ts --runInBand` (17 tests),
+`npm run typecheck`, and `npm run check:guardrails` passed.

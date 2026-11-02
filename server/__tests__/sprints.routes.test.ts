@@ -280,7 +280,7 @@ describe("PUT /api/sprints/:id", () => {
             .put("/api/sprints/1")
             .set(CSRF)
             .set("Cookie", authCookie())
-            .send({ status: "active" });
+            .send({ status: "active", end_date: "2026-11-20" });
 
         expect(res.status).toBe(409);
         expect(res.body.code).toBe("SPRINT_FROZEN");
@@ -306,6 +306,136 @@ describe("PUT /api/sprints/:id", () => {
             .send({ name: "Renamed" });
 
         expect(res.status).toBe(200);
+    });
+});
+
+describe("sprint end-date retiming", () => {
+    const sprint = {
+        id: 1,
+        team_id: 1,
+        status: "active",
+        name: "Sprint 1",
+        end_date: "2026-11-10",
+        paused_at: "2026-11-01T12:00:00.000Z",
+    };
+    const tickets = [
+        { id: 41, org_id: 1, team_id: 1, sprint_id: 1, due_date: "2026-11-10", planned_date: null, pre_sprint_due_date: null },
+        { id: 42, org_id: 1, team_id: 1, sprint_id: 1, due_date: "2026-11-08", planned_date: null, pre_sprint_due_date: null },
+    ];
+
+    beforeEach(() => {
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTransaction.mockReset();
+        emitTaskUpdated.mockReset();
+    });
+
+    function setupCommittedTransaction() {
+        let committed = false;
+        mockTransaction.mockImplementation(async (fn: any) => {
+            const callbacks: Array<() => unknown> = [];
+            const result = await fn(mockTxClient, { afterCommit: (callback: () => unknown) => callbacks.push(callback) });
+            committed = true;
+            for (const callback of callbacks) await callback();
+            return result;
+        });
+        emitTaskUpdated.mockImplementation(() => {
+            expect(committed).toBe(true);
+        });
+    }
+
+    function setupRetimeQueries(updatedSprint: Record<string, unknown>, newEnd: string) {
+        const rows = tickets.map((ticket) => ({ ...ticket }));
+        const history: unknown[][] = [];
+        mockTxClient.query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+            const normalized = sql.replace(/\s+/g, " ").trim();
+            if (normalized.startsWith("SELECT t.* FROM tasks t")) {
+                expect(normalized).toContain("t.due_date = $2");
+                return {
+                    rows: rows
+                        .filter((ticket) => ticket.sprint_id === Number(params[0]) && ticket.due_date === params[1])
+                        .map((ticket) => ({ ...ticket })),
+                    rowCount: 1,
+                };
+            }
+            if (normalized.startsWith("UPDATE tasks SET due_date = $1 WHERE id = $2 RETURNING *")) {
+                const row = rows.find((ticket) => ticket.id === Number(params[1]))!;
+                row.due_date = String(params[0]);
+                return { rows: [{ ...row }], rowCount: 1 };
+            }
+            if (normalized.startsWith("INSERT INTO task_history")) {
+                history.push(params);
+                return { rows: [], rowCount: 1 };
+            }
+            if (normalized.startsWith("UPDATE sprints SET")) {
+                return { rows: [], rowCount: 1 };
+            }
+            if (normalized.startsWith("UPDATE teams SET sprint_paused")) {
+                return { rows: [], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+        return { rows, history, updatedSprint: { ...updatedSprint, end_date: newEnd } };
+    }
+
+    test("editing the end date retimes only matching ticket deadlines in the same commit", async () => {
+        setupAuth();
+        setupCommittedTransaction();
+        const { rows, history, updatedSprint } = setupRetimeQueries(sprint, "2026-11-12");
+        mockQuery
+            .mockResolvedValueOnce({ rows: [sprint], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [updatedSprint], rowCount: 1 });
+
+        const res = await request(app)
+            .put("/api/sprints/1")
+            .set(CSRF)
+            .set("Cookie", authCookie())
+            .send({ end_date: "2026-11-12" });
+
+        expect(res.status).toBe(200);
+        expect(mockTransaction).toHaveBeenCalledTimes(1);
+        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET"))).toBe(true);
+        expect(mockQuery.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET"))).toBe(false);
+        expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-12", "2026-11-08"]);
+        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-12"]);
+        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
+        expect(emitTaskUpdated).toHaveBeenCalledWith(
+            null,
+            41,
+            "updated",
+            expect.any(Array),
+            expect.objectContaining({ fields: { due_date: "2026-11-12" } }),
+        );
+    });
+
+    test("resuming a sprint retimes due dates with the end-date update", async () => {
+        setupAuth();
+        setupCommittedTransaction();
+        const resumedSprint = {
+            ...sprint,
+            status: "paused",
+            paused_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        };
+        const { rows, history, updatedSprint } = setupRetimeQueries(resumedSprint, "2026-11-13");
+        mockQuery
+            .mockResolvedValueOnce({ rows: [resumedSprint], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+            .mockResolvedValueOnce({ rows: [updatedSprint], rowCount: 1 });
+
+        const res = await request(app)
+            .post("/api/sprints/1/resume")
+            .set(CSRF)
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(mockTransaction).toHaveBeenCalledTimes(1);
+        expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("UPDATE sprints SET status = 'active'"))).toBe(true);
+        expect(rows[0].due_date).toBe("2026-11-13");
+        expect(rows[1].due_date).toBe("2026-11-08");
+        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-13"]);
+        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
     });
 });
 describe("POST /api/sprints/:id/start", () => {
