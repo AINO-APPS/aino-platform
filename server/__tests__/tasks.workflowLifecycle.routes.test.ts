@@ -252,8 +252,11 @@ describe("PATCH /api/tasks/:id/status applies the transition graph", () => {
         const res = await send("patch", "/api/tasks/77/status", 1, { status: target });
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "INVALID_TRANSITION", to_state_id: expect.any(Number) });
-        expect(res.body.error).toMatch(/cannot move to/);
+        expect(res.body).toMatchObject({ code: from === CANCELLED.id ? "CANCELLED_TERMINAL" : "INVALID_TRANSITION" });
+        if (from !== CANCELLED.id) {
+            expect(res.body.to_state_id).toEqual(expect.any(Number));
+            expect(res.body.error).toMatch(/cannot move to/);
+        }
         const updates = mockQuery.mock.calls.filter(([sql]: any[]) => /UPDATE tasks SET workflow_state_id/.test(String(sql)));
         expect(updates).toHaveLength(0);
     });
@@ -358,7 +361,7 @@ describe("PUT /api/tasks/:id applies the same graph", () => {
         const res = await send("put", "/api/tasks/77", 1, { workflow_state_id: target });
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "INVALID_TRANSITION" });
+        expect(res.body).toMatchObject({ code: from === CANCELLED.id ? "CANCELLED_TERMINAL" : "INVALID_TRANSITION" });
     });
 
     test("an illegal state change is refused", async () => {
@@ -413,7 +416,7 @@ describe("POST /api/tasks/bulk reports a per-ticket result", () => {
 
         const byId = Object.fromEntries((res.body.results as any[]).map((r) => [r.id, r]));
         expect(byId[77]).toMatchObject({ ok: true });
-        expect(byId[78]).toMatchObject({ ok: false, code: "TASK_COMPLETED" });
+        expect(byId[78]).toMatchObject({ ok: false, code: "INVALID_TRANSITION" });
     });
 });
 
@@ -434,13 +437,13 @@ describe("DELETE /api/tasks/:id cancels through the lifecycle", () => {
     test.each([
         ["done", DONE.id],
         ["cancelled", CANCELLED.id],
-    ])("a %s ticket is refused with TASK_COMPLETED", async (_label, stateId) => {
+    ])("a %s ticket is refused with the capability reason", async (_label, stateId) => {
         tasksById[77] = makeTask({ workflow_state_id: stateId, completed_at: "2026-10-20T10:00:00.000Z" });
 
         const res = await send("delete", "/api/tasks/77", 1);
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "TASK_COMPLETED" });
+        expect(res.body).toMatchObject({ code: stateId === CANCELLED.id ? "CANCELLED_TERMINAL" : "INVALID_TRANSITION" });
     });
 
     test("cancel records history and audit", async () => {

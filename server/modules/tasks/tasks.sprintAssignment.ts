@@ -4,6 +4,9 @@
  * ticket is decided by tasks.placement.ts.
  */
 import type { SprintDb } from "./tasks.sprintRepository";
+import type { TaskActor } from "./tasks.policy";
+import { loadTicketDecisionContext, type DecisionTicket } from "./tasks.capabilities";
+import { ticketActionConflict } from "./tasks.writeGuards";
 
 export interface SprintAssignmentRequest {
     /** The id from the request body; null or "" means "leave the sprint". */
@@ -12,6 +15,8 @@ export interface SprintAssignmentRequest {
     actorTeamId: number | null;
     /** True for super admin and above, who may target any sprint in the org. */
     isAdmin: boolean;
+    ticket?: DecisionTicket;
+    actor?: TaskActor;
 }
 
 /** Find a sprint the caller may move a ticket into, or an error. */
@@ -24,6 +29,15 @@ export async function resolveSprintTarget(
         "SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
         [request.sprintId, request.orgId],
     )).rows[0];
+    if (request.ticket && request.actor) {
+        const context = await loadTicketDecisionContext(db, request.actor, [request.ticket],
+            { targetSprintId: Number(request.sprintId) });
+        const conflict = await ticketActionConflict(db, request.actor, request.ticket, "placeInSprint", context);
+        if (conflict) {
+            return { error: { ...conflict, status: conflict.body.code === "ACCESS_DENIED" ? 400 : conflict.status } };
+        }
+        return { sprint };
+    }
     const mayUse = sprint && (sprint.team_id === request.actorTeamId || request.isAdmin);
     if (!mayUse) {
         return { error: { status: 400, body: { error: "Invalid sprint or sprint does not belong to your team" } } };

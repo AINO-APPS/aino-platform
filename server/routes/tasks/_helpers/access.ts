@@ -1,37 +1,26 @@
 // Permission adapters for tasks.
 //
-// The rules live in `modules/tasks/tasks.policy.ts`. This file only adapts the
-// request shape and, for the flag-off legacy rule, loads the creator's current
-// team. No route may re-implement a visibility predicate of its own.
+// Ticket decisions own permission and lifecycle rules. Read access ignores a
+// freeze refusal: frozen tickets remain readable, but cannot be edited.
 
 import type { Request, Response } from "express";
 import {
-    canChangeTaskStatus as policyCanChangeTaskStatus,
-    canReadTask,
-    canWriteTask,
-    isOrgAdmin,
     taskActorFromRequest,
     type TaskActor,
 } from "../../../modules/tasks/tasks.policy";
+import { ticketActionConflict } from "../../../modules/tasks/tasks.writeGuards";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
 
-const STATUS_FORBIDDEN = "You do not have permission to change this ticket's status";
 const ACCESS_DENIED = "Access denied";
 
-/** The creator's *current* team, only consulted by the legacy flag-off rule. */
-async function loadOwnerTeamId(task: any, db?: DbLike): Promise<number | null> {
-    if (!db || task?.user_id == null) return null;
-    const owner = (await db.query("SELECT team_id FROM users WHERE id = $1", [task.user_id])).rows[0];
-    return owner?.team_id ?? null;
-}
-
 async function canAccessTask(task: any, actor: TaskActor, db?: DbLike): Promise<boolean> {
-    if (!task) return false;
-    const ownerTeamId = actor.teamVisibility ? undefined : await loadOwnerTeamId(task, db);
-    return canReadTask(task, actor, ownerTeamId);
+    if (!task || !db) return false;
+    if (actor.orgId != null && task.org_id != null && Number(task.org_id) !== Number(actor.orgId)) return false;
+    const refusal = await ticketActionConflict(db, actor, task, "edit");
+    return !refusal || refusal.body.code === "SPRINT_FROZEN";
 }
 
 /**
@@ -74,37 +63,10 @@ function denyTaskAccess(res: Response, task: any, actor: TaskActor): Response {
         : res.status(404).json({ error: "Task not found" });
 }
 
-/**
- * Lifecycle writes are open to any member of the owning team, plus the
- * creator/assignee and org admins. With `team_visibility` off this is the
- * legacy assignee/reporter rule.
- */
-async function canChangeTaskStatus(task: any, actor: TaskActor, db?: DbLike): Promise<boolean> {
-    if (!task) return false;
-    const ownerTeamId = actor.teamVisibility ? undefined : await loadOwnerTeamId(task, db);
-    return policyCanChangeTaskStatus(task, actor, ownerTeamId);
-}
-
-/**
- * Cancel is a write on the ticket: any owning-team member may do it, as may
- * the creator/assignee and admins. The terminal-state guard stays in the route
- * because it is about lifecycle, not access.
- */
-async function canCancelTask(task: any, actor: TaskActor, db?: DbLike): Promise<boolean> {
-    if (!task) return false;
-    // Flag off restores the old creator-only cancellation rule.
-    if (!actor.teamVisibility) {
-        return isOrgAdmin(actor.role) || Number(task.user_id) === Number(actor.userId);
-    }
-    return canWriteTask(task, actor);
-}
-
 export = {
     canAccessTask,
-    canCancelTask,
-    canChangeTaskStatus,
+    ticketActionConflict,
     denyTaskAccess,
     loadAccessibleTask,
-    STATUS_FORBIDDEN,
     ACCESS_DENIED,
 };

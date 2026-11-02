@@ -28,7 +28,8 @@ a specific destination, including access, freeze and team ownership. Without a
 destination it describes the general placement action, not permission to enter
 every sprint. A requested destination that is missing or inaccessible denies
 access. Placement's exported `placementRefusal` shares its existing freeze,
-ownership and in-sprint scheduling rules with decisions.
+ownership and in-sprint scheduling rules with decisions; the shared predicates
+live in `tasks.placementRules.ts` to keep decision loading independent of writes.
 
 Containers use sprint, then planned day, then backlog; deadlines never decide.
 Transitions include every other active state. Cancelled is terminal even when
@@ -38,11 +39,32 @@ requires an allowed transition. `delete` means cancellation, matching the
 existing DELETE endpoint; tickets are never hard-deleted. WIP capacity is
 deliberately excluded and remains a column/write-guard concern.
 
-This module does not enrich responses or replace route guards yet. Those are
-separate rollout tickets. The PostgreSQL decision suite compares the existing
-access, lifecycle and placement guards where their seams already overlap;
-mapping all write refusals (including legacy terminal/cancel codes) onto
-decisions belongs to the write-guard rollout.
+## Write guards
+
+`tasks.writeGuards.ts` adapts a decision action to a conflict. Access refusals
+remain 403 (404 for another org); lifecycle and placement conflicts remain 409.
+Cancellation of completed work now uses `INVALID_TRANSITION`, and cancellation
+or state changes on Cancelled tickets use `CANCELLED_TERMINAL`, matching the
+decision rather than the former `TASK_COMPLETED`/graph-only codes. Read access
+uses the edit decision's permission while still permitting reads of frozen work.
+
+`assertLifecycleMove` takes the actor as its sixth argument and accepts a loaded
+decision context as its seventh to reuse a request/batch lookup. It consults the
+ticket's target transition, then enforces WIP as the final check. The graph and
+context loader remain exported from `tasks.workflow.ts`; shared implementation
+lives in `tasks.workflowRules.ts` so the decision module cannot depend on guards.
+
+User placement contexts carry `ticketActor`; `placeTickets` and `transferTicket`
+consult the corresponding decision against locked sprint rows before writing.
+Sprint lifecycle maintenance deliberately has no ticket actor: it moves a whole
+sprint's membership as a system operation, not as individual ticket edits.
+Sprint-target adapters retain their existing 400 status for an invalid or
+inaccessible destination; capability refusals carry the decision reason.
+
+The PostgreSQL matrix checks every actor/state/container row against action and
+transition guards, user scheduling, destination-specific placement and transfer.
+HTTP integration tests preserve access, freeze and org-isolation status codes.
+Response enrichment, contracts and client rendering remain separate rollout work.
 
 Run `cd server; npm run test:pg -- tasks.capabilities.integration --runInBand`
 with Docker, or set `TASKS_SCHEMA_TEST_DATABASE_URL` and run the suite with Jest.

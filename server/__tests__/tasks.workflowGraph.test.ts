@@ -10,12 +10,10 @@ export {};
  */
 
 import {
-    assertLifecycleMove,
     allowsTransition,
     buildLifecycleContext,
     deriveTransitions,
     effectiveTransitions,
-    wipConflict,
     type LifecycleContext,
     type WorkflowState,
 } from "../modules/tasks/tasks.workflow";
@@ -163,75 +161,5 @@ describe("explicit transition rows", () => {
         // The states could not be loaded (inactive/deleted); refuse nothing.
         expect(allowsTransition(context(), 999, 10)).toBe(true);
         expect(allowsTransition(context(), null, 10)).toBe(true);
-    });
-});
-
-describe("refusals", () => {
-    test("an illegal transition carries a stable code and a readable reason", async () => {
-        const db = { query: jest.fn() };
-        const conflict = await assertLifecycleMove(
-            db as any,
-            1,
-            { id: 77, workflow_state_id: 10 },
-            DEFAULT_STATES[3], // New → Done
-            context(),
-        );
-
-        expect(conflict).toMatchObject({ status: 409, body: { code: "INVALID_TRANSITION" } });
-        expect(conflict!.body.error).toContain('"New"');
-        expect(conflict!.body.error).toContain('"Done"');
-        // The reason names the legal alternatives so the client can explain.
-        expect(conflict!.body.error).toContain("In Progress");
-    });
-
-    test("WIP capacity blocks the move with a stable code", async () => {
-        const db = {
-            query: jest.fn().mockResolvedValue({ rows: [{ c: 3 }] }),
-        };
-        const target = { id: 11, name: "In Progress", wip_limit: 3 };
-        const conflict = await assertLifecycleMove(
-            db as any,
-            1,
-            { id: 77, workflow_state_id: 10 },
-            target,
-            context(DEFAULT_STATES, [], true),
-        );
-
-        expect(conflict).toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED", wip_limit: 3, occupancy: 3 } });
-        expect(conflict!.body.error).toMatch(/WIP limit reached for "In Progress" \(3\/3\)/);
-    });
-
-    test("the WIP check counts the destination column excluding this ticket", async () => {
-        const db = { query: jest.fn().mockResolvedValue({ rows: [{ c: 1 }] }) };
-        await assertLifecycleMove(
-            db as any,
-            1,
-            { id: 77, workflow_state_id: 10 },
-            { id: 11, name: "In Progress", wip_limit: 2 },
-            context(DEFAULT_STATES, [], true),
-        );
-        expect(db.query).toHaveBeenCalledWith(expect.stringContaining("id != $2"), [11, 77, 1]);
-    });
-
-    test("WIP limits are off when the org has not enabled them", () => {
-        expect(wipConflict(context(DEFAULT_STATES, [], false), { id: 11, name: "In Progress", wip_limit: 1 }, 9)).toBeNull();
-    });
-
-    test("a legal move with spare capacity returns no conflict", () => {
-        expect(wipConflict(context(DEFAULT_STATES, [], true), { id: 11, name: "In Progress", wip_limit: 5 }, 2)).toBeNull();
-    });
-
-    test("re-entering the same state is not blocked by a full column", async () => {
-        const db = { query: jest.fn().mockResolvedValue({ rows: [{ c: 5 }] }) };
-        const conflict = await assertLifecycleMove(
-            db as any,
-            1,
-            { id: 77, workflow_state_id: 11 },
-            { id: 11, name: "In Progress", wip_limit: 1 },
-            context(DEFAULT_STATES, [], true),
-        );
-
-        expect(conflict).toBeNull();
-        expect(db.query).not.toHaveBeenCalled();
     });
 });

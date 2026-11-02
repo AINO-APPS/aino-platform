@@ -11,8 +11,10 @@ import type {
     PlacementResult,
 } from "../../../modules/tasks/tasks.placement";
 const { realtimeEffects } = require("../../../modules/tasks/tasks.placementEffects");
+const { taskActorFromRequest } = require("../../../modules/tasks/tasks.policy");
 
 const STATUS: Record<PlacementRefusalCode, number> = {
+    ACCESS_DENIED: 403,
     NOT_FOUND: 404,
     SPRINT_NOT_FOUND: 400,
     SPRINT_FROZEN: 409,
@@ -45,6 +47,7 @@ export function placementContext(
             userAgent: req.headers?.["user-agent"] || null,
         },
         effects: realtimeEffects({ db: req.db, tenantId: req.tenantId, notify: options.notify ?? true }),
+        ticketActor: { ...taskActorFromRequest(req), orgId: options.orgId !== undefined ? options.orgId : (req.userOrgId ?? null) },
     };
 }
 
