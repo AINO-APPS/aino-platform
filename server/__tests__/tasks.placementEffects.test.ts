@@ -52,6 +52,19 @@ describe("realtime effects of a placement", () => {
         );
     });
 
+    test("a ticket created straight into a sprint is broadcast without the sprint-added notification", async () => {
+        const effects = realtimeEffects({ db: fakeDb({ 10: [ALICE] }, { 5: { name: "Sprint 5" } }), tenantId: 42, notify: false });
+
+        await effects.changed({
+            before: { ...ticket, sprint_id: null },
+            after: { ...ticket, sprint_id: 5 },
+            actor,
+        });
+
+        expect(mockEmitTaskUpdated).toHaveBeenCalledTimes(1);
+        expect(mockNotifyUser).not.toHaveBeenCalled();
+    });
+
     test("leaving a sprint or changing a day is broadcast but notifies nobody", async () => {
         const effects = realtimeEffects({ db: fakeDb({ 10: [ALICE] }, {}), tenantId: 42 });
 

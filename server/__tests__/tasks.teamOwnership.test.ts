@@ -22,7 +22,7 @@ const INSERTS = [
     { name: "POST /api/tasks", file: "routes/tasks/crud.ts" },
     { name: "POST /api/tasks/backlog", file: "routes/tasks/backlog.ts" },
     { name: "POST /api/tasks/carry-forward", file: "routes/tasks/carryForward.ts" },
-    { name: "POST /api/notes/convert-to-task", file: "routes/notes.ts" },
+    { name: "POST /api/notes/convert-to-task", file: "modules/tasks/tasks.notes.ts" },
     { name: "service-desk mirror", file: "modules/tasks/tasks.serviceDesk.ts" },
 ];
 

@@ -1,53 +1,17 @@
 /**
- * Moving a ticket into or out of a sprint on the edit path.
- *
- * The PATCH route had the sprint lookup, the same-team rule and the due-date
- * bookkeeping inline; `assign-sprint` and create have their own equivalents.
- * This keeps the rules in one place so the three paths cannot disagree about
- * who may join which sprint and what happens to the ticket's own dates.
+ * Request-side checks before a placement: which sprint the caller may target,
+ * and the due-date / planned-day pair rule on an edit. What a move does to the
+ * ticket is decided by tasks.placement.ts.
  */
-import { canMoveIntoTeamSprint, teamAfterSprintMove } from "./tasks.ownership";
-import { nextSprintDates, type SprintDb } from "./tasks.sprintRepository";
+import type { SprintDb } from "./tasks.sprintRepository";
 
 export interface SprintAssignmentRequest {
-    /** The id from the request body; `undefined` means "leave the sprint alone". */
+    /** The id from the request body; null or "" means "leave the sprint". */
     sprintId: unknown;
     orgId: number | null;
     actorTeamId: number | null;
     /** True for super admin and above, who may target any sprint in the org. */
     isAdmin: boolean;
-}
-
-export interface SprintAssignmentOutcome {
-    sprintId: unknown;
-    teamId?: number | null;
-    dueDate?: string | null;
-    preSprintDueDate?: string | null;
-    /** Set when the request must be refused. */
-    error?: { status: number; body: Record<string, unknown> };
-}
-
-/**
- * Resolve and apply a sprint change from an edit request in one step, so the
- * route only has to spread the result onto the ticket.
- */
-export async function planSprintEdit(
-    db: SprintDb,
-    input: {
-        request: SprintAssignmentRequest;
-        current: {
-            sprintId: unknown;
-            teamId: number | null;
-            dueDate: string | null;
-            preSprintDueDate: string | null;
-        };
-        requestedDueDate?: string | null;
-    },
-) {
-    if (input.request.sprintId === undefined) return applySprintAssignment(input);
-    const target = await resolveSprintTarget(db, input.request);
-    if (target.error) return { ...input.current, error: target.error };
-    return applySprintAssignment({ ...input, sprint: target.sprint });
 }
 
 /** Find a sprint the caller may move a ticket into, or an error. */
@@ -67,64 +31,40 @@ export async function resolveSprintTarget(
     return { sprint };
 }
 
+import type { PlacementTarget } from "./tasks.placement";
+
+/** The placement an edit asks for; the same targets `placeTickets` takes. */
+export type EditTarget = PlacementTarget;
+
 /**
- * Where the ticket ends up: the sprint, its team, and the dates that follow.
+ * Where an edit moves the ticket, and the planned day it will have afterwards.
  *
- * `requestedDueDate` is `undefined` when the request does not set one, which
- * only matters when leaving a sprint (an explicit date wins over the restore).
+ * A change of sprint wins (and only when agile is on). Otherwise a planned day
+ * on an unsprinted ticket plans it (a valid day) or returns it to the backlog
+ * (null/invalid); on a sprinted ticket it is ignored, because the sprint
+ * outranks the day (ADR-015). `joinsSprint` is true only when the ticket enters
+ * a different sprint, whose end becomes the due date — so a due date sent
+ * alongside is not applied. Staying in the same sprint keeps a typed due date.
  */
-export function applySprintAssignment(input: {
-    request: SprintAssignmentRequest;
-    current: {
-        sprintId: unknown;
-        teamId: number | null;
-        dueDate: string | null;
-        preSprintDueDate: string | null;
-    };
-    requestedDueDate?: string | null;
-    sprint?: { id: number; team_id: number | null; end_date: string } | null;
-}): {
-    sprintId: unknown;
-    teamId: number | null;
-    dueDate: string | null;
-    preSprintDueDate: string | null;
-    error?: { status: number; body: Record<string, unknown> };
-} {
-    const { request, current, sprint } = input;
-    if (request.sprintId === undefined) {
-        return {
-            sprintId: current.sprintId,
-            teamId: current.teamId,
-            dueDate: current.dueDate,
-            preSprintDueDate: current.preSprintDueDate,
-        };
+export function editPlacement(input: {
+    requestedSprint?: { id: number } | null;
+    requestedPlannedDate?: string | null;
+    currentSprintId: unknown;
+    currentPlannedDate: string | null;
+}): { target: EditTarget | null; plannedAfter: string | null; joinsSprint: boolean } {
+    // Clients resend the sprint the ticket already has (or null for none) on
+    // every full save; only a different sprint is a sprint change.
+    const sprint = input.requestedSprint ? input.requestedSprint.id : null;
+    const sprintChanges = input.requestedSprint !== undefined
+        && String(sprint ?? "") !== String(input.currentSprintId ?? "");
+    if (sprintChanges) {
+        return { target: { sprint }, plannedAfter: input.currentPlannedDate, joinsSprint: sprint != null };
     }
-    const leaving = request.sprintId === null || request.sprintId === "";
-    if (!leaving && sprint && !canMoveIntoTeamSprint(current.teamId, sprint.team_id)) {
-        return {
-            sprintId: current.sprintId,
-            teamId: current.teamId,
-            dueDate: current.dueDate,
-            preSprintDueDate: current.preSprintDueDate,
-            error: { status: 409, body: { error: "A ticket can only join its own team's sprint", code: "SPRINT_TEAM_MISMATCH" } },
-        };
+    if (input.requestedPlannedDate !== undefined && input.currentSprintId == null) {
+        const day = dayOf(input.requestedPlannedDate);
+        return { target: day ? { day } : "backlog", plannedAfter: day, joinsSprint: false };
     }
-    const dates = nextSprintDates({
-        currentSprintId: current.sprintId,
-        currentDueDate: current.dueDate,
-        currentPreSprintDueDate: current.preSprintDueDate,
-        requestedDueDate: input.requestedDueDate,
-        join: leaving ? null : (sprint ? { endDate: sprint.end_date } : null),
-    });
-    const teamId = leaving
-        ? current.teamId
-        : (current.teamId == null && sprint ? teamAfterSprintMove(current.teamId, sprint.team_id) : current.teamId);
-    return {
-        sprintId: leaving ? null : request.sprintId,
-        teamId,
-        dueDate: dates.dueDate,
-        preSprintDueDate: dates.preSprintDueDate,
-    };
+    return { target: null, plannedAfter: input.currentPlannedDate, joinsSprint: false };
 }
 
 export interface DateEdit {

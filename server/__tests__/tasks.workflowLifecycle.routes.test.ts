@@ -52,7 +52,7 @@ const request = require("supertest");
 
 const mockQuery: jest.Mock = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
 const mockTxClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
-const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient));
+const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
 
 jest.mock("../db", () => ({
     pool: { end: jest.fn() },
@@ -211,7 +211,7 @@ beforeEach(() => {
     teamMembers = [];
     mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
     mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-    mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+    mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     (ws.sendToUser as jest.Mock).mockClear();
     (fanout.notifyUser as jest.Mock).mockClear();
     (logAction as jest.Mock).mockClear();

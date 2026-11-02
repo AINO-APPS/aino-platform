@@ -35,7 +35,7 @@ declare global {
       user?: Record<string, unknown>;
       db?: {
         query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number; [key: string]: unknown }>;
-        transaction?: (fn: (client: unknown) => Promise<unknown>) => Promise<unknown>;
+        transaction?: <T = unknown>(fn: (client: any, ctx: import("./domain").TransactionContext) => Promise<T>) => Promise<T>;
         [key: string]: unknown;
       };
       tenantPool?: unknown;

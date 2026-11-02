@@ -27,9 +27,9 @@ export async function createServiceDeskBacklogTask(
     // triages the service desk sees it without the creator's help.
     const creator = (await db.query("SELECT team_id FROM users WHERE id = $1", [input.creatorId])).rows[0];
     await db.query(
-        `INSERT INTO tasks (user_id, planned_date, title, description, priority, org_id, team_id,
+        `INSERT INTO tasks (user_id, title, description, priority, org_id, team_id,
                            workflow_state_id, service_desk_ticket_id)
-         VALUES ($1, NULL, $2, $3, $4, $5, $6,
+         VALUES ($1, $2, $3, $4, $5, $6,
                  (SELECT id FROM workflow_states
                    WHERE org_id = $5 AND is_active = TRUE
                    ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),

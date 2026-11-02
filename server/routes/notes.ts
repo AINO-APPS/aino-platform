@@ -1,11 +1,14 @@
 import express from "express";
 import type { Request, Response } from "express";
+import type { TransactionContext } from "../types/domain";
 const crypto = require("crypto");
+const { placeTickets } = require("../modules/tasks/tasks.placement");
+const { placementContext, placedOrThrow, sendPlacementRefusal } = require("./tasks/_helpers/placement");
 const auth = require("../middleware/auth");
 const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
-const { findLinkedTask, searchTasksForLinking } = require("../modules/tasks/tasks.notes");
+const { findLinkedTask, insertNoteTicket, searchTasksForLinking } = require("../modules/tasks/tasks.notes");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -537,17 +540,18 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
             if (sprint) sprintId = sprint.id;
         }
 
-        const result = await req.db!.query(
-            `INSERT INTO tasks (user_id, org_id, team_id, title, planned_date, workflow_state_id, priority, sprint_id)
-             VALUES ($1, $2, $6, $3, $4,
-                     (SELECT id FROM workflow_states
-                       WHERE org_id = $2 AND is_active = TRUE
-                       ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
-                     'medium', $5)
-             RETURNING id, title, planned_date AS date, priority, sprint_id`,
-            [req.userId, userRow?.org_id || null, title.trim(), dateStr, sprintId, userRow?.team_id || null],
-        );
-        const task = result.rows[0];
+        // Created with no container, then placed in the same transaction: into
+        // the active sprint (no planned day — the sprint wins), else onto today.
+        const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) => {
+            const id = await insertNoteTicket(client, {
+                userId: req.userId!, orgId: userRow?.org_id || null, teamId: userRow?.team_id || null, title: title.trim(),
+            });
+            return placedOrThrow(await placeTickets(
+                placementContext(req, client, afterCommit, { notify: false, orgId: userRow?.org_id ?? null }), [id],
+                sprintId ? { sprint: sprintId } : { day: dateStr },
+            )).task;
+        });
+        const task = { id: placed.id, title: placed.title, date: placed.planned_date ?? null, priority: placed.priority, sprint_id: placed.sprint_id ?? null };
 
         // Also link the task to the note page if pageId is provided
         if (pageId) {
@@ -561,6 +565,7 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
 
         res.json({ task });
     } catch (e) {
+        if (sendPlacementRefusal(res, e)) return;
         req.log.error({ err: e }, "POST /notes/convert-to-task error");
         res.status(500).json({ error: "Failed to create task" });
     }

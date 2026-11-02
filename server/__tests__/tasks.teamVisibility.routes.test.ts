@@ -112,6 +112,12 @@ function fixtureQuery(sql: string, params: unknown[] = []): { rows: any[]; rowCo
         const ids = params[0] as number[];
         return { rows: ids.map((id) => TASKS[id]).filter(Boolean), rowCount: ids.length };
     }
+    // Placement writes return the moved row.
+    match = text.match(/^UPDATE tasks SET .* WHERE id = \$(\d+) RETURNING \*/);
+    if (match) {
+        const id = Number(params[Number(match[1]) - 1]);
+        return { rows: TASKS[id] ? [{ ...TASKS[id] }] : [], rowCount: 1 };
+    }
     if (/^\s*SELECT .* FROM tasks t\b/i.test(text) && /WHERE/.test(text)) {
         return { rows: [], rowCount: 0 };
     }
@@ -151,7 +157,7 @@ const mockDb = {
     query: jest.fn((sql: string, params: unknown[]) => Promise.resolve(fixtureQuery(sql, params))),
     transaction: jest.fn(async (fn: any) => fn({
         query: (sql: string, params: unknown[]) => Promise.resolve(fixtureQuery(sql, params)),
-    })),
+    }, { afterCommit: (cb: any) => cb() })),
 };
 
 function makeApp() {

@@ -19,16 +19,6 @@ export async function listScheduledTasks(db: SprintDb, whereSql: string, params:
     )).rows;
 }
 
-/**
- * Clear the planned day, returning the ticket to the backlog.
- *
- * The due date is kept: it is the ticket's own deadline, not a container
- * decision, so "move to backlog" must not destroy it.
- */
-export async function clearScheduledDates(db: SprintDb, taskId: unknown): Promise<void> {
-    await db.query("UPDATE tasks SET planned_date = NULL WHERE id = $1", [taskId]);
-}
-
 export interface SprintDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
 }
@@ -138,11 +128,6 @@ export async function findNextPlannedSprint(db: SprintDb, teamId: unknown, exclu
     )).rows[0] || null;
 }
 
-/** A sprint's display name, for history lines. */
-export async function findSprintName(db: SprintDb, sprintId: unknown) {
-    return (await db.query("SELECT name FROM sprints WHERE id = $1", [sprintId])).rows[0] || null;
-}
-
 /**
  * The start date of the team's most recently completed sprint.
  *
@@ -175,41 +160,6 @@ export const REMEMBER_DUE_DATE =
 
 /** SET fragment that takes a ticket out of its sprint and restores its date. */
 export const LEAVE_SPRINT = "sprint_id = NULL, due_date = pre_sprint_due_date, pre_sprint_due_date = NULL";
-
-/**
- * Move a task into a sprint and adopt the sprint's end date as its due date.
- *
- * `teamId` is passed for a legacy ticket with no owner: entering a sprint is
- * the moment it adopts that sprint's team. A ticket that already has a team
- * keeps it (the caller has already checked the same-team rule).
- */
-export async function setSprintAndDueDate(
-    db: SprintDb,
-    taskId: unknown,
-    sprintId: unknown,
-    dueDate: unknown,
-    teamId?: number | null,
-): Promise<void> {
-    if (teamId !== undefined && teamId !== null) {
-        await db.query(
-            `UPDATE tasks SET ${REMEMBER_DUE_DATE}, sprint_id = $1, due_date = $2, team_id = $3 WHERE id = $4`,
-            [sprintId, dueDate, teamId, taskId],
-        );
-        return;
-    }
-    await db.query(
-        `UPDATE tasks SET ${REMEMBER_DUE_DATE}, sprint_id = $1, due_date = $2 WHERE id = $3`,
-        [sprintId, dueDate, taskId],
-    );
-}
-
-/**
- * Take a task out of its sprint and give it back its own due date, so it lands
- * in Scheduled if it had one and the Backlog otherwise.
- */
-export async function clearSprint(db: SprintDb, taskId: unknown): Promise<void> {
-    await db.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE id = $1`, [taskId]);
-}
 
 /** Points and terminal flags for a sprint's burndown snapshot. */
 export async function findSprintBurndownInputs(db: SprintDb, sprintId: number) {
@@ -247,39 +197,4 @@ export async function findTeamMemberIds(db: SprintDb, teamId: number): Promise<n
         "SELECT id FROM users WHERE team_id = $1 AND is_active = TRUE",
         [teamId],
     )).rows.map((row: { id: number }) => Number(row.id));
-}
-
-/**
- * Due-date bookkeeping when a ticket enters or leaves a sprint, as one pure
- * step so the PATCH path cannot drift from `setSprintAndDueDate`/`clearSprint`.
- *
- * Entering remembers the ticket's own date (first entry only) and adopts the
- * sprint's end date. Leaving restores the remembered date, unless the same
- * request sets one explicitly.
- */
-export function nextSprintDates(input: {
-    currentSprintId: unknown;
-    currentDueDate: string | null;
-    currentPreSprintDueDate: string | null;
-    /** The requested due date, or undefined when the request does not set one. */
-    requestedDueDate?: string | null;
-    /** The sprint being joined, or null when the ticket leaves its sprint. */
-    join: { endDate: string } | null;
-}): { dueDate: string | null; preSprintDueDate: string | null; leftSprint: boolean } {
-    const wasSprinted = input.currentSprintId != null;
-    if (!input.join) {
-        if (!wasSprinted) {
-            return { dueDate: input.currentDueDate, preSprintDueDate: input.currentPreSprintDueDate, leftSprint: false };
-        }
-        return {
-            dueDate: input.requestedDueDate !== undefined ? input.requestedDueDate : input.currentPreSprintDueDate,
-            preSprintDueDate: null,
-            leftSprint: true,
-        };
-    }
-    return {
-        dueDate: input.join.endDate,
-        preSprintDueDate: wasSprinted ? input.currentPreSprintDueDate : input.currentDueDate,
-        leftSprint: false,
-    };
 }

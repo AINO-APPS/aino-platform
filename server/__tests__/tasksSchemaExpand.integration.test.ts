@@ -6,6 +6,7 @@ import type { PoolClient } from "pg";
 import type { QueryFn } from "../types/domain";
 import type { SchemaQuery } from "../platform/db/schemaTypes";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
+import { createTestDatabase } from "../test-support/pgTestDatabase";
 
 // Production registers the DATE-as-string parser when platform/db/pool.ts
 // loads; this suite builds its own Pool, so it must register it too.
@@ -16,6 +17,10 @@ const migrationsDir = path.join(__dirname, "..", "platform", "db", "migrations")
 
 const postgresDescribe = databaseUrl ? describe : describe.skip;
 
+// Each test builds whole tenant schemas and runs every migration, which can
+// take longer than Jest's 5s default on a busy machine.
+jest.setTimeout(30_000);
+
 postgresDescribe("task schema expansion on PostgreSQL", () => {
     let pool: Pool | undefined;
     let client: PoolClient | undefined;
@@ -25,23 +30,19 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
         return client;
     }
 
+    let database: Awaited<ReturnType<typeof createTestDatabase>> | undefined;
+
     beforeAll(async () => {
         if (!databaseUrl) return;
-
-        const parsed = new URL(databaseUrl);
-        const databaseName = decodeURIComponent(parsed.pathname.slice(1));
-        if (!["localhost", "127.0.0.1", "::1", "postgres"].includes(parsed.hostname)
-            || !databaseName.toLowerCase().includes("test")) {
-            throw new Error("TASKS_SCHEMA_TEST_DATABASE_URL must point to a local database whose name includes 'test'");
-        }
-
-        pool = new Pool({ connectionString: databaseUrl, max: 1 });
+        database = await createTestDatabase(databaseUrl, "tasks_schema");
+        pool = new Pool({ connectionString: database.url, max: 1 });
         client = await pool.connect();
     });
 
     afterAll(async () => {
         client?.release();
         await pool?.end();
+        await database?.drop();
     });
 
     async function withTenantSchema<T>(

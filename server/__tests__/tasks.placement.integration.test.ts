@@ -6,11 +6,11 @@
  * mocked `db.query` cannot see. Runs only when TASKS_SCHEMA_TEST_DATABASE_URL
  * points at a local database whose name contains "test"; skipped otherwise.
  */
-import crypto from "crypto";
 import { Pool } from "pg";
 import type { PoolClient } from "pg";
 import type { TransactionContext } from "../types/domain";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
+import { createTestDatabase } from "../test-support/pgTestDatabase";
 
 // DATE columns arrive as `YYYY-MM-DD`, as in production (platform/db/pgTypes.ts).
 installPgTypeParsers();
@@ -31,29 +31,21 @@ const BETA_PLANNED = 20; // ends 2026-11-21
 const ACTOR = { userId: ALICE, orgId: 1, ip: "10.0.0.1", userAgent: "jest" };
 
 postgresDescribe("ticket placement on PostgreSQL", () => {
-    const schema = `placement_${crypto.randomUUID().replace(/-/g, "")}`;
-    let admin: Pool;
+    let database: Awaited<ReturnType<typeof createTestDatabase>>;
     let pool: Pool;
     let transaction: <T>(fn: (client: PoolClient, ctx: TransactionContext) => Promise<T>) => Promise<T>;
     const placement = () => placementModule;
 
     beforeAll(async () => {
-        const parsed = new URL(databaseUrl!);
-        const databaseName = decodeURIComponent(parsed.pathname.slice(1));
-        if (!["localhost", "127.0.0.1", "::1", "postgres"].includes(parsed.hostname)
-            || !databaseName.toLowerCase().includes("test")) {
-            throw new Error("TASKS_SCHEMA_TEST_DATABASE_URL must point to a local database whose name includes 'test'");
-        }
-        admin = new Pool({ connectionString: databaseUrl, max: 1 });
-        await admin.query(`CREATE SCHEMA ${schema}`);
-        pool = new Pool({ connectionString: databaseUrl, max: 2, options: `-c search_path=${schema},public` });
+        database = await createTestDatabase(databaseUrl!, "placement");
+        pool = new Pool({ connectionString: database.url, max: 2 });
 
         const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
         const { initTenantSchema } = require("../platform/db/tenantSchema");
         const { runTenantMigrations } = require("../platform/db/migrations");
         const { seedAgileDefaults } = require("../platform/db/agileDefaults");
         await initTenantSchema(query);
-        const migrations = await runTenantMigrations(query, { label: schema });
+        const migrations = await runTenantMigrations(query, { label: "placement" });
         expect(migrations.failed).toEqual([]);
         await seedAgileDefaults(query);
 
@@ -62,8 +54,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
     afterAll(async () => {
         await pool?.end();
-        await admin?.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-        await admin?.end();
+        await database?.drop();
     });
 
     beforeEach(async () => {

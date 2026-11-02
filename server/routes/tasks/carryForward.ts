@@ -6,11 +6,14 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
+const { placeTickets } = require('../../modules/tasks/tasks.placement');
+const { placementContext, placedOrThrow } = require('./_helpers/placement');
 const {
     buildVisibilityPredicate,
     resolveTaskVisibility,
@@ -19,7 +22,7 @@ const {
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
-    transaction: <T = unknown>(fn: (client: any) => Promise<T>) => Promise<T>;
+    transaction: <T = unknown>(fn: (client: any, ctx: TransactionContext) => Promise<T>) => Promise<T>;
 }
 
 const router = express.Router();
@@ -67,7 +70,8 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
 
         if (incomplete.length === 0) return res.json({ message: 'No tasks to carry forward', carried: 0 });
 
-        const carried = await (req.db as DbLike).transaction(async (client: any) => {
+        const carried = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const ctx = placementContext(req, client, afterCommit, { notify: false });
             let count = 0;
             for (const t of incomplete) {
                 // Bug #3: the dup-check used to ignore org_id, meaning two users
@@ -88,12 +92,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                     // fresh "queued" copy for today.
                     const insertRes = await client.query(
                         `INSERT INTO tasks
-                            (user_id, planned_date, title, description, priority, assigned_to, due_date, org_id,
+                            (user_id, title, description, priority, assigned_to, due_date, org_id,
                              team_id, story_points, work_item_type_id, workflow_state_id,
                              parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
                          RETURNING id`,
-                        [req.userId, today, t.title, t.description, t.priority, t.assigned_to, dueDate, req.userOrgId || null,
+                        [req.userId, t.title, t.description, t.priority, t.assigned_to, dueDate, req.userOrgId || null,
                         t.team_id ?? actor.teamId ?? null,
                         t.story_points, t.work_item_type_id, t.workflow_state_id,
                         t.parent_task_id,
@@ -111,7 +115,9 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                             [newTaskId, lbl.label_id]
                         );
                     }
-                    await logHistory(newTaskId, req.userId, 'created', 'planned_date', lastTaskDay.date, today, client, req.db);
+                    // Placement records the planned-day history row.
+                    await logHistory(newTaskId, req.userId, 'created', null, null, null, client, req.db);
+                    placedOrThrow(await placeTickets(ctx, [newTaskId], { day: today }));
                     count++;
                 }
             }

@@ -102,8 +102,12 @@ test("the sprint start and complete routes emit their notifications", () => {
 });
 
 test("being added to a sprint notifies the assignee", () => {
-  const source = read("server/routes/tasks/sprints.ts");
-  assert.ok(source.includes("notifySprintTaskAdded"), "assign-sprint does not notify");
+  // Every sprint entry goes through ticket placement (ADR-015); its realtime
+  // adapter sends the event, so assign-sprint must place, not write directly.
+  const route = read("server/routes/tasks/sprints.ts");
+  assert.ok(route.includes("placeTickets"), "assign-sprint does not go through placement");
+  const effects = read("server/modules/tasks/tasks.placementEffects.ts");
+  assert.ok(effects.includes("describeSprintTaskAdded"), "placement does not notify on sprint entry");
   // The audience and the copy live in one place so both the single assign and
   // the bulk move emit the identical event.
   const notifications = read("server/modules/tasks/tasks.notifications.ts");

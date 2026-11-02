@@ -1,12 +1,7 @@
 {
   "modules/tasks/tasks.ownership.ts": 2,
   "modules/tasks/tasks.repository.ts": 7,
-  "modules/tasks/tasks.serviceDesk.ts": 1,
-  "modules/tasks/tasks.sprintRepository.ts": 9,
-  "routes/notes.ts": 1,
+  "modules/tasks/tasks.sprintRepository.ts": 3,
   "routes/sprints.ts": 4,
-  "routes/tasks/backlog.ts": 3,
-  "routes/tasks/carryForward.ts": 1,
-  "routes/tasks/crud.ts": 5,
   "services/sprintScheduler.ts": 1
 }

@@ -62,6 +62,27 @@ export async function searchTasksForLinking(
     )).rows;
 }
 
+/**
+ * Insert a ticket from a note checklist item, with no container: the caller
+ * places it (sprint or planned day) in the same transaction. Starts in the
+ * org's initial workflow state.
+ */
+export async function insertNoteTicket(
+    db: NotesTaskDb,
+    input: { userId: number; orgId: number | null; teamId: number | null; title: string },
+): Promise<number> {
+    return (await db.query(
+        `INSERT INTO tasks (user_id, org_id, team_id, title, workflow_state_id, priority)
+         VALUES ($1, $2, $4, $3,
+                 (SELECT id FROM workflow_states
+                   WHERE org_id = $2 AND is_active = TRUE
+                   ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
+                 'medium')
+         RETURNING id`,
+        [input.userId, input.orgId, input.title, input.teamId],
+    )).rows[0].id;
+}
+
 /** One task's summary for a linked-entity panel. */
 export async function findLinkedTask(db: NotesTaskDb, taskId: unknown): Promise<any | null> {
     return (await db.query(

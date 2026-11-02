@@ -8,6 +8,7 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
@@ -15,8 +16,9 @@ const { buildTaskCollection, buildCompletedQuery } = require('../../modules/task
 const {
     findLastCompletedSprintStart,
     listScheduledTasks,
-    clearScheduledDates,
 } = require('../../modules/tasks/tasks.sprintRepository');
+const { placeTickets } = require('../../modules/tasks/tasks.placement');
+const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
 const { getLocalToday } = require('../../utils/timezone');
 
@@ -42,7 +44,7 @@ const {
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
-    transaction: <T = unknown>(fn: (client: any) => Promise<T>) => Promise<T>;
+    transaction: <T = unknown>(fn: (client: any, ctx: TransactionContext) => Promise<T>) => Promise<T>;
 }
 
 /**
@@ -250,7 +252,6 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
-        let ownDueDate: string | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
@@ -268,8 +269,6 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             if (sprint && (callerIsOrgAdmin || sprint.team_id === req.userTeamId)) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
-                ownDueDate = validDueDate;
-                if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
@@ -306,7 +305,10 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // Stage 3: when a project is assigned, reserve the next task_number
         // within the project so the enricher can produce a WEB-123 style
         // issue key.
-        const taskId = await (req.db as DbLike).transaction(async (client: any) => {
+        // The ticket is inserted with no container; joining a sprint is a
+        // placement in the same transaction (ADR-015), so its own due date is
+        // remembered exactly as for any other sprint entry.
+        const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -321,25 +323,27 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             }
             const insertRes = await client.query(
                 `INSERT INTO tasks
-                    (user_id, planned_date, title, description, priority, assigned_to, due_date,
-                     sprint_id, org_id, team_id, story_points, work_item_type_id, workflow_state_id,
+                    (user_id, title, description, priority, assigned_to, due_date,
+                     org_id, team_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17, $18)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
                  RETURNING id`,
                 [req.userId, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, validSprintId, req.userOrgId || null, owner.teamId,
+                    assignedTo, validDueDate, req.userOrgId || null, owner.teamId,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
             const newId = insertRes.rows[0].id;
-            if (validSprintId && ownDueDate) {
-                await client.query('UPDATE tasks SET pre_sprint_due_date = $1 WHERE id = $2', [ownDueDate, newId]);
-            }
             if (label_ids && Array.isArray(label_ids) && label_ids.length > 0) {
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            if (validSprintId) {
+                placedOrThrow(await placeTickets(
+                    placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
+                ));
+            }
             return newId;
         });
 
@@ -353,6 +357,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating backlog item:');
         res.status(500).json({ error: 'Failed to create backlog item' });
     }
@@ -371,13 +376,13 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
-        await req.db!.query('UPDATE tasks SET planned_date = $1 WHERE id = $2', [date, id]);
-        await logHistory(id, req.userId, 'scheduled', 'planned_date', task.planned_date || 'backlog', date, null, req.db);
+        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
+            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], { day: date })));
 
-        const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        const enriched = await enrichTasks([updated], req.db);
+        const enriched = await enrichTasks([placed.task], req.db);
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error scheduling task:');
         res.status(500).json({ error: 'Failed to schedule task' });
     }
@@ -393,13 +398,13 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
 
         // The planned day is the container, so clearing it returns the ticket
         // to the backlog; its own due date (a deadline) is left alone.
-        await clearScheduledDates(req.db!, id);
-        await logHistory(id, req.userId, 'unscheduled', 'planned_date', task.planned_date, 'backlog', null, req.db);
+        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
+            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], 'backlog')));
 
-        const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        const enriched = await enrichTasks([updated], req.db);
+        const enriched = await enrichTasks([placed.task], req.db);
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error unscheduling task:');
         res.status(500).json({ error: 'Failed to move task to backlog' });
     }

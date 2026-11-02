@@ -4,50 +4,21 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { requireFeature } = require('../../middleware/tenant');
 
-const { logHistory } = require('./_helpers/logHistory');
-
 const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
 const { isOrgAdmin, taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
-const {
-    canMoveIntoTeamSprint,
-    sprintTeamMismatchBody,
-    teamAfterSprintMove,
-} = require('../../modules/tasks/tasks.ownership');
 const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { taskNotificationLink, describeSprintTaskAdded } = require('../../modules/tasks/tasks.notifications');
-const { notifyUser } = require('../../realtime/fanout');
-const {
-    findTask, findSprintName, findSprintInOrg, setSprintAndDueDate, clearSprint,
-} = require('../../modules/tasks/tasks.sprintRepository');
+const { findTask, findSprintInOrg } = require('../../modules/tasks/tasks.sprintRepository');
+const { placeTickets } = require('../../modules/tasks/tasks.placement');
+const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 
 const router = express.Router();
-
-/**
- * Tell the assignee they were added to a sprint.
- *
- * Only the assignee — the rest of the team already sees the sprint on their
- * board, and a notification per ticket would be noise.
- */
-async function notifySprintTaskAdded(req: Request, task: any, sprint: any): Promise<void> {
-    const { title, body, audience } = describeSprintTaskAdded({ task, sprint, actorId: req.userId });
-    for (const userId of audience) {
-        await notifyUser(
-            req.db,
-            req.tenantId,
-            userId,
-            "sprint",
-            title,
-            body,
-            { link: taskNotificationLink(task.id), linkTaskId: task.id, actorId: req.userId },
-        ).catch(() => undefined);
-    }
-}
 
 // Both routes below are part of the Agile feature bundle — same gate as
 // /api/sprints and /api/agile. Applied per-route (NOT router.use) because
@@ -130,44 +101,29 @@ router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (r
         const task = await findTask(req.db!, id);
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
-        if (sprint_id === null || sprint_id === undefined || sprint_id === '') {
-            const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
-            await clearSprint(req.db!, task.id);
-            await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', 'none', null, req.db);
-        } else {
-            // Org admins can assign to any sprint within their org; others limited to own team.
-            // Bug #7 (Stage 2): the non-admin branch previously looked sprints
-            // up globally by id (no org filter). With a colliding team_id across
-            // tenants you could in theory attach to another org's sprint. Join
-            // through teams in both branches so the org filter is always applied.
+        const leaving = sprint_id === null || sprint_id === undefined || sprint_id === '';
+        if (!leaving) {
+            // Org admins may target any sprint in their org; others only their
+            // own team's. The org join is kept in both branches (Bug #7).
             const sprint = await findSprintInOrg(req.db!, sprint_id, req.userOrgId);
             if (!sprint || (!isOrgAdmin(req.userRole) && sprint.team_id !== req.userTeamId)) {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
-            // A ticket may only join its own team's sprint. Crossing teams is an
-            // explicit admin transfer, never a side effect of a sprint move.
-            if (!canMoveIntoTeamSprint(task.team_id, sprint.team_id)) {
-                return res.status(409).json(sprintTeamMismatchBody());
-            }
-            const oldSprint = task.sprint_id ? await findSprintName(req.db!, task.sprint_id) : null;
-            if (task.due_date !== sprint.end_date) {
-                await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, sprint.end_date, null, req.db);
-            }
-            await setSprintAndDueDate(
-                req.db!, task.id, sprint.id, sprint.end_date,
-                task.team_id == null ? teamAfterSprintMove(task.team_id, sprint.team_id) : null,
-            );
-            await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', sprint.name, null, req.db);
-            // Being added to a sprint is one of the five events worth telling
-            // people about; the assignee hears it unless they did it themselves.
-            const assigned = await findTask(req.db!, id);
-            await notifySprintTaskAdded(req, assigned, sprint);
         }
 
-        const updated = await findTask(req.db!, id);
-        const enriched = await enrichTasks([updated], req.db);
+        // Team rule, due-date bookkeeping, history, audit, realtime and the
+        // sprint-added notification all live in the placement module.
+        const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) =>
+            placedOrThrow(await placeTickets(
+                placementContext(req, client, afterCommit),
+                [task.id],
+                { sprint: leaving ? null : Number(sprint_id) },
+            )));
+
+        const enriched = await enrichTasks([placed.task], req.db);
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error assigning sprint:');
         res.status(500).json({ error: 'Failed to assign sprint' });
     }

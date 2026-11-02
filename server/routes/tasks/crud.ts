@@ -10,6 +10,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { LifecycleContext } from "../../modules/tasks/tasks.workflow";
+import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
@@ -32,19 +33,12 @@ const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusE
 const { assertLifecycleMove, loadLifecycleContext, stateOf } = require('../../modules/tasks/tasks.workflow');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const {
-    resolveCreateTeamId,
-    canMoveIntoTeamSprint,
-    sprintTeamMismatchBody,
-    teamAfterSprintMove,
-} = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
-const {
-    resolveSprintTarget,
-    planSprintEdit,
-    resolveEditDates,
-} = require('../../modules/tasks/tasks.sprintAssignment');
+const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { placeTickets } = require('../../modules/tasks/tasks.placement');
+const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -56,7 +50,7 @@ const {
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
-    transaction: <T = unknown>(fn: (client: any) => Promise<T>) => Promise<T>;
+    transaction: <T = unknown>(fn: (client: any, ctx: TransactionContext) => Promise<T>) => Promise<T>;
 }
 
 const router = express.Router();
@@ -152,8 +146,6 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
-        // The ticket's own due date, restored if it later leaves the sprint.
-        let ownDueDate: string | null = null;
         // Sprint assignment is part of the Agile feature bundle — when the
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
@@ -171,8 +163,6 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             if (sprint) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
-                ownDueDate = validDueDate;
-                if (!validDueDate) validDueDate = sprint.end_date;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
@@ -218,7 +208,11 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         // is concurrency-safe — the row-level lock around the project row
         // serialises competing INSERTs so two requests can't both grab the
         // same number.
-        const taskId = await (req.db as DbLike).transaction(async (client: any) => {
+        //
+        // The ticket is inserted with no container and then placed in the same
+        // transaction: into the sprint (which wins, so no planned day is set),
+        // otherwise onto its planned day (ADR-015).
+        const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -233,27 +227,29 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             }
             const insertRes = await client.query(
                 `INSERT INTO tasks
-                    (user_id, planned_date, title, description, priority, assigned_to, due_date,
-                     sprint_id, org_id, team_id, story_points, work_item_type_id, workflow_state_id,
+                    (user_id, title, description, priority, assigned_to, due_date,
+                     org_id, team_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
                  RETURNING id`,
-                [req.userId, targetDate, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, validSprintId, req.userOrgId || null, owner.teamId,
+                [req.userId, title.trim(), description?.trim() || null, validPriority,
+                    assignedTo, validDueDate, req.userOrgId || null, owner.teamId,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
             const newId = insertRes.rows[0].id;
-            if (validSprintId && ownDueDate) {
-                await client.query('UPDATE tasks SET pre_sprint_due_date = $1 WHERE id = $2', [ownDueDate, newId]);
-            }
             if (label_ids && Array.isArray(label_ids) && label_ids.length > 0) {
                 // syncLabels uses its own .query — re-bind to the tx client so
                 // the deletes/inserts join the transaction.
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            placedOrThrow(await placeTickets(
+                placementContext(req, client, afterCommit, { notify: false }),
+                [newId],
+                validSprintId ? { sprint: validSprintId } : { day: targetDate },
+            ));
             return newId;
         });
 
@@ -272,6 +268,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating task:');
         res.status(500).json({ error: 'Failed to create task' });
     }
@@ -446,48 +443,37 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
         }
 
-        // The two scheduling dates and the pair rule between them (Bug #15).
+        // Where the edit moves the ticket, if anywhere (ADR-015). The agile gate
+        // keeps sprint moves off entirely when the tenant disables it; a planned
+        // day on a sprinted ticket is ignored because the sprint wins.
+        const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
+        let requestedSprint: { id: number } | null | undefined;
+        if (sprint_id !== undefined && isAgileFeatureEnabled((req as any).tenant, 'agile')) {
+            const target = await resolveSprintTarget(req.db!, {
+                sprintId: sprint_id,
+                orgId: req.userOrgId || null,
+                actorTeamId: req.userTeamId ?? null,
+                isAdmin: isOrgAdmin(req.userRole),
+            });
+            if (target.error) return res.status(target.error.status).json(target.error.body);
+            requestedSprint = target.sprint ?? null;
+        }
+        const move = editPlacement({
+            requestedSprint,
+            requestedPlannedDate: planned_date,
+            currentSprintId: task.sprint_id,
+            currentPlannedDate: task.planned_date ?? null,
+        });
+        const placementTarget = move.target;
+
+        // The pair rule between the two dates (Bug #15), against where the ticket will be.
+        const dueDateRequested = due_date !== undefined && !move.joinsSprint;
         const dates = resolveEditDates({
             currentDueDate: task.due_date,
-            currentPlannedDate: task.planned_date ?? null,
-            requestedDueDate: due_date === undefined ? undefined : due_date,
-            requestedPlannedDate: planned_date === undefined ? undefined : planned_date,
+            currentPlannedDate: move.plannedAfter,
+            requestedDueDate: dueDateRequested ? due_date : undefined,
         });
         if (dates.error) return res.status(dates.error.status).json(dates.error.body);
-        let newDueDate = dates.dueDate;
-        // `planned_date` is the only scheduling field (D2).
-        let newPlannedDate = dates.plannedDate;
-
-        // Sprint membership on edit, including what happens to the dates (see
-        // tasks.sprintAssignment). The agile gate keeps sprint mutation off
-        // entirely when the tenant disables it.
-        let newSprintId = task.sprint_id;
-        let newTeamId = task.team_id;
-        let newPreSprintDueDate = task.pre_sprint_due_date ?? null;
-        const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
-        const agileEnabledForTenant = isAgileFeatureEnabled((req as any).tenant, 'agile');
-        if (sprint_id !== undefined && agileEnabledForTenant) {
-            const next = await planSprintEdit(req.db!, {
-                request: {
-                    sprintId: sprint_id,
-                    orgId: req.userOrgId || null,
-                    actorTeamId: req.userTeamId ?? null,
-                    isAdmin: isOrgAdmin(req.userRole),
-                },
-                current: {
-                    sprintId: task.sprint_id,
-                    teamId: task.team_id,
-                    dueDate: newDueDate,
-                    preSprintDueDate: newPreSprintDueDate,
-                },
-                requestedDueDate: due_date === undefined ? undefined : newDueDate,
-            });
-            if (next.error) return res.status(next.error.status).json(next.error.body);
-            newSprintId = next.sprintId;
-            newTeamId = next.teamId ?? newTeamId;
-            newDueDate = next.dueDate;
-            newPreSprintDueDate = next.preSprintDueDate;
-        }
 
         // Resolve agile fields (only update if explicitly supplied)
         let newStoryPoints = task.story_points;
@@ -559,20 +545,34 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             newBlockedReason = blocked_reason ? String(blocked_reason).slice(0, 500) : null;
         }
 
-        await req.db!.query(
-            `UPDATE tasks SET title = $1, description = $2, priority = $3, assigned_to = $4,
-                due_date = $5, sprint_id = $6, story_points = $7, work_item_type_id = $8,
-                workflow_state_id = $9, parent_task_id = $10,
-                acceptance_criteria = $11, is_blocked = $12, blocked_reason = $13,
-                project_id = $14, task_number = $15, planned_date = $16, team_id = $18,
-                pre_sprint_due_date = $19
-              WHERE id = $17`,
-            [newTitle, newDesc, newPriority, newAssignedTo, newDueDate, newSprintId,
-                newStoryPoints, newWitId, newWsId, newParentTaskId,
-                newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
-                newIsBlocked, newBlockedReason, newProjectId, newTaskNumber,
-                newPlannedDate, id, newTeamId, newPreSprintDueDate]
-        );
+        // One transaction: the move first (placement owns sprint, planned day and
+        // the due-date bookkeeping), then the plain fields. A due date the user
+        // typed is applied after the move, so it wins over a restored one.
+        const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            let row = task;
+            if (placementTarget) {
+                row = placedOrThrow(await placeTickets(
+                    placementContext(req, client, afterCommit), [id], placementTarget,
+                )).task;
+            }
+            await client.query(
+                `UPDATE tasks SET title = $1, description = $2, priority = $3, assigned_to = $4,
+                    due_date = $5, story_points = $6, work_item_type_id = $7,
+                    workflow_state_id = $8, parent_task_id = $9,
+                    acceptance_criteria = $10, is_blocked = $11, blocked_reason = $12,
+                    project_id = $13, task_number = $14
+                  WHERE id = $15`,
+                [newTitle, newDesc, newPriority, newAssignedTo,
+                    dueDateRequested ? dates.dueDate : row.due_date,
+                    newStoryPoints, newWitId, newWsId, newParentTaskId,
+                    newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
+                    newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
+            );
+            return row;
+        });
+        // History for the container fields was written by placement; this
+        // route only records a due date it set over the placed value.
+        const newDueDate = dueDateRequested ? dates.dueDate : placedRow.due_date;
 
         // Log a project assignment as a first-class history event so users
         // can see when a previously-keyless task picked up an issue key.
@@ -596,15 +596,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const newLabel = newUser?.full_name || newUser?.username || 'unassigned';
             await logHistory(id, req.userId, 'updated', 'assigned_to', oldLabel, newLabel, null, req.db);
         }
-        if (newDueDate !== task.due_date) await logHistory(id, req.userId, 'updated', 'due_date', task.due_date, newDueDate, null, req.db);
-        if (newPlannedDate !== (task.planned_date ?? null)) {
-            await logHistory(id, req.userId, 'updated', 'planned_date',
-                task.planned_date ?? null, newPlannedDate, null, req.db);
-        }
-        if (String(newSprintId || '') !== String(task.sprint_id || '')) {
-            const oldSprint = task.sprint_id ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [task.sprint_id])).rows[0] : null;
-            const newSprint = newSprintId ? (await req.db!.query('SELECT name FROM sprints WHERE id = $1', [newSprintId])).rows[0] : null;
-            await logHistory(id, req.userId, 'updated', 'sprint', oldSprint?.name || 'none', newSprint?.name || 'none', null, req.db);
+        if (String(newDueDate ?? '') !== String(placedRow.due_date ?? '')) {
+            await logHistory(id, req.userId, 'updated', 'due_date', placedRow.due_date, newDueDate, null, req.db);
         }
         // Normalize for comparison: DB returns NUMERIC as a string like '8.00',
         // while newStoryPoints is a JS number (e.g. 8). A naive string compare
@@ -656,10 +649,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (newAssignedTo && String(newAssignedTo) !== String(task.assigned_to) && newAssignedTo !== req.userId) {
             assignmentNotified = await notifyTaskAssigned(req, updated, newAssignedTo);
         }
-        // Broadcast only the fields that actually changed, so two people editing
-        // different fields of the same ticket both survive. A status transition
-        // also reaches the owning team; an ordinary edit keeps the old audience.
+        // Broadcast only changed fields (placement already announced the container
+        // ones); a status transition also reaches the owning team.
         const extraAudience = [task.assigned_to, assignmentNotified ? null : updated?.assigned_to];
+        const fields = diffTask(placedRow, updated);
         if (stateChanged) {
             await announceStatusMove(req, {
                 task: updated,
@@ -667,19 +660,20 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 to: newWsRow,
                 name: statusActor,
                 action: 'updated',
-                fields: diffTask(task, updated),
+                fields,
                 extra: extraAudience,
                 includeTeam: true,
             });
-        } else {
+        } else if (Object.keys(fields).length > 0) {
             await broadcastTaskUpdated(req, updated, 'updated', {
-                fields: diffTask(task, updated),
+                fields,
                 actor: { id: req.userId!, name: statusActor },
             }, extraAudience, false);
         }
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error updating task:');
         res.status(500).json({ error: 'Failed to update task' });
     }

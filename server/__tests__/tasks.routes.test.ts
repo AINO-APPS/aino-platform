@@ -33,7 +33,7 @@ const request = require("supertest");
 
 const mockQuery: jest.Mock = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
 const mockTxClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
-const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient));
+const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
 
 jest.mock("../db", () => ({
     pool: { end: jest.fn() },
@@ -72,7 +72,7 @@ describe("POST /api/tasks/backlog", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     });
 
     test("returns 401 without auth", async () => {
@@ -162,7 +162,7 @@ describe("Tenant Isolation - Tasks", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient));
+        mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     });
 
     test("persists org_id when creating backlog task", async () => {
