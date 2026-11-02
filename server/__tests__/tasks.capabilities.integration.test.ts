@@ -6,6 +6,8 @@ import type { TaskActor } from "../modules/tasks/tasks.policy";
 import { assertLifecycleMove, loadLifecycleContext } from "../modules/tasks/tasks.workflow";
 import { findFrozenSprintIds } from "../modules/tasks/tasks.sprintLifecycle";
 import { placeTickets } from "../modules/tasks/tasks.placement";
+import { buildSprintBoardColumns } from "../modules/tasks/tasks.board";
+import { findSprintBoardCounts } from "../modules/tasks/tasks.sprintRepository";
 
 installPgTypeParsers();
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
@@ -304,6 +306,44 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
         } finally {
             await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+        }
+    });
+
+    test("board WIP status agrees with the PostgreSQL write guard and excludes Cancelled occupancy", async () => {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query("UPDATE workflow_states SET is_active = TRUE, sort_order = 8, wip_limit = 1 WHERE id = 107");
+            await client.query(`INSERT INTO workflow_transitions (org_id, from_state_id, to_state_id)
+                VALUES (1, 106, 107) ON CONFLICT (from_state_id, to_state_id) DO NOTHING`);
+            await client.query(`INSERT INTO org_agile_settings (org_id, enable_wip_limits) VALUES (1, TRUE)
+                ON CONFLICT (org_id) DO UPDATE SET enable_wip_limits = TRUE`);
+            const tickets = (await client.query(`INSERT INTO tasks
+                (title, user_id, org_id, team_id, workflow_state_id, sprint_id)
+                VALUES ('Board source', 2, 1, 1, 106, 11),
+                       ('Board target', 2, 1, 1, 107, NULL),
+                       ('Board cancelled', 2, 1, 1, 105, 11)
+                RETURNING *`)).rows;
+            const lifecycle = await loadLifecycleContext(client, 1);
+            const columns = buildSprintBoardColumns(lifecycle, await findSprintBoardCounts(client, 1));
+            const targetColumn = columns.find((column) => column.stateId === 107);
+            expect(targetColumn).toEqual({ stateId: 107, count: 1, limit: 1, accepting: false });
+            expect(columns.some((column) => column.stateId === 105)).toBe(false);
+            expect(await assertLifecycleMove(client, 1, tickets[0], lifecycle.stateById.get(107), lifecycle))
+                .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
+
+            await client.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+            const disabledLifecycle = await loadLifecycleContext(client, 1);
+            const disabledColumns = buildSprintBoardColumns(
+                disabledLifecycle,
+                await findSprintBoardCounts(client, 1),
+            );
+            expect(disabledColumns.find((column) => column.stateId === 107)?.accepting).toBe(true);
+            expect(await assertLifecycleMove(client, 1, tickets[0], disabledLifecycle.stateById.get(107), disabledLifecycle))
+                .toBeNull();
+        } finally {
+            await client.query("ROLLBACK");
+            client.release();
         }
     });
 

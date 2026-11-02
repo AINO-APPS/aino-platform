@@ -77,6 +77,22 @@ export async function findSprintWithTeam(db: SprintDb, sprintId: unknown) {
     )).rows[0] || null;
 }
 
+/** Organization-wide occupancy used by the workflow write guard for board columns. */
+export async function findSprintBoardCounts(db: SprintDb, orgId: number | null) {
+    return (await db.query(
+        `SELECT t.workflow_state_id AS state_id, COUNT(*)::int AS count
+           FROM tasks t
+           JOIN workflow_states ws
+             ON ws.id = t.workflow_state_id
+            AND ws.org_id IS NOT DISTINCT FROM t.org_id
+          WHERE t.org_id IS NOT DISTINCT FROM $1
+            AND ws.is_active = TRUE
+            AND ws.key <> 'cancelled'
+          GROUP BY t.workflow_state_id`,
+        [orgId],
+    )).rows;
+}
+
 /** One task row by id. */
 export async function findTask(db: SprintDb, taskId: unknown) {
     return (await db.query("SELECT * FROM tasks WHERE id = $1", [taskId])).rows[0] || null;

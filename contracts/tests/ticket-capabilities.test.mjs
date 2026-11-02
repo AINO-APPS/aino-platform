@@ -10,6 +10,10 @@ const fixture = JSON.parse(fs.readFileSync(
   path.join(root, "contracts/fixtures/ticket-with-capabilities.json"),
   "utf8",
 ));
+const boardFixture = JSON.parse(fs.readFileSync(
+  path.join(root, "contracts/fixtures/sprint-board.json"),
+  "utf8",
+));
 
 function assertMatchesSchema(schema, value, pathName) {
   if (schema.$ref) {
@@ -45,4 +49,8 @@ function assertMatchesSchema(schema, value, pathName) {
 
 test("shared ticket fixture conforms to the OpenAPI Task schema", () => {
   assertMatchesSchema(api.components.schemas.Task, fixture, "ticket");
+});
+
+test("shared sprint board fixture conforms to the OpenAPI SprintBoard schema", () => {
+  assertMatchesSchema(api.components.schemas.SprintBoard, boardFixture, "board");
 });

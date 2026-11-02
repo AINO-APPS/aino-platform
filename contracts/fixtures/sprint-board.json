@@ -1,0 +1,77 @@
+{
+  "sprint": {
+    "id": 10,
+    "team_id": 1,
+    "name": "Sprint 10",
+    "status": "active",
+    "start_date": "2026-11-01",
+    "end_date": "2026-11-14",
+    "auto_managed": false
+  },
+  "columns": [
+    {
+      "stateId": 101,
+      "count": 1,
+      "limit": 1,
+      "accepting": false
+    },
+    {
+      "stateId": 102,
+      "count": 0,
+      "limit": null,
+      "accepting": true
+    }
+  ],
+  "tickets": [
+    {
+      "id": 201,
+      "title": "Review the release plan",
+      "priority": "high",
+      "workflow_state_id": 101,
+      "workflow_state_key": "todo",
+      "workflow_state_name": "To Do",
+      "workflow_state_category": "open",
+      "planned_date": null,
+      "due_date": null,
+      "completed_at": null,
+      "sprint_id": 10,
+      "container": "sprint",
+      "capabilities": {
+        "transitions": [
+          {
+            "to": 102,
+            "allowed": true
+          }
+        ],
+        "can": {
+          "edit": {
+            "allowed": true
+          },
+          "changeState": {
+            "allowed": true
+          },
+          "cancel": {
+            "allowed": true
+          },
+          "transfer": {
+            "allowed": false,
+            "reason": "ACCESS_DENIED"
+          },
+          "delete": {
+            "allowed": true
+          },
+          "placeInSprint": {
+            "allowed": true
+          },
+          "schedule": {
+            "allowed": false,
+            "reason": "IN_SPRINT"
+          }
+        }
+      },
+      "team_id": 1,
+      "rank": null,
+      "is_blocked": false
+    }
+  ]
+}
