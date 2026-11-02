@@ -57,8 +57,9 @@ Module header comment records why placement is one module (architecture review
 (`{ sprint: null }`) and "back to backlog" (`"backlog"`) are two targets; the
 module header records why. Refusals are `{ ok: false, code, error }` with a
 closed `PlacementRefusalCode` union. Ticket rows lock `FOR UPDATE` in id order;
-sprint rows `FOR SHARE` so completion cannot race the freeze check. Old
+sprint rows `FOR SHARE` so completion cannot race the freeze check. Legacy
 fragments (`setSprint`, `setSprintAndDueDate`, `clearSprint`, `LEAVE_SPRINT`,
-`REMEMBER_DUE_DATE`) stay until issues 03–07 move their callers (P14).
+`REMEMBER_DUE_DATE`) were retained during implementation and removed as issues
+03–07 migrated their callers (P14).
 Suite: `__tests__/tasks.placement.integration.test.ts` (32 cases, real
 PostgreSQL) and `__tests__/tasks.placementEffects.test.ts`.

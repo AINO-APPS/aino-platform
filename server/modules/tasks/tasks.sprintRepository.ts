@@ -172,18 +172,6 @@ export async function findLastCompletedSprintStart(
     return row?.start_date ?? null;
 }
 
-/**
- * SET fragment that saves the ticket's own due date on its first sprint entry.
- * Moving sprint → sprint keeps the original value. Evaluated against the
- * pre-update row, so it must precede the `sprint_id`/`due_date` assignments
- * only for readability — Postgres reads old values for every SET expression.
- */
-export const REMEMBER_DUE_DATE =
-    "pre_sprint_due_date = CASE WHEN sprint_id IS NULL THEN due_date ELSE pre_sprint_due_date END";
-
-/** SET fragment that takes a ticket out of its sprint and restores its date. */
-export const LEAVE_SPRINT = "sprint_id = NULL, due_date = pre_sprint_due_date, pre_sprint_due_date = NULL";
-
 /** Points and terminal flags for a sprint's burndown snapshot. */
 export async function findSprintBurndownInputs(db: SprintDb, sprintId: number, orgId: number | null) {
     return (await db.query(
