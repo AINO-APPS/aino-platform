@@ -69,3 +69,9 @@ Response enrichment, contracts and client rendering remain separate rollout work
 Run `cd server; npm run test:pg -- tasks.capabilities.integration --runInBand`
 with Docker, or set `TASKS_SCHEMA_TEST_DATABASE_URL` and run the suite with Jest.
 It skips when that URL is unset.
+
+## Notes ticket responses
+
+`routes/notes/_helpers/tickets.ts` owns Notes' endpoint-specific ticket summaries
+and embedded sprint stats. It retains the shared `enrichTaskSummaries` pipeline
+for containers and capabilities; Notes routes keep their reads and error handling.
