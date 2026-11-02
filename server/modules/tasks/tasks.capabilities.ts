@@ -5,9 +5,9 @@ import {
 import {
     allowsTransition, isCancelled, loadLifecycleContext, stateOf,
     type LifecycleContext, type LifecycleDb,
-} from "./tasks.workflow";
+} from "./tasks.workflowRules";
 import { isSprintFrozen, type SprintLike } from "./tasks.sprintLifecycle";
-import { placementRefusal } from "./tasks.placement";
+import { placementRefusal } from "./tasks.placementRules";
 import { findDecisionOwners, findDecisionSprints } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
