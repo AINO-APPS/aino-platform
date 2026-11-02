@@ -11,6 +11,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const getBacklog = vi.fn();
 const setError = vi.fn();
@@ -67,7 +68,7 @@ function renderBacklog() {
 }
 
 const page = {
-    tasks: [{ id: 1, title: "Refund webhook retries" }],
+    tasks: [{ ...ticket, id: 1, title: "Refund webhook retries" }],
     summary: { total: 1, byStatus: {}, byPriority: {} },
     pagination: { total: 1 },
 };

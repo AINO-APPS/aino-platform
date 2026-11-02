@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { getTaskDetail, getTaskHistory, getTaskComments, deleteTaskComment, updateTask, updateTaskStatus, addTaskComment, updateTaskComment } from "../../../api/tasks";
 import type { Comment, Task } from "../../../types";
 import { showsBacklog } from "./useTasksRoute";
+import { writeError } from "../ticketCapabilities";
+import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 
 type ShowConfirm = (
     title: string,
@@ -66,6 +68,18 @@ export function useTaskDetail({
     const [detailEditing, setDetailEditing] = useState(false);
     const [detailTab, setDetailTab] = useState("comments");
     const [detailHistory, setDetailHistory] = useState<unknown[]>([]);
+    const replaceTicket = (fresh: Task) => {
+        setDetailTask((current) => current?.id === fresh.id ? fresh : current);
+        setTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task));
+        setBacklogTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
+    };
+    useRealtimeEvent(["task_updated"], async (event) => {
+        if (String((event.data as { taskId?: number })?.taskId) !== String(detailTask?.id) || !detailTask) return;
+        try {
+            const { data } = await getTaskDetail(detailTask.id);
+            replaceTicket(data as Task);
+        } catch { /* Retain the last fetched decision while offline. */ }
+    }, !!detailTask);
 
     const refreshDetailHistory = async (taskId: number | string) => {
         try {
@@ -125,7 +139,7 @@ export function useTaskDetail({
             async () => {
                 closeConfirm();
                 try {
-                    await updateTask(detailTask.id, {
+                    const res = await updateTask(detailTask.id, {
                         title: editData.title,
                         description: editData.description,
                         priority: editData.priority,
@@ -142,17 +156,14 @@ export function useTaskDetail({
                         project_id: editData.projectId || null,
                     });
                     setDetailEditing(false);
-                    const res = await getTaskDetail(detailTask.id);
-                    const data = res.data as Task & { comments?: Comment[] };
-                    setDetailTask(data);
-                    setDetailComments(data.comments || []);
+                    replaceTicket(res.data as Task);
                     refreshDetailHistory(detailTask.id);
                     fetchTasks();
                     // The Plan view shows the backlog too, so a sprint move made
                     // there must reload it — see `showsBacklog`.
                     if (showsBacklog(activeTab, planOpen)) fetchBacklog();
-                } catch {
-                    setError("Failed to update item");
+                } catch (error) {
+                    setError(writeError(error, "Failed to update item"));
                 }
             },
             { confirmText: "Save" },
@@ -277,14 +288,8 @@ export function useTaskDetail({
             async () => {
                 closeConfirm();
                 try {
-                    await updateTaskStatus(task.id, String(col.id));
-                    // Re-read the ticket: the server also resolves workflow_state_id.
-                    const fresh = await getTaskDetail(task.id).then((r) => r.data as Task).catch(() => null);
-                    setDetailTask((prev) =>
-                        prev ? { ...prev, ...(fresh || {}), status: String(col.id) } : prev,
-                    );
-                    const patch = (t: Task) => (t.id === task.id ? { ...t, ...(fresh || {}), status: String(col.id) } : t);
-                    setBacklogTasks((prev) => prev.map(patch));
+                    const { data } = await updateTaskStatus(task.id, String(col.id));
+                    replaceTicket(data as Task);
                     refreshDetailHistory(task.id);
                     fetchTasks();
                     // The Plan view shows the backlog too, so a sprint move made
@@ -292,7 +297,7 @@ export function useTaskDetail({
                     if (showsBacklog(activeTab, planOpen)) fetchBacklog();
                 } catch (err) {
                     // 403 (not assignee/reporter), 400 (invalid state) and 409 (WIP limit) carry a readable reason.
-                    setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Failed to update status");
+                    setError(writeError(err, "Failed to update status"));
                 }
             },
             { confirmText: "Move" },
@@ -301,6 +306,7 @@ export function useTaskDetail({
 
     return {
         detailTask,
+        replaceTicket,
         setDetailTask,
         detailComments,
         setDetailComments,

@@ -204,9 +204,10 @@ are referenced by the parity matrix and the phase plan.
 | ID | Decision |
 |----|----------|
 | D47 | **Backlog and board both subscribe** to realtime. Optimistic update → broadcast → reconcile. |
-| D48 | **Field-level deltas with per-field last-write-wins** and a non-blocking "Updated by <name>" attribution flash. Whole-object overwrite is prohibited. |
+| D48 | **Superseded for tickets by ADR-016:** `task_updated` invalidates the ticket; clients refetch per-user capabilities and replace the ticket. The non-blocking "Updated by <name>" attribution flash remains. |
 | D49 | **v1 notification events:** added to sprint, assigned to you, sprint started, sprint completed (with carryover summary), due date approaching. **Not** backlog reordering or status changes. |
 | D50 | **Current sprint is server-selected:** active, otherwise paused, otherwise none; web and desktop use the returned `currentSprintId` for team landing and sprint defaults. |
+| D51 | **Web/desktop actions and lists render server decisions (ADR-016):** status targets and action availability come from `capabilities`, missing capabilities deny all actions, and Backlog / Scheduled / My Work use `container`. One reason-code mapping serves disabled controls and rejected writes; writes replace the whole ticket from their response. Board adoption is tracked separately in ticket 07. |
 | D50 | **Rank is computed server-side** from neighbours: `PATCH /tasks/:id/rank { beforeId, afterId }`. Clients never invent rank strings. |
 | D51 | **Schedule overlays** show approved leave, holidays and booked meetings as read-only, independently toggleable background bands — reusing existing data instead of building a capacity model (which D33 defers). |
 | D52 | **Team mode is web-only configuration.** `server/middleware/webOnly.ts` already blocks agile editor/reviewer routes for native clients, so the Continuous/Sprints switch is edited on web and only *read* by Android and the iOS webview. |

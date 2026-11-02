@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, AlertCircle, Package, X } from "../../constants/icons";
-import { getScheduled, scheduleTask, unscheduleTask, updateTask } from "../../api/tasks";
+import { getScheduled, scheduleTask, unscheduleTask, updateTask, updateTaskStatus } from "../../api/tasks";
 import { getLocalToday } from "../../api/client";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { useToast } from "../../components/common/Toast";
@@ -12,8 +12,11 @@ import ScheduleCalendar from "./ScheduleCalendar";
 import type { CalendarMode } from "./calendar";
 import { getBacklog, getScheduleOverlays } from "../../api/tasks";
 import s from "./ScheduledTab.module.css";
+import { actionDecision, decisionProps, writeError } from "./ticketCapabilities";
+import { useTaskDeltas } from "./hooks/useTaskDeltas";
 
 interface ScheduledTabProps {
+  updatedTicket?: any;
   filters?: Record<string, string>;
   /** Day (YYYY-MM-DD) to scroll to once loaded, e.g. after "View" on a schedule toast. */
   focusDate?: string | null;
@@ -35,7 +38,7 @@ const EMPTY_SCOPE: Record<string, unknown> = {};
  * per-card Reschedule / Back to backlog with Undo. Kept in sync by `task_*`
  * realtime events plus a visible-tab poll.
  */
-export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOpenDetail, onOpenComments, version = 0, scopeParams = EMPTY_SCOPE }: ScheduledTabProps) {
+export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOpenDetail, onOpenComments, version = 0, scopeParams = EMPTY_SCOPE, updatedTicket }: ScheduledTabProps) {
   const toast = useToast() as any;
   const today = getLocalToday();
   const [tasks, setTasks] = useState<any[]>([]);
@@ -51,7 +54,7 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   const load = useCallback(async () => {
     try {
       const res = await getScheduled({ ...(filters || {}), ...scopeParams } as any);
-      setTasks(((res.data as any)?.tasks as any[]) || []);
+      setTasks((((res.data as any)?.tasks as any[]) || []).filter((task) => task.container === "scheduled"));
       setError("");
     } catch {
       setError("Failed to load scheduled tasks");
@@ -61,19 +64,25 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
   }, [filters, scopeParams]);
 
   useEffect(() => { load(); }, [load, version]);
-  useRealtimeEvent(["task_updated", "task_assigned"], () => { load(); });
+  useTaskDeltas(setTasks, { container: "scheduled", onRefresh: () => { void load(); void loadBacklog(); } });
+  useRealtimeEvent(["task_assigned"], () => { void load(); void loadBacklog(); });
   useVisiblePoll(load);
 
   // The unscheduled tray is backlog work with no planned day.
   const loadBacklog = useCallback(async () => {
     try {
       const res = await getBacklog({ ...scopeParams, limit: 200 });
-      setBacklogTasks(((res.data as any)?.tasks as any[]) || []);
+      setBacklogTasks((((res.data as any)?.tasks as any[]) || []).filter((task) => task.container === "backlog"));
     } catch {
       // The tray is supplementary; a failure must not block the calendar.
     }
   }, [scopeParams]);
   useEffect(() => { void loadBacklog(); }, [loadBacklog, version]);
+  const replaceTicket = (fresh: any) => {
+    setTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "scheduled"));
+    setBacklogTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
+  };
+  useEffect(() => { if (updatedTicket) replaceTicket(updatedTicket); }, [updatedTicket]);
 
   // Read-only context behind the calendar: leave, holidays and meetings.
   useEffect(() => {
@@ -111,20 +120,21 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
       return;
     }
     try {
-      await scheduleTask(task.id, date);
+      const { data } = await scheduleTask(task.id, date);
+      replaceTicket(data);
       setRescheduleId(null);
       await load();
       toast.success(
         <span>
           Rescheduled to {formatDate(date)}
           {previous && previous !== date && (
-            <button className={s["toast-action"]} onClick={() => scheduleTask(task.id, previous).then(load)}>Undo</button>
+            <button className={s["toast-action"]} onClick={() => doReschedule(task, previous)}>Undo</button>
           )}
         </span>,
         6000,
       );
-    } catch {
-      toast.error("Failed to reschedule task");
+    } catch (error) {
+      toast.error(writeError(error, "Failed to reschedule task"));
     }
   };
 
@@ -132,14 +142,15 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
     const previousPlanned = task.planned_date?.slice(0, 10) || null;
     const previousDue = task.due_date?.slice(0, 10) || null;
     try {
-      await unscheduleTask(task.id);
-      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      const { data } = await unscheduleTask(task.id);
+      replaceTicket(data);
       void loadBacklog();
       const undo = async () => {
-        if (previousDue) await updateTask(task.id, { due_date: previousDue });
-        if (previousPlanned) await scheduleTask(task.id, previousPlanned);
-        await load();
-        await loadBacklog();
+        try {
+          if (previousDue) replaceTicket((await updateTask(task.id, { due_date: previousDue })).data);
+          if (previousPlanned) replaceTicket((await scheduleTask(task.id, previousPlanned)).data);
+          await load(); await loadBacklog();
+        } catch (error) { toast.error(writeError(error, "Failed to undo placement")); }
       };
       toast.success(
         <span>
@@ -148,8 +159,8 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         </span>,
         6000,
       );
-    } catch {
-      toast.error("Failed to move task to backlog");
+    } catch (error) {
+      toast.error(writeError(error, "Failed to move task to backlog"));
     }
   };
 
@@ -161,14 +172,18 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
         mode={calendarMode}
         onModeChange={setCalendarMode}
         onPlan={async (taskId, date) => {
-          await scheduleTask(taskId, date);
-          await load();
-          await loadBacklog();
+          const task = [...tasks, ...backlogTasks].find((item) => String(item.id) === String(taskId));
+          if (!actionDecision(task, "schedule").allowed) return;
+          try {
+            const { data } = await scheduleTask(taskId, date);
+            replaceTicket(data);
+            await load(); await loadBacklog();
+          } catch (error) { toast.error(writeError(error, "Failed to schedule task")); }
         }}
         onUnschedule={async (taskId) => {
-          await unscheduleTask(taskId);
-          await load();
-          await loadBacklog();
+          const task = tasks.find((item) => String(item.id) === String(taskId));
+          if (!actionDecision(task, "schedule").allowed) return;
+          await doUnschedule(task);
         }}
         onOpenDetail={onOpenDetail}
         today={today}
@@ -226,6 +241,12 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
               {g.tasks.map((task) => (
                 <div key={task.id} className={s.item}>
                   <TaskCard
+                    onStatusChange={async (task, target) => {
+                      try {
+                        const { data } = await updateTaskStatus(task.id, target.id);
+                        replaceTicket(data);
+                      } catch (error) { toast.error(writeError(error, "Failed to update status")); }
+                    }}
                     task={task}
                     onOpenDetail={onOpenDetail}
                     onOpenComments={onOpenComments}
@@ -246,10 +267,10 @@ export default function ScheduledTab({ filters, focusDate, onFocusConsumed, onOp
                       </span>
                     ) : (
                       <>
-                        <button className={s.action} onClick={() => { setRescheduleId(task.id); setRescheduleDate(task.planned_date?.slice(0, 10) || today); }}>
+                        <button {...decisionProps(actionDecision(task, "schedule"))} className={s.action} onClick={() => { setRescheduleId(task.id); setRescheduleDate(task.planned_date?.slice(0, 10) || today); }}>
                           <CalendarDays size={13} /> Reschedule
                         </button>
-                        <button className={s.action} onClick={() => doUnschedule(task)}>
+                        <button {...decisionProps(actionDecision(task, "schedule"))} className={s.action} onClick={() => doUnschedule(task)}>
                           <Package size={13} /> Back to backlog
                         </button>
                       </>

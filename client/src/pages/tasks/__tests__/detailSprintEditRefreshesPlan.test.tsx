@@ -124,8 +124,10 @@ vi.mock("../hooks/useConfirmDialog", () => ({
 }));
 
 import Tasks from "../../Tasks";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const TICKET = {
+    ...ticket,
     id: 7,
     title: "Refund webhook retries",
     issue_key: "PAY-142",
@@ -150,7 +152,7 @@ function backlogResult() {
 }
 
 function sprintResult() {
-    const tasks = sprintIdOfTicket === null ? [] : [{ ...TICKET, sprint_id: sprintIdOfTicket }];
+    const tasks = sprintIdOfTicket === null ? [] : [{ ...TICKET, container: "sprint", sprint_id: sprintIdOfTicket }];
     return { data: { tasks, stats: { total: tasks.length, done: 0, inProgress: 0, percent: 0 } } };
 }
 
@@ -172,13 +174,13 @@ beforeEach(() => {
     getBacklog.mockReset().mockImplementation(async () => backlogResult());
     getTasks.mockReset().mockImplementation(async () => sprintResult());
     getTaskDetail.mockReset().mockImplementation(async () => ({
-        data: { ...TICKET, sprint_id: sprintIdOfTicket, comments: [] },
+        data: { ...TICKET, container: sprintIdOfTicket ? "sprint" : "backlog", sprint_id: sprintIdOfTicket, comments: [] },
     }));
     updateTask.mockReset().mockImplementation(async (_id: unknown, patch: any) => {
         if (patch?.sprint_id !== undefined) {
             sprintIdOfTicket = patch.sprint_id === null || patch.sprint_id === "" ? null : Number(patch.sprint_id);
         }
-        return { data: {} };
+        return { data: { ...TICKET, container: sprintIdOfTicket ? "sprint" : "backlog", sprint_id: sprintIdOfTicket } };
     });
 });
 

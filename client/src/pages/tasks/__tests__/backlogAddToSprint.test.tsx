@@ -11,8 +11,10 @@ import { MemoryRouter } from "react-router-dom";
 import BacklogCard from "../BacklogCard";
 import { TaskProvider } from "../TaskContext";
 import { ToastProvider } from "../../../components/common/Toast";
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const task = {
+    ...ticket,
     id: 7,
     title: "Refund webhook retries",
     issue_key: "PAY-142",

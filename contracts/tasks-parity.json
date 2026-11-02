@@ -910,6 +910,46 @@
         "status": "waived",
         "waiver": "iOS renders the Tasks module through the web bundle and inherits the web behavior."
       }
+    },
+    {
+      "id": "server-ticket-action-rendering",
+      "name": "Status, action and bulk controls render server capabilities and denial reasons",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native capability controls are tracked separately in ticket 09." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-ticket-list-membership",
+      "name": "Scheduled and backlog membership render the server container",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native container adoption is tracked separately in ticket 08." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-my-work-membership",
+      "name": "My Work reads the server-selected container",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/components/dashboard/MyWorkCard.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/dashboard/MyWorkCard.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native container adoption is tracked separately in ticket 08." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "server-ticket-freshness",
+      "name": "Writes replace enriched tickets and realtime refetches per-user capabilities",
+      "decision": "D51",
+      "phase": 1,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native enriched-response replacement is tracked separately in ticket 09." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     }
   ],
   "non_goals": [

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { updateTask } from "../../../api/tasks";
 import type { Task } from "../../../types";
+import { writeError } from "../ticketCapabilities";
 
 interface InlineEditOptions {
     setBacklogTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -14,10 +15,7 @@ interface InlineEditOptions {
 /**
  * Inline edit: patch one field without opening the detail view.
  *
- * A planned day, due date or sprint moves the ticket out of the backlog (to
- * Scheduled or the sprint), so it leaves the list rather than lingering until
- * the next reload. The prior value is registered for undo so a mis-click is
- * reversible.
+ * The response owns the ticket and its container, including after undo.
  */
 export function useBacklogInlineEdit({
     setBacklogTasks,
@@ -30,28 +28,27 @@ export function useBacklogInlineEdit({
         const previous = Object.fromEntries(
             Object.keys(patch).map((key) => [key, (task as any)[key]]),
         );
-        const leaves = Boolean(patch.due_date || patch.planned_date || patch.sprint_id);
-        const drop = (list: Task[]) => list.filter((item) => item.id !== task.id);
-        setBacklogTasks((current) =>
-            leaves ? drop(current) : current.map((item) => (item.id === task.id ? { ...item, ...patch } : item)),
-        );
         try {
-            await updateTask(task.id, patch);
-            if (leaves) {
-                onMoved?.(patch.sprint_id ? "sprint" : "scheduled");
+            const { data: fresh } = await updateTask(task.id, patch);
+            setBacklogTasks((current) => current.map((item) => item.id === task.id ? fresh as Task : item).filter((item) => item.container === "backlog"));
+            if (fresh.container !== "backlog") {
+                if (fresh.container === "sprint" || fresh.container === "scheduled") onMoved?.(fresh.container);
                 await fetchBacklog(true);
             }
             undo.register({
                 label: "Edited ticket",
                 undo: async () => {
-                    await updateTask(task.id, previous);
-                    await fetchBacklog(true);
+                    try {
+                        const { data: restored } = await updateTask(task.id, previous);
+                        setBacklogTasks((current) => current.map((item) => item.id === task.id ? restored as Task : item).filter((item) => item.container === "backlog"));
+                        await fetchBacklog(true);
+                    } catch (error) {
+                        setError(writeError(error, "Failed to undo edit"));
+                    }
                 },
             });
-        } catch {
-            if (leaves) await fetchBacklog(true);
-            else setBacklogTasks((current) => current.map((item) => (item.id === task.id ? { ...item, ...previous } : item)));
-            setError("Failed to save ticket");
+        } catch (error) {
+            setError(writeError(error, "Failed to save ticket"));
         }
     }, [fetchBacklog, setError, undo, setBacklogTasks, onMoved]);
 }

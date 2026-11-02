@@ -17,7 +17,9 @@ import { ToastProvider } from "../../../components/common/Toast";
 import fs from "node:fs";
 import path from "node:path";
 
+import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 const task = {
+    ...ticket,
     id: 7,
     title: "Refund webhook retries",
     issue_key: "PAY-142",

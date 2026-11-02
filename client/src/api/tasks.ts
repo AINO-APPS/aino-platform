@@ -14,6 +14,8 @@ export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);
 export const deleteTask = (id: number | string) => API.delete(`/tasks/${id}`);
+export const transferTask = (id: number | string, teamId: number | string) =>
+    API.post(`/tasks/${id}/transfer`, { team_id: teamId });
 export const carryForwardTasks = () => API.post("/tasks/carry-forward");
 export const getAssignableUsers = () => API.get("/tasks/assignable-users");
 export const getTaskLabels = () => API.get("/tasks/labels");
