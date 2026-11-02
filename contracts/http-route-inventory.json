@@ -9,7 +9,7 @@
   "totals": {
     "routerMounts": 34,
     "concreteEndpoints": 506,
-    "openApiOperations": 236
+    "openApiOperations": 237
   },
   "standaloneRoutes": [
     {
@@ -2336,7 +2336,7 @@
     {
       "method": "GET",
       "path": "/api/sprints",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "POST",

@@ -33,15 +33,16 @@ export default function SprintInsights() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const { data: sprints = EMPTY_SPRINTS } = useQuery({
+  const { data: sprintList = { sprints: EMPTY_SPRINTS, currentSprintId: null } } = useQuery({
     queryKey: ["sprints", "list"],
-    queryFn: async (): Promise<any[]> =>
-      ((await getSprints()).data as any)?.sprints || [],
+    queryFn: async () => (await getSprints()).data as any,
   });
+  const sprints: any[] = sprintList?.sprints || EMPTY_SPRINTS;
+  const currentSprintId = sprintList?.currentSprintId ?? null;
 
   // Resolve the initially-selected sprint once the list arrives. Honour a
   // deep-link ?sprint_id=… when present and valid; otherwise fall back to the
-  // active sprint or the first one. Only auto-select while nothing is chosen
+  // server-selected current sprint or the first one. Only auto-select while nothing is chosen
   // yet, so a background refetch never clobbers a manual selection.
   useEffect(() => {
     if (selectedId || !sprints.length) return;
@@ -51,15 +52,14 @@ export default function SprintInsights() {
     if (requestedExists) {
       setSelectedId(requested);
     } else {
-      const active = sprints.find((sp: any) => sp.status === "active");
-      setSelectedId(active?.id || sprints[0]?.id || null);
+      setSelectedId(currentSprintId || sprints[0]?.id || null);
     }
     // Strip the query param after consuming so subsequent sprint-select
     // changes feel like normal navigation (no stale URL state).
     if (searchParams.get("sprint_id")) {
       setSearchParams({}, { replace: true });
     }
-  }, [sprints, searchParams, selectedId, setSearchParams]);
+  }, [sprints, currentSprintId, searchParams, selectedId, setSearchParams]);
 
   const { data: insights, isLoading: loading } = useQuery({
     queryKey: ["sprints", "insights", selectedId],
@@ -112,7 +112,7 @@ export default function SprintInsights() {
             value={selectedId || ""}
             onChange={(e) => setSelectedId(Number(e.target.value))}
           >
-            {["active", "planned", "completed"].map((status) => {
+            {["active", "paused", "planned", "completed"].map((status) => {
               const group = sprints.filter((sp: any) => sp.status === status);
               if (!group.length) return null;
               return (

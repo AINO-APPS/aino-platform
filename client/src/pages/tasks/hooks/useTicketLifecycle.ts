@@ -8,7 +8,7 @@
  *     the move can be undone by putting it back into an open state.
  *   - The backlog is where a ticket gets planned, so "Add to sprint" is offered
  *     on the backlog card and targets the sprint the user is looking at (or the
- *     team's active sprint).
+ *     team's current sprint).
  */
 import { useCallback } from "react";
 import { assignTaskToSprint, deleteTask } from "../../../api/tasks";
@@ -16,6 +16,7 @@ import { showsBacklog } from "./useTasksRoute";
 
 interface UseTicketLifecycleArgs {
     availableSprints: any[];
+    currentSprintId: number | string | null;
     selectedSprintId: any;
     activeTab: string;
     /** True when the sprint tab is showing the Plan split view, which renders the backlog. */
@@ -35,6 +36,7 @@ interface UseTicketLifecycleArgs {
 
 export function useTicketLifecycle({
     availableSprints,
+    currentSprintId,
     selectedSprintId,
     activeTab,
     planOpen = false,
@@ -65,7 +67,7 @@ export function useTicketLifecycle({
         (task: any) => {
             const target =
                 availableSprints.find((sp: any) => sp.id === selectedSprintId) ||
-                availableSprints.find((sp: any) => sp.status === "active") ||
+                availableSprints.find((sp: any) => sp.id === currentSprintId) ||
                 availableSprints[0];
             if (!target) {
                 setError("No sprint available to add this ticket to");
@@ -90,6 +92,7 @@ export function useTicketLifecycle({
         },
         [
             availableSprints,
+            currentSprintId,
             selectedSprintId,
             showConfirm,
             closeConfirm,

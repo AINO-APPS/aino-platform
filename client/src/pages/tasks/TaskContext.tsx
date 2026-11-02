@@ -15,6 +15,7 @@ interface TaskContextValue {
     assignableUsers: User[];
     orgLabels: TaskLabel[];
     availableSprints: Sprint[];
+    currentSprintId: number | string | null;
     availableProjects: Project[];
     currentUser: User | null;
     activeTab: string;
@@ -29,6 +30,7 @@ interface TaskProviderProps {
     assignableUsers: User[];
     orgLabels: TaskLabel[];
     availableSprints: Sprint[];
+    currentSprintId?: number | string | null;
     availableProjects: Project[];
     currentUser: User | null;
     activeTab: string;
@@ -40,6 +42,7 @@ export function TaskProvider({
     assignableUsers,
     orgLabels,
     availableSprints,
+    currentSprintId = null,
     availableProjects,
     currentUser,
     activeTab,
@@ -50,6 +53,7 @@ export function TaskProvider({
             assignableUsers,
             orgLabels,
             availableSprints,
+            currentSprintId,
             availableProjects,
             currentUser,
             activeTab,
@@ -59,6 +63,7 @@ export function TaskProvider({
             assignableUsers,
             orgLabels,
             availableSprints,
+            currentSprintId,
             availableProjects,
             currentUser,
             activeTab,

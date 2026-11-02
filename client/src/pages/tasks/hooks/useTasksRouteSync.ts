@@ -18,8 +18,7 @@ interface RouteSyncOptions {
     navigate: NavigateFunction;
     setActiveTab: (tab: string) => void;
     setSelectedSprintId: (id: any) => void;
-    /** The selected team's sprints; an active one is what offers the Sprint tab. */
-    availableSprints?: any[];
+    currentSprintId?: number | string | null;
     /** False until the sprint list (and an admin's team choice) has resolved. */
     sprintsLoaded?: boolean;
 }
@@ -30,7 +29,7 @@ export function useTasksRouteSync({
     navigate,
     setActiveTab,
     setSelectedSprintId,
-    availableSprints = [],
+    currentSprintId = null,
     sprintsLoaded = true,
 }: RouteSyncOptions) {
     const { hasFeature } = useFeatures() as any;
@@ -54,14 +53,14 @@ export function useTasksRouteSync({
         // A named sprint (`/tasks/sprint/9`, its plan) stays reachable for
         // planning a future sprint.
         if (sprintsLoaded) {
-            const { tabs, activeSprintId } = planningTabs({
+            const { tabs, currentSprintId: current } = planningTabs({
                 agileEnabled: hasFeature("agile"),
-                sprints: availableSprints,
+                currentSprintId,
             });
             if (route.view === "sprint" && !route.sprintId) {
                 navigate(
-                    activeSprintId && tabs.includes("sprint")
-                        ? tasksViewPath("sprint", activeSprintId)
+                    current && tabs.includes("sprint")
+                        ? tasksViewPath("sprint", current)
                         : tasksViewPath("backlog", null),
                     { replace: true },
                 );
@@ -78,13 +77,13 @@ export function useTasksRouteSync({
         }
         setActiveTab(route.view);
         if (route.sprintId) setSelectedSprintId(sprintIdFrom(route.sprintId));
-    }, [route.view, route.sprintId, searchParams, navigate, setActiveTab, setSelectedSprintId, availableSprints, sprintsLoaded, hasFeature]);
+    }, [route.view, route.sprintId, searchParams, navigate, setActiveTab, setSelectedSprintId, currentSprintId, sprintsLoaded, hasFeature]);
 }
 
 /**
- * Send the bare `/tasks` entry point to the running sprint's board.
+ * Send the bare `/tasks` entry point to the server-selected current sprint.
  *
- * Once a team's sprint is started, the board is where the work is; the backlog
+ * When a team has a current sprint, the board is where the work is; the backlog
  * is only the pool of unplanned tickets. Explicit views — a bookmark to
  * `/tasks/backlog`, a shared `/tasks/sprint/9`, a tab the user chose — are
  * always honoured, so this only ever fires once, on the bare entry point, and
@@ -92,13 +91,13 @@ export function useTasksRouteSync({
  */
 export function useSprintLanding({
     pathname,
-    availableSprints,
+    currentSprintId,
     sprintsLoaded = true,
     agileEnabled,
     navigate,
 }: {
     pathname: string;
-    availableSprints: any[];
+    currentSprintId: number | string | null;
     sprintsLoaded?: boolean;
     agileEnabled: boolean;
     navigate: NavigateFunction;
@@ -107,11 +106,11 @@ export function useSprintLanding({
 
     useEffect(() => {
         if (applied.current || !sprintsLoaded) return;
-        const { activeSprintId } = planningTabs({ agileEnabled, sprints: availableSprints });
-        const target = landingTasksPath(pathname, activeSprintId);
+        const { currentSprintId: current } = planningTabs({ agileEnabled, currentSprintId });
+        const target = landingTasksPath(pathname, current);
         applied.current = true;
         if (target !== pathname) navigate(target, { replace: true });
-    }, [pathname, availableSprints, sprintsLoaded, agileEnabled, navigate]);
+    }, [pathname, currentSprintId, sprintsLoaded, agileEnabled, navigate]);
 }
 
 /** Open the task named by `?task=` once, on arrival. */
