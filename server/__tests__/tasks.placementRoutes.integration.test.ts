@@ -370,6 +370,29 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(await row(created.body.id)).toMatchObject({ sprint_id: 10, due_date: "2026-11-12" });
     });
 
+    test("linked notes return ticket details only from the actor's organization", async () => {
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (2, 'Other org', 'other-org')");
+        const local = (await pool.query(
+            "INSERT INTO tasks (title, user_id, org_id, team_id) VALUES ('Our ticket', 1, 1, 1) RETURNING id",
+        )).rows[0];
+        const foreign = (await pool.query(
+            "INSERT INTO tasks (title, user_id, org_id) VALUES ('Other org secret', 1, 2) RETURNING id",
+        )).rows[0];
+        await pool.query(
+            `INSERT INTO note_links (user_id, page_id, entity_type, entity_id)
+             VALUES (1, 'linked-tickets', 'task', $1), (1, 'linked-tickets', 'task', $2)`,
+            [local.id, foreign.id],
+        );
+
+        const response = await request(app).get("/api/notes/links/linked-tickets");
+
+        expect(response.status).toBe(200);
+        expect(response.body.links).toHaveLength(2);
+        expect(response.body.links.find((link: any) => link.entity_id === local.id).detail)
+            .toMatchObject({ id: local.id, title: "Our ticket" });
+        expect(response.body.links.find((link: any) => link.entity_id === foreign.id).detail).toBeNull();
+    });
+
     test("a note checklist item becomes a ticket in the user's org", async () => {
         const res = await request(app).post("/api/notes/convert-to-task").send({ title: "From note" });
 

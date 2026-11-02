@@ -83,13 +83,13 @@ export async function insertNoteTicket(
     )).rows[0].id;
 }
 
-/** One task's summary for a linked-entity panel. */
-export async function findLinkedTask(db: NotesTaskDb, taskId: unknown): Promise<any | null> {
+/** One task's summary for a linked-entity panel, scoped to the actor's org. */
+export async function findLinkedTask(db: NotesTaskDb, taskId: unknown, orgId: number | null): Promise<any | null> {
     return (await db.query(
         `SELECT t.*, ws.key AS status, t.planned_date AS date
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.id = $1`,
-        [taskId],
+          WHERE t.id = $1 AND t.org_id IS NOT DISTINCT FROM $2`,
+        [taskId, orgId],
     )).rows[0] || null;
 }

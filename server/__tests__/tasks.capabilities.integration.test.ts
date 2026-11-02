@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
-import { decideTicket, decideTickets, loadTicketDecisionContext, type DecisionTicket } from "../modules/tasks/tasks.capabilities";
+import { decideTicket, decideTickets, loadTicketDecisionContext, type CapabilityReason, type DecisionTicket } from "../modules/tasks/tasks.capabilities";
 import type { TaskActor } from "../modules/tasks/tasks.policy";
 import { assertLifecycleMove, loadLifecycleContext } from "../modules/tasks/tasks.workflow";
 import { findFrozenSprintIds } from "../modules/tasks/tasks.sprintLifecycle";
@@ -16,6 +16,14 @@ const postgresDescribe = databaseUrl ? describe : describe.skip;
 const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", teamVisibility: true };
 const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
+const denialMessages: Record<CapabilityReason, string> = {
+    ACCESS_DENIED: "Access denied",
+    SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
+    CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
+    INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
+    IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
+    SPRINT_TEAM_MISMATCH: "This ticket belongs to another team. An org admin must transfer it before it can join this sprint.",
+};
 const actors = [
     ["member in team", 1, 1, "employee", true],
     ["member outside team", 1, 2, "employee", false],
@@ -199,6 +207,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);
                     if (!verdict.allowed) {
                         expect(conflict?.status).toBe(verdict.reason === "ACCESS_DENIED" ? 403 : 409);
+                        expect(conflict?.body.error).toBe(denialMessages[verdict.reason]);
                     }
                 }
 
@@ -221,18 +230,21 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     }, [tickets[index].id], { day: "2026-11-04" }));
                     const schedule = decisions[index].capabilities.can.schedule;
                     expect(results[0]).toMatchObject(schedule.allowed ? { ok: true } : { ok: false, code: schedule.reason });
+                    if (!schedule.allowed) expect(results[0]).toMatchObject({ error: denialMessages[schedule.reason] });
                     const placement = decideTicket(actor, tickets[index], placementContext).capabilities.can.placeInSprint;
                     const placed = await transaction((db: any, ctx: any) => placeTickets({
                         db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 }, ticketActor: actor,
                         effects: { changed: () => undefined },
                     }, [tickets[index].id], { sprint: 10 }));
                     expect(placed[0]).toMatchObject(placement.allowed ? { ok: true } : { ok: false, code: placement.reason });
+                    if (!placement.allowed) expect(placed[0]).toMatchObject({ error: denialMessages[placement.reason] });
                     const transfer = decisions[index].capabilities.can.transfer;
                     const transferred = await transaction((db: any, ctx: any) => transferTicket({
                         db, afterCommit: ctx.afterCommit, actor: { userId, orgId: 1 }, ticketActor: actor,
                         effects: { changed: () => undefined },
                     }, tickets[index].id, 2));
                     expect(transferred).toMatchObject(transfer.allowed ? { ok: true } : { ok: false, code: transfer.reason });
+                    if (!transfer.allowed) expect(transferred).toMatchObject({ error: denialMessages[transfer.reason] });
                 }
             }
         });
@@ -249,8 +261,12 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, workflow_state_id)
                 VALUES ('Place me', 2, 1, 1, 101) RETURNING *`)).rows[0];
             const context = await loadTicketDecisionContext(pool, actor, [ticket], { targetSprintId });
-            expect(decideTicket(actor, ticket, context).capabilities.can.placeInSprint)
-                .toEqual(permitted ? allowed : denied(reason!));
+            const verdict = decideTicket(actor, ticket, context).capabilities.can.placeInSprint;
+            expect(verdict).toEqual(permitted ? allowed : denied(reason!));
+            if (!verdict.allowed) {
+                expect((await ticketActionConflict(pool, actor, ticket, "placeInSprint", context))?.body)
+                    .toEqual({ code: reason, error: denialMessages[verdict.reason] });
+            }
             {
                 const transaction = require("../platform/db/pool").makePoolTransaction(pool);
                 const results = await transaction((db: any, ctx: any) => placeTickets({
@@ -258,6 +274,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     effects: { changed: () => undefined },
                 }, [ticket.id], { sprint: targetSprintId }));
                 expect(results[0]).toMatchObject(permitted ? { ok: true } : { ok: false, code: reason });
+                if (!verdict.allowed) expect(results[0]).toMatchObject({ error: denialMessages[verdict.reason] });
             }
     });
 

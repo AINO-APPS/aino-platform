@@ -42,8 +42,7 @@ export default function SprintInsights() {
 
   // Resolve the initially-selected sprint once the list arrives. Honour a
   // deep-link ?sprint_id=… when present and valid; otherwise fall back to the
-  // server-selected current sprint or the first one. Only auto-select while nothing is chosen
-  // yet, so a background refetch never clobbers a manual selection.
+  // server-selected current sprint. A refetch never clobbers a manual selection.
   useEffect(() => {
     if (selectedId || !sprints.length) return;
     const requested = Number(searchParams.get("sprint_id"));
@@ -52,7 +51,7 @@ export default function SprintInsights() {
     if (requestedExists) {
       setSelectedId(requested);
     } else {
-      setSelectedId(currentSprintId || sprints[0]?.id || null);
+      setSelectedId(currentSprintId);
     }
     // Strip the query param after consuming so subsequent sprint-select
     // changes feel like normal navigation (no stale URL state).
@@ -112,6 +111,7 @@ export default function SprintInsights() {
             value={selectedId || ""}
             onChange={(e) => setSelectedId(Number(e.target.value))}
           >
+            <option value="" disabled>Select a sprint</option>
             {["active", "paused", "planned", "completed"].map((status) => {
               const group = sprints.filter((sp: any) => sp.status === status);
               if (!group.length) return null;
