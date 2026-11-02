@@ -21,9 +21,21 @@ export interface Attribution {
  */
 export function useTaskDeltas(
     setTasks: (updater: (tasks: any[]) => any[]) => void,
-    options: { enabled?: boolean; attributionMs?: number; container?: string; onRefresh?: () => void } = {},
+    options: {
+        enabled?: boolean;
+        attributionMs?: number;
+        container?: string;
+        onRefresh?: () => void;
+        shouldRefresh?: (frame: TaskDeltaFrame) => boolean;
+    } = {},
 ) {
-    const { enabled = true, attributionMs = 4000, container, onRefresh } = options;
+    const {
+        enabled = true,
+        attributionMs = 4000,
+        container,
+        onRefresh,
+        shouldRefresh,
+    } = options;
     const [attribution, setAttribution] = useState<Record<string, Attribution>>({});
     // Per-task timestamp of the last delta applied, so an out-of-order frame
     // cannot roll a field back.
@@ -46,6 +58,7 @@ export function useTaskDeltas(
     const onFrame = useCallback(
         async (frame: TaskDeltaFrame) => {
             if (!frame?.taskId) return;
+            if (shouldRefresh && !shouldRefresh(frame)) return;
             const key = String(frame.taskId);
             const previous = appliedAt.current[key];
             if (frame.at && previous && frame.at < previous) return;
@@ -74,7 +87,7 @@ export function useTaskDeltas(
             if (timers.current[key]) clearTimeout(timers.current[key]);
             timers.current[key] = setTimeout(() => clear(key), attributionMs);
         },
-        [setTasks, attributionMs, clear, container, onRefresh],
+        [setTasks, attributionMs, clear, container, onRefresh, shouldRefresh],
     );
 
     useRealtimeEvent(["task_updated"], (msg) => onFrame(msg.data as TaskDeltaFrame), enabled);

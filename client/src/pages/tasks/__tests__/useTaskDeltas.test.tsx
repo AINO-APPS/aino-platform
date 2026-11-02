@@ -48,4 +48,27 @@ describe("realtime ticket freshness", () => {
         expect(tasks).toEqual([fresh]);
         expect(getTaskDetail).toHaveBeenCalledTimes(1);
     });
+
+    test("a board refresh only follows events for tickets on the shown board", async () => {
+        const onRefresh = vi.fn();
+        renderHook(() => useTaskDeltas(vi.fn(), {
+            container: "sprint",
+            onRefresh,
+            shouldRefresh: (frame) => frame.taskId === ticket.id,
+        }));
+
+        await emit({ taskId: 999 });
+        expect(getTaskDetail).not.toHaveBeenCalled();
+        expect(onRefresh).not.toHaveBeenCalled();
+
+        await act(async () => {
+            window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
+                detail: { type: "task_updated", data: { taskId: ticket.id } },
+            }));
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+        expect(getTaskDetail).toHaveBeenCalledWith(ticket.id);
+        expect(onRefresh).toHaveBeenCalledTimes(1);
+    });
 });

@@ -25,6 +25,7 @@ interface SprintTabProps {
     onCloseImport: () => void;
     loading: boolean;
     tasks: any[];
+    columns: any[];
     drag: any;
     sprintMode: boolean;
     onOpenDetail: (task: any) => void;
@@ -33,6 +34,7 @@ interface SprintTabProps {
     onAddTask?: (column: any) => void;
     boardDrag: any;
     boardAnnouncement: string;
+    attribution: Record<string, { name: string }>;
     plan: boolean;
     sprintPlan: any;
     epics: any[];
@@ -66,6 +68,7 @@ export default function SprintTab({
     onCloseImport,
     loading,
     tasks,
+    columns,
     drag,
     sprintMode,
     onOpenDetail,
@@ -73,6 +76,7 @@ export default function SprintTab({
     onAddTask,
     boardDrag,
     boardAnnouncement,
+    attribution,
     plan,
     sprintPlan,
     epics,
@@ -159,16 +163,15 @@ export default function SprintTab({
                 >
                     <KanbanBoard
                         tasks={tasks}
+                        columns={columns}
                         drag={drag}
                         sprintMode={sprintMode}
                         onOpenDetail={onOpenDetail}
                         onOpenComments={onOpenComments}
                         onAddTask={onAddTask}
                         boardDrag={boardDrag}
-                        targetPolicy={drag.targetPolicy}
-                        wipWarning={boardDrag.wipWarning}
                         announcement={boardAnnouncement}
-                        attribution={backlog.attribution}
+                        attribution={attribution}
                     />
                 </AsyncSection>
             )}

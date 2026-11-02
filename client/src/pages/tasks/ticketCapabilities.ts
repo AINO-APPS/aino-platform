@@ -1,4 +1,8 @@
-import type { TicketCapabilities, TicketCapability } from "../../types/generated/tasks";
+import type {
+    TicketCapabilities,
+    TicketCapability,
+    TicketTransitionCapability,
+} from "../../types/generated/tasks";
 
 type Ticket = { capabilities?: TicketCapabilities | null } | null | undefined;
 export type TicketAction = keyof TicketCapabilities["can"];
@@ -26,6 +30,32 @@ export function decisionProps(decision: TicketCapability | undefined) {
         disabled: decision?.allowed !== true,
         title: decision?.allowed === true ? undefined : reasonCopy(decision?.reason),
     };
+}
+
+/** Interpret the server's transition and column decisions for drop rendering. */
+export function boardTargetDecision(
+    ticket: { capabilities?: { transitions: TicketTransitionCapability[] } | null } | null | undefined,
+    column: { stateId: number | string; accepting: boolean },
+): TicketTransitionCapability {
+    const transition = ticket?.capabilities?.transitions?.find(
+        (candidate) => String(candidate.to) === String(column.stateId),
+    );
+    if (!ticket?.capabilities?.transitions) return { to: Number(column.stateId), allowed: false };
+    if (!transition?.allowed) {
+        return transition ?? {
+            to: Number(column.stateId),
+            allowed: false,
+            reason: "INVALID_TRANSITION",
+        };
+    }
+    if (!column.accepting) {
+        return {
+            to: transition.to,
+            allowed: false,
+            reason: "WIP_EXCEEDED",
+        };
+    }
+    return transition;
 }
 
 /** Labels come from config, but the server alone supplies targets and decisions. */

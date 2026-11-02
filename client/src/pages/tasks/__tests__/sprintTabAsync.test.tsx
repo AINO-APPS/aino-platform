@@ -37,6 +37,7 @@ function renderTab(overrides: Record<string, unknown> = {}) {
         onCloseImport: noop,
         loading: false,
         tasks: [],
+        columns: [{ id: 2, stateId: 2, key: "in_progress", name: "In Progress", count: 1, limit: null, accepting: true }],
         drag: {
             dragOverCol: null, onDragOver: noop, onDragLeave: noop,
             onDrop: noop, onDragStart: noop, onDragEnd: noop,
@@ -49,6 +50,7 @@ function renderTab(overrides: Record<string, unknown> = {}) {
             onDragStart: noop, onDragOver: noop, onDrop: noop,
         },
         boardAnnouncement: "",
+        attribution: {},
         plan: true,
         sprintPlan: {
             velocity: { sprints: [], average: 0 },

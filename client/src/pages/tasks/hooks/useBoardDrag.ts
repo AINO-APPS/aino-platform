@@ -1,18 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import {
-    allowAllTargets,
     columnOf,
     columnRef,
+    doneAdvisory,
     findColumn,
-    moveAdvisory,
     sameColumn,
-    wipAdvisory,
     type BoardColumn,
     type BoardTask,
-    type TargetPolicy,
-} from "./boardTargets";
+} from "../boardTypes";
+import { boardTargetDecision, reasonCopy } from "../ticketCapabilities";
 
-export type { BoardColumn, BoardTask } from "./boardTargets";
+export type { BoardColumn, BoardTask } from "../boardTypes";
 
 /** What happened to a staged move once the confirmation closed. */
 export type MoveOutcome = "accepted" | "cancelled" | "failed";
@@ -23,7 +21,7 @@ interface UseBoardDragArgs {
     /**
      * Stage a move behind the confirmation dialog. It must not mutate the
      * ticket or call the API itself; it resolves once the user has answered.
-     * `notice` is an advisory (blocker, unchecked criteria, WIP) to include.
+     * `notice` is an advisory (blocker or unchecked criteria) to include.
      */
     onRequestMove: (
         task: BoardTask,
@@ -31,8 +29,6 @@ interface UseBoardDragArgs {
         notice: string | null,
     ) => Promise<MoveOutcome> | MoveOutcome;
     onAnnounce?: (message: string) => void;
-    /** Which columns may receive the lifted card. All are legal until issue 04. */
-    targetPolicy?: TargetPolicy;
 }
 
 /**
@@ -47,11 +43,9 @@ export function useBoardDrag({
     columns,
     onRequestMove,
     onAnnounce,
-    targetPolicy = allowAllTargets,
 }: UseBoardDragArgs) {
     const [draggingId, setDraggingId] = useState<number | string | null>(null);
     const [overColumn, setOverColumn] = useState<string | number | null>(null);
-    const [wipWarning, setWipWarning] = useState<string | null>(null);
     const lastAnnouncement = useRef("");
 
     const announce = useCallback(
@@ -73,10 +67,10 @@ export function useBoardDrag({
             const task = tasks.find((candidate) => candidate.id === taskId);
             if (!task) return;
 
-            const rejection = targetPolicy(task, column);
-            if (rejection) {
+            const decision = boardTargetDecision(task, column);
+            if (!decision.allowed) {
                 announce(
-                    `${column.name ?? "That column"} cannot take this ticket: ${rejection}`,
+                    `${column.name ?? "That column"} cannot take this ticket: ${reasonCopy(decision.reason)}`,
                 );
                 return;
             }
@@ -84,12 +78,9 @@ export function useBoardDrag({
             const outcome = await onRequestMove(
                 task,
                 column,
-                moveAdvisory(task, column, tasks),
+                doneAdvisory(task, column),
             );
             if (outcome === "accepted") {
-                // The warning is shown only once the move was accepted: a
-                // cancelled dialog changes nothing, not even a notice.
-                if (column.wip_limit) setWipWarning(wipAdvisory(column, tasks));
                 announce(
                     `Moved ${task.title ?? "ticket"} to ${column.name ?? "column"}`,
                 );
@@ -97,7 +88,7 @@ export function useBoardDrag({
                 announce("Move cancelled");
             }
         },
-        [tasks, onRequestMove, targetPolicy, announce],
+        [tasks, onRequestMove, announce],
     );
 
     /** Space lifts, arrows choose a column, space drops. Escape cancels. */
@@ -147,14 +138,13 @@ export function useBoardDrag({
                 const fromIndex = selected
                     ? columns.indexOf(selected)
                     : currentIndex;
-                // Step over columns the policy refuses, so the keyboard is not
-                // trapped on the first illegal target issue 04 introduces.
+                // Skip server-denied targets so keyboard navigation stays usable.
                 let index = fromIndex + delta;
                 const rejected: string[] = [];
                 while (index >= 0 && index < columns.length) {
                     const candidate = columns[index];
-                    const blocked = targetPolicy(task, candidate);
-                    if (!blocked) {
+                    const decision = boardTargetDecision(task, candidate);
+                    if (decision.allowed) {
                         setOverColumn(columnRef(candidate));
                         announce(
                             `${rejected.join(" ")} ${candidate.name ?? "Column"} selected. Press space to drop.`.trim(),
@@ -162,7 +152,7 @@ export function useBoardDrag({
                         return;
                     }
                     rejected.push(
-                        `${candidate.name ?? "That column"} cannot take this ticket: ${blocked}`,
+                        `${candidate.name ?? "That column"} cannot take this ticket: ${reasonCopy(decision.reason)}`,
                     );
                     index += delta;
                 }
@@ -178,7 +168,6 @@ export function useBoardDrag({
             overColumn,
             move,
             reset,
-            targetPolicy,
             announce,
         ],
     );
@@ -186,9 +175,7 @@ export function useBoardDrag({
     return {
         draggingId,
         overColumn,
-        wipWarning,
         onKeyDown,
         reset,
-        targetPolicy,
     };
 }

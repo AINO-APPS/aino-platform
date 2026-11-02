@@ -1,16 +1,26 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useBoardDrag } from "../hooks/useBoardDrag";
-import { boardColumns } from "../hooks/boardTargets";
 
 const columns = [
-    { id: 1, key: "pending", name: "New", category: "open" },
-    { id: 2, key: "in_progress", name: "In Progress", category: "in_progress", wip_limit: 1 },
-    { id: 3, key: "done", name: "Done", category: "done", is_terminal: true },
+    { id: 1, stateId: 1, key: "pending", name: "New", category: "open", count: 1, limit: null, accepting: true },
+    { id: 2, stateId: 2, key: "in_progress", name: "In Progress", category: "in_progress", count: 1, limit: 1, accepting: true },
+    { id: 3, stateId: 3, key: "done", name: "Done", category: "done", is_terminal: true, count: 0, limit: null, accepting: true },
 ];
 
 const tasks = [
-    { id: 10, title: "First", workflow_state_id: 1, workflow_state_key: "pending" },
+    {
+        id: 10,
+        title: "First",
+        workflow_state_id: 1,
+        workflow_state_key: "pending",
+        capabilities: {
+            transitions: [
+                { to: 2, allowed: true },
+                { to: 3, allowed: true },
+            ],
+        },
+    },
     { id: 11, title: "Second", workflow_state_id: 2, workflow_state_key: "in_progress" },
 ];
 
@@ -81,13 +91,7 @@ describe("useBoardDrag (keyboard only)", () => {
         });
 
         expect(onRequestMove).toHaveBeenCalledTimes(1);
-        // In Progress is already at its WIP limit, so the advisory travels
-        // with the staged move.
-        expect(onRequestMove).toHaveBeenCalledWith(
-            tasks[0],
-            columns[1],
-            expect.stringContaining("WIP limit"),
-        );
+        expect(onRequestMove).toHaveBeenCalledWith(tasks[0], columns[1], null);
         await waitFor(() =>
             expect(onAnnounce).toHaveBeenCalledWith("Moved First to In Progress"),
         );
@@ -182,11 +186,15 @@ describe("useBoardDrag (keyboard only)", () => {
 
     test("a refused column is skipped, with the reason announced", () => {
         const onAnnounce = vi.fn();
-        const targetPolicy = vi.fn((_task: any, column: any) =>
-            column.key === "in_progress" ? "In Progress requires a review first" : null,
-        );
+        const restricted = [{
+            ...tasks[0],
+            capabilities: { transitions: [
+                { to: 2, allowed: false, reason: "INVALID_TRANSITION" },
+                { to: 3, allowed: true },
+            ] },
+        }];
         const hook = renderHook(() =>
-            useBoardDrag({ tasks, columns, onRequestMove: vi.fn(), onAnnounce, targetPolicy }),
+            useBoardDrag({ tasks: restricted, columns, onRequestMove: vi.fn(), onAnnounce }),
         );
 
         press(hook, " ");
@@ -196,7 +204,7 @@ describe("useBoardDrag (keyboard only)", () => {
         // than trapping the keyboard on the illegal one.
         expect(hook.result.current.overColumn).toBe("done");
         expect(onAnnounce).toHaveBeenCalledWith(
-            expect.stringContaining("In Progress requires a review first"),
+            expect.stringContaining("This workflow transition is not allowed."),
         );
         expect(onAnnounce).toHaveBeenCalledWith(
             expect.stringContaining("Done selected"),
@@ -206,16 +214,16 @@ describe("useBoardDrag (keyboard only)", () => {
     test("when no column is legal the move is never staged", async () => {
         const onRequestMove = vi.fn().mockResolvedValue("accepted");
         const onAnnounce = vi.fn();
-        const targetPolicy = () => "This ticket cannot change state yet";
+        const restricted = [{ ...tasks[0], capabilities: { transitions: [] } }];
         const hook = renderHook(() =>
-            useBoardDrag({ tasks, columns, onRequestMove, onAnnounce, targetPolicy }),
+            useBoardDrag({ tasks: restricted, columns, onRequestMove, onAnnounce }),
         );
 
         press(hook, " ");
         press(hook, "ArrowRight");
         expect(hook.result.current.overColumn).toBeNull();
         expect(onAnnounce).toHaveBeenCalledWith(
-            expect.stringContaining("This ticket cannot change state yet"),
+            expect.stringContaining("This workflow transition is not allowed."),
         );
 
         await act(async () => {
@@ -227,58 +235,26 @@ describe("useBoardDrag (keyboard only)", () => {
         expect(onRequestMove).not.toHaveBeenCalled();
     });
 
-    test("fallback states that share id 0 are told apart by key", async () => {
-        // Before `/agile` resolves every state has `id: 0`; matching by id
-        // would put every ticket in the first column.
-        const fallback = [
-            { id: 0, key: "pending", name: "New", category: "open" },
-            { id: 0, key: "in_progress", name: "In Progress", category: "in_progress" },
-            { id: 0, key: "done", name: "Done", category: "done" },
-        ];
-        const onRequestMove = vi.fn().mockResolvedValue("accepted");
+    test("a WIP-full column is skipped using the server's accepting flag", () => {
+        const onAnnounce = vi.fn();
         const hook = renderHook(() =>
-            useBoardDrag({ tasks, columns: fallback, onRequestMove }),
+            useBoardDrag({
+                tasks,
+                columns: [
+                    columns[0],
+                    { ...columns[1], accepting: false },
+                    columns[2],
+                ],
+                onRequestMove: vi.fn(),
+                onAnnounce,
+            }),
         );
 
         press(hook, " ");
         press(hook, "ArrowRight");
-        expect(hook.result.current.overColumn).toBe("in_progress");
-
-        await act(async () => {
-            hook.result.current.onKeyDown(
-                { key: " ", preventDefault: vi.fn() } as any,
-                10,
-            );
-        });
-        expect(onRequestMove).toHaveBeenCalledWith(tasks[0], fallback[1], null);
-    });
-
-    test("exceeding a WIP limit warns", async () => {
-        const { hook } = setup();
-
-        press(hook, " ");
-        press(hook, "ArrowRight");
-        await act(async () => {
-            hook.result.current.onKeyDown(
-                { key: " ", preventDefault: vi.fn() } as any,
-                10,
-            );
-        });
-
-        expect(hook.result.current.wipWarning).toContain("WIP limit");
-    });
-});
-
-describe("boardColumns", () => {
-    test("shows every workflow state except Cancelled", () => {
-        const states = [
-            ...columns,
-            { id: 4, key: "cancelled", name: "Cancelled", category: "done" },
-        ];
-        expect(boardColumns(states).map((column) => column.key)).toEqual([
-            "pending",
-            "in_progress",
-            "done",
-        ]);
+        expect(hook.result.current.overColumn).toBe("done");
+        expect(onAnnounce).toHaveBeenCalledWith(
+            expect.stringContaining("This column has reached its work-in-progress limit."),
+        );
     });
 });

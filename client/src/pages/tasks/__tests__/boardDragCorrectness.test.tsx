@@ -21,9 +21,9 @@ import TasksConfirmDialogs from "../TasksConfirmDialogs";
 
 const { columns } = vi.hoisted(() => ({
     columns: [
-        { id: 1, key: "pending", name: "New", category: "open", is_initial: true },
-        { id: 2, key: "in_progress", name: "In Progress", category: "in_progress" },
-        { id: 3, key: "done", name: "Done", category: "done", is_terminal: true },
+        { id: 1, stateId: 1, key: "pending", name: "New", category: "open", is_initial: true, count: 1, limit: null, accepting: true },
+        { id: 2, stateId: 2, key: "in_progress", name: "In Progress", category: "in_progress", count: 0, limit: null, accepting: true },
+        { id: 3, stateId: 3, key: "done", name: "Done", category: "done", is_terminal: true, count: 0, limit: null, accepting: true },
     ],
 }));
 
@@ -37,7 +37,17 @@ vi.mock("../TaskCard", () => ({
 }));
 
 vi.mock("../../../api/tasks", () => ({
-    updateTaskStatus: vi.fn().mockResolvedValue({ data: {} }),
+    updateTaskStatus: vi.fn().mockImplementation((id, status) => {
+        const target = columns.find((column) => String(column.stateId) === String(status));
+        return Promise.resolve({
+            data: {
+                ...pendingTask,
+                id,
+                workflow_state_key: target?.key,
+                workflow_state_id: target?.stateId,
+            },
+        });
+    }),
 }));
 
 const pendingTask = {
@@ -45,10 +55,16 @@ const pendingTask = {
     title: "Refund webhook retries",
     workflow_state_key: "pending",
     workflow_state_id: 1,
+    capabilities: {
+        transitions: [
+            { to: 2, allowed: true },
+            { to: 3, allowed: true },
+        ],
+    },
 };
 
 
-const harness: { drop?: (taskId: number | string, column: any) => void } = {};
+const harness: { drop?: (taskId: number | string, column: any) => boolean } = {};
 
 /** The real board, the real hooks, the real dialog. */
 function BoardHarness({
@@ -85,13 +101,14 @@ function BoardHarness({
     // board's onDragEnd performs.
     harness.drop = (taskId, column) => {
         boardDrag.reset?.();
-        drag.dropOnColumn(taskId, column);
+        return drag.dropOnColumn(taskId, column);
     };
 
     return (
         <>
             <KanbanBoard
                 tasks={tasks}
+                columns={columns as any}
                 drag={drag}
                 onOpenDetail={vi.fn()}
                 onOpenComments={vi.fn()}
@@ -142,7 +159,7 @@ describe("pointer drop lands the card, then confirms", () => {
         fireEvent.click(screen.getByRole("button", { name: "Move" }));
 
         await waitFor(() =>
-            expect(updateTaskStatus).toHaveBeenCalledWith(pendingTask.id, "in_progress"),
+            expect(updateTaskStatus).toHaveBeenCalledWith(pendingTask.id, "2"),
         );
         expect(updateTaskStatus).toHaveBeenCalledTimes(1);
         expect(onTasks.mock.calls.at(-1)![0][0].workflow_state_key).toBe("in_progress");
@@ -169,11 +186,28 @@ describe("pointer drop lands the card, then confirms", () => {
         expect(screen.queryByRole("button", { name: "Move" })).toBeNull();
     });
 
+    test("a capability-denied target cannot stage a pointer move", () => {
+        const denied = {
+            ...pendingTask,
+            capabilities: {
+                transitions: [{ to: 2, allowed: false, reason: "INVALID_TRANSITION" }],
+            },
+        };
+        render(<BoardHarness task={denied} onTasks={vi.fn()} />);
+        let accepted = true;
+        act(() => { accepted = harness.drop!(denied.id, columns[1]); });
+
+        expect(accepted).toBe(false);
+        expect(screen.queryByRole("button", { name: "Move" })).toBeNull();
+        expect(updateTaskStatus).not.toHaveBeenCalled();
+    });
+
     test("a move into Done carries the blocker advisory, and Cancel still restores", () => {
         const blocked = {
             ...pendingTask,
             workflow_state_key: "in_progress",
             workflow_state_id: 2,
+            capabilities: { transitions: [{ to: 3, allowed: true }] },
             is_blocked: true,
         };
         const onTasks = vi.fn();
@@ -242,10 +276,10 @@ describe("keyboard moves are staged the same way", () => {
         fireEvent.click(screen.getByRole("button", { name: "Move" }));
 
         await waitFor(() =>
-            expect(updateTaskStatus).toHaveBeenCalledWith(pendingTask.id, "in_progress"),
+            expect(updateTaskStatus).toHaveBeenCalledWith(pendingTask.id, "2"),
         );
         expect(updateTaskStatus).toHaveBeenCalledTimes(1);
-        expect(onTasks).toHaveBeenCalledTimes(1);
+        expect(onTasks).toHaveBeenCalledTimes(2);
     });
 
     test("cancelling a keyboard move changes nothing", async () => {
