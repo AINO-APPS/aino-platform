@@ -8,7 +8,7 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 
-const { enrichTasks } = require('./_helpers/enrich');
+const { enrichTasks, enrichTaskSummaries } = require('./_helpers/enrich');
 const {
     buildVisibilityPredicate,
     resolveTaskVisibility,
@@ -69,7 +69,7 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
             LIMIT 20
         `, params)).rows;
 
-        const enriched = await enrichTasks(tasks, req.db);
+        const enriched = await enrichTasks(tasks, req.db, actor);
         res.json(enriched);
     } catch (err) {
         req.log.error({ err: err }, 'Error in global search:');
@@ -107,7 +107,8 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         );
         const rows = (await req.db!.query(
             `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
-                    t.work_item_type_id
+                    t.work_item_type_id, t.user_id, t.assigned_to, t.team_id, t.org_id,
+                    t.sprint_id, t.planned_date, t.completed_at
                FROM tasks t
               WHERE t.org_id = $1
                 AND (
@@ -119,7 +120,19 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
               LIMIT 20`,
             [req.userOrgId, `%${q}%`, numericId, ...visibility.params]
         )).rows;
-        res.json({ tasks: rows });
+        const enriched = await enrichTaskSummaries(rows, req.db, actor);
+        res.json({
+            tasks: enriched.map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                workflow_state_id: task.workflow_state_id,
+                is_blocked: task.is_blocked,
+                story_points: task.story_points,
+                work_item_type_id: task.work_item_type_id,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
+        });
     } catch (err) {
         req.log.error({ err }, 'Error in quicksearch');
         res.status(500).json({ error: 'Failed to search tasks' });

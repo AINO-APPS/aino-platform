@@ -8,6 +8,10 @@ const {
     findProjectsByIds,
     findWorkflowStatesByIds,
 } = require("../../../modules/tasks/tasks.enrich");
+const { loadTicketDecisionContext, decideTickets } = require("../../../modules/tasks/tasks.capabilities");
+const { loadLifecycleContext } = require("../../../modules/tasks/tasks.workflow");
+import type { TaskActor } from "../../../modules/tasks/tasks.policy";
+import type { LifecycleContext } from "../../../modules/tasks/tasks.workflow";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -30,7 +34,12 @@ async function getCommentCounts(taskIds: number[], db: DbLike): Promise<Record<n
     return map;
 }
 
-async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
+async function enrichTasks(
+    tasks: any[],
+    db: DbLike,
+    actor: TaskActor,
+    lifecycle?: LifecycleContext,
+): Promise<any[]> {
     if (!tasks.length) return [];
     const taskIds = tasks.map(t => t.id);
 
@@ -56,6 +65,9 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
         findProjectsByIds(db, projectIds),
         findWorkflowStatesByIds(db, stateIds),
     ]);
+    const sharedLifecycle = lifecycle ?? await loadLifecycleContext(db, actor.orgId);
+    const decisionContext = await loadTicketDecisionContext(db, actor, tasks, { lifecycle: sharedLifecycle });
+    const decisions = decideTickets(actor, tasks, decisionContext);
 
     const userMap: Record<number, any> = {};
     for (const u of userRows) userMap[u.id] = u;
@@ -66,7 +78,7 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
     const stateMap: Record<number, any> = {};
     for (const s of stateRows) stateMap[s.id] = s;
 
-    return tasks.map(t => {
+    return tasks.map((t, index) => {
         const project = t.project_id ? (projectMap[t.project_id] || null) : null;
         // Issue key is only set for tasks that have both a project and a
         // task_number (legacy tasks remain key-less even if they get a
@@ -91,8 +103,23 @@ async function enrichTasks(tasks: any[], db: DbLike): Promise<any[]> {
             sprint: t.sprint_id ? (sprintMap[t.sprint_id] || null) : null,
             project,
             issue_key: issueKey,
+            ...decisions[index],
         };
     });
 }
 
-export = { enrichTasks, getLabelsForTasks, getCommentCounts };
+async function enrichTaskSummaries(
+    tasks: any[],
+    db: DbLike,
+    actor: TaskActor,
+    lifecycle?: LifecycleContext,
+): Promise<any[]> {
+    const enriched = await enrichTasks(tasks, db, actor, lifecycle);
+    return tasks.map((task, index) => ({
+        ...task,
+        container: enriched[index].container,
+        capabilities: enriched[index].capabilities,
+    }));
+}
+
+export = { enrichTasks, enrichTaskSummaries, getLabelsForTasks, getCommentCounts };

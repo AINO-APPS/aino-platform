@@ -21425,6 +21425,17 @@
               "null"
             ]
           },
+          "container": {
+            "type": "string",
+            "enum": [
+              "sprint",
+              "scheduled",
+              "backlog"
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TicketCapabilities"
+          },
           "snippet": {
             "type": "string"
           }
@@ -21437,6 +21448,8 @@
           "planned_date",
           "due_date",
           "sprint_id",
+          "container",
+          "capabilities",
           "snippet"
         ],
         "additionalProperties": false
@@ -21530,6 +21543,17 @@
               "integer",
               "null"
             ]
+          },
+          "container": {
+            "type": "string",
+            "enum": [
+              "sprint",
+              "scheduled",
+              "backlog"
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TicketCapabilities"
           },
           "team_id": {
             "type": [
@@ -21632,9 +21656,113 @@
           "due_date",
           "completed_at",
           "sprint_id",
+          "container",
+          "capabilities",
           "team_id",
           "rank",
           "is_blocked"
+        ],
+        "additionalProperties": false
+      },
+      "TicketCapability": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INVALID_TRANSITION",
+              "ACCESS_DENIED",
+              "SPRINT_FROZEN",
+              "IN_SPRINT",
+              "SPRINT_TEAM_MISMATCH",
+              "CANCELLED_TERMINAL"
+            ]
+          }
+        },
+        "required": [
+          "allowed"
+        ],
+        "additionalProperties": false
+      },
+      "TicketTransitionCapability": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "integer"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INVALID_TRANSITION",
+              "ACCESS_DENIED",
+              "SPRINT_FROZEN",
+              "IN_SPRINT",
+              "SPRINT_TEAM_MISMATCH",
+              "CANCELLED_TERMINAL"
+            ]
+          }
+        },
+        "required": [
+          "to",
+          "allowed"
+        ],
+        "additionalProperties": false
+      },
+      "TicketCapabilities": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketTransitionCapability"
+            }
+          },
+          "can": {
+            "type": "object",
+            "properties": {
+              "edit": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "changeState": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "cancel": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "transfer": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "delete": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "placeInSprint": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "schedule": {
+                "$ref": "#/components/schemas/TicketCapability"
+              }
+            },
+            "required": [
+              "edit",
+              "changeState",
+              "cancel",
+              "transfer",
+              "delete",
+              "placeInSprint",
+              "schedule"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "transitions",
+          "can"
         ],
         "additionalProperties": false
       },

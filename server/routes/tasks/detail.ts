@@ -21,7 +21,7 @@ router.get('/:id/detail', auth, loadUserContext, async (req: Request, res: Respo
         const task = await taskService.getTask(req.db!, String(req.params.id));
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) return denyTaskAccess(res, task, taskActorFromRequest(req));
 
-        const enriched = await enrichTasks([task], req.db);
+        const enriched = await enrichTasks([task], req.db, taskActorFromRequest(req));
 
         const comments = await taskService.getComments(req.db!, task.id);
 

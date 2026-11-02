@@ -9,6 +9,8 @@ const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
 const { findLinkedTask, insertNoteTicket, searchTasksForLinking } = require("../modules/tasks/tasks.notes");
+const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { enrichTaskSummaries } = require("./tasks/_helpers/enrich");
 
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
@@ -250,11 +252,13 @@ router.get("/links/:pageId", async (req: Request, res: Response) => {
 
         // Enrich each link with entity details
         const enriched: any[] = [];
+        const linkedTickets = new Map<number, any>();
         for (const link of links) {
             let detail = null;
             try {
                 if (link.entity_type === "task") {
                     detail = await findLinkedTask(req.db!, link.entity_id);
+                    if (detail) linkedTickets.set(Number(detail.id), detail);
                 } else if (link.entity_type === "calendar_event") {
                     const r = (await req.db!.query(
                         `SELECT id, title, description, start_time, end_time, all_day, color FROM calendar_events WHERE id = $1`,
@@ -272,7 +276,27 @@ router.get("/links/:pageId", async (req: Request, res: Response) => {
             enriched.push({ ...link, detail });
         }
 
-        res.json({ links: enriched });
+        const tickets = await enrichTaskSummaries(
+            [...linkedTickets.values()],
+            req.db,
+            taskActorFromRequest(req),
+        );
+        const ticketById = new Map(tickets.map((ticket: any) => [Number(ticket.id), {
+            id: ticket.id,
+            title: ticket.title,
+            status: ticket.status,
+            priority: ticket.priority,
+            date: ticket.date,
+            due_date: ticket.due_date,
+            sprint_id: ticket.sprint_id,
+            container: ticket.container,
+            capabilities: ticket.capabilities,
+        }]));
+        res.json({
+            links: enriched.map((link) => link.entity_type === "task"
+                ? { ...link, detail: ticketById.get(Number(link.entity_id)) ?? null }
+                : link),
+        });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/links error");
         res.status(500).json({ error: "Failed to fetch links" });
@@ -290,7 +314,7 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
 
         // Tasks completed today
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, ws.key AS status, t.priority FROM tasks t
+            `SELECT t.*, ws.key AS status FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
                AND (t.planned_date = $2 OR (t.completed_at >= $3 AND t.completed_at <= $4))
@@ -350,7 +374,21 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
             [req.userId, startOfDay.toISOString(), endOfDay.toISOString()],
         )).rows;
 
-        res.json({ tasks, hoursWorked, timeEntries: timeEntries.length > 0, meetings, events, date: dateStr });
+        res.json({
+            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
+            hoursWorked,
+            timeEntries: timeEntries.length > 0,
+            meetings,
+            events,
+            date: dateStr,
+        });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/daily-prefill error");
         res.status(500).json({ error: "Failed to fetch daily data" });
@@ -384,7 +422,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Recent tasks (last 2 weeks)
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, ws.key AS status, t.priority, t.planned_date AS date, t.completed_at
+            `SELECT t.*, ws.key AS status, t.planned_date AS date
              FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
@@ -444,7 +482,16 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         res.json({
             report: { id: report.id, fullName: report.full_name },
-            tasks,
+            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                date: task.date,
+                completed_at: task.completed_at,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
             leaves,
             sprint,
             hoursThisWeek,
@@ -551,7 +598,16 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
                 sprintId ? { sprint: sprintId } : { day: dateStr },
             )).task;
         });
-        const task = { id: placed.id, title: placed.title, date: placed.planned_date ?? null, priority: placed.priority, sprint_id: placed.sprint_id ?? null };
+        const enriched = await enrichTaskSummaries([placed], req.db, taskActorFromRequest(req));
+        const task = {
+            id: placed.id,
+            title: placed.title,
+            date: placed.planned_date ?? null,
+            priority: placed.priority,
+            sprint_id: placed.sprint_id ?? null,
+            container: enriched[0].container,
+            capabilities: enriched[0].capabilities,
+        };
 
         // Also link the task to the note page if pageId is provided
         if (pageId) {
@@ -589,8 +645,8 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
         // board mirrors the main backlog order. Plain `ORDER BY priority DESC`
         // would sort alphabetically and put 'medium' before 'low' before 'high'.
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, ws.key AS status, ws.category AS status_category,
-                    t.priority, t.assigned_to, u.full_name AS assignee_name
+            `SELECT t.*, ws.key AS status, ws.category AS status_category,
+                    u.full_name AS assignee_name
              FROM tasks t
              LEFT JOIN users u ON u.id = t.assigned_to
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
@@ -618,7 +674,17 @@ router.get("/sprint-embed", async (req: Request, res: Response) => {
 
         res.json({
             sprint,
-            tasks,
+            tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                status_category: task.status_category,
+                priority: task.priority,
+                assigned_to: task.assigned_to,
+                assignee_name: task.assignee_name,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
             stats: { total, done, inProgress, inReview, pending },
         });
     } catch (e) {
@@ -639,7 +705,18 @@ router.get("/search-tasks", async (req: Request, res: Response) => {
         const { taskActorFromUser } = require("../modules/tasks/tasks.policy");
         const actor = taskActorFromUser(userRow, isFeatureEnabled((req as any).tenant ?? null, "team_visibility"));
         const rows = await searchTasksForLinking(req.db!, actor, q);
-        res.json({ tasks: rows });
+        const tasks = await enrichTaskSummaries(rows, req.db, actor);
+        res.json({
+            tasks: tasks.map((task: any) => ({
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                date: task.date,
+                container: task.container,
+                capabilities: task.capabilities,
+            })),
+        });
     } catch (e) {
         req.log.error({ err: e }, "GET /notes/search-tasks error");
         res.status(500).json({ error: "Failed to search tasks" });

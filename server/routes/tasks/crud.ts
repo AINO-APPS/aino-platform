@@ -92,7 +92,7 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
             LIMIT 500
         `, collection.params)).rows;
 
-        const enriched = await enrichTasks(tasks, req.db);
+        const enriched = await enrichTasks(tasks, req.db, actor);
         const total = enriched.length;
         const done = enriched.filter((t: any) => t.workflow_state_category === 'done').length;
         const inProgress = enriched.filter((t: any) => t.workflow_state_category === 'in_progress').length;
@@ -254,7 +254,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         });
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [taskId])).rows[0];
-        const enriched = await enrichTasks([task], req.db);
+        const enriched = await enrichTasks([task], req.db, taskActorFromRequest(req));
 
         // Bug #16 (Stage 2): cross-cutting audit log so org admins can trace
         // who created / updated / deleted tasks across the tenant. This is
@@ -344,7 +344,7 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         }
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        const enriched = await enrichTasks([updated], req.db);
+        const enriched = await enrichTasks([updated], req.db, actor, lifecycle ?? undefined);
         if (statusChanged) {
             // Audit, notify and realtime fan-out are one call, so this path
             // cannot drift from the others.
@@ -641,7 +641,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         logAction(req, 'update', 'task', id, { title: newTitle });
 
         const updated = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        const enriched = await enrichTasks([updated], req.db);
+        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req), lifecycle);
 
         // Notify if assignment changed to a new user. The new assignee gets
         // task_assigned; everyone else involved gets task_updated.

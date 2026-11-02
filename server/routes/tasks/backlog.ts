@@ -157,7 +157,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const total = countRes.rows[0]?.total ?? tasks.length;
         const completedCount = completedCountRes.rows[0]?.total ?? 0;
 
-        const enriched = await enrichTasks(tasks, req.db);
+        const enriched = await enrichTasks(tasks, req.db, taskActorFromRequest(req));
         const summary: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> } = { total, byStatus: {}, byPriority: { high: 0, medium: 0, low: 0 } };
         for (const t of enriched) {
             const key = t.workflow_state_key;
@@ -201,7 +201,7 @@ router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Respon
             filters: { assignee, label, priority, status, search },
         });
         const tasks = await listScheduledTasks(req.db!, collection.whereSql, collection.params);
-        res.json({ tasks: await enrichTasks(tasks, req.db) });
+        res.json({ tasks: await enrichTasks(tasks, req.db, taskActorFromRequest(req)) });
     } catch (err) {
         req.log.error({ err: err }, 'Error fetching scheduled tasks:');
         res.status(500).json({ error: 'Failed to fetch scheduled tasks' });
@@ -348,7 +348,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         });
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [taskId])).rows[0];
-        const enriched = await enrichTasks([task], req.db);
+        const enriched = await enrichTasks([task], req.db, taskActorFromRequest(req));
 
         // Notify assigned user
         if (assignedTo && assignedTo !== req.userId) {
@@ -379,7 +379,7 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
         const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
             placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], { day: date })));
 
-        const enriched = await enrichTasks([placed.task], req.db);
+        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
         res.json(enriched[0]);
     } catch (err) {
         if (sendPlacementRefusal(res, err)) return;
@@ -401,7 +401,7 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
             placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], 'backlog')));
 
-        const enriched = await enrichTasks([placed.task], req.db);
+        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
         res.json(enriched[0]);
     } catch (err) {
         if (sendPlacementRefusal(res, err)) return;

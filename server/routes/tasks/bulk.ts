@@ -21,6 +21,7 @@ const { assertLifecycleMove, loadLifecycleContext, stateOf } = require("../../mo
 const { announceStatusMove } = require("./_helpers/statusEvents");
 const { placeTickets } = require("../../modules/tasks/tasks.placement");
 const { placementContext } = require("./_helpers/placement");
+const { enrichTasks } = require("./_helpers/enrich");
 import type { PlacementTarget } from "../../modules/tasks/tasks.placement";
 
 const router = express.Router();
@@ -31,6 +32,7 @@ type BulkAction = (typeof ACTIONS)[number];
 interface BulkResult {
     id: number;
     ok: boolean;
+    ticket?: any;
     error?: string;
     /** Stable machine code for a skipped ticket (`INVALID_TRANSITION`, `WIP_EXCEEDED`, …). */
     code?: string;
@@ -61,20 +63,24 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             const sprint = sprintId === null ? null : await findSprintInOrg(req.db!, sprintId, req.userOrgId);
             const eligible: any[] = [];
             const resultById = new Map<number, BulkResult>();
+            const visibleIds = new Set<number>();
 
             for (const task of tasks) {
                 if (!await canAccessTask(task, actor, req.db)) {
                     resultById.set(task.id, { id: task.id, ok: false, error: "Not found" });
-                } else if (sprintId !== null && (
-                    !sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))
-                )) {
-                    resultById.set(task.id, {
-                        id: task.id,
-                        ok: false,
-                        error: "Invalid sprint or sprint does not belong to your team",
-                    });
                 } else {
-                    eligible.push(task);
+                    visibleIds.add(Number(task.id));
+                    if (sprintId !== null && (
+                    !sprint || (!isOrgAdmin(req.userRole) && Number(sprint.team_id) !== Number(req.userTeamId))
+                    )) {
+                        resultById.set(task.id, {
+                            id: task.id,
+                            ok: false,
+                            error: "Invalid sprint or sprint does not belong to your team",
+                        });
+                    } else {
+                        eligible.push(task);
+                    }
                 }
             }
 
@@ -111,6 +117,13 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                 const result = resultById.get(task.id);
                 if (result) results.push(result);
             }
+            const freshTasks = await findManyInOrg(req.db!, [...visibleIds], req.userOrgId);
+            const enriched = await enrichTasks(freshTasks, req.db, actor);
+            const enrichedById = new Map(enriched.map((ticket: any) => [Number(ticket.id), ticket]));
+            for (const result of results) {
+                const ticket = enrichedById.get(result.id);
+                if (ticket) result.ticket = ticket;
+            }
             const changed = results.filter((result) => result.ok);
             return res.json({
                 action,
@@ -125,6 +138,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
         // graph and WIP setting, including tickets moved earlier in the loop.
         const lifecycle = await loadLifecycleContext(req.db, req.userOrgId);
         const name = await findActorName(req.db!, req.userId);
+        const visibleIds = new Set<number>();
 
         const results: BulkResult[] = [];
         for (const task of tasks) {
@@ -132,6 +146,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                 results.push({ id: task.id, ok: false, error: "Not found" });
                 continue;
             }
+            visibleIds.add(Number(task.id));
 
             try {
                 if (action === "status") {
@@ -226,6 +241,13 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             }
         }
 
+        const freshTasks = await findManyInOrg(req.db!, [...visibleIds], req.userOrgId);
+        const enriched = await enrichTasks(freshTasks, req.db, actor, lifecycle);
+        const enrichedById = new Map(enriched.map((ticket: any) => [Number(ticket.id), ticket]));
+        for (const result of results) {
+            const ticket = enrichedById.get(result.id);
+            if (ticket) result.ticket = ticket;
+        }
         const changed = results.filter((result) => result.ok);
         res.json({
             action,

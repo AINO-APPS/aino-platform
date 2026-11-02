@@ -19,7 +19,7 @@ export interface NotesTaskDb {
 }
 
 /** The task columns the Notes UI renders, with the workflow-state key as `status`. */
-const TASK_SELECT = `SELECT t.id, t.title, ws.key AS status, t.priority, t.planned_date AS date
+const TASK_SELECT = `SELECT t.*, ws.key AS status, t.planned_date AS date
                        FROM tasks t
                        LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id`;
 
@@ -86,8 +86,7 @@ export async function insertNoteTicket(
 /** One task's summary for a linked-entity panel. */
 export async function findLinkedTask(db: NotesTaskDb, taskId: unknown): Promise<any | null> {
     return (await db.query(
-        `SELECT t.id, t.title, ws.key AS status, t.priority, t.planned_date AS date,
-                t.due_date, t.sprint_id
+        `SELECT t.*, ws.key AS status, t.planned_date AS date
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE t.id = $1`,
