@@ -81,6 +81,16 @@ export type PlacementResult =
     | { id: number; ok: true; task: any }
     | { id: number; ok: false; code: PlacementRefusalCode; error: string };
 
+export type TransferPlacementResult =
+    | {
+        id: number;
+        ok: true;
+        task: any;
+        oldTeamId: number | null;
+        clearedSprint: { id: number; name: string } | null;
+    }
+    | Extract<PlacementResult, { ok: false }>;
+
 const REFUSALS: Record<PlacementRefusalCode, string> = {
     NOT_FOUND: "Ticket not found.",
     SPRINT_NOT_FOUND: "Sprint not found.",
@@ -92,6 +102,10 @@ const REFUSALS: Record<PlacementRefusalCode, string> = {
 };
 
 function refused(id: number, code: PlacementRefusalCode): PlacementResult {
+    return { id, ok: false, code, error: REFUSALS[code] };
+}
+
+function refusedTransfer(id: number, code: PlacementRefusalCode): Extract<TransferPlacementResult, { ok: false }> {
     return { id, ok: false, code, error: REFUSALS[code] };
 }
 
@@ -147,25 +161,34 @@ export async function transferTicket(
     ctx: PlacementContext,
     ticketId: number,
     toTeamId: number,
-): Promise<PlacementResult> {
+): Promise<TransferPlacementResult> {
     const id = Number(ticketId);
     const [before] = await repo.lockTickets(ctx.db, [id], ctx.actor.orgId);
-    if (!before) return refused(id, "NOT_FOUND");
+    if (!before) return refusedTransfer(id, "NOT_FOUND");
 
     const team = await repo.findTeamInOrg(ctx.db, toTeamId, ctx.actor.orgId);
-    if (!team) return refused(id, "TEAM_NOT_FOUND");
-    if (same(before.team_id, team.id)) return refused(id, "TEAM_UNCHANGED");
+    if (!team) return refusedTransfer(id, "TEAM_NOT_FOUND");
+    if (same(before.team_id, team.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
 
     const sprints = await lockSprints(ctx, [before.sprint_id]);
     const origin = before.sprint_id == null ? null : sprints.get(Number(before.sprint_id));
-    if (origin?.status === "completed") return refused(id, "SPRINT_FROZEN");
+    if (origin?.status === "completed") return refusedTransfer(id, "SPRINT_FROZEN");
 
-    const after = await repo.setTeam(ctx.db, id, team.id, origin != null && !same(origin.team_id, team.id));
+    const clearedSprint = origin != null && !same(origin.team_id, team.id)
+        ? { id: Number(origin.id), name: origin.name }
+        : null;
+    const after = await repo.setTeam(ctx.db, id, team.id, clearedSprint !== null);
     await record(ctx, "transfer", before, after, [
         { action: "transferred", field: "team", from: before.team_id == null ? null : String(before.team_id), to: String(team.id) },
         ...historyFor(before, after, sprints),
     ]);
-    return { id, ok: true, task: after };
+    return {
+        id,
+        ok: true,
+        task: after,
+        oldTeamId: before.team_id ?? null,
+        clearedSprint,
+    };
 }
 
 /**

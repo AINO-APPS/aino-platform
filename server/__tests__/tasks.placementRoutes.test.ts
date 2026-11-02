@@ -9,8 +9,10 @@ export {};
  */
 
 const mockPlaceTickets = jest.fn();
+const mockTransferTicket = jest.fn();
 jest.mock("../modules/tasks/tasks.placement", () => ({
     placeTickets: (...args: unknown[]) => mockPlaceTickets(...args),
+    transferTicket: (...args: unknown[]) => mockTransferTicket(...args),
 }));
 jest.mock("../modules/tasks/tasks.placementEffects", () => ({
     realtimeEffects: () => ({ changed: jest.fn() }),
@@ -101,6 +103,13 @@ function refused(code: string) {
 beforeEach(() => {
     rows = { 5: { ...TICKET } };
     mockPlaceTickets.mockReset().mockImplementation(async (_ctx, ids: number[]) => placed({ ...TICKET, id: ids[0] }));
+    mockTransferTicket.mockReset().mockResolvedValue({
+        id: 5,
+        ok: true,
+        task: { ...TICKET, team_id: 20 },
+        oldTeamId: 10,
+        clearedSprint: { id: 50, name: "Sprint 50" },
+    });
     txClient.query.mockReset().mockImplementation(async (sql: string, params: unknown[]) => respond(sql, params));
     db.query.mockClear();
     db.transaction.mockClear();
@@ -110,6 +119,42 @@ function lastPlacement() {
     const call = mockPlaceTickets.mock.calls.at(-1);
     return call ? { ctx: call[0], ids: call[1], target: call[2] } : null;
 }
+
+describe("POST /:id/transfer", () => {
+    test("transfers through placement in a transaction and returns the previous owner and sprint", async () => {
+        const res = await request(app)
+            .post("/api/tasks/5/transfer")
+            .set("x-role", "hr_admin")
+            .send({ team_id: 20 });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+            transferred: true,
+            from_team_id: 10,
+            to_team_id: 20,
+            cleared_sprint: { id: 50, name: "Sprint 50" },
+        });
+        expect(mockTransferTicket).toHaveBeenCalledWith(
+            expect.objectContaining({ db: txClient }),
+            5,
+            20,
+        );
+        expect(db.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    test("maps a completed-sprint transfer refusal to 409", async () => {
+        mockTransferTicket.mockResolvedValue({
+            id: 5, ok: false, code: "SPRINT_FROZEN", error: "This sprint is completed.",
+        });
+
+        const res = await request(app)
+            .post("/api/tasks/5/transfer")
+            .set("x-role", "hr_admin")
+            .send({ team_id: 20 });
+
+        expect(res).toMatchObject({ status: 409, body: { code: "SPRINT_FROZEN" } });
+    });
+});
 
 describe("PATCH /:id/schedule", () => {
     test("plans the ticket onto the day inside a transaction", async () => {

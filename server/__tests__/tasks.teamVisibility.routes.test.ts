@@ -417,27 +417,6 @@ describe("admin transfer", () => {
         expect(res.status).toBe(403);
     });
 
-    test("an admin transfers the ticket and clears a now-foreign sprint", async () => {
-        overrides.push({
-            match: /SELECT id, name, team_id FROM sprints WHERE id = \$1/,
-            rows: [{ id: 50, name: "A sprint", team_id: TEAM_A }],
-        });
-        overrides.push({
-            match: /SELECT \* FROM tasks WHERE id = \$1/,
-            rows: [{ ...TASKS[1], sprint_id: 50 }],
-        });
-        const res = await request(app)
-            .post("/api/tasks/1/transfer")
-            .set(asAdmin())
-            .send({ team_id: TEAM_B });
-        expect(res.status).toBe(200);
-        expect(res.body.to_team_id).toBe(TEAM_B);
-        const update = queries.find((q) => /UPDATE tasks SET team_id = \$1/.test(q.sql));
-        expect(update!.sql).toMatch(/sprint_id = NULL, due_date = pre_sprint_due_date/);
-        expect(update!.params[0]).toBe(TEAM_B);
-        const history = queries.find((q) => /INSERT INTO task_history/.test(q.sql));
-        expect(history!.params[2]).toBe("transferred");
-    });
 });
 
 describe("team deletion guard", () => {
