@@ -870,6 +870,26 @@
       }
     },
     {
+      "id": "android-server-ticket-container",
+      "name": "Android list membership follows the server-provided ticket container",
+      "decision": "D2",
+      "phase": 1,
+      "web": {
+        "status": "planned"
+      },
+      "desktop": {
+        "status": "planned"
+      },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/PlanAlignmentTest.kt"
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "iOS renders the Tasks module through the web bundle and inherits the web container behavior."
+      }
+    },
+    {
       "id": "server-selected-current-sprint",
       "name": "Server-selected current sprint drives team landing and sprint defaults",
       "decision": "D50",
@@ -883,8 +903,8 @@
         "owner_test": "client/src/pages/tasks/__tests__/tasksLanding.test.ts"
       },
       "android": {
-        "status": "waived",
-        "waiver": "Android's client migration is tracked in ticket 08 and is intentionally outside this web/desktop change."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/SprintLandingTest.kt"
       },
       "ios": {
         "status": "waived",
