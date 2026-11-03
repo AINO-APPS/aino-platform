@@ -86,6 +86,174 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect((await request(app).get('/api/tasks/99999/worklogs')).status).toBe(404);
     });
 
+    test('approved leave on an old day warns after saving the worklog', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Leave work' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2020-01-15', 'planned', 'approved')");
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '1h' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['ON_LEAVE']);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+    });
+
+    test('day total across tickets warns above worked attendance, excluding breaks and deleted work', async () => {
+        const first = (await request(app).post('/api/tasks/backlog').send({ title: 'First work' })).body.id;
+        const second = (await request(app).post('/api/tasks/backlog').send({ title: 'Second work' })).body.id;
+        await pool.query(`INSERT INTO time_entries (user_id, entry_type, timestamp) VALUES
+            (1, 'clock_in', '2020-01-15T09:00:00Z'), (1, 'break_start', '2020-01-15T10:00:00Z'),
+            (1, 'break_end', '2020-01-15T10:30:00Z'), (1, 'clock_out', '2020-01-15T11:00:00Z')`);
+        await pool.query(`INSERT INTO task_worklogs (task_id, author_id, logged_by_id, day_worked, minutes, deleted_at) VALUES
+            ($1, 1, 1, '2020-01-15', 1000, NOW()), ($1, 2, 1, '2020-01-15', 1000, NULL),
+            ($1, 1, 1, '2020-01-14', 1000, NULL)`, [first]);
+        const atLimit = await request(app).post(`/api/tasks/${first}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '90m' });
+        expect(atLimit.body.warnings).toEqual([]);
+        const saved = await request(app).post(`/api/tasks/${second}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '1m' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['EXCEEDS_ATTENDANCE']);
+        expect((await request(app).get(`/api/tasks/${second}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+    });
+
+    test.each(['pending', 'rejected', 'revoked', 'withdraw_pending'])('non-approved leave (%s) and no attendance do not warn or prevent saving', async status => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Unconfirmed leave' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2020-01-15', 'planned', $1)", [status]);
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '3d' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual([]);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+    });
+
+    test('approved leave on a future day still warns without a recent-date window', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Future leave' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2099-01-15', 'planned', 'approved')");
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2099-01-15', time_spent: '1h' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['ON_LEAVE']);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+    });
+
+    test('attendance follows the author local day, sums split shifts, and ignores rejected entries', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Local shifts' })).body.id;
+        await pool.query('UPDATE users SET timezone_offset = -330 WHERE id = 1');
+        await pool.query(`INSERT INTO time_entries (user_id, entry_type, timestamp, approval_status) VALUES
+            (1, 'clock_in', '2020-01-15T18:45:00Z', 'approved'), (1, 'clock_out', '2020-01-15T19:15:00Z', 'approved'),
+            (1, 'clock_in', '2020-01-16T03:30:00Z', 'approved'), (1, 'clock_out', '2020-01-16T04:00:00Z', 'approved'),
+            (1, 'clock_in', '2020-01-16T05:00:00Z', 'rejected'), (1, 'clock_out', '2020-01-16T15:00:00Z', 'rejected')`);
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-16', time_spent: '61m' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['EXCEEDS_ATTENDANCE']);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+    });
+
+    test('an open historical clock-in uses the existing end-of-local-day attendance summary', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Open shift' })).body.id;
+        await pool.query("INSERT INTO time_entries (user_id, entry_type, timestamp) VALUES (1, 'clock_in', '2020-01-15T23:00:00Z')");
+        const atLimit = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '60m' });
+        expect(atLimit.body.warnings).toEqual([]);
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '1m' });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['EXCEEDS_ATTENDANCE']);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toHaveLength(2);
+    });
+
+    test('both warnings can be returned and warning read failures never roll back or fail a saved worklog', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Advisory only' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2020-01-15', 'planned', 'approved')");
+        await pool.query(`INSERT INTO time_entries (user_id, entry_type, timestamp) VALUES
+            (1, 'clock_in', '2020-01-15T09:00:00Z'), (1, 'clock_out', '2020-01-15T10:00:00Z')`);
+        const first = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '2h' });
+        expect(first.status).toBe(201);
+        expect(first.body.warnings).toEqual(['ON_LEAVE', 'EXCEEDS_ATTENDANCE']);
+        await pool.query('ALTER TABLE leaves RENAME TO unavailable_leaves');
+        try {
+            const second = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '1m' });
+            expect(second.status).toBe(201);
+            expect(second.body.warnings).toEqual(['EXCEEDS_ATTENDANCE']);
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toHaveLength(2);
+            await pool.query('ALTER TABLE time_entries RENAME TO unavailable_attendance');
+            try {
+                const third = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '1m' });
+                expect(third.status).toBe(201);
+                expect(third.body.warnings).toEqual([]);
+                expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toHaveLength(3);
+            } finally { await pool.query('ALTER TABLE unavailable_attendance RENAME TO time_entries'); }
+        } finally { await pool.query('ALTER TABLE unavailable_leaves RENAME TO leaves'); }
+    });
+
+    test('editing the day recomputes leave warnings for the saved date, and moving off leave clears them', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Correct worked day' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2020-01-15', 'planned', 'approved')");
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-14', time_spent: '1h' })).body.worklog;
+        const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
+        const onLeave = await request(app).patch(endpoint).send({ day_worked: '2020-01-15' });
+        expect(onLeave.status).toBe(200);
+        expect(onLeave.body.warnings).toEqual(['ON_LEAVE']);
+        expect(onLeave.body.worklog).toMatchObject({ id: original.id, day_worked: '2020-01-15', minutes: 60 });
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([onLeave.body.worklog]);
+        const corrected = await request(app).patch(endpoint).send({ day_worked: '2020-01-14' });
+        expect(corrected.status).toBe(200);
+        expect(corrected.body.warnings).toEqual([]);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([corrected.body.worklog]);
+    });
+
+    test('editing duration compares the new day aggregate across tickets without counting the replaced duration twice', async () => {
+        const first = (await request(app).post('/api/tasks/backlog').send({ title: 'Shared day effort' })).body.id;
+        const second = (await request(app).post('/api/tasks/backlog').send({ title: 'Correct effort' })).body.id;
+        await pool.query(`INSERT INTO time_entries (user_id, entry_type, timestamp) VALUES
+            (1, 'clock_in', '2020-01-15T09:00:00Z'), (1, 'clock_out', '2020-01-15T10:00:00Z')`);
+        await request(app).post(`/api/tasks/${first}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '30m' });
+        const original = (await request(app).post(`/api/tasks/${second}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '30m' })).body.worklog;
+        const endpoint = `/api/tasks/${second}/worklogs/${original.id}`;
+        const over = await request(app).patch(endpoint).send({ time_spent: '31m' });
+        expect(over.status).toBe(200);
+        expect(over.body.warnings).toEqual(['EXCEEDS_ATTENDANCE']);
+        expect((await request(app).get(`/api/tasks/${second}/worklogs`)).body.worklogs).toEqual([over.body.worklog]);
+        const atLimit = await request(app).patch(endpoint).send({ time_spent: '30m' });
+        expect(atLimit.status).toBe(200);
+        expect(atLimit.body.warnings).toEqual([]);
+        expect((await request(app).get(`/api/tasks/${second}/worklogs`)).body.worklogs).toEqual([atLimit.body.worklog]);
+    });
+
+    test('edit warnings follow the saved author rather than logged-by identity', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Authored effort' })).body.id;
+        await pool.query('UPDATE users SET team_id = 1, timezone_offset = -330 WHERE id = 2');
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (2, '2020-01-16', 'planned', 'approved')");
+        await pool.query(`INSERT INTO time_entries (user_id, entry_type, timestamp) VALUES
+            (2, 'clock_in', '2020-01-15T18:45:00Z'), (2, 'clock_out', '2020-01-15T19:15:00Z')`);
+        const worklogId = (await pool.query(`INSERT INTO task_worklogs (task_id, author_id, logged_by_id, day_worked, minutes)
+            VALUES ($1, 2, 1, '2020-01-15', 30) RETURNING id`, [id])).rows[0].id;
+        const endpoint = `/api/tasks/${id}/worklogs/${worklogId}`;
+        const saved = await request(app).patch(endpoint).set('x-test-user', '2').send({ day_worked: '2020-01-16', time_spent: '31m' });
+        expect(saved.status).toBe(200);
+        expect(saved.body.warnings).toEqual(['ON_LEAVE', 'EXCEEDS_ATTENDANCE']);
+        expect(saved.body.worklog).toMatchObject({ author_id: 2, logged_by_id: 1, day_worked: '2020-01-16', minutes: 31 });
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-user', '2')).body.worklogs).toEqual([saved.body.worklog]);
+        const noAttendance = await request(app).patch(endpoint).set('x-test-user', '2').send({ day_worked: '2020-01-17' });
+        expect(noAttendance.status).toBe(200);
+        expect(noAttendance.body.warnings).toEqual([]);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-user', '2')).body.worklogs).toEqual([noAttendance.body.worklog]);
+    });
+
+    test('warning read failures after edits never roll back the correction or turn the saved response into an error', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Durable correction' })).body.id;
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2020-01-15', time_spent: '30m' })).body.worklog;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (1, '2020-01-15', 'planned', 'approved')");
+        await pool.query('ALTER TABLE time_entries RENAME TO unavailable_attendance');
+        try {
+            const saved = await request(app).patch(`/api/tasks/${id}/worklogs/${original.id}`).send({ time_spent: '2h' });
+            expect(saved.status).toBe(200);
+            expect(saved.body.warnings).toEqual(['ON_LEAVE']);
+            expect(saved.body.worklog.minutes).toBe(120);
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([saved.body.worklog]);
+            await pool.query('ALTER TABLE leaves RENAME TO unavailable_leaves');
+            try {
+                const corrected = await request(app).patch(`/api/tasks/${id}/worklogs/${original.id}`).send({ comment: 'Still saved' });
+                expect(corrected.status).toBe(200);
+                expect(corrected.body.warnings).toEqual([]);
+                expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([corrected.body.worklog]);
+                expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((entry: any) => entry.action === 'worklog_updated')).toHaveLength(2);
+            } finally { await pool.query('ALTER TABLE unavailable_leaves RENAME TO leaves'); }
+        } finally { await pool.query('ALTER TABLE unavailable_attendance RENAME TO time_entries'); }
+    });
+
     test('worklog capabilities are server-decided for the author, not another member or admin', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Own effort' })).body.id;
         await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');

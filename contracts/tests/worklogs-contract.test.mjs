@@ -17,6 +17,8 @@ test('manual log-work route has duration input, saved worklog, summary, warnings
     assert.ok(operation.responses['403'].description.includes('WORKLOG_CANCELLED'));
     assert.ok(api.components.schemas.TicketCapabilities.properties.can.required.includes('logWork'));
     assert.ok(api.components.schemas.TicketCapability.properties.reason.enum.includes('WORKLOG_CANCELLED'));
+    assert.deepEqual(api.components.schemas.LogWorkResponse.properties.warnings.items.enum, ['ON_LEAVE', 'EXCEEDS_ATTENDANCE']);
+    assert.match(api.components.schemas.LogWorkResponse.properties.warnings.description, /after commit/i);
 });
 
 test('worklog edit/delete contracts expose author capabilities, partial patch and soft-delete summary', () => {

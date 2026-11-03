@@ -15,6 +15,67 @@ beforeEach(() => {
     api.logTaskWork.mockReset().mockResolvedValue({ data: { worklog, ticket: { id: 1, time_spent_minutes: 150, logged_minutes: 150 }, warnings: [] } });
 });
 describe('Log work on a ticket', () => {
+    test('shows both returned attendance warnings after the worklog saves and the dialog closes', async () => {
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE', 'EXCEEDS_ATTENDANCE'] } });
+        render(<TaskTimePanel task={ticket} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '2h 30m' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        expect(await screen.findByText('Review work')).toBeTruthy();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        const warning = screen.getByRole('status');
+        expect(warning).toHaveTextContent('Work saved');
+        expect(warning).toHaveTextContent('The author has approved leave on this day.');
+        expect(warning).toHaveTextContent('The author’s total work logged for this day exceeds their clocked-in working time.');
+    });
+
+    test('clears stale warnings after another clean save or switching tickets', async () => {
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE'] } });
+        const view = render(<TaskTimePanel task={ticket} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '1h' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await screen.findByRole('status');
+        api.logTaskWork.mockResolvedValue({ data: { worklog: { ...worklog, id: 5 }, ticket: { time_spent_minutes: 180 }, warnings: [] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '30m' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(screen.queryByRole('status')).toBeNull();
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE'] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '1h' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await screen.findByRole('status');
+        view.rerender(<TaskTimePanel task={{ ...ticket, id: 2 }} />);
+        await screen.findByText('No work logged yet');
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    test('changing the worked day and duration shows edit warnings after save, then clears them after a clean correction', async () => {
+        const own = { ...worklog, canEdit: true, canDelete: true };
+        const corrected = { ...own, day_worked: '2020-01-15', minutes: 180 };
+        api.getTaskWorklogs.mockResolvedValue({ data: { worklogs: [own], time_spent_minutes: 150 } });
+        api.editTaskWorklog.mockResolvedValue({ data: { worklog: corrected, ticket: { time_spent_minutes: 180 }, warnings: ['ON_LEAVE', 'EXCEEDS_ATTENDANCE'] } });
+        render(<TaskTimePanel task={ticket} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit worklog' }));
+        fireEvent.change(screen.getByLabelText('Day worked'), { target: { value: '2020-01-15' } });
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '3h' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(api.editTaskWorklog).toHaveBeenCalledWith(1, 4, { day_worked: '2020-01-15', time_spent: '3h' });
+        expect(screen.getByText('3h / —')).toBeTruthy();
+        expect(screen.getByRole('status')).toHaveTextContent('The author has approved leave on this day.');
+        expect(screen.getByRole('status')).toHaveTextContent('The author’s total work logged for this day exceeds their clocked-in working time.');
+        api.editTaskWorklog.mockResolvedValue({ data: { worklog: { ...corrected, day_worked: '2020-01-14' }, ticket: { time_spent_minutes: 180 }, warnings: [] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Edit worklog' }));
+        fireEvent.change(screen.getByLabelText('Day worked'), { target: { value: '2020-01-14' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(screen.queryByRole('status')).toBeNull();
+        expect(screen.getByText('Review work')).toBeTruthy();
+    });
+
     test('shows edit/delete solely from each server capability, not ticket capability or authorship', async () => {
         api.getTaskWorklogs.mockResolvedValue({ data: { worklogs: [
             { ...worklog, canEdit: true, canDelete: false, author_id: 99, comment: 'Edit allowed' },
