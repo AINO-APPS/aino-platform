@@ -196,7 +196,7 @@ describe("sprint membership from the detail panel on the Plan view", () => {
         await waitFor(() => expect(getTaskDetail).toHaveBeenCalled());
 
         // Enter edit mode and choose the sprint.
-        fireEvent.click(await screen.findByRole("button", { name: /^Edit/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /^Edit$/i }));
         const sprintPicker = (await screen.findAllByRole("combobox")).find((el) =>
             within(el).queryByRole("option", { name: /Sprint 1/ }),
         );

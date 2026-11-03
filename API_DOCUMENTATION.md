@@ -501,7 +501,8 @@ Carry forward incomplete tasks from the previous day to today.
 
 - `GET /api/tasks/:id/worklogs` returns non-deleted worklogs, author and
   original logged-by identities, server-decided `canEdit` / `canDelete`, and
-  computed time spent.
+  computed `time_spent_minutes`, `original_estimate_minutes` and
+  `remaining_estimate_minutes` (the estimates are nullable, with zero preserved).
 - `POST /api/tasks/:id/worklogs` accepts `day_worked`, `time_spent` (for example
   `2h 30m`), optional `start_time`, `comment` and `author_id`. Returns
   `201 { worklog, ticket, warnings }`.
@@ -518,6 +519,9 @@ Omitting author uses the caller on create and retains the author on edit.
 `logged_by_id` is the original logger and never changes during correction.
 History/audit identify the actor making each change. Attendance warnings are
 computed after commit for the saved author/day and never block the save.
+Legacy timer stops keep their response shape while saving automatic remaining
+adjustment and exactly one `worklog_added` history/audit record in the transaction;
+`task_updated` is emitted after commit. Existing `time_logged` history is retained.
 See `contracts/openapi.json` for the complete schemas.
 
 ---

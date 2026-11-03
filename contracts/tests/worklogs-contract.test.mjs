@@ -62,7 +62,11 @@ test('read-only worklog route documents its author, worked day and computed time
     assert.ok(inventory.endpoints.some(e => e.method === 'GET' && e.path === '/api/tasks/:id/worklogs'));
     const operation = api.paths['/api/tasks/{id}/worklogs'].get;
     assert.deepEqual(operation.responses['200'].content['application/json'].schema, { $ref: '#/components/schemas/TaskWorklogList' });
-    assert.deepEqual(api.components.schemas.TaskWorklogList.required, ['worklogs', 'time_spent_minutes']);
+    assert.deepEqual(api.components.schemas.TaskWorklogList.required, ['worklogs', 'time_spent_minutes', 'original_estimate_minutes', 'remaining_estimate_minutes']);
+    for (const key of ['original_estimate_minutes', 'remaining_estimate_minutes']) {
+        assert.deepEqual(api.components.schemas.TaskWorklogList.properties[key].type, ['integer', 'null']);
+        assert.equal(api.components.schemas.TaskWorklogList.properties[key].minimum, 0);
+    }
     const worklog = api.components.schemas.TaskWorklog;
     for (const key of ['id', 'task_id', 'author_id', 'logged_by_id', 'author', 'logged_by', 'day_worked', 'minutes', 'comment', 'start_time', 'created_at', 'updated_at', 'deleted_at']) {
         assert.ok(worklog.required.includes(key), key);

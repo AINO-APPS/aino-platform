@@ -90,7 +90,9 @@ Deprecated server timer routes remain available for older-client compatibility.
 `tasks.worklogs.ts` is the worklog interface; `tasks.worklogRepository.ts` owns
 its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 (with creation time/id tie-breaks), author/logged-by identities, and
-`time_spent_minutes`. `getTimeSpent` batches sums for ticket read surfaces;
+`time_spent_minutes`, `original_estimate_minutes` and `remaining_estimate_minutes`.
+Both clients refresh all three values from this envelope, including null and zero.
+`getTimeSpent` batches sums for ticket read surfaces;
 `logged_minutes` in responses is a legacy alias, never the stored ticket column.
 
 `logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
@@ -105,7 +107,8 @@ read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 whitespace and decimals; a week is five org working days, rounded to whole minutes.
 Web/desktop and Android replace the ticket timer with capability-driven Log work.
 `tasks.worklogWarnings.ts` exports the reusable
-`computeWorklogWarnings(db, orgId, { author_id, day_worked })` hook. Call it only
+`computeWorklogWarnings(db, orgId, { author_id, day_worked }, tenantId)` hook.
+Failures retain the error/stack and log tenant, org, saved author, worked day and advisory operation. Call it only
 **after** the write transaction commits. Both `logWork` and `editWorklog` call it
 with the saved author and recorded day, so changing day or duration recomputes
 warnings against the updated aggregate (never counting the replaced entry twice).
@@ -142,8 +145,12 @@ current actor. The list shows both identities when they differ. Estimates and
 remaining choices are documented below. All five worklog/estimate routes have
 native coverage; no temporary manual-worklog parity waiver remains.
 
-`stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
-and the legacy history entry, and returns the unchanged timer-stop envelope.
+`stopLegacyTimer` locks the org-scoped ticket and timer in one transaction, records a worklog,
+persists automatic remaining adjustment, and uses the same `worklog_added` history/audit
+semantics and after-commit `task_updated` as manual work. New stops do not duplicate
+that history with `time_logged`; existing legacy history remains readable.
+The timer-stop response shape and compatibility arithmetic are unchanged.
+All estimate, worklog and timer mutations explicitly carry the actor's org filter.
 Concurrent stops record only once. The day/start time use the caller's
 `X-Timezone-Offset` (JavaScript convention); elapsed minutes round up to at least
 one. Start/Stop remain compatibility routes during this rollout. Their legacy time
@@ -174,7 +181,12 @@ Worklog create/edit/delete accept `remaining_mode` (`auto`, default; `set`; `lea
 `set` requires `remaining_estimate`; empty clears. `auto` applies the minutes delta,
 never below zero, and leaves null forecasts null. Deleting returns time to the
 forecast. Work and forecast share the ticket lock and transaction, including audit
-failures. Reads and write summaries expose original/remaining minutes and retain
+failures. Shared compact/comfortable cards show spent, original and remaining effort.
+Detail bars use spent / (spent + remaining), hiding unknown forecasts and showing
+zero progress for a zero total. Original still determines the overrun indicator.
+History renders worklog identity, author/logger, day, start time, duration and comment
+from stored before/after metadata; deletions and null/zero estimate changes remain traceable.
+Reads and write summaries expose original/remaining minutes and retain
 `estimated_minutes` as an alias of original for older clients.
 
 Migration `0020_task_estimates` renames the plan, adds nullable nonnegative remaining,

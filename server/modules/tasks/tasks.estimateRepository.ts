@@ -1,10 +1,10 @@
 import type { TasksDb } from './tasks.types';
 
-export async function writeEstimates(db: TasksDb, taskId: number, original: number | null, remaining: number | null) {
-    await db.query('UPDATE tasks SET original_estimate_minutes=$2, remaining_estimate_minutes=$3 WHERE id=$1', [taskId, original, remaining]);
+export async function writeEstimates(db: TasksDb, taskId: number, original: number | null, remaining: number | null, orgId: number | null) {
+    await db.query('UPDATE tasks SET original_estimate_minutes=$2, remaining_estimate_minutes=$3 WHERE id=$1 AND org_id IS NOT DISTINCT FROM $4', [taskId, original, remaining, orgId]);
 }
-export async function writeRemaining(db: TasksDb, taskId: number, remaining: number | null) {
-    await db.query('UPDATE tasks SET remaining_estimate_minutes=$2 WHERE id=$1', [taskId, remaining]);
+export async function writeRemaining(db: TasksDb, taskId: number, remaining: number | null, orgId: number | null) {
+    await db.query('UPDATE tasks SET remaining_estimate_minutes=$2 WHERE id=$1 AND org_id IS NOT DISTINCT FROM $3', [taskId, remaining, orgId]);
 }
 export async function recordEstimateChange(db: TasksDb, taskId: number, actorId: number, orgId: number | null,
     before: unknown, after: unknown, ip?: string, userAgent?: string) {
