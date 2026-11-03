@@ -753,6 +753,34 @@
           {
             "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
             "name": "serverCapabilitiesHideLogEditAndDeleteWithoutInferringFromRoles"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "loggingWorkSendsEachRemainingChoiceAndUsesServerEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "editingWorkSendsEachRemainingChoiceAndRefreshesBothEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "deletingWorkSendsEachRemainingChoiceAndRefreshesBothEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "inlineEstimatesUseServerCapabilityAndPublishForecastAndOverrun"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "personPickerAndAuthorPayloadUseOnlyServerCapability"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "worklogsShowLoggedByOnlyWhenDifferentFromTheAuthor"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "attendanceWarningsPersistAfterCreateAndEditUntilACleanSave"
           }
         ]
       },
