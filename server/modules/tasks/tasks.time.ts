@@ -8,6 +8,7 @@
 
 export interface TaskTime {
     estimated_minutes?: number | null;
+    original_estimate_minutes?: number | null;
     logged_minutes?: number | null;
 }
 
@@ -26,7 +27,7 @@ function minutes(value: unknown): number {
 
 /** Logged against estimated, with the overrun made explicit. */
 export function summariseTime(task: TaskTime): TimeSummary {
-    const estimated = minutes(task.estimated_minutes);
+    const estimated = minutes(task.original_estimate_minutes ?? task.estimated_minutes);
     const logged = minutes(task.logged_minutes);
     const remaining = Math.max(0, estimated - logged);
     const percent = estimated > 0 ? Math.round((logged / estimated) * 100) : 0;

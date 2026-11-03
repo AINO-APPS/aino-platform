@@ -48,6 +48,8 @@ export interface Task {
   acceptance_criteria?: Record<string, unknown>[] | null;
   created_at?: string | null;
   time_spent_minutes?: number;
+  original_estimate_minutes?: number | null;
+  remaining_estimate_minutes?: number | null;
 }
 
 export interface Sprint {
@@ -102,6 +104,7 @@ export interface TicketCapabilitiesCan {
   placeInSprint: TicketCapability;
   schedule: TicketCapability;
   logWork: TicketCapability;
+  canEditEstimate: TicketCapability;
 }
 
 export interface BacklogResponsePagination {

@@ -63,6 +63,116 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params));
     });
 
+    test('sets duration estimates, seeds an empty forecast, clears explicitly and preserves the legacy alias', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Forecast' })).body.id;
+        const endpoint = `/api/tasks/${id}/estimates`;
+        const saved = await request(app).patch(endpoint).send({ original_estimate: '2h' });
+        expect(saved.status).toBe(200);
+        expect(saved.body.ticket).toMatchObject({ original_estimate_minutes:120, remaining_estimate_minutes:120, estimated_minutes:120 });
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body).toMatchObject({ original_estimate_minutes:120, remaining_estimate_minutes:120, estimated_minutes:120, capabilities:{can:{canEditEstimate:{allowed:true}}} });
+        expect((await request(app).patch(endpoint).send({ remaining_estimate: '0m' })).body.ticket.remaining_estimate_minutes).toBe(0);
+        expect((await request(app).patch(endpoint).send({ original_estimate: '3h' })).body.ticket.remaining_estimate_minutes).toBe(0);
+        expect((await request(app).patch(endpoint).send({ original_estimate:'', remaining_estimate:'' })).body.ticket).toMatchObject({ original_estimate_minutes:null, remaining_estimate_minutes:null, estimated_minutes:null });
+        const history = await request(app).get(`/api/tasks/${id}/history`);
+        expect(history.body.some((row:any) => row.action === 'estimate_changed')).toBe(true);
+    });
+    test.each([
+        ['auto',90,60,90,120], ['set',45,45,45,45], ['leave',120,120,120,120],
+    ])('%s forecast applies atomically through add, edit up/down and delete', async (mode,added,up,down,removed) => {
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Forecast modes'})).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({original_estimate:'2h'});
+        const choice={remaining_mode:mode,...(mode==='set'?{remaining_estimate:'45m'}:{})};
+        const saved=await request(app).post(`/api/tasks/${id}/worklogs`).send({day_worked:'2026-11-01',time_spent:'30m',...choice});
+        expect(saved.status).toBe(201);
+        expect(saved.body.ticket.remaining_estimate_minutes).toBe(added);
+        const endpoint=`/api/tasks/${id}/worklogs/${saved.body.worklog.id}`;
+        const edited=await request(app).patch(endpoint).send({time_spent:'1h',...choice});
+        expect(edited.status).toBe(200);
+        expect(edited.body.ticket.remaining_estimate_minutes).toBe(up);
+        expect((await request(app).patch(endpoint).send({time_spent:'30m',...choice})).body.ticket.remaining_estimate_minutes).toBe(down);
+        expect((await request(app).delete(endpoint).send(choice)).body.ticket.remaining_estimate_minutes).toBe(removed);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body).toMatchObject({remaining_estimate_minutes:removed,time_spent_minutes:0});
+    });
+    test.each(['task_history','audit_logs'])('estimate writes roll back if %s fails and do not emit realtime', async table => {
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Atomic estimate'})).body.id;
+        const messages:unknown[]=[];
+        const send=require('../utils/ws').sendToUser;
+        send.mockImplementation((...args:unknown[])=>messages.push(args));
+        await pool.query(`CREATE FUNCTION reject_estimate() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test estimate failure'; END $$;
+            CREATE TRIGGER reject_estimate BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION reject_estimate()`);
+        try {
+            expect((await request(app).patch(`/api/tasks/${id}/estimates`).send({original_estimate:'2h'})).status).toBe(500);
+            expect((await request(app).get(`/api/tasks/${id}/detail`)).body).toMatchObject({original_estimate_minutes:null,remaining_estimate_minutes:null});
+            expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((row:any)=>row.action==='estimate_changed')).toEqual([]);
+            expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=estimate_changed`).set('x-test-role','super_admin')).body.total).toBe(0);
+            expect(messages).toEqual([]);
+        } finally { await pool.query(`DROP TRIGGER reject_estimate ON ${table}; DROP FUNCTION reject_estimate()`);send.mockReset(); }
+    });
+
+    test('estimate history, audit and team realtime expose only committed forecasts',async()=>{
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Committed estimates'})).body.id;
+        await pool.query('UPDATE users SET team_id=1 WHERE id=2');
+        const messages:Array<{userId:number;event:string;payload:any;visible:Promise<any>}>=[];
+        const send=require('../utils/ws').sendToUser;
+        send.mockImplementation((_tenant:number,userId:number,event:string,payload:any)=>messages.push({userId,event,payload,
+            visible:request(app).get(`/api/tasks/${id}/detail`).then((r:any)=>r.body)}));
+        try {
+            const result=await request(app).patch(`/api/tasks/${id}/estimates`).send({original_estimate:'2h',remaining_estimate:'45m'});
+            expect(result.status).toBe(200);
+            expect(messages.map(({userId,event,payload})=>({userId,event,payload}))).toEqual([
+                {userId:1,event:'task_updated',payload:{taskId:id,action:'updated'}},{userId:2,event:'task_updated',payload:{taskId:id,action:'updated'}}]);
+            for(const message of messages)expect(await message.visible).toMatchObject({original_estimate_minutes:120,remaining_estimate_minutes:45});
+            const history=(await request(app).get(`/api/tasks/${id}/history`)).body.find((row:any)=>row.action==='estimate_changed');
+            expect(JSON.parse(history.old_value)).toEqual({original_estimate_minutes:null,remaining_estimate_minutes:null});
+            expect(JSON.parse(history.new_value)).toEqual({original_estimate_minutes:120,remaining_estimate_minutes:45});
+            const audit=(await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=estimate_changed`).set('x-test-role','super_admin')).body;
+            expect(audit.total).toBe(1);
+            expect(JSON.parse(audit.logs[0].details).after).toEqual({original_estimate_minutes:120,remaining_estimate_minutes:45});
+        }finally{send.mockReset();}
+    });
+
+    test('estimate endpoint rejects invalid fields, foreign actors and frozen/cancelled work',async()=>{
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Guarded forecasts'})).body.id;
+        const endpoint=`/api/tasks/${id}/estimates`;
+        for(const input of [{},{original_estimate:'abc'},{original_estimate:null},{remaining_estimate:'-1h'},{estimated_minutes:120}])
+            expect((await request(app).patch(endpoint).send(input)).status).toBe(400);
+        expect((await request(app).patch(endpoint).set('x-test-user','2').set('x-test-team','2').send({original_estimate:'1h'})).status).toBe(403);
+        expect((await request(app).patch(endpoint).set('x-test-org','2').set('x-test-role','super_admin').send({original_estimate:'1h'})).status).toBe(404);
+        await pool.query("INSERT INTO sprints(id,team_id,name,status,start_date,end_date) VALUES(50,1,'Frozen','completed','2026-10-01','2026-10-14')");
+        await pool.query('UPDATE tasks SET sprint_id=50 WHERE id=$1',[id]);
+        expect((await request(app).patch(endpoint).send({original_estimate:'1h'})).status).toBe(409);
+        await pool.query("INSERT INTO workflow_states(org_id,key,name,category,is_terminal) VALUES(1,'cancelled','Cancelled','done',TRUE)");
+        await pool.query("UPDATE tasks SET sprint_id=NULL,workflow_state_id=(SELECT id FROM workflow_states WHERE org_id=1 AND key='cancelled') WHERE id=$1",[id]);
+        expect((await request(app).patch(endpoint).send({original_estimate:'1h'})).status).toBe(403);
+    });
+
+    test('default auto preserves null, clamps overruns and returns deleted effort', async () => {
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Default forecast'})).body.id;
+        const saved=await request(app).post(`/api/tasks/${id}/worklogs`).send({day_worked:'2026-11-01',time_spent:'1h'});
+        expect(saved.body.ticket.remaining_estimate_minutes).toBeNull();
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({remaining_estimate:'10m'});
+        const endpoint=`/api/tasks/${id}/worklogs/${saved.body.worklog.id}`;
+        expect((await request(app).patch(endpoint).send({time_spent:'2h'})).body.ticket.remaining_estimate_minutes).toBe(0);
+        expect((await request(app).delete(endpoint)).body.ticket.remaining_estimate_minutes).toBe(120);
+    });
+
+    test('invalid remaining inputs preserve work and forecasts', async () => {
+        const id=(await request(app).post('/api/tasks/backlog').send({title:'Invalid forecast'})).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({original_estimate:'2h'});
+        const original=(await request(app).post(`/api/tasks/${id}/worklogs`).send({day_worked:'2026-11-01',time_spent:'30m'})).body.worklog;
+        for(const input of [{remaining_mode:'invalid'},{remaining_mode:null},{remaining_mode:'set'},{remaining_mode:'set',remaining_estimate:'-1h'},
+            {remaining_mode:'leave',remaining_estimate:'1h'},{remaining_estimate:'1h'}]) {
+            for(const method of ['post','patch','delete']) {
+                const result=await request(app)[method](`/api/tasks/${id}/worklogs${method==='post'?'':`/${original.id}`}`)
+                    .send({... (method==='post'?{day_worked:'2026-11-01',time_spent:'30m'}:method==='patch'?{time_spent:'1h'}:{}),...input});
+                expect(result.status).toBe(400);
+                expect(result.body.code).toBe('INVALID_ESTIMATE');
+            }
+        }
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([original]);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(90);
+    });
+
     test("lists newest work first, excludes deleted work, and enforces existing ticket visibility", async () => {
         const created = await request(app).post('/api/tasks/backlog').send({ title: 'Read worklogs' });
         const id = created.body.id;
@@ -322,7 +432,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         const otherId = (await request(app).post('/api/tasks/backlog').send({ title: 'Other ticket' })).body.id;
         const worklog = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Keep' })).body.worklog;
         const endpoint = `/api/tasks/${id}/worklogs/${worklog.id}`;
-        for (const fields of [{}, { day_worked: '2026-02-30' }, { day_worked: null }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }, { remaining_mode: 'auto' }]) {
+        for (const fields of [{}, { day_worked: '2026-02-30' }, { day_worked: null }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }]) {
             const result = await request(app).patch(endpoint).send(fields);
             expect(result.status).toBe(400);
             expect(result.body.code).toBe('INVALID_WORKLOG');
@@ -332,7 +442,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             expect(result.status).toBe(400);
             expect(result.body.code).toBe('INVALID_DURATION');
         }
-        expect((await request(app).delete(endpoint).send({ remaining_mode: 'auto' })).status).toBe(400);
+        expect((await request(app).delete(endpoint).send({ unsupported: true })).status).toBe(400);
         for (const method of ['patch', 'delete']) {
             expect((await request(app)[method](`/api/tasks/${otherId}/worklogs/${worklog.id}`).send({ comment: 'No' })).status).toBe(404);
             expect((await request(app)[method](endpoint).set('x-test-org', '2').send({ comment: 'No' })).status).toBe(404);
@@ -375,6 +485,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
 
     test.each([['patch', 'task_history'], ['patch', 'audit_logs'], ['delete', 'task_history'], ['delete', 'audit_logs']])('%s rolls back when %s fails, without announcing changes', async (method, table) => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Atomic correction' })).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
         const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' })).body.worklog;
         const messages: unknown[] = [];
         const send = require('../utils/ws').sendToUser;
@@ -385,6 +496,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         try {
             expect((await request(app)[method](`/api/tasks/${id}/worklogs/${original.id}`).send(method === 'patch' ? { time_spent: '30m' } : {})).status).toBe(500);
             expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [original], time_spent_minutes: 60 });
+            expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(60);
             const action = method === 'patch' ? 'worklog_updated' : 'worklog_deleted';
             expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === action)).toEqual([]);
             expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=${action}`).set('x-test-role', 'super_admin')).body.total).toBe(0);
@@ -427,7 +539,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             expect(response.status).toBe(400);
             expect(response.body.code).toBe('INVALID_DURATION');
         }
-        for (const fields of [{ day_worked: '2026-02-30' }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }, { remaining_mode: 'auto' }]) {
+        for (const fields of [{ day_worked: '2026-02-30' }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }]) {
             expect((await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', ...fields })).status).toBe(400);
         }
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });
@@ -471,6 +583,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
 
     test.each(['task_history', 'audit_logs'])('failure writing %s rolls back work and history and announces nothing', async table => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Atomic work' })).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
         const messages: unknown[] = [];
         const send = require('../utils/ws').sendToUser;
         send.mockImplementation((...message: unknown[]) => messages.push(message));
@@ -482,6 +595,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });
             expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
             expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_added`).set('x-test-role', 'super_admin')).body.total).toBe(0);
+            expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(120);
             expect(messages).toEqual([]);
         } finally {
             await pool.query(`DROP TRIGGER reject_manual_work ON ${table}; DROP FUNCTION reject_manual_work()`);
@@ -549,7 +663,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "Time spent" });
         expect(created.status).toBe(200);
         const id = created.body.id;
-        await pool.query("UPDATE tasks SET logged_minutes = 999, estimated_minutes = 120 WHERE id = $1", [id]);
+        await pool.query("UPDATE tasks SET logged_minutes = 999, original_estimate_minutes = 120 WHERE id = $1", [id]);
         // The obsolete total must not be written, even to the same value.
         await pool.query(`CREATE OR REPLACE FUNCTION reject_stored_time() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN RAISE EXCEPTION 'stored time must not be written'; END $$;

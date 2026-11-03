@@ -65,7 +65,8 @@ router.use('/', byKeyRouter);         // /by-key/:key
 router.use('/', epicsRouter);         // /epics
 router.use('/', scheduleOverlaysRouter); // /schedule-overlays
 router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
-router.use('/', worklogsRouter);      // /:id/worklogs (read-only)
+router.use('/', worklogsRouter);      // /:id/worklogs
+router.use('/', require('./estimates')); // /:id/estimates
 router.use('/', transferRouter);      // /:id/transfer (admin-only ownership move)
 router.use('/', cancelRouter);        // /:id (DELETE = cancel)
 

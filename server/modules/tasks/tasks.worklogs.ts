@@ -10,8 +10,9 @@ import { findTeamMemberIds } from "./tasks.repository";
 import { emitTaskUpdated } from "../../utils/taskNotifications";
 import { computeWorklogWarnings } from './tasks.worklogWarnings';
 import { decideWorklog } from "./tasks.capabilities";
+import { applyRemaining, estimateSummary, type RemainingInput } from './tasks.estimates';
 
-export interface LogWorkInput {
+export interface LogWorkInput extends RemainingInput {
     day_worked: string;
     time_spent: string;
     start_time?: string | null;
@@ -32,7 +33,7 @@ function validateWorklog(input: LogWorkInput) {
         throw new InvalidWorklog('Enter a valid start time.');
     if (input.comment != null && (typeof input.comment !== 'string' || input.comment.length > 10_000))
         throw new InvalidWorklog('Comment must be text of at most 10000 characters.');
-    if (Object.keys(input).some(key => !['day_worked', 'time_spent', 'start_time', 'comment'].includes(key)))
+    if (Object.keys(input).some(key => !['day_worked', 'time_spent', 'start_time', 'comment', 'remaining_mode', 'remaining_estimate'].includes(key)))
         throw new InvalidWorklog('Unsupported worklog field.');
 }
 
@@ -47,6 +48,7 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         if (conflict) return { conflict };
         validateWorklog(input);
         const minutes = parseDuration(input.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
+        await applyRemaining(tx, task, 0, minutes, input);
         const id = await repository.insertWorklog(tx, taskId, actor.userId, input, minutes);
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor.userId);
         const worklog = list.worklogs.find(row => row.id === id)!;
@@ -55,8 +57,7 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
             const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
-        return { worklog, ticket: { id: taskId, time_spent_minutes: list.time_spent_minutes,
-            logged_minutes: list.time_spent_minutes, estimated_minutes: task.estimated_minutes }, warnings: [] };
+        return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
     return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog) };
@@ -80,6 +81,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
             comment: before.comment, time_spent: `${before.minutes}m`, ...input };
         validateWorklog(fields);
         const minutes = parseDuration(fields.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
+        await applyRemaining(tx, task, before.minutes, minutes, input);
         await repository.updateWorklog(tx, worklogId, fields, minutes);
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor.userId);
         const worklog = list.worklogs.find(row => row.id === worklogId)!;
@@ -88,15 +90,14 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
             const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
-        return { worklog, ticket: { id: taskId, time_spent_minutes: list.time_spent_minutes,
-            logged_minutes: list.time_spent_minutes, estimated_minutes: task.estimated_minutes }, warnings: [] };
+        return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
     return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog) };
 }
 
 export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, taskId: number, worklogId: number,
-    actor: TaskActor, input: Record<string, never> = {}, source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
+    actor: TaskActor, input: RemainingInput = {}, source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
     return db.transaction(async (client, context) => {
         const tx = client as TasksDb;
         const task = await repository.lockWorklogTicket(tx, taskId, actor.orgId);
@@ -107,8 +108,9 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
         if (!decideWorklog(actor.userId, before).canDelete)
             return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author can delete it.' } } };
-        if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length)
+        if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['remaining_mode','remaining_estimate'].includes(key)))
             throw new InvalidWorklog('Unsupported worklog field.');
+        await applyRemaining(tx, task, before.minutes, 0, input);
         const deleted = await repository.softDeleteWorklog(tx, worklogId);
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_deleted', before, deleted, source.ip, source.userAgent);
         const total = (await getTimeSpent(tx, [taskId], actor.orgId))[taskId] ?? 0;
@@ -116,7 +118,7 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
             const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
-        return { ticket: { id: taskId, time_spent_minutes: total, logged_minutes: total, estimated_minutes: task.estimated_minutes } };
+        return { ticket: estimateSummary(task, total) };
     });
 }
 

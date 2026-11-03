@@ -126,7 +126,7 @@ describe('Log work on a ticket', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete worklog' }));
         dialog = screen.getByRole('dialog', { name: 'Delete worklog?' });
         fireEvent.click(within(dialog).getByRole('button', { name: 'Delete worklog' }));
-        await waitFor(() => expect(api.deleteTaskWorklog).toHaveBeenCalledWith(1, 4));
+        await waitFor(() => expect(api.deleteTaskWorklog).toHaveBeenCalledWith(1, 4, {}));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         expect(screen.queryByText('Review work')).toBeNull();
         expect(screen.getByText('No work logged yet')).toBeTruthy();

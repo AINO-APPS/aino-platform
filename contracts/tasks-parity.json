@@ -671,7 +671,7 @@
     },
     {
       "id": "time-tracking-on-task",
-      "name": "manual Log work dialog, computed time spent, worklog list and legacy Android timer compatibility",
+      "name": "manual worklogs, inline original/remaining estimates, remaining choices and legacy Android timer compatibility",
       "decision": "D13",
       "phase": 2,
       "web": {
