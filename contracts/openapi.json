@@ -23467,11 +23467,15 @@
           "time_spent_minutes": {
             "type": "integer",
             "minimum": 0
-          }
+          },
+          "original_estimate_minutes": { "type": ["integer", "null"], "minimum": 0 },
+          "remaining_estimate_minutes": { "type": ["integer", "null"], "minimum": 0 }
         },
         "required": [
           "worklogs",
-          "time_spent_minutes"
+          "time_spent_minutes",
+          "original_estimate_minutes",
+          "remaining_estimate_minutes"
         ],
         "additionalProperties": false
       },

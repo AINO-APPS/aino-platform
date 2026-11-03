@@ -21,13 +21,13 @@ export function parseEstimate(value: unknown, hours: number): number | null {
     catch (err) { if (err instanceof InvalidDuration) throw new InvalidEstimate('Enter an estimate using w, d, h or m, or 0m.'); throw err; }
 }
 
-export async function applyRemaining(db: TasksDb, task: any, before: number, after: number, input: RemainingInput) {
+export async function applyRemaining(db: TasksDb, task: any, before: number, after: number, input: RemainingInput, orgId: number | null) {
     const mode = input.remaining_mode === undefined ? 'auto' : input.remaining_mode;
     if (!['auto','set','leave'].includes(mode) || (mode !== 'set' && input.remaining_estimate !== undefined))
         throw new InvalidEstimate('Choose auto, set or leave for the remaining estimate.');
-    const value = mode === 'set' ? parseEstimate(input.remaining_estimate, await workingHoursPerDay(db, task.org_id)) : undefined;
+    const value = mode === 'set' ? parseEstimate(input.remaining_estimate, await workingHoursPerDay(db, orgId)) : undefined;
     const remaining = adjustRemaining(task.remaining_estimate_minutes ?? null, before, after, { mode, value });
-    await writeRemaining(db, task.id, remaining);
+    await writeRemaining(db, task.id, remaining, orgId);
     task.remaining_estimate_minutes = remaining;
 }
 
@@ -55,7 +55,7 @@ export async function setEstimates(db: TasksDb & Pick<DbContext,'transaction'>, 
         const original = 'original_estimate' in input ? parseEstimate(input.original_estimate,hours) : before.original_estimate_minutes;
         const remaining = 'remaining_estimate' in input ? parseEstimate(input.remaining_estimate,hours)
             : before.remaining_estimate_minutes == null && 'original_estimate' in input ? original : before.remaining_estimate_minutes;
-        await writeEstimates(tx,taskId,original,remaining);
+        await writeEstimates(tx,taskId,original,remaining,actor.orgId);
         const after = { original_estimate_minutes:original, remaining_estimate_minutes:remaining };
         await recordEstimateChange(tx,taskId,actor.userId,actor.orgId,before,after,source.ip,source.userAgent);
         const total = (await readTimeSpent(tx,[taskId],actor.orgId))[taskId] ?? 0;

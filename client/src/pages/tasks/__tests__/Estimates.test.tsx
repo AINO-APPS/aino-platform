@@ -29,6 +29,47 @@ test.each(['create','edit','delete'])('remaining choices send auto/set/leave pay
         unmount();
     }
 });
+test.each([[30,90,120,25],[150,75,120,67],[30,0,0,100],[0,0,0,0],[0,60,null,0]])(
+    'effort bar uses spent %i and remaining %i rather than original %i', async(spent,remaining,original,percent)=>{
+        api.getTaskWorklogs.mockResolvedValue({data:{worklogs:[],time_spent_minutes:spent,original_estimate_minutes:original,remaining_estimate_minutes:remaining}});
+        render(<TaskTimePanel task={{...ticket,time_spent_minutes:spent,original_estimate_minutes:original,remaining_estimate_minutes:remaining}}/>);
+        await screen.findByText('No work logged yet');
+        expect(screen.getByRole('progressbar',{name:'Time spent and remaining'})).toHaveAttribute('aria-valuenow',String(percent));
+        expect(screen.queryByText('Over estimate')!==null).toBe(original!==null && spent>original);
+    });
+test('no remaining forecast hides the effort bar without hiding the original estimate',async()=>{
+    api.getTaskWorklogs.mockResolvedValue({data:{worklogs:[],time_spent_minutes:30,original_estimate_minutes:120,remaining_estimate_minutes:null}});
+    render(<TaskTimePanel task={{...ticket,time_spent_minutes:30,remaining_estimate_minutes:null}}/>);
+    await screen.findByText('No work logged yet');
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByRole('button',{name:'Edit original estimate'})).toHaveTextContent('2h');
+});
+
+test('a late worklog list response cannot undo a saved estimate snapshot',async()=>{
+    let release!: (value: unknown) => void;
+    api.getTaskWorklogs.mockReturnValue(new Promise(resolve=>{ release=resolve; }));
+    api.setTaskEstimates.mockResolvedValue({data:{ticket:{...ticket,time_spent_minutes:30,original_estimate_minutes:180,remaining_estimate_minutes:90}}});
+    render(<TaskTimePanel task={ticket}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Edit original estimate'}));
+    fireEvent.change(screen.getByLabelText('Original estimate'),{target:{value:'3h'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save original estimate'}));
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Edit original estimate'})).toHaveTextContent('3h'));
+    release({data:{worklogs:[],time_spent_minutes:150,original_estimate_minutes:120,remaining_estimate_minutes:75}});
+    await screen.findByText('No work logged yet');
+    expect(screen.getByRole('button',{name:'Edit original estimate'})).toHaveTextContent('3h');
+    expect(screen.getByRole('button',{name:'Edit remaining estimate'})).toHaveTextContent('1h 30m');
+    expect(screen.getByText('30m / 3h')).toBeTruthy();
+});
+
+test('worklog refresh publishes both estimates and time spent from the list envelope',async()=>{
+    api.getTaskWorklogs.mockResolvedValue({data:{worklogs:[],time_spent_minutes:30,original_estimate_minutes:60,remaining_estimate_minutes:0}});
+    render(<TaskTimePanel task={ticket}/>);
+    await screen.findByText('No work logged yet');
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Edit original estimate'})).toHaveTextContent('1h'));
+    expect(screen.getByRole('button',{name:'Edit remaining estimate'})).toHaveTextContent('0m');
+    expect(screen.getByText('30m / 1h')).toBeTruthy();
+});
+
 test('zero original is an explicit estimate and any logged effort is an overrun',async()=>{
     render(<TaskTimePanel task={{...ticket,original_estimate_minutes:0,remaining_estimate_minutes:0,time_spent_minutes:30}}/>);
     expect(screen.getByText('Over estimate')).toBeTruthy();

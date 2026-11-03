@@ -28,6 +28,7 @@
 .clickable { cursor: pointer; }
 
 .grow { flex: 1; }
+.card-effort { color: var(--text-secondary); font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 /* ---- Top line ---- */
 .card-top { display: flex; align-items: center; gap: 6px; min-height: 20px; min-width: 0; font-size: 11px; color: var(--text-muted); }

@@ -75,7 +75,9 @@ router.post("/:id/timer/stop", auth, loadUserContext, async (req: Request, res: 
         const task = await loadTask(req, res);
         if (!task) return;
 
-        const stopped = await stopLegacyTimer(req.db!, task.id, taskActorFromRequest(req), getOffsetMin(req));
+        const stopped = await stopLegacyTimer(req.db!, task.id, taskActorFromRequest(req), getOffsetMin(req), new Date(), {
+            tenantId: req.tenantId == null ? null : Number(req.tenantId), ip: req.ip, userAgent: req.get('user-agent'),
+        });
         if (!stopped) return res.status(409).json({ error: "No timer is running for this task" });
 
         res.json({ taskId: task.id, running: false, ...stopped });

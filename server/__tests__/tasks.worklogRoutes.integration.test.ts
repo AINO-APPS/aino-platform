@@ -63,6 +63,35 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params));
     });
 
+    test('worklog list includes both persisted estimates, including explicit zero and null', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'List forecast' })).body.id;
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        expect((await request(app).get(endpoint)).body).toMatchObject({ original_estimate_minutes: null, remaining_estimate_minutes: null });
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h', remaining_estimate: '0m' });
+        expect((await request(app).get(endpoint)).body).toMatchObject({ original_estimate_minutes: 120, remaining_estimate_minutes: 0 });
+    });
+
+    test('repository mutations cannot target a ticket, worklog or timer in another org', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Scoped effort' })).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
+        const row = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '30m' })).body.worklog;
+        const db = { query: (sql: string, params: unknown[]) => pool.query(sql, params) };
+        const estimates = require('../modules/tasks/tasks.estimateRepository');
+        const worklogs = require('../modules/tasks/tasks.worklogRepository');
+        await estimates.writeEstimates(db, id, 999, 999, 2);
+        await estimates.writeRemaining(db, id, 888, 2);
+        expect(await worklogs.lockWorklog(db, id, row.id, 2)).toBeUndefined();
+        await worklogs.updateWorklog(db, row.id, { day_worked: '2026-11-02' }, 999, id, 2);
+        await worklogs.softDeleteWorklog(db, row.id, id, 2);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body).toMatchObject({ original_estimate_minutes: 120, remaining_estimate_minutes: 90 });
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([row]);
+        await request(app).post(`/api/tasks/${id}/timer/start`);
+        const timer = (await worklogs.findRunningTimer(db, id, 1, 1));
+        await worklogs.recordTimerWorklog(db, timer.id, id, 1, new Date().toISOString(), 1, '2026-11-01', '09:00', 2);
+        expect((await request(app).get(`/api/tasks/${id}/timer`)).body.running).toBe(true);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([row]);
+    });
+
     test('sets duration estimates, seeds an empty forecast, clears explicitly and preserves the legacy alias', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Forecast' })).body.id;
         const endpoint = `/api/tasks/${id}/estimates`;
@@ -284,6 +313,11 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
                 expect(third.status).toBe(201);
                 expect(third.body.warnings).toEqual([]);
                 expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toHaveLength(3);
+                const warn = require('../utils/logger').logger.warn;
+                for (const operation of ['approved_leave', 'attendance_comparison']) {
+                    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ err: expect.any(Error), tenant_id: 1,
+                        org_id: 1, author_id: 1, day_worked: '2020-01-15', operation }), expect.any(String));
+                }
             } finally { await pool.query('ALTER TABLE unavailable_attendance RENAME TO time_entries'); }
         } finally { await pool.query('ALTER TABLE unavailable_leaves RENAME TO leaves'); }
     });
@@ -620,7 +654,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             CREATE TRIGGER reject_correction BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION reject_correction()`);
         try {
             expect((await request(app)[method](`/api/tasks/${id}/worklogs/${original.id}`).send(method === 'patch' ? { time_spent: '30m' } : {})).status).toBe(500);
-            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [original], time_spent_minutes: 60 });
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [original], time_spent_minutes: 60, original_estimate_minutes: 120, remaining_estimate_minutes: 60 });
             expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(60);
             const action = method === 'patch' ? 'worklog_updated' : 'worklog_deleted';
             expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === action)).toEqual([]);
@@ -667,7 +701,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         for (const fields of [{ day_worked: '2026-02-30' }, { start_time: '25:00' }, { comment: 123 }, { unknown_field: 2 }]) {
             expect((await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', ...fields })).status).toBe(400);
         }
-        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [], time_spent_minutes: 0 });
         expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
         expect((await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-org', '2').send({ day_worked: '2026-11-01', time_spent: '1h' })).status).toBe(404);
         expect((await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-user', '2').set('x-test-team', '2').send({ day_worked: '2026-11-01', time_spent: '1h' })).status).toBe(403);
@@ -717,7 +751,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             CREATE TRIGGER reject_manual_work BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION reject_manual_work()`);
         try {
             expect((await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' })).status).toBe(500);
-            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [], time_spent_minutes: 0 });
             expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
             expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_added`).set('x-test-role', 'super_admin')).body.total).toBe(0);
             expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(120);
@@ -738,6 +772,53 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect(list.worklogs.map((w: any) => w.minutes).sort((a: number, b: number) => a - b)).toEqual([30, 45]);
     });
 
+    test.each(['task_history', 'audit_logs'])('legacy stop rolls back timer, forecast and work when %s fails', async table => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Atomic legacy records' })).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
+        await request(app).post(`/api/tasks/${id}/timer/start`);
+        const send = require('../utils/ws').sendToUser;
+        send.mockClear();
+        await pool.query(`CREATE FUNCTION reject_legacy_record() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'legacy failure'; END $$;
+            CREATE TRIGGER reject_legacy_record BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION reject_legacy_record()`);
+        try {
+            expect((await request(app).post(`/api/tasks/${id}/timer/stop`)).status).toBe(500);
+            expect((await request(app).get(`/api/tasks/${id}/timer`)).body.running).toBe(true);
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [], time_spent_minutes: 0, remaining_estimate_minutes: 120 });
+            expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
+            expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_added`).set('x-test-role', 'super_admin')).body.total).toBe(0);
+            expect(send).not.toHaveBeenCalled();
+        } finally { await pool.query(`DROP TRIGGER reject_legacy_record ON ${table}; DROP FUNCTION reject_legacy_record()`); }
+    });
+
+    test('legacy stop realtime sees committed worklogs and forecasts for only its org team', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Legacy realtime' })).body.id;
+        await pool.query('UPDATE users SET team_id=1 WHERE id=2');
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
+        await request(app).post(`/api/tasks/${id}/timer/start`);
+        const messages: Array<{ user: number; visible: Promise<any> }> = [];
+        const send = require('../utils/ws').sendToUser;
+        send.mockImplementation((_tenant: number, user: number, event: string) => {
+            expect(event).toBe('task_updated');
+            messages.push({ user, visible: request(app).get(`/api/tasks/${id}/worklogs`).then((r: any) => r.body) });
+        });
+        try {
+            expect((await request(app).post(`/api/tasks/${id}/timer/stop`)).status).toBe(200);
+            expect(messages.map(m => m.user)).toEqual([1, 2]);
+            for (const message of messages) expect(await message.visible).toMatchObject({ worklogs: [{ minutes: 1 }], remaining_estimate_minutes: 119 });
+        } finally { send.mockReset(); }
+    });
+
+    test('legacy stop persists the automatic forecast through subsequent reads', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Legacy forecast' })).body.id;
+        await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
+        await pool.query("INSERT INTO task_timers(task_id,user_id,started_at) VALUES ($1,1,NOW() - INTERVAL '29 minutes 30 seconds')", [id]);
+        const stopped = await request(app).post(`/api/tasks/${id}/timer/stop`);
+        expect(stopped.status).toBe(200);
+        expect(stopped.body.minutes).toBe(30);
+        expect(stopped.body.time.remaining).toBe(90);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body).toMatchObject({ time_spent_minutes: 30, remaining_estimate_minutes: 90 });
+    });
+
     test("concurrent legacy stops record time only once, and start remains idempotent", async () => {
         const created = await request(app).post('/api/tasks/backlog').send({ title: 'Concurrent time' });
         const id = created.body.id;
@@ -748,7 +829,11 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect(stops.map(r => r.status).sort()).toEqual([200, 409]);
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ time_spent_minutes: 1, worklogs: [{ minutes: 1 }] });
         const history = await request(app).get(`/api/tasks/${id}/history`);
-        expect(history.body.filter((h: any) => h.action === 'time_logged')).toHaveLength(1);
+        expect(history.body.filter((h: any) => h.action === 'worklog_added')).toHaveLength(1);
+        expect(history.body.filter((h: any) => h.action === 'time_logged')).toHaveLength(0);
+        const addition = history.body.find((h: any) => h.action === 'worklog_added');
+        expect(JSON.parse(addition.new_value)).toMatchObject({ minutes: 1, author_id: 1, logged_by_id: 1 });
+        expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_added`).set('x-test-role', 'super_admin')).body.total).toBe(1);
     });
 
     test("a failed worklog write leaves the timer running and no recorded time", async () => {
@@ -762,7 +847,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         try {
             expect((await request(app).post(`/api/tasks/${id}/timer/stop`)).status).toBe(500);
             expect((await request(app).get(`/api/tasks/${id}/timer`)).body.running).toBe(true);
-            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [], time_spent_minutes: 0 });
         } finally {
             await pool.query('DROP TRIGGER reject_test_worklog ON task_worklogs; DROP FUNCTION reject_test_worklog()');
         }

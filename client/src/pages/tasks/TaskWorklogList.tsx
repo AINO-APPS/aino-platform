@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { getTaskWorklogs, type TaskWorklog } from "../../api/tasks";
+import { getTaskWorklogs, type TaskWorklog, type TaskWorklogListResponse } from "../../api/tasks";
 import { formatMinutes } from "./time";
 import s from "./TaskTimePanel.module.css";
 
-export default function TaskWorklogList({ taskId, revision, saved, deleted, onTotal, onEdit, onDelete }: {
-    taskId: number; revision: unknown; saved?: TaskWorklog[]; deleted?: number[]; onTotal?: (minutes: number) => void;
+export default function TaskWorklogList({ taskId, revision, saved, deleted, onSummary, onEdit, onDelete }: {
+    taskId: number; revision: unknown; saved?: TaskWorklog[]; deleted?: number[]; onSummary?: (summary: TaskWorklogListResponse) => void;
     onEdit?: (worklog: TaskWorklog) => void; onDelete?: (worklog: TaskWorklog) => void;
 }) {
     const [worklogs, setWorklogs] = useState<TaskWorklog[]>([]);
@@ -16,7 +16,7 @@ export default function TaskWorklogList({ taskId, revision, saved, deleted, onTo
         setError(false);
         setWorklogs([]);
         getTaskWorklogs(taskId).then(({ data }) => {
-            if (!cancelled) { setWorklogs(data.worklogs); onTotal?.(data.time_spent_minutes); }
+            if (!cancelled) { setWorklogs(data.worklogs); onSummary?.(data); }
         }).catch(() => {
             if (!cancelled) setError(true);
         }).finally(() => {

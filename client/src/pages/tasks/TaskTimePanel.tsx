@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LogWorkResponse, TaskWorklog } from "../../api/tasks";
 import LogWorkDialog from "./LogWorkDialog";
 import DeleteWorklogDialog from "./DeleteWorklogDialog";
@@ -26,6 +26,13 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     const [revision, setRevision] = useState(0);
     const [warnings, setWarnings] = useState<string[]>([]);
     const [estimates, setEstimates] = useState<{ original_estimate_minutes: number | null; remaining_estimate_minutes: number | null } | null>(null);
+    const effortVersion = useRef(0);
+    const publicationVersion = effortVersion.current;
+    const publishSavedEffort = (ticket: LogWorkResponse['ticket']) => {
+        effortVersion.current++;
+        setLogged(ticket.time_spent_minutes);
+        setEstimates(ticket);
+    };
     const taskId = task?.id;
     const canEditEstimate = actionDecision(task, 'canEditEstimate').allowed;
     useEffect(() => { setEstimates(null); }, [taskId, task?.original_estimate_minutes, task?.remaining_estimate_minutes]);
@@ -41,8 +48,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     }, !!taskId);
     const onSaved = (response: LogWorkResponse) => {
         setWarnings(response.warnings);
-        setLogged(response.ticket.time_spent_minutes);
-        setEstimates(response.ticket);
+        publishSavedEffort(response.ticket);
         setSaved(current => [response.worklog, ...current.filter(row => row.id !== response.worklog.id)]);
         setOpen(false);
         setEditing(undefined);
@@ -54,6 +60,9 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
         logged_minutes: logged ?? task?.time_spent_minutes ?? task?.logged_minutes,
     });
 
+    const remaining = estimates ? estimates.remaining_estimate_minutes : task?.remaining_estimate_minutes ?? null;
+    const total = summary.logged + (remaining ?? 0);
+    const percent = total > 0 ? Math.round(summary.logged / total * 100) : 0;
     const over = original != null && summary.logged > original;
 
     return (
@@ -68,13 +77,15 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
 
             {(['original', 'remaining'] as const).map(kind => <InlineEstimate key={`${taskId}:${kind}`} taskId={taskId} kind={kind}
                 value={estimates ? estimates[`${kind}_estimate_minutes`] : (kind === 'original' ? task?.original_estimate_minutes ?? task?.estimated_minutes : task?.remaining_estimate_minutes) ?? null}
-                editable={canEditEstimate} onSaved={ticket => { setEstimates(ticket); onLogged?.(0); }} />)}
+                editable={canEditEstimate} onSaved={ticket => { publishSavedEffort(ticket); onLogged?.(0); }} />)}
 
-            {original != null && (
-                <div className={s["time-bar"]} aria-hidden="true">
+            {remaining != null && (
+                <div className={s["time-bar"]} role="progressbar" aria-label="Time spent and remaining"
+                    aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
+                    aria-valuetext={`${formatMinutes(summary.logged)} spent, ${formatMinutes(remaining)} remaining`}>
                     <div
                         className={`${s["time-fill"]} ${over ? s["time-over"] : ""}`}
-                        style={{ width: `${original === 0 && over ? 100 : Math.min(100, summary.percent)}%` }}
+                        style={{ width: `${percent}%` }}
                     />
                 </div>
             )}
@@ -85,10 +96,13 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
             </div>
 
             <WorklogWarnings warnings={warnings} />
-            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} deleted={deleted} onEdit={setEditing} onDelete={setDeleting} onTotal={revision > 0 ? setLogged : undefined} />}
+            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} deleted={deleted} onEdit={setEditing} onDelete={setDeleting} onSummary={summary => {
+                if (publicationVersion !== effortVersion.current) return;
+                setLogged(summary.time_spent_minutes);
+                if ('original_estimate_minutes' in summary && 'remaining_estimate_minutes' in summary) setEstimates(summary);
+            }} />}
             {deleting && <DeleteWorklogDialog taskId={taskId} worklog={deleting} onClose={() => setDeleting(undefined)} onDeleted={ticket => {
-                setLogged(ticket.time_spent_minutes);
-                setEstimates(ticket);
+                publishSavedEffort(ticket);
                 setDeleted(current => [...current, deleting.id]);
                 setSaved(current => current.filter(row => row.id !== deleting.id));
                 setDeleting(undefined);

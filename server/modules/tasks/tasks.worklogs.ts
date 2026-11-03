@@ -61,8 +61,8 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         validateWorklog(input);
         await validateAuthor(tx, input, actor.orgId);
         const minutes = parseDuration(input.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
-        await applyRemaining(tx, task, 0, minutes, input);
-        const id = await repository.insertWorklog(tx, taskId, input.author_id ?? actor.userId, actor.userId, input, minutes);
+        await applyRemaining(tx, task, 0, minutes, input, actor.orgId);
+        const id = await repository.insertWorklog(tx, taskId, input.author_id ?? actor.userId, actor.userId, input, minutes, actor.orgId);
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(tx, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
@@ -73,7 +73,7 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
-    return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog) };
+    return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog, source.tenantId) };
 }
 
 export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, taskId: number, worklogId: number,
@@ -84,7 +84,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         if (!task) return { conflict: { status: 404, body: { error: 'Task not found' } } };
         const access = await ticketActionConflict(tx, actor, task, 'edit');
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
-        const before = await repository.lockWorklog(tx, taskId, worklogId);
+        const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
         if (!decideWorklog(actor, before).canEdit)
             return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can edit it.' } } };
@@ -99,8 +99,8 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
             comment: before.comment, time_spent: `${before.minutes}m`, ...input };
         validateWorklog(fields);
         const minutes = parseDuration(fields.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
-        await applyRemaining(tx, task, before.minutes, minutes, input);
-        await repository.updateWorklog(tx, worklogId, fields, minutes);
+        await applyRemaining(tx, task, before.minutes, minutes, input, actor.orgId);
+        await repository.updateWorklog(tx, worklogId, fields, minutes, taskId, actor.orgId);
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === worklogId)!;
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_updated', before, worklog, source.ip, source.userAgent);
@@ -111,7 +111,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
-    return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog) };
+    return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog, source.tenantId) };
 }
 
 export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, taskId: number, worklogId: number,
@@ -122,15 +122,15 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         if (!task) return { conflict: { status: 404, body: { error: 'Task not found' } } };
         const access = await ticketActionConflict(tx, actor, task, 'edit');
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
-        const before = await repository.lockWorklog(tx, taskId, worklogId);
+        const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
         if (!decideWorklog(actor, before).canDelete)
             return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can delete it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input)
             || Object.keys(input).some(key => !['remaining_mode', 'remaining_estimate'].includes(key)))
             throw new InvalidWorklog('Unsupported worklog field.');
-        await applyRemaining(tx, task, before.minutes, 0, input);
-        const deleted = await repository.softDeleteWorklog(tx, worklogId);
+        await applyRemaining(tx, task, before.minutes, 0, input, actor.orgId);
+        const deleted = await repository.softDeleteWorklog(tx, worklogId, taskId, actor.orgId);
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_deleted', before, deleted, source.ip, source.userAgent);
         const total = (await getTimeSpent(tx, [taskId], actor.orgId))[taskId] ?? 0;
         context.afterCommit(async () => {
@@ -152,25 +152,34 @@ export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: numb
         author: { id: row.author_id, username, full_name, avatar },
         logged_by: { id: row.logged_by_id, username: logged_by_username, full_name: logged_by_name, avatar: logged_by_avatar },
     }));
-    return { worklogs, time_spent_minutes: worklogs.reduce((sum, row) => sum + row.minutes, 0) };
+    const estimates = await repository.readWorklogEstimates(db, taskId, orgId);
+    return { worklogs, time_spent_minutes: worklogs.reduce((sum, row) => sum + row.minutes, 0),
+        original_estimate_minutes: estimates?.original_estimate_minutes ?? null,
+        remaining_estimate_minutes: estimates?.remaining_estimate_minutes ?? null };
 }
 
 /** One transaction owns stopping, recording and history, so repeated/concurrent stops cannot add time twice. */
-export async function stopLegacyTimer(db: Pick<DbContext, "transaction">, taskId: number, actor: TaskActor,
-    offset: number, stoppedAt = new Date()) {
-    return db.transaction(async client => {
-        const task = await repository.lockTicket(client as TasksDb, taskId, actor.orgId);
+export async function stopLegacyTimer(db: TasksDb & Pick<DbContext, "transaction">, taskId: number, actor: TaskActor,
+    offset: number, stoppedAt = new Date(), source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
+    return db.transaction(async (client, context) => {
+        const task = await repository.lockWorklogTicket(client as TasksDb, taskId, actor.orgId);
         if (!task) return null;
         const running = await repository.lockRunningTimer(client as TasksDb, taskId, actor.userId, actor.orgId);
         if (!running) return null;
-        const previous = (await getTimeSpent(client as TasksDb, [taskId], actor.orgId))[taskId] ?? 0;
         const started = new Date(running.started_at);
         const minutes = Math.max(1, Math.ceil((stoppedAt.getTime() - started.getTime()) / 60_000));
+        await applyRemaining(client as TasksDb, task, 0, minutes, {}, actor.orgId);
         const localStart = new Date(started.getTime() - offset * 60_000);
-        await repository.recordTimerWorklog(client as TasksDb, running.id, taskId, actor.userId,
-            stoppedAt.toISOString(), minutes, localDate(started, offset), localStart.toISOString().slice(11, 19));
-        const total = (await getTimeSpent(client as TasksDb, [taskId], actor.orgId))[taskId] ?? 0;
-        await repository.recordLegacyHistory(client as TasksDb, taskId, actor.userId, previous, total);
+        const id = await repository.recordTimerWorklog(client as TasksDb, running.id, taskId, actor.userId,
+            stoppedAt.toISOString(), minutes, localDate(started, offset), localStart.toISOString().slice(11, 19), actor.orgId);
+        const list = await getTicketWorklogs(client as TasksDb, taskId, actor.orgId, actor);
+        const worklog = list.worklogs.find(row => row.id === id)!;
+        await repository.recordWorklogAddition(client as TasksDb, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
+        context.afterCommit(async () => {
+            const members = task.team_id == null ? [] : await findTeamMemberIds(db, task.team_id, actor.orgId);
+            emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
+        });
+        const total = list.time_spent_minutes;
         return { minutes, time: summariseTime({ ...task, logged_minutes: total }) };
     });
 }

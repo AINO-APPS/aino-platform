@@ -19,8 +19,12 @@ export interface TaskWorklog {
     canDelete: boolean;
 }
 
+export interface TaskWorklogListResponse {
+    worklogs: TaskWorklog[]; time_spent_minutes: number;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null;
+}
 export const getTaskWorklogs = (id: number | string) =>
-    API.get<{ worklogs: TaskWorklog[]; time_spent_minutes: number }>(`/tasks/${id}/worklogs`);
+    API.get<TaskWorklogListResponse>(`/tasks/${id}/worklogs`);
 
 export interface RemainingInput { remaining_mode?: 'auto' | 'set' | 'leave'; remaining_estimate?: string }
 export interface LogWorkInput extends RemainingInput {
