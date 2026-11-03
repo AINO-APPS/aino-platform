@@ -26,16 +26,21 @@ export async function lockWorklogTicket(db: TasksDb, taskId: number, orgId: numb
     return (await db.query('SELECT * FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE', [taskId, orgId])).rows[0];
 }
 
+export async function worklogAuthorExists(db: TasksDb, authorId: number, orgId: number | null): Promise<boolean> {
+    return (await db.query('SELECT id FROM users WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR SHARE',
+        [authorId, orgId])).rows.length > 0;
+}
+
 export async function workingHoursPerDay(db: TasksDb, orgId: number | null): Promise<number> {
     const row = (await db.query('SELECT work_hours_per_day FROM organizations WHERE id IS NOT DISTINCT FROM $1', [orgId])).rows[0];
     return Number(row?.work_hours_per_day ?? 8);
 }
 
-export async function insertWorklog(db: TasksDb, taskId: number, userId: number,
+export async function insertWorklog(db: TasksDb, taskId: number, authorId: number, loggedById: number,
     input: { day_worked: string; start_time?: string | null; comment?: string | null }, minutes: number) {
     return (await db.query(`INSERT INTO task_worklogs (task_id, author_id, logged_by_id, day_worked, start_time, minutes, comment)
-        VALUES ($1, $2, $2, $3, $4, $5, $6) RETURNING id`,
-        [taskId, userId, input.day_worked, input.start_time || null, minutes, input.comment ?? null])).rows[0].id as number;
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [taskId, authorId, loggedById, input.day_worked, input.start_time || null, minutes, input.comment ?? null])).rows[0].id as number;
 }
 
 export async function recordWorklogAddition(db: TasksDb, taskId: number, userId: number, orgId: number | null,
@@ -53,15 +58,16 @@ export async function lockWorklog(db: TasksDb, taskId: number, worklogId: number
 }
 
 export async function updateWorklog(db: TasksDb, worklogId: number, input: LogWorkFields, minutes: number) {
-    await db.query(`UPDATE task_worklogs SET day_worked = $2, start_time = $3, minutes = $4, comment = $5, updated_at = NOW()
-        WHERE id = $1`, [worklogId, input.day_worked, input.start_time || null, minutes, input.comment ?? null]);
+    await db.query(`UPDATE task_worklogs SET day_worked = $2, start_time = $3, minutes = $4, comment = $5,
+        author_id = COALESCE($6, author_id), updated_at = NOW()
+        WHERE id = $1`, [worklogId, input.day_worked, input.start_time || null, minutes, input.comment ?? null, input.author_id ?? null]);
 }
 
 export async function softDeleteWorklog(db: TasksDb, worklogId: number) {
     return (await db.query('UPDATE task_worklogs SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *', [worklogId])).rows[0];
 }
 
-type LogWorkFields = { day_worked: string; start_time?: string | null; comment?: string | null };
+type LogWorkFields = { day_worked: string; start_time?: string | null; comment?: string | null; author_id?: number };
 
 export async function recordWorklogChange(db: TasksDb, taskId: number, userId: number, orgId: number | null,
     action: 'worklog_updated' | 'worklog_deleted', before: Record<string, unknown>, after: Record<string, unknown>, ip?: string, userAgent?: string) {

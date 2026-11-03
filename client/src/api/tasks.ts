@@ -27,6 +27,7 @@ export interface LogWorkInput {
     time_spent: string;
     start_time?: string | null;
     comment?: string | null;
+    author_id?: number;
 }
 export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null }
 export interface LogWorkResponse {

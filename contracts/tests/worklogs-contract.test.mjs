@@ -7,6 +7,22 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const api = JSON.parse(fs.readFileSync(path.join(root, 'contracts/openapi.json'), 'utf8'));
 const inventory = JSON.parse(fs.readFileSync(path.join(root, 'contracts/http-route-inventory.json'), 'utf8'));
 
+test('optional author on create and edit requires the behalf capability and documents separate attribution', () => {
+    for (const name of ['LogWorkRequest', 'EditWorklogRequest']) {
+        const author = api.components.schemas[name].properties.author_id;
+        assert.equal(author?.type, 'integer');
+        assert.equal(author.minimum, 1);
+        assert.ok(!api.components.schemas[name].required.includes('author_id'));
+        assert.match(author.description, /same organization/);
+    }
+    assert.ok(api.components.schemas.TicketCapabilities.properties.can.required.includes('logWorkForOthers'));
+    assert.ok(api.components.schemas.TicketCapability.properties.reason.enum.includes('WORKLOG_FOR_OTHERS_DENIED'));
+    for (const [endpoint, method] of [['/api/tasks/{id}/worklogs', 'post'], ['/api/tasks/{id}/worklogs/{worklogId}', 'patch']])
+        assert.match(api.paths[endpoint][method].responses['403'].description, /WORKLOG_FOR_OTHERS_DENIED/);
+    assert.match(api.components.schemas.TaskWorklog.properties.canEdit.description, /org admin/);
+    assert.match(api.components.schemas.TaskWorklog.properties.logged_by_id.description, /original/);
+});
+
 test('manual log-work route has duration input, saved worklog, summary, warnings and denial contracts', () => {
     assert.ok(inventory.endpoints.some(e => e.method === 'POST' && e.path === '/api/tasks/:id/worklogs'));
     const operation = api.paths['/api/tasks/{id}/worklogs'].post;
@@ -33,7 +49,7 @@ test('worklog edit/delete contracts expose author capabilities, partial patch an
     assert.equal(patch.minProperties, 1);
     assert.equal(patch.additionalProperties, false);
     assert.ok(!patch.required?.length);
-    assert.deepEqual(Object.keys(patch.properties).sort(), ['comment', 'day_worked', 'start_time', 'time_spent']);
+    assert.deepEqual(Object.keys(patch.properties).sort(), ['author_id', 'comment', 'day_worked', 'start_time', 'time_spent']);
     assert.deepEqual(api.paths[endpoint].delete.responses['200'].content['application/json'].schema, { $ref: '#/components/schemas/DeleteWorklogResponse' });
     assert.deepEqual(api.components.schemas.DeleteWorklogResponse.required, ['ticket']);
     for (const capability of ['canEdit', 'canDelete']) {

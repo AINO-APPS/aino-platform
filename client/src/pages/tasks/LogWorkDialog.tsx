@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { logTaskWork, editTaskWorklog, type LogWorkInput, type LogWorkResponse, type TaskWorklog } from '../../api/tasks';
+import { logTaskWork, editTaskWorklog, getAssignableUsers, type LogWorkInput, type LogWorkResponse, type TaskWorklog } from '../../api/tasks';
 import { formatMinutes } from './time';
 import s from './LogWorkDialog.module.css';
 
@@ -9,8 +9,9 @@ function today() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
-    taskId: number; worklog?: TaskWorklog; onClose: () => void; onSaved: (response: LogWorkResponse) => void;
+export default function LogWorkDialog({ taskId, worklog, canLogWorkForOthers = false, onClose, onSaved }: {
+    taskId: number; worklog?: TaskWorklog; canLogWorkForOthers?: boolean;
+    onClose: () => void; onSaved: (response: LogWorkResponse) => void;
 }) {
     const id = useId();
     const dialog = useRef<HTMLDialogElement>(null);
@@ -18,7 +19,19 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
     const [timeSpent, setTimeSpent] = useState(() => worklog ? formatMinutes(worklog.minutes) : '');
     const [startTime, setStartTime] = useState(() => worklog?.start_time?.slice(0, 5) ?? '');
     const [comment, setComment] = useState(() => worklog?.comment ?? '');
+    const [authorId, setAuthorId] = useState(() => worklog ? String(worklog.author_id) : '');
+    const [people, setPeople] = useState<Array<{ id: number; username: string; full_name: string | null }>>([]);
+    const [peopleState, setPeopleState] = useState<'loading' | 'ready' | 'error'>('loading');
+    useEffect(() => {
+        if (!canLogWorkForOthers) return;
+        let cancelled = false;
+        getAssignableUsers().then(({ data }) => {
+            if (!cancelled) { setPeople(data); setPeopleState('ready'); }
+        }).catch(() => { if (!cancelled) setPeopleState('error'); });
+        return () => { cancelled = true; };
+    }, [canLogWorkForOthers]);
     const patch: Partial<LogWorkInput> = worklog ? {
+        ...(canLogWorkForOthers && authorId !== String(worklog.author_id) ? { author_id: Number(authorId) } : {}),
         ...(dayWorked !== worklog.day_worked ? { day_worked: dayWorked } : {}),
         ...(timeSpent !== formatMinutes(worklog.minutes) ? { time_spent: timeSpent } : {}),
         ...(startTime !== (worklog.start_time?.slice(0, 5) ?? '') ? { start_time: startTime || null } : {}),
@@ -46,6 +59,7 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
         try {
             const { data } = worklog ? await editTaskWorklog(taskId, worklog.id, patch) : await logTaskWork(taskId, {
                 day_worked: dayWorked, time_spent: timeSpent,
+                ...(canLogWorkForOthers && authorId ? { author_id: Number(authorId) } : {}),
                 ...(startTime ? { start_time: startTime } : {}), ...(comment ? { comment } : {}),
             });
             onSaved(data);
@@ -63,6 +77,16 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
             <header><p className={s.eyebrow}>Ticket worklog</p><h2 id={`${id}-title`}>{worklog ? 'Edit worklog' : 'Log work'}</h2>
                 <p className={s.hint}>Record the time you spent, including work from earlier days.</p></header>
             <fieldset disabled={busy} className={s.fields}>
+                {canLogWorkForOthers && <>
+                    <label htmlFor={`${id}-person`}>Person</label>
+                    <select id={`${id}-person`} value={authorId} disabled={peopleState !== 'ready'} onChange={event => setAuthorId(event.target.value)}>
+                        {!worklog && <option value="">Myself</option>}
+                        {worklog && !people.some(person => person.id === worklog.author_id) && <option value={worklog.author_id}>{worklog.author.full_name || worklog.author.username}</option>}
+                        {people.map(person => <option key={person.id} value={person.id}>{person.full_name || person.username}</option>)}
+                    </select>
+                    {peopleState === 'loading' && <p role="status" className={s.hint}>Loading people…</p>}
+                    {peopleState === 'error' && <p role="alert" className={s.error}>Could not load people. Close and reopen to try again.</p>}
+                </>}
                 <label htmlFor={`${id}-day`}>Day worked</label>
                 <input id={`${id}-day`} type="date" required value={dayWorked} onChange={event => setDayWorked(event.target.value)} />
                 <label htmlFor={`${id}-duration`}>Time spent</label>
