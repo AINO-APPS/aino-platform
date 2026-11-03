@@ -11,6 +11,7 @@
  * Modes:
  *   node scripts/generate-api-models.mjs           regenerate all outputs
  *   node scripts/generate-api-models.mjs --check   verify outputs are current (CI)
+ *   Add --platform-only to read/write only this checkout's web models (npm default).
  *
  * A sibling platform checkout may be absent — CI checks out only this
  * repository — in which case that platform's output is skipped rather than
@@ -265,6 +266,7 @@ const RENDERERS = { web: renderTypeScript, android: renderKotlin, ios: renderSwi
 
 /** Resolve the current web checkout and any available sibling platform checkout. */
 function platformOutputPath(output) {
+    if (process.argv.includes("--platform-only") && output.platform !== "web") return null;
     if (output.platform === "web") return path.join(root, output.path);
 
     const relativePath = output.path.split("/").slice(1).join(path.sep);

@@ -78,3 +78,29 @@ and embedded sprint stats. It retains the shared `enrichTaskSummaries` pipeline
 for containers and capabilities; Notes routes keep their reads and error handling.
 Linked-ticket lookups receive the actor's org from the route's loaded user
 context; links to another organization's tickets return no details.
+
+## Worklogs and legacy timers
+
+`tasks.worklogs.ts` is the worklog interface; `tasks.worklogRepository.ts` owns
+its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
+(with creation time/id tie-breaks), author/logged-by identities, and
+`time_spent_minutes`. `getTimeSpent` batches sums for ticket read surfaces;
+`logged_minutes` in responses is a legacy alias, never the stored ticket column.
+
+`stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
+and the legacy history entry, and returns the unchanged timer-stop envelope.
+Concurrent stops record only once. The day/start time use the caller's
+`X-Timezone-Offset` (JavaScript convention); elapsed minutes round up to at least
+one. Start/Stop remain compatibility routes during this rollout. Estimates retain
+`estimated_minutes` until manual-worklogs ticket 04.
+
+Migration `0019_task_worklogs` stops running timers and converts timer history,
+using the owning organization's timezone (UTC fallback) and the comment
+"Migrated from timer". Unique `source_timer_id` prevents duplicate conversion,
+including SQL replay independently of the migration ledger. New-tenant baseline
+columns, constraints and indexes match. The obsolete total is never written.
+
+Public seams: `tasks.worklogRoutes.integration.test.ts` exercises the mounted
+HTTP router on real PostgreSQL; `tasks.worklogMigration.integration.test.ts`
+exercises baseline/upgrade/replay. Run `npm run test:pg -- --runInBand tasks.worklog`
+in `server/`. Without `TASKS_SCHEMA_TEST_DATABASE_URL`, plain Jest skips PG tests.

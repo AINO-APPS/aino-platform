@@ -1,6 +1,25 @@
 import API, { type AnyData, type Params } from "./client";
 import type { SprintList } from "../types/generated/tasks";
 
+export interface TaskWorklog {
+    id: number;
+    task_id: number;
+    author_id: number;
+    logged_by_id: number;
+    author: { id: number; username: string; full_name: string; avatar: string | null };
+    logged_by: { id: number; username: string; full_name: string; avatar: string | null };
+    day_worked: string;
+    start_time: string | null;
+    minutes: number;
+    comment: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: null;
+}
+
+export const getTaskWorklogs = (id: number | string) =>
+    API.get<{ worklogs: TaskWorklog[]; time_spent_minutes: number }>(`/tasks/${id}/worklogs`);
+
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };

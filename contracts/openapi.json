@@ -16706,7 +16706,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/timer/start": {
@@ -16798,7 +16800,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/timer/stop": {
@@ -16890,7 +16894,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/transfer": {
@@ -18408,8 +18414,8 @@
         }
       }
     },
-      "/api/tasks/scheduled": {
-    "get": {
+    "/api/tasks/scheduled": {
+      "get": {
         "tags": [
           "tasks"
         ],
@@ -18487,8 +18493,8 @@
           }
         }
       }
-  },
-"/api/tasks/schedule-overlays": {
+    },
+    "/api/tasks/schedule-overlays": {
       "get": {
         "tags": [
           "tasks"
@@ -19928,7 +19934,7 @@
         "tags": [
           "tracker"
         ],
-        "summary": "Time logged against tasks, grouped by local day",
+        "summary": "Time spent on tasks, grouped by recorded day worked",
         "operationId": "get_api_tracker_task_time",
         "parameters": [],
         "security": [
@@ -20660,6 +20666,95 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/worklogs": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "List a ticket’s worklogs and computed time spent (read-only)",
+        "operationId": "get_api_tasks_id_worklogs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskWorklogList"
                 }
               }
             }
@@ -21702,7 +21797,7 @@
           "logged_minutes": {
             "type": "integer",
             "minimum": 0,
-            "description": "Minutes logged by timers started from this task. Rolls into the timesheet."
+            "description": "Legacy alias of time_spent_minutes, computed from non-deleted worklogs."
           },
           "assigned_to": {
             "type": [
@@ -21744,6 +21839,11 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Sum of non-deleted worklog minutes, computed on read; never stored."
           }
         },
         "required": [
@@ -22590,8 +22690,8 @@
           },
           "minutes": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Minutes added to the task by this stop."
+            "minimum": 1,
+            "description": "Minutes recorded as one worklog by this stop, rounded up to at least one."
           },
           "time": {
             "$ref": "#/components/schemas/TaskTimeSummary"
@@ -22741,6 +22841,153 @@
           }
         },
         "additionalProperties": true
+      },
+      "TaskWorklog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "task_id": {
+            "type": "integer"
+          },
+          "author_id": {
+            "type": "integer"
+          },
+          "logged_by_id": {
+            "type": "integer"
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "full_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "avatar": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "full_name",
+              "avatar"
+            ],
+            "additionalProperties": false
+          },
+          "logged_by": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "full_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "avatar": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "full_name",
+              "avatar"
+            ],
+            "additionalProperties": false
+          },
+          "day_worked": {
+            "type": "string",
+            "format": "date",
+            "description": "Recorded day worked; never rebucketed in the viewing timezone."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional local time of day (HH:mm:ss)."
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "author_id",
+          "logged_by_id",
+          "author",
+          "logged_by",
+          "day_worked",
+          "start_time",
+          "minutes",
+          "comment",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "additionalProperties": false
+      },
+      "TaskWorklogList": {
+        "type": "object",
+        "properties": {
+          "worklogs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskWorklog"
+            },
+            "description": "Newest day worked first, then newest created time and id."
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "worklogs",
+          "time_spent_minutes"
+        ],
+        "additionalProperties": false
       }
     }
   }

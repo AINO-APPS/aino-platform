@@ -47,6 +47,7 @@ export interface Task {
   blocked_reason?: string | null;
   acceptance_criteria?: Record<string, unknown>[] | null;
   created_at?: string | null;
+  time_spent_minutes?: number;
 }
 
 export interface Sprint {

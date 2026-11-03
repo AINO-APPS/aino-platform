@@ -518,31 +518,25 @@ export async function insertWorkModeChangeRequest(
     return result?.rows?.[0]?.id ?? null;
 }
 
-/**
- * Stopped task timers in a local date range, for the timesheet.
- *
- * `timezoneModifier` is a Postgres interval string (e.g. `-330 minutes`) so the
- * day bucket matches the member's local day rather than UTC.
- */
-export async function listTaskTimersForDateRange(
+/** Worklogs in their recorded day-worked range; viewing timezone never moves time to another day. */
+export async function listTaskWorklogsForDateRange(
     db: AttendanceDb,
     userId: number,
     fromDate: string,
     toDate: string,
-    timezoneModifier: string,
 ): Promise<any[]> {
     return (await db.query(
-        `SELECT tt.task_id, tt.started_at, tt.stopped_at, tt.minutes,
+        `SELECT w.task_id, w.day_worked, w.minutes,
                 t.title AS task_title,
                 CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
                      THEN p.key || '-' || t.task_number END AS issue_key
-           FROM task_timers tt
-           JOIN tasks t ON t.id = tt.task_id
+           FROM task_worklogs w
+           JOIN tasks t ON t.id = w.task_id
+           JOIN users u ON u.id = w.author_id AND t.org_id IS NOT DISTINCT FROM u.org_id
       LEFT JOIN projects p ON p.id = t.project_id
-          WHERE tt.user_id = $1
-            AND tt.stopped_at IS NOT NULL
-            AND (tt.started_at + $4::interval)::date BETWEEN $2::date AND $3::date
-          ORDER BY tt.started_at DESC`,
-        [userId, fromDate, toDate, timezoneModifier],
+          WHERE w.author_id = $1 AND w.deleted_at IS NULL
+            AND w.day_worked BETWEEN $2::date AND $3::date
+          ORDER BY w.day_worked DESC, w.id DESC`,
+        [userId, fromDate, toDate],
     )).rows;
 }

@@ -1,9 +1,7 @@
 /**
  * Task time in the timesheet.
  *
- * A timer started from a task is stored as a `task_timers` row; this reads the
- * stopped ones back so the time a person logged against tasks shows up next to
- * their attendance instead of living only on the task.
+ * Recorded worklogs appear next to attendance, grouped by day worked.
  */
 import type { AttendanceDb } from "./attendance.types";
 import * as repository from "./attendance.repository";
@@ -14,10 +12,8 @@ export async function getTaskTime(
     userId: number,
     fromDate: string,
     toDate: string,
-    timezoneOffset: number,
+    _timezoneOffset: number,
 ) {
-    const rows = await repository.listTaskTimersForDateRange(
-        db, userId, fromDate, toDate, `${-timezoneOffset} minutes`,
-    );
-    return summariseTaskTime(rows, timezoneOffset);
+    const rows = await repository.listTaskWorklogsForDateRange(db, userId, fromDate, toDate);
+    return summariseTaskTime(rows);
 }

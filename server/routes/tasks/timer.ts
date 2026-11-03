@@ -3,9 +3,8 @@
 //   POST /api/tasks/:id/timer/start  — start a timer attributed to this task
 //   POST /api/tasks/:id/timer/stop   — stop it and add the elapsed minutes
 //
-// The elapsed time is written to `tasks.logged_minutes` and kept as a
-// `task_timers` row, which is what the timesheet reads — so a task's logged
-// time and the user's day agree.
+// Deprecated compatibility adapter: stopping records a worklog atomically.
+// Response shapes remain unchanged; stored ticket totals are never written.
 
 import express from "express";
 import type { Request, Response } from "express";
@@ -14,8 +13,9 @@ const { loadUserContext } = require("../../middleware/rbac");
 
 const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
 const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
-const { logHistory } = require("./_helpers/logHistory");
-const { elapsedMinutes, summariseTime, findRunningTimer, startTimer, stopTimer } = require("../../modules/tasks/tasks.time");
+const { summariseTime, findRunningTimer, startTimer } = require("../../modules/tasks/tasks.time");
+const { getTimeSpent, stopLegacyTimer } = require("../../modules/tasks/tasks.worklogs");
+const { getOffsetMin } = require("../../utils/timezone");
 const { findTask } = require("../../modules/tasks/tasks.repository");
 
 const router = express.Router();
@@ -26,7 +26,8 @@ async function loadTask(req: Request, res: Response) {
         denyTaskAccess(res, task, taskActorFromRequest(req));
         return null;
     }
-    return task;
+    const totals = await getTimeSpent(req.db!, [task.id], taskActorFromRequest(req).orgId);
+    return { ...task, logged_minutes: totals[task.id] ?? 0 };
 }
 
 router.get("/:id/timer", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -34,7 +35,7 @@ router.get("/:id/timer", auth, loadUserContext, async (req: Request, res: Respon
         const task = await loadTask(req, res);
         if (!task) return;
 
-        const running = await findRunningTimer(req.db!, task.id, req.userId);
+        const running = await findRunningTimer(req.db!, task.id, req.userId, taskActorFromRequest(req).orgId);
 
         res.json({
             taskId: task.id,
@@ -54,8 +55,8 @@ router.post("/:id/timer/start", auth, loadUserContext, async (req: Request, res:
         if (!task) return;
 
         const startedAt = new Date().toISOString();
-        await startTimer(req.db!, task.id, req.userId, startedAt);
-        const running = await findRunningTimer(req.db!, task.id, req.userId);
+        await startTimer(req.db!, task.id, req.userId, startedAt, taskActorFromRequest(req).orgId);
+        const running = await findRunningTimer(req.db!, task.id, req.userId, taskActorFromRequest(req).orgId);
 
         res.json({
             taskId: task.id,
@@ -74,22 +75,10 @@ router.post("/:id/timer/stop", auth, loadUserContext, async (req: Request, res: 
         const task = await loadTask(req, res);
         if (!task) return;
 
-        const running = await findRunningTimer(req.db!, task.id, req.userId);
-        if (!running) return res.status(409).json({ error: "No timer is running for this task" });
+        const stopped = await stopLegacyTimer(req.db!, task.id, taskActorFromRequest(req), getOffsetMin(req));
+        if (!stopped) return res.status(409).json({ error: "No timer is running for this task" });
 
-        const stoppedAt = new Date();
-        const minutes = elapsedMinutes(running.started_at, stoppedAt);
-        const updated = await stopTimer(req.db!, running.id, task.id, stoppedAt.toISOString(), minutes);
-
-        await logHistory(task.id, req.userId, "time_logged", "logged_minutes",
-            task.logged_minutes, updated.logged_minutes, null, req.db);
-
-        res.json({
-            taskId: task.id,
-            running: false,
-            minutes,
-            time: summariseTime(updated),
-        });
+        res.json({ taskId: task.id, running: false, ...stopped });
     } catch (err) {
         req.log.error({ err }, "Error stopping task timer:");
         res.status(500).json({ error: "Failed to stop the timer" });

@@ -78,3 +78,45 @@
     font-size: var(--font-meta-size);
     color: var(--danger, #ef4444);
 }
+
+.worklogs {
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.worklog-heading {
+    margin: 0 0 8px;
+    font-size: var(--font-meta-size);
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.worklog-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.worklog-entry {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.worklog-entry:last-child {
+    border-bottom: 0;
+}
+
+.worklog-meta {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: var(--font-meta-size);
+    font-variant-numeric: tabular-nums;
+}
+
+.worklog-comment {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
