@@ -2,13 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, XCircle } from "../../constants/icons";
 import { getTasks } from "../../api/tasks";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
+import type { Task } from "../../types";
+import { writeError } from "./ticketCapabilities";
+import TicketHistoryRow from "./TicketHistoryRow";
 import s from "./CompletedSection.module.css";
 
 interface SprintCancelledSectionProps {
     sprintId: number | string | null | undefined;
     /** The board's team scope (`team_id` / `unassigned`), so the list matches the columns. */
     scopeParams?: Record<string, unknown>;
-    onOpenDetail: (task: any) => void;
+    onOpenDetail: (task: Task) => void;
 }
 
 /**
@@ -19,39 +22,60 @@ interface SprintCancelledSectionProps {
  * actions, just a way back into the ticket.
  */
 export default function SprintCancelledSection({ sprintId, scopeParams, onOpenDetail }: SprintCancelledSectionProps) {
-    const [tasks, setTasks] = useState<any[]>([]);
+    const teamId = scopeParams?.team_id;
+    const unassigned = scopeParams?.unassigned;
+    const scopeKey = JSON.stringify([sprintId, teamId, unassigned]);
+    const [result, setResult] = useState<{ scopeKey: string; tasks: Task[]; error: string }>({
+        scopeKey, tasks: [], error: "",
+    });
     const [open, setOpen] = useState(false);
     const request = useRef(0);
-    const scopeKey = JSON.stringify(scopeParams ?? {});
+    const tasks = result.scopeKey === scopeKey ? result.tasks : [];
+    const error = result.scopeKey === scopeKey ? result.error : "";
 
     const load = useCallback(async () => {
         const id = ++request.current;
         if (!sprintId) {
-            setTasks([]);
+            setResult({ scopeKey, tasks: [], error: "" });
             return;
         }
         try {
-            const res = await getTasks(undefined, { ...JSON.parse(scopeKey), sprint_id: sprintId, status: "cancelled" });
+            const res = await getTasks(undefined, {
+                ...(teamId != null ? { team_id: teamId } : {}),
+                ...(unassigned != null ? { unassigned } : {}),
+                sprint_id: sprintId, status: "cancelled",
+            });
             if (id !== request.current) return;
-            const rows = ((res.data as { tasks?: any[] }).tasks || []).filter((task) => task.workflow_state_key === "cancelled");
-            setTasks(rows);
-        } catch {
-            // Keep the rows already shown: a failed refresh must not erase history.
+            const rows = ((res.data as { tasks: Task[] }).tasks).filter((task) => task.workflow_state_key === "cancelled");
+            setResult({ scopeKey, tasks: rows, error: "" });
+        } catch (failure) {
+            if (id !== request.current) return;
+            setResult((previous) => ({
+                scopeKey,
+                tasks: previous.scopeKey === scopeKey ? previous.tasks : [],
+                error: writeError(failure, "Could not load cancelled tickets."),
+            }));
         }
-    }, [sprintId, scopeKey]);
+    }, [sprintId, teamId, unassigned, scopeKey]);
 
     useEffect(() => {
         setOpen(false);
         void load();
+        return () => { request.current++; };
     }, [load]);
 
     useRealtimeEvent(["task_updated", "task_assigned"], () => { void load(); });
 
-    if (tasks.length === 0) return null;
+    if (tasks.length === 0 && !error) return null;
     const Chevron = open ? ChevronDown : ChevronRight;
 
     return (
         <section className={s["completed-section"]} aria-label="Cancelled tickets">
+            {error && (
+                <div role="alert">
+                    {error} <button type="button" onClick={() => { void load(); }}>Retry</button>
+                </div>
+            )}
             <button
                 type="button"
                 className={s["completed-toggle"]}
@@ -67,13 +91,7 @@ export default function SprintCancelledSection({ sprintId, scopeParams, onOpenDe
             {open && (
                 <div id="sprint-cancelled-list" className={s["completed-list"]}>
                     {tasks.map((task) => (
-                        <button key={task.id} type="button" className={s["completed-row"]} onClick={() => onOpenDetail(task)}>
-                            <span className={s["completed-key"]}>{task.issue_key || `#${task.id}`}</span>
-                            <span className={s["completed-row-title"]}>{task.title}</span>
-                            <span className={s["completed-date"]}>
-                                <span className={s["completed-cancelled"]}>Cancelled</span>
-                            </span>
-                        </button>
+                        <TicketHistoryRow key={task.id} task={task} onOpenDetail={onOpenDetail} />
                     ))}
                 </div>
             )}

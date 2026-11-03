@@ -110,9 +110,9 @@ export interface MyWorkStats {
 }
 
 /**
- * The card's state breakdown over exactly the tickets `myWorkCount` counts, so
- * the stat row and the list beside it can never disagree. Open work outside
- * progress or review reads as pending.
+ * The period's state breakdown over the tickets `myWorkCount` counts.
+ * Week mode lists overdue work separately, outside these totals.
+ * Open work outside progress or review reads as pending.
  */
 export function myWorkStats(tasks: MyWorkTask[], userId: number | string): MyWorkStats {
     const mine = tasks.filter((task) => isMine(task, userId) && !isCancelled(task));

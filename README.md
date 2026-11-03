@@ -39,6 +39,8 @@ A multi-tenant, enterprise-grade workforce platform that combines **time trackin
 **Tasks**
 - **Kanban board** with **drag-and-drop**, optimistic updates, and column-by-column WIP limits.
 - **Backlog** view with filter, sort, bulk-import to active sprint, story-point planning poker style.
+- **Cancelled history** stays out of active columns and appears in a collapsed section below the selected sprint board; unsprinted completed work carries a Cancelled badge in Backlog. History reloads use the board's team scope, report failures with Retry, and never retain another scope's rows.
+- **My Work** on Home combines the planner list, status totals and progress in one card. Weekly totals cover this week; the Overdue group is additional context. The same renderer serves web and Electron desktop.
 - **Route-backed tabs** in web and desktop: `/tasks/backlog`, `/tasks/schedule`, `/tasks/desk`, and `/tasks/sprint/:id` (plus `/plan`). Nested Tasks URLs share the cached Tasks page; tab clicks and direct links stay in Tasks instead of redirecting home.
 - **Service Desk** tab — bug reports / feature requests / access issues that mirror into a triageable backlog for org admins.
 - Rich-text descriptions, **acceptance criteria checklists**, attachments, threaded comments with **@mentions** (notification + email), labels (org-wide), priority, due dates, assignment.

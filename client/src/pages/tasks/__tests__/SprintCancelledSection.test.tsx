@@ -1,8 +1,12 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const getTasks = vi.fn();
 vi.mock("../../../api/tasks", () => ({ getTasks: (...a: unknown[]) => getTasks(...a) }));
+const realtime = vi.hoisted(() => ({ current: () => {} }));
+vi.mock("../../../hooks/useRealtimeEvent", () => ({
+    default: (_events: string[], callback: () => void) => { realtime.current = callback; },
+}));
 
 import SprintCancelledSection from "../SprintCancelledSection";
 
@@ -37,5 +41,55 @@ describe("SprintCancelledSection", () => {
 
         await waitFor(() => expect(getTasks).toHaveBeenCalled());
         expect(container).toBeEmptyDOMElement();
+    });
+
+    test("hides the previous team's history immediately and reports a failed new scope", async () => {
+        getTasks.mockResolvedValueOnce({
+            data: { tasks: [{ id: 13, title: "Previous team", workflow_state_key: "cancelled" }] },
+        });
+        const { rerender } = render(<SprintCancelledSection sprintId={4} scopeParams={{ team_id: 2 }} onOpenDetail={vi.fn()} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Cancelled/ }));
+        expect(screen.getByText("Previous team")).toBeInTheDocument();
+
+        let reject: (error: Error) => void = () => {};
+        getTasks.mockImplementationOnce(() => new Promise((_resolve, rejectPromise) => { reject = rejectPromise; }));
+        rerender(<SprintCancelledSection sprintId={4} scopeParams={{ team_id: 3 }} onOpenDetail={vi.fn()} />);
+        expect(screen.queryByText("Previous team")).toBeNull();
+        await act(async () => { reject(new Error("offline")); });
+        expect(await screen.findByRole("alert")).toHaveTextContent("Could not load cancelled tickets");
+        expect(screen.queryByText("Previous team")).toBeNull();
+        expect(getTasks).toHaveBeenLastCalledWith(undefined, { sprint_id: 4, team_id: 3, status: "cancelled" });
+    });
+
+    test("ignores an old sprint response after the selected sprint changes", async () => {
+        let resolveOld: (value: unknown) => void = () => {};
+        getTasks.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+        const { rerender } = render(<SprintCancelledSection sprintId={4} onOpenDetail={vi.fn()} />);
+        getTasks.mockResolvedValueOnce({
+            data: { tasks: [{ id: 14, title: "Current sprint", workflow_state_key: "cancelled" }] },
+        });
+        rerender(<SprintCancelledSection sprintId={5} onOpenDetail={vi.fn()} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Cancelled/ }));
+        await act(async () => {
+            resolveOld({ data: { tasks: [{ id: 13, title: "Old sprint", workflow_state_key: "cancelled" }] } });
+        });
+        expect(screen.getByText("Current sprint")).toBeInTheDocument();
+        expect(screen.queryByText("Old sprint")).toBeNull();
+    });
+
+    test("keeps same-scope history on refresh failure and allows retry", async () => {
+        getTasks.mockResolvedValueOnce({
+            data: { tasks: [{ id: 13, title: "Kept history", workflow_state_key: "cancelled" }] },
+        });
+        render(<SprintCancelledSection sprintId={4} onOpenDetail={vi.fn()} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Cancelled/ }));
+        getTasks.mockRejectedValueOnce(new Error("offline"));
+        act(() => { realtime.current(); });
+        expect(await screen.findByRole("alert")).toHaveTextContent("Could not load cancelled tickets");
+        expect(screen.getByText("Kept history")).toBeInTheDocument();
+        getTasks.mockResolvedValueOnce({ data: { tasks: [] } });
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+        expect(screen.queryByText("Kept history")).toBeNull();
     });
 });
