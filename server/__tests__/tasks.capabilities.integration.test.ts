@@ -131,6 +131,8 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             const context = await loadTicketDecisionContext(pool, actor, [ticket]);
             expect((decideTicket(actor, ticket, context).capabilities.can as any).logWork)
                 .toEqual(!writable ? denied('ACCESS_DENIED') : state === 105 ? denied('WORKLOG_CANCELLED') : allowed);
+            expect(decideTicket(actor, ticket, context).capabilities.can.canEditEstimate)
+                .toEqual(!writable ? denied('ACCESS_DENIED') : state === 105 ? denied('WORKLOG_CANCELLED') : allowed);
         }
     });
 
@@ -163,6 +165,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     edit: { allowed: true },
                     logWork: { allowed: true },
                     logWorkForOthers: denied('WORKLOG_FOR_OTHERS_DENIED'),
+                    canEditEstimate: { allowed: true },
                     changeState: { allowed: true },
                     cancel: { allowed: true },
                     transfer: { allowed: false, reason: "ACCESS_DENIED" },
@@ -229,6 +232,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                             logWork: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             logWorkForOthers: !['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? denied('WORKLOG_FOR_OTHERS_DENIED')
                                 : !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
+                            canEditEstimate: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             changeState: status,
                             cancel,
                             transfer: ['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? write : denied("ACCESS_DENIED"),
@@ -239,7 +243,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     },
                 });
                 expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
-                for (const action of ["edit", "logWork", "logWorkForOthers", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
+                for (const action of ["edit", "logWork", "logWorkForOthers", "canEditEstimate", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
                     const verdict = decisions[index].capabilities.can[action];
                     const conflict = await ticketActionConflict(pool, actor, tickets[index], action, context);
                     expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);

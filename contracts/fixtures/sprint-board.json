@@ -73,6 +73,9 @@
           "logWorkForOthers": {
             "allowed": false,
             "reason": "WORKLOG_FOR_OTHERS_DENIED"
+          },
+          "canEditEstimate": {
+            "allowed": true
           }
         }
       },

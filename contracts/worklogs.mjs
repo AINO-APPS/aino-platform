@@ -35,7 +35,7 @@ export function applyWorklogContract(paths, schemas) {
         warnings: { type: 'array', items: { type: 'string', enum: ['ON_LEAVE', 'EXCEEDS_ATTENDANCE'] }, description: 'Advisory checks after commit, never blocking the save. ON_LEAVE means approved leave on the author’s recorded day; EXCEEDS_ATTENDANCE means the author’s non-deleted day total across tickets exceeds attendance working minutes (excluding breaks). No attendance entries means no attendance-total warning. Failed warning reads are best-effort.' } });
     const post = paths['/api/tasks/{id}/worklogs'].post;
     post.summary = 'Log work on a ticket';
-    post.description = 'Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Estimates are a separate rollout ticket.';
+    post.description = 'Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write.';
     post.requestBody = { required: true, content: { 'application/json': { schema: ref('LogWorkRequest') } } };
     delete post.responses['200'];
     post.responses['201'] = { description: 'Worklog saved', content: { 'application/json': { schema: ref('LogWorkResponse') } } };
@@ -54,7 +54,7 @@ export function applyWorklogContract(paths, schemas) {
     edit.responses['404'] = { description: 'Ticket or active worklog not found in this organization/ticket.', content: { 'application/json': { schema: ref('Error') } } };
     const remove = paths['/api/tasks/{id}/worklogs/{worklogId}'].delete;
     remove.summary = 'Soft-delete an authored worklog';
-    remove.description = 'The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining modes are deferred.';
+    remove.description = 'The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported.';
     remove.requestBody = { required: false, content: { 'application/json': { schema: ref('DeleteWorklogRequest') } } };
     remove.responses['200'] = { description: 'Worklog soft-deleted', content: { 'application/json': { schema: ref('DeleteWorklogResponse') } } };
     remove.responses['400'].description = 'INVALID_WORKLOG: unsupported fields.';

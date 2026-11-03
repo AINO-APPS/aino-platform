@@ -108,6 +108,29 @@ describe('Log work on a ticket', () => {
         expect(await screen.findByText(/Logged by Alice/)).toBeTruthy();
     });
 
+    test.each(['auto', 'set', 'leave'])('admin picker and %s remaining choice submit together on create and edit', async mode => {
+        for (const operation of ['create', 'edit']) {
+            api.getTaskWorklogs.mockResolvedValue({ data: { worklogs: operation === 'create' ? [] : [{ ...worklog, canEdit: true }], time_spent_minutes: 150 } });
+            const response = { data: { worklog: { ...worklog, author_id: 2, author: { id: 2, full_name: 'Bob' } }, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE'] } };
+            api.logTaskWork.mockResolvedValue(response);
+            api.editTaskWorklog.mockResolvedValue(response);
+            const { unmount } = render(<TaskTimePanel task={{ ...ticket, capabilities: { can: { ...ticket.capabilities.can, logWorkForOthers: { allowed: true } } } }} />);
+            fireEvent.click(await screen.findByRole('button', { name: operation === 'create' ? 'Log work' : 'Edit worklog' }));
+            await screen.findByRole('option', { name: 'Bob' });
+            fireEvent.change(screen.getByRole('combobox', { name: 'Person' }), { target: { value: '2' } });
+            fireEvent.click(screen.getByLabelText(mode === 'auto' ? 'Adjust automatically' : mode === 'set' ? 'Set to' : 'Leave unchanged'));
+            if (mode === 'set') fireEvent.change(screen.getByLabelText('New remaining estimate'), { target: { value: '45m' } });
+            if (operation === 'create') fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '1h' } });
+            fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+            await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+            const method = operation === 'create' ? api.logTaskWork : api.editTaskWorklog;
+            expect(method.mock.calls.at(-1)?.at(-1)).toMatchObject({ author_id: 2,
+                ...(mode === 'auto' ? {} : { remaining_mode: mode }), ...(mode === 'set' ? { remaining_estimate: '45m' } : {}) });
+            expect(screen.getByRole('status')).toHaveTextContent('approved leave');
+            unmount();
+        }
+    });
+
     test('list shows logged-by attribution only when someone else logged the author’s time', async () => {
         api.getTaskWorklogs.mockResolvedValue({ data: { worklogs: [
             { ...worklog, author_id: 2, author: { id: 2, full_name: 'Bob', username: 'bob' }, comment: 'On behalf' },
@@ -173,7 +196,7 @@ describe('Log work on a ticket', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete worklog' }));
         dialog = screen.getByRole('dialog', { name: 'Delete worklog?' });
         fireEvent.click(within(dialog).getByRole('button', { name: 'Delete worklog' }));
-        await waitFor(() => expect(api.deleteTaskWorklog).toHaveBeenCalledWith(1, 4));
+        await waitFor(() => expect(api.deleteTaskWorklog).toHaveBeenCalledWith(1, 4, {}));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         expect(screen.queryByText('Review work')).toBeNull();
         expect(screen.getByText('No work logged yet')).toBeTruthy();

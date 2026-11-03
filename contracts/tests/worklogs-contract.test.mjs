@@ -49,7 +49,7 @@ test('worklog edit/delete contracts expose author capabilities, partial patch an
     assert.equal(patch.minProperties, 1);
     assert.equal(patch.additionalProperties, false);
     assert.ok(!patch.required?.length);
-    assert.deepEqual(Object.keys(patch.properties).sort(), ['author_id', 'comment', 'day_worked', 'start_time', 'time_spent']);
+    assert.deepEqual(Object.keys(patch.properties).sort(), ['author_id', 'comment', 'day_worked', 'remaining_estimate', 'remaining_mode', 'start_time', 'time_spent']);
     assert.deepEqual(api.paths[endpoint].delete.responses['200'].content['application/json'].schema, { $ref: '#/components/schemas/DeleteWorklogResponse' });
     assert.deepEqual(api.components.schemas.DeleteWorklogResponse.required, ['ticket']);
     for (const capability of ['canEdit', 'canDelete']) {

@@ -13,7 +13,7 @@ import { findDecisionOwners, findDecisionSprints } from "./tasks.capabilitiesRep
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
     | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "CANCELLED_TERMINAL" | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
-export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule" | "logWork" | "logWorkForOthers";
+export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule" | "logWork" | "logWorkForOthers" | "canEditEstimate";
 export interface TicketDecision {
     container: "sprint" | "scheduled" | "backlog";
     capabilities: {
@@ -103,6 +103,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
                 logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 logWorkForOthers: !isOrgAdmin(actor.role) ? deny("WORKLOG_FOR_OTHERS_DENIED")
                     : !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
+                canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
                 cancel: cancel.allowed ? allow : deny(cancel.reason),
                 transfer: !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,

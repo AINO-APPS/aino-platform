@@ -22,14 +22,18 @@ export interface TaskWorklog {
 export const getTaskWorklogs = (id: number | string) =>
     API.get<{ worklogs: TaskWorklog[]; time_spent_minutes: number }>(`/tasks/${id}/worklogs`);
 
-export interface LogWorkInput {
+export interface RemainingInput { remaining_mode?: 'auto' | 'set' | 'leave'; remaining_estimate?: string }
+export interface LogWorkInput extends RemainingInput {
     day_worked: string;
     time_spent: string;
     start_time?: string | null;
     comment?: string | null;
     author_id?: number;
 }
-export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null }
+export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null }
+export const setTaskEstimates = (id: number | string, input: { original_estimate?: string; remaining_estimate?: string }) =>
+    API.patch<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/estimates`, input);
 export interface LogWorkResponse {
     worklog: TaskWorklog;
     ticket: WorklogTicketSummary;
@@ -41,8 +45,8 @@ export const logTaskWork = (id: number | string, input: LogWorkInput) =>
 export const editTaskWorklog = (id: number | string, worklogId: number, input: Partial<LogWorkInput>) =>
     API.patch<LogWorkResponse>(`/tasks/${id}/worklogs/${worklogId}`, input);
 
-export const deleteTaskWorklog = (id: number | string, worklogId: number) =>
-    API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`);
+export const deleteTaskWorklog = (id: number | string, worklogId: number, input: RemainingInput = {}) =>
+    API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`, { data: input });
 
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {

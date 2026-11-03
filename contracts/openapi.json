@@ -20723,6 +20723,112 @@
         }
       }
     },
+    "/api/tasks/{id}/estimates": {
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Set or clear original and remaining estimates",
+        "operationId": "patch_api_tasks_id_estimates",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estimates saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetEstimatesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ESTIMATE: invalid duration, fields or ticket identifier; nothing changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or WORKLOG_CANCELLED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found in this organization."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires canEditEstimate (same rule as logWork). Setting original seeds an empty remaining only when remaining is omitted. History/audit and estimates commit atomically; task_updated emits after commit.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEstimatesRequest"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{id}/worklogs": {
       "get": {
         "tags": [
@@ -20850,7 +20956,7 @@
             }
           },
           "400": {
-            "description": "INVALID_DURATION or INVALID_WORKLOG: no work is saved.",
+            "description": "INVALID_DURATION or INVALID_WORKLOG: no work is saved. INVALID_ESTIMATE for invalid remaining choices.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20900,7 +21006,7 @@
             }
           }
         },
-        "description": "Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Estimates are a separate rollout ticket.",
+        "description": "Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -20961,7 +21067,7 @@
             }
           },
           "400": {
-            "description": "INVALID_WORKLOG: unsupported fields.",
+            "description": "INVALID_WORKLOG: unsupported fields. INVALID_ESTIMATE for invalid remaining choices.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21021,7 +21127,7 @@
             }
           }
         },
-        "description": "The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining modes are deferred.",
+        "description": "The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": false,
           "content": {
@@ -21080,7 +21186,7 @@
             }
           },
           "400": {
-            "description": "INVALID_DURATION or INVALID_WORKLOG; nothing is changed.",
+            "description": "INVALID_DURATION or INVALID_WORKLOG; nothing is changed. INVALID_ESTIMATE for invalid remaining choices.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21140,7 +21246,7 @@
             }
           }
         },
-        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author or an org admin may edit; changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections.",
+        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author or an org admin may edit; changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -22133,7 +22239,7 @@
               "null"
             ],
             "minimum": 0,
-            "description": "Planned effort in minutes. Shown against logged_minutes."
+            "description": "Legacy alias of original_estimate_minutes."
           },
           "logged_minutes": {
             "type": "integer",
@@ -22185,6 +22291,20 @@
             "type": "integer",
             "minimum": 0,
             "description": "Sum of non-deleted worklog minutes, computed on read; never stored."
+          },
+          "original_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
           }
         },
         "required": [
@@ -22294,6 +22414,9 @@
               },
               "logWorkForOthers": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "canEditEstimate": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -22305,7 +22428,8 @@
               "placeInSprint",
               "schedule",
               "logWork",
-              "logWorkForOthers"
+              "logWorkForOthers",
+              "canEditEstimate"
             ],
             "additionalProperties": false
           }
@@ -23387,8 +23511,48 @@
             "minimum": 1,
             "maximum": 2147483647,
             "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
+          },
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
       },
       "WorklogTicketSummary": {
         "type": "object",
@@ -23411,13 +23575,29 @@
               "null"
             ],
             "minimum": 0
+          },
+          "original_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
           }
         },
         "required": [
           "id",
           "time_spent_minutes",
           "logged_minutes",
-          "estimated_minutes"
+          "estimated_minutes",
+          "original_estimate_minutes",
+          "remaining_estimate_minutes"
         ],
         "additionalProperties": false
       },
@@ -23482,14 +23662,95 @@
             "minimum": 1,
             "maximum": 2147483647,
             "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
+          },
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
           }
         },
-        "minProperties": 1
+        "minProperties": 1,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
       },
       "DeleteWorklogRequest": {
         "type": "object",
         "additionalProperties": false,
-        "properties": {}
+        "properties": {
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
       },
       "DeleteWorklogResponse": {
         "type": "object",
@@ -23502,6 +23763,33 @@
           "ticket"
         ],
         "additionalProperties": false
+      },
+      "SetEstimatesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "original_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        }
+      },
+      "SetEstimatesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          }
+        }
       }
     }
   }
