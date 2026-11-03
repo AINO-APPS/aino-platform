@@ -4,6 +4,7 @@ import { sprintTeamMismatchBody } from "./tasks.ownership";
 export const CAPABILITY_DENIAL_MESSAGES: Record<CapabilityReason, string> = {
     ACCESS_DENIED: "Access denied",
     WORKLOG_CANCELLED: "Work cannot be logged on a cancelled ticket.",
+    WORKLOG_FOR_OTHERS_DENIED: "Only an org admin can log work for another person.",
     SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",

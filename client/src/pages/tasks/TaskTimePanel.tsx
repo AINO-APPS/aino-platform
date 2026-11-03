@@ -30,6 +30,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     const canEditEstimate = actionDecision(task, 'canEditEstimate').allowed;
     useEffect(() => { setEstimates(null); }, [taskId, task?.original_estimate_minutes, task?.remaining_estimate_minutes]);
     const canLogWork = actionDecision(task, 'logWork').allowed;
+    const canLogWorkForOthers = actionDecision(task, 'logWorkForOthers').allowed;
     useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setEditing(undefined); setDeleting(undefined); setDeleted([]); setRevision(0); setWarnings([]); }, [taskId]);
     useRealtimeEvent(['task_updated'], event => {
         if (String((event.data as { taskId?: number })?.taskId) !== String(taskId)) return;
@@ -93,7 +94,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
                 setDeleting(undefined);
                 onLogged?.(-deleting.minutes);
             }} />}
-            {(editing || (open && canLogWork)) && <LogWorkDialog key={editing?.id ?? 'new'} taskId={taskId} worklog={editing} onClose={() => { setOpen(false); setEditing(undefined); }} onSaved={onSaved} />}
+            {(editing || (open && canLogWork)) && <LogWorkDialog key={editing?.id ?? 'new'} taskId={taskId} worklog={editing} canLogWorkForOthers={canLogWorkForOthers} onClose={() => { setOpen(false); setEditing(undefined); }} onSaved={onSaved} />}
         </section>
     );
 }

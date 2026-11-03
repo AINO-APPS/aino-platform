@@ -48,7 +48,14 @@
       },
       "logWork": {
         "allowed": true
-      }, "canEditEstimate": { "allowed": true }
+      },
+      "logWorkForOthers": {
+        "allowed": false,
+        "reason": "WORKLOG_FOR_OTHERS_DENIED"
+      },
+      "canEditEstimate": {
+        "allowed": true
+      }
     }
   },
   "team_id": 7,

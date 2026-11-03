@@ -28,6 +28,7 @@ export interface LogWorkInput extends RemainingInput {
     time_spent: string;
     start_time?: string | null;
     comment?: string | null;
+    author_id?: number;
 }
 export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null;
     original_estimate_minutes: number | null; remaining_estimate_minutes: number | null }

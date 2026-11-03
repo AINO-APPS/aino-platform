@@ -17,6 +17,7 @@ export interface LogWorkInput extends RemainingInput {
     time_spent: string;
     start_time?: string | null;
     comment?: string | null;
+    author_id?: number;
 }
 
 export class InvalidWorklog extends Error {
@@ -33,8 +34,15 @@ function validateWorklog(input: LogWorkInput) {
         throw new InvalidWorklog('Enter a valid start time.');
     if (input.comment != null && (typeof input.comment !== 'string' || input.comment.length > 10_000))
         throw new InvalidWorklog('Comment must be text of at most 10000 characters.');
-    if (Object.keys(input).some(key => !['day_worked', 'time_spent', 'start_time', 'comment', 'remaining_mode', 'remaining_estimate'].includes(key)))
+    if (Object.keys(input).some(key => !['day_worked', 'time_spent', 'start_time', 'comment', 'author_id', 'remaining_mode', 'remaining_estimate'].includes(key)))
         throw new InvalidWorklog('Unsupported worklog field.');
+}
+
+async function validateAuthor(db: TasksDb, input: Partial<LogWorkInput>, orgId: number | null) {
+    if (!Object.prototype.hasOwnProperty.call(input, 'author_id')) return;
+    if (typeof input.author_id !== 'number' || !Number.isInteger(input.author_id) || input.author_id < 1
+        || input.author_id > 2_147_483_647 || !await repository.worklogAuthorExists(db, input.author_id, orgId))
+        throw new InvalidWorklog('Choose a person in this organization.');
 }
 
 /** Permission is rechecked under the ticket lock; all durable records precede realtime. */
@@ -46,11 +54,16 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         if (!task) return { conflict: { status: 404, body: { error: 'Task not found' } } };
         const conflict = await ticketActionConflict(tx, actor, task, 'logWork');
         if (conflict) return { conflict };
+        if (input && Object.prototype.hasOwnProperty.call(input, 'author_id')) {
+            const authorConflict = await ticketActionConflict(tx, actor, task, 'logWorkForOthers');
+            if (authorConflict) return { conflict: authorConflict };
+        }
         validateWorklog(input);
+        await validateAuthor(tx, input, actor.orgId);
         const minutes = parseDuration(input.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
         await applyRemaining(tx, task, 0, minutes, input);
-        const id = await repository.insertWorklog(tx, taskId, actor.userId, input, minutes);
-        const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor.userId);
+        const id = await repository.insertWorklog(tx, taskId, input.author_id ?? actor.userId, actor.userId, input, minutes);
+        const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(tx, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
         context.afterCommit(async () => {
@@ -73,17 +86,22 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        if (!decideWorklog(actor.userId, before).canEdit)
-            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author can edit it.' } } };
+        if (!decideWorklog(actor, before).canEdit)
+            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can edit it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.keys(input).length)
             throw new InvalidWorklog('Enter changed worklog fields.');
+        if (Object.prototype.hasOwnProperty.call(input, 'author_id')) {
+            const authorConflict = await ticketActionConflict(tx, actor, task, 'logWorkForOthers');
+            if (authorConflict) return { conflict: authorConflict };
+        }
+        await validateAuthor(tx, input, actor.orgId);
         const fields = { day_worked: before.day_worked, start_time: before.start_time,
             comment: before.comment, time_spent: `${before.minutes}m`, ...input };
         validateWorklog(fields);
         const minutes = parseDuration(fields.time_spent, await repository.workingHoursPerDay(tx, actor.orgId));
         await applyRemaining(tx, task, before.minutes, minutes, input);
         await repository.updateWorklog(tx, worklogId, fields, minutes);
-        const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor.userId);
+        const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === worklogId)!;
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_updated', before, worklog, source.ip, source.userAgent);
         context.afterCommit(async () => {
@@ -106,9 +124,10 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        if (!decideWorklog(actor.userId, before).canDelete)
-            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author can delete it.' } } };
-        if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['remaining_mode','remaining_estimate'].includes(key)))
+        if (!decideWorklog(actor, before).canDelete)
+            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can delete it.' } } };
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+            || Object.keys(input).some(key => !['remaining_mode', 'remaining_estimate'].includes(key)))
             throw new InvalidWorklog('Unsupported worklog field.');
         await applyRemaining(tx, task, before.minutes, 0, input);
         const deleted = await repository.softDeleteWorklog(tx, worklogId);
@@ -125,11 +144,11 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
 /** Batched read: missing and empty tickets have zero time, never the obsolete stored total. */
 export const getTimeSpent = repository.readTimeSpent;
 
-export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: number | null, viewerId?: number) {
+export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: number | null, actor?: TaskActor) {
     const rows = await repository.listWorklogs(db, taskId, orgId);
     const worklogs = rows.map(({ username, full_name, avatar, logged_by_username, logged_by_name, logged_by_avatar, source_timer_id: _source, ...row }) => ({
         ...row,
-        ...decideWorklog(viewerId, row),
+        ...decideWorklog(actor, row),
         author: { id: row.author_id, username, full_name, avatar },
         logged_by: { id: row.logged_by_id, username: logged_by_username, full_name: logged_by_name, avatar: logged_by_avatar },
     }));

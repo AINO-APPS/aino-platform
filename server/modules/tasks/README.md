@@ -88,7 +88,7 @@ its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 `logged_minutes` in responses is a legacy alias, never the stored ticket column.
 
 `logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
-`day_worked`, `time_spent`, optional `start_time` and `comment`, and returns
+`day_worked`, `time_spent`, optional `start_time`, `comment` and `author_id`, and returns
 `{ worklog, ticket, warnings }` with authoritative time spent and the legacy
 estimate. It locks the org-scoped ticket, checks `can.logWork` through the
 capabilities module, and writes worklog/history/audit in one transaction.
@@ -114,17 +114,25 @@ into an error. The web displays plain-language warnings after closing the save
 dialog, and clears them on the next clean save or ticket change.
 
 `editWorklog` (`PATCH /api/tasks/:id/worklogs/:worklogId`) accepts any changed
-subset of those four fields; null clears start time or comment. `deleteWorklog`
+subset of those fields; null clears start time or comment. `deleteWorklog`
 (`DELETE` on the same path) soft-deletes, returning the authoritative ticket
 summary. Both lock the org-scoped ticket and active worklog, check visibility and
 `decideWorklog` in the capabilities module, then write history/audit atomically
 before after-commit realtime. `canEdit` / `canDelete` on every worklog are true
-only for its author, including after Done or Cancelled; another member or admin
-gets 403 for now. Missing, deleted or foreign-ticket worklogs return 404.
+for its author or an org admin (HR admin and above), including after Done or
+Cancelled. Other members get 403. `getTicketWorklogs` takes the viewer's actor
+so serialization and correction guards use the same decision. Missing, deleted
+or foreign-ticket worklogs return 404.
 Deleted entries leave lists and all computed totals but remain in history.
 Web/desktop reuse the prefilled Log work dialog with changed-fields-only patches;
-delete requires confirmation. Estimates and remaining choices are documented below;
-behalf logging remains owned by ticket 05. The temporary Android route
+delete requires confirmation. `can.logWorkForOthers` gates the Person picker.
+Any supplied `author_id` on create or edit (even self, null or malformed values)
+requires that capability, otherwise 403 `WORKLOG_FOR_OTHERS_DENIED`. Authorized
+authors must be integer user ids in the actor's organization; missing/foreign or
+malformed people return 400 `INVALID_WORKLOG`. Omitting author uses the caller
+on create and keeps the current author on edit. `logged_by_id` always records
+the original logger and never changes on correction; history/audit record the
+current actor. The list shows both identities when they differ. Estimates and remaining choices are documented below. The temporary Android route
 waiver is removed when ticket 08 proves native edit/delete coverage.
 
 `stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog

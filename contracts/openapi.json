@@ -20976,7 +20976,7 @@
             }
           },
           "403": {
-            "description": "ACCESS_DENIED or WORKLOG_CANCELLED: the viewer cannot log work on this ticket.",
+            "description": "ACCESS_DENIED, WORKLOG_CANCELLED or WORKLOG_FOR_OTHERS_DENIED: the viewer cannot log work or supplied an author without the behalf capability.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21006,7 +21006,7 @@
             }
           }
         },
-        "description": "Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving, using the author’s local attendance day and worklogs across tickets; they never block or roll back the write. Behalf logging is a separate rollout ticket. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -21087,7 +21087,7 @@
             }
           },
           "403": {
-            "description": "ACCESS_DENIED: only the author can delete a visible worklog.",
+            "description": "ACCESS_DENIED: only the author or an org admin can delete a visible worklog.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21127,7 +21127,7 @@
             }
           }
         },
-        "description": "Only the author can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Admin override is deferred. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": false,
           "content": {
@@ -21206,7 +21206,7 @@
             }
           },
           "403": {
-            "description": "ACCESS_DENIED: only the author can correct a visible worklog.",
+            "description": "ACCESS_DENIED or WORKLOG_FOR_OTHERS_DENIED: only the author or an org admin can correct a visible worklog; any supplied author requires the behalf capability.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21246,7 +21246,7 @@
             }
           }
         },
-        "description": "Accepts only changed day worked, duration, start time or comment. Null clears optional fields. Only the worklog author may edit; Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated worklog aggregate; failed warning reads never block or roll back corrections. Admin override is a later rollout ticket. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author or an org admin may edit; changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -22339,7 +22339,8 @@
               "IN_SPRINT",
               "SPRINT_TEAM_MISMATCH",
               "CANCELLED_TERMINAL",
-              "WORKLOG_CANCELLED"
+              "WORKLOG_CANCELLED",
+              "WORKLOG_FOR_OTHERS_DENIED"
             ]
           }
         },
@@ -22411,6 +22412,9 @@
               "logWork": {
                 "$ref": "#/components/schemas/TicketCapability"
               },
+              "logWorkForOthers": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
               "canEditEstimate": {
                 "$ref": "#/components/schemas/TicketCapability"
               }
@@ -22424,6 +22428,7 @@
               "placeInSprint",
               "schedule",
               "logWork",
+              "logWorkForOthers",
               "canEditEstimate"
             ],
             "additionalProperties": false
@@ -23325,7 +23330,8 @@
             "type": "integer"
           },
           "logged_by_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "The original person who logged this work; unchanged by later corrections."
           },
           "author": {
             "type": "object",
@@ -23389,11 +23395,11 @@
           },
           "canEdit": {
             "type": "boolean",
-            "description": "Server-decided: the current viewer is the worklog author. Org-admin override is deferred to ticket 05."
+            "description": "Server-decided: the viewer is the worklog author or an org admin (HR admin and above)."
           },
           "canDelete": {
             "type": "boolean",
-            "description": "Server-decided: the current viewer is the worklog author."
+            "description": "Server-decided: the viewer is the worklog author or an org admin (HR admin and above)."
           },
           "day_worked": {
             "type": "string",
@@ -23499,6 +23505,12 @@
               "null"
             ],
             "maxLength": 10000
+          },
+          "author_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
           },
           "remaining_mode": {
             "type": "string",
@@ -23644,6 +23656,12 @@
               "null"
             ],
             "maxLength": 10000
+          },
+          "author_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
           },
           "remaining_mode": {
             "type": "string",

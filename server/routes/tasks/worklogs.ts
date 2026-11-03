@@ -23,7 +23,7 @@ router.get("/:id/worklogs", auth, loadUserContext, async (req: Request, res: Res
         const task = await getTask(req.db!, String(req.params.id));
         if (!task) return res.status(404).json({ error: "Task not found" });
         if (!await canAccessTask(task, actor, req.db)) return denyTaskAccess(res, task, actor);
-        res.json(await getTicketWorklogs(req.db!, task.id, actor.orgId, actor.userId));
+        res.json(await getTicketWorklogs(req.db!, task.id, actor.orgId, actor));
     } catch (err) {
         req.log.error({ err }, "Error reading ticket worklogs");
         res.status(500).json({ error: "Failed to fetch worklogs" });

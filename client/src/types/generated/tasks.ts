@@ -104,6 +104,7 @@ export interface TicketCapabilitiesCan {
   placeInSprint: TicketCapability;
   schedule: TicketCapability;
   logWork: TicketCapability;
+  logWorkForOthers: TicketCapability;
   canEditEstimate: TicketCapability;
 }
 

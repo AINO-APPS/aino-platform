@@ -497,6 +497,29 @@ Carry forward incomplete tasks from the previous day to today.
 - **Body**: `{ "task_ids": ["uuid"] }`
 - **Response**: `200 { carried: 3 }`
 
+### Manual worklogs
+
+- `GET /api/tasks/:id/worklogs` returns non-deleted worklogs, author and
+  original logged-by identities, server-decided `canEdit` / `canDelete`, and
+  computed time spent.
+- `POST /api/tasks/:id/worklogs` accepts `day_worked`, `time_spent` (for example
+  `2h 30m`), optional `start_time`, `comment` and `author_id`. Returns
+  `201 { worklog, ticket, warnings }`.
+- `PATCH /api/tasks/:id/worklogs/:worklogId` accepts changed fields from the
+  same input and returns `{ worklog, ticket, warnings }`.
+- `DELETE /api/tasks/:id/worklogs/:worklogId` soft-deletes and returns `{ ticket }`.
+
+The author or an org admin (HR admin and above) can edit/delete visible worklogs.
+Any supplied `author_id`, even self, requires the ticket's
+`capabilities.can.logWorkForOthers.allowed`; otherwise it returns
+`403 WORKLOG_FOR_OTHERS_DENIED`. Authorized authors must be integer user ids in
+this organization; invalid, missing or foreign users return `400 INVALID_WORKLOG`.
+Omitting author uses the caller on create and retains the author on edit.
+`logged_by_id` is the original logger and never changes during correction.
+History/audit identify the actor making each change. Attendance warnings are
+computed after commit for the saved author/day and never block the save.
+See `contracts/openapi.json` for the complete schemas.
+
 ---
 
 ## 5. Sprints

@@ -364,7 +364,132 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         } finally { await pool.query('ALTER TABLE unavailable_attendance RENAME TO time_entries'); }
     });
 
-    test('worklog capabilities are server-decided for the author, not another member or admin', async () => {
+    test.each([['auto', 90, 60, 120], ['set', 45, 45, 45], ['leave', 120, 120, 120]])(
+        'admin author changes and %s remaining choices preserve attribution and saved-author warnings', async (mode, added, edited, deleted) => {
+            const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Behalf forecast' })).body.id;
+            await request(app).patch(`/api/tasks/${id}/estimates`).send({ original_estimate: '2h' });
+            await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (2, '2026-11-01', 'planned', 'approved')");
+            const choice = { remaining_mode: mode, ...(mode === 'set' ? { remaining_estimate: '45m' } : {}) };
+            const saved = await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-role', 'hr_admin')
+                .send({ day_worked: '2026-11-01', time_spent: '30m', author_id: 2, ...choice });
+            expect(saved.status).toBe(201);
+            expect(saved.body).toMatchObject({ worklog: { author_id: 2, logged_by_id: 1 },
+                ticket: { time_spent_minutes: 30, remaining_estimate_minutes: added }, warnings: ['ON_LEAVE'] });
+            const endpoint = `/api/tasks/${id}/worklogs/${saved.body.worklog.id}`;
+            const changed = await request(app).patch(endpoint).set('x-test-user', '2').set('x-test-role', 'hr_admin')
+                .send({ author_id: 1, time_spent: '1h', ...choice });
+            expect(changed.status).toBe(200);
+            expect(changed.body).toMatchObject({ worklog: { author_id: 1, logged_by_id: 1 },
+                ticket: { time_spent_minutes: 60, remaining_estimate_minutes: edited }, warnings: [] });
+            const denied = await request(app).patch(endpoint).send({ author_id: 2, ...choice });
+            expect(denied.status).toBe(403);
+            expect(denied.body.code).toBe('WORKLOG_FOR_OTHERS_DENIED');
+            expect((await request(app).get(`/api/tasks/${id}/detail`)).body.remaining_estimate_minutes).toBe(edited);
+            const removed = await request(app).delete(endpoint).set('x-test-user', '2').set('x-test-role', 'hr_admin').send(choice);
+            expect(removed.status).toBe(200);
+            expect(removed.body.ticket).toMatchObject({ time_spent_minutes: 0, remaining_estimate_minutes: deleted });
+        });
+
+    test('an HR admin logs work for a same-org member with separate author and logged-by attribution', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Behalf effort' })).body.id;
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-role', 'hr_admin')
+            .send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 2 });
+        expect(saved.status).toBe(201);
+        expect(saved.body).toMatchObject({ worklog: { author_id: 2, logged_by_id: 1,
+            author: { id: 2, full_name: 'Bob' }, logged_by: { id: 1, full_name: 'Alice' } },
+            ticket: { time_spent_minutes: 60 } });
+        const visible = await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-role', 'hr_admin');
+        expect(visible.body.worklogs[0]).toEqual(saved.body.worklog);
+        const history = (await request(app).get(`/api/tasks/${id}/history`)).body;
+        expect(history.find((h: any) => h.action === 'worklog_added')).toMatchObject({ user_id: 1 });
+    });
+
+    test.each([2, 1, null, '2', 0])('a member supplying author_id %j gets 403 even for self or malformed values', async author_id => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Author denied' })).body.id;
+        const result = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', author_id });
+        expect(result.status).toBe(403);
+        expect(result.body).toMatchObject({ code: 'WORKLOG_FOR_OTHERS_DENIED' });
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toMatchObject({ worklogs: [], time_spent_minutes: 0 });
+        expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
+    });
+
+    test.each([3, 99999, 0, -1, 1.5, '2', null, true, {}, [], 2147483648])('an admin cannot use invalid or foreign author_id %j', async author_id => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Validate author' })).body.id;
+        const result = await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-role', 'hr_admin')
+            .send({ day_worked: '2026-11-01', time_spent: '1h', author_id });
+        expect(result.status).toBe(400);
+        expect(result.body.code).toBe('INVALID_WORKLOG');
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([]);
+    });
+
+    test.each(['hr_admin', 'super_admin', 'platform_admin'])('%s edits and deletes another author’s worklog without becoming its logger', async role => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Admin correction' })).body.id;
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Original' })).body.worklog;
+        const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
+        const listed = await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-user', '2').set('x-test-team', '2').set('x-test-role', role);
+        expect(listed.body.worklogs[0]).toMatchObject({ canEdit: true, canDelete: true });
+        const edited = await request(app).patch(endpoint).set('x-test-user', '2').set('x-test-team', '2').set('x-test-role', role)
+            .send({ day_worked: '2026-11-02', time_spent: '30m', start_time: '10:15', comment: 'Admin correction' });
+        expect(edited.status).toBe(200);
+        expect(edited.body).toMatchObject({ worklog: { author_id: 1, logged_by_id: 1, minutes: 30,
+            day_worked: '2026-11-02', start_time: '10:15:00', comment: 'Admin correction' }, ticket: { time_spent_minutes: 30 } });
+        const removed = await request(app).delete(endpoint).set('x-test-user', '2').set('x-test-team', '2').set('x-test-role', role);
+        expect(removed.status).toBe(200);
+        expect(removed.body.ticket.time_spent_minutes).toBe(0);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([]);
+        const history = (await request(app).get(`/api/tasks/${id}/history`)).body;
+        for (const action of ['worklog_updated', 'worklog_deleted']) expect(history.find((h: any) => h.action === action)).toMatchObject({ user_id: 2 });
+    });
+
+    test('admin can change a worklog author, validates the same-org person and retains the original logger', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Correct author' })).body.id;
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' })).body.worklog;
+        const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
+        for (const author_id of [1, 2, null, '2']) {
+            const denied = await request(app).patch(endpoint).send({ author_id });
+            expect(denied.status).toBe(403);
+            expect(denied.body.code).toBe('WORKLOG_FOR_OTHERS_DENIED');
+        }
+        for (const author_id of [3, 99999, 0, 1.5, null, '2']) {
+            const invalid = await request(app).patch(endpoint).set('x-test-role', 'hr_admin').send({ author_id });
+            expect(invalid.status).toBe(400);
+            expect(invalid.body.code).toBe('INVALID_WORKLOG');
+        }
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([original]);
+        const changed = await request(app).patch(endpoint).set('x-test-role', 'hr_admin').send({ author_id: 2 });
+        expect(changed.status).toBe(200);
+        expect(changed.body.worklog).toMatchObject({ author_id: 2, logged_by_id: 1, minutes: 60,
+            author: { full_name: 'Bob' }, logged_by: { full_name: 'Alice' }, canEdit: true, canDelete: true });
+        await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        const byAuthor = await request(app).patch(endpoint).set('x-test-user', '2').send({ comment: 'My time' });
+        expect(byAuthor.status).toBe(200);
+        expect(byAuthor.body.worklog).toMatchObject({ author_id: 2, logged_by_id: 1 });
+        const history = (await request(app).get(`/api/tasks/${id}/history`)).body;
+        const correction = history.find((h: any) => h.action === 'worklog_updated' && h.user_id === 1);
+        expect(JSON.parse(correction.old_value)).toMatchObject({ author_id: 1, logged_by_id: 1 });
+        expect(JSON.parse(correction.new_value)).toMatchObject({ author_id: 2, logged_by_id: 1 });
+    });
+
+    test('behalf create and author corrections compute warnings for the saved author, not the admin or previous author', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Author warnings' })).body.id;
+        await pool.query("INSERT INTO leaves (user_id, date, leave_type, status) VALUES (2, '2026-11-01', 'planned', 'approved')");
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-role', 'hr_admin')
+            .send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 2 });
+        expect(saved.status).toBe(201);
+        expect(saved.body.warnings).toEqual(['ON_LEAVE']);
+        const endpoint = `/api/tasks/${id}/worklogs/${saved.body.worklog.id}`;
+        const reassigned = await request(app).patch(endpoint).set('x-test-role', 'hr_admin').send({ author_id: 1 });
+        expect(reassigned.status).toBe(200);
+        expect(reassigned.body.worklog).toMatchObject({ author_id: 1, logged_by_id: 1 });
+        expect(reassigned.body.warnings).toEqual([]);
+        const returned = await request(app).patch(endpoint).set('x-test-role', 'hr_admin').send({ author_id: 2 });
+        expect(returned.status).toBe(200);
+        expect(returned.body.warnings).toEqual(['ON_LEAVE']);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body.time_spent_minutes).toBe(60);
+    });
+
+    test('worklog capabilities are server-decided for the author or an org admin', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Own effort' })).body.id;
         await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
         const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' });
@@ -372,17 +497,17 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         for (const role of ['employee', 'super_admin']) {
             const other = await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-user', '2').set('x-test-role', role);
             expect(other.status).toBe(200);
-            expect(other.body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+            expect(other.body.worklogs[0]).toMatchObject({ canEdit: role === 'super_admin', canDelete: role === 'super_admin' });
         }
     });
 
-    test('author corrects every worklog field while another member or admin is forbidden', async () => {
+    test('author corrects every worklog field while another member is forbidden', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Correct effort' })).body.id;
         await pool.query('UPDATE organizations SET work_hours_per_day = 7 WHERE id = 1');
         await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
         const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', start_time: '09:00', time_spent: '1h', comment: 'First' })).body.worklog;
         const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
-        for (const role of ['employee', 'super_admin']) {
+        for (const role of ['employee', 'manager']) {
             expect((await request(app).patch(endpoint).set('x-test-user', '2').set('x-test-role', role).send({ comment: 'Not mine' })).status).toBe(403);
         }
         const edited = await request(app).patch(endpoint).send({ day_worked: '2026-11-02', start_time: '10:30', time_spent: '1d', comment: 'Corrected' });
@@ -406,7 +531,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Mistake' })).body.worklog;
         await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '30m', comment: 'Keep' });
         const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
-        for (const role of ['employee', 'super_admin']) {
+        for (const role of ['employee', 'manager']) {
             expect((await request(app).delete(endpoint).set('x-test-user', '2').set('x-test-role', role)).status).toBe(403);
         }
         const deleted = await request(app).delete(endpoint);
@@ -432,7 +557,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         const otherId = (await request(app).post('/api/tasks/backlog').send({ title: 'Other ticket' })).body.id;
         const worklog = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Keep' })).body.worklog;
         const endpoint = `/api/tasks/${id}/worklogs/${worklog.id}`;
-        for (const fields of [{}, { day_worked: '2026-02-30' }, { day_worked: null }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }]) {
+        for (const fields of [{}, { day_worked: '2026-02-30' }, { day_worked: null }, { start_time: '25:00' }, { comment: 123 }, { unknown_field: 2 }]) {
             const result = await request(app).patch(endpoint).send(fields);
             expect(result.status).toBe(400);
             expect(result.body.code).toBe('INVALID_WORKLOG');
@@ -539,7 +664,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             expect(response.status).toBe(400);
             expect(response.body.code).toBe('INVALID_DURATION');
         }
-        for (const fields of [{ day_worked: '2026-02-30' }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }]) {
+        for (const fields of [{ day_worked: '2026-02-30' }, { start_time: '25:00' }, { comment: 123 }, { unknown_field: 2 }]) {
             expect((await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', ...fields })).status).toBe(400);
         }
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [], time_spent_minutes: 0 });

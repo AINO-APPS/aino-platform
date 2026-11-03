@@ -11,9 +11,9 @@ import { placementRefusal } from "./tasks.placementRules";
 import { findDecisionOwners, findDecisionSprints } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
-    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "CANCELLED_TERMINAL" | "WORKLOG_CANCELLED";
+    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "CANCELLED_TERMINAL" | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
-export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule" | "logWork" | "canEditEstimate";
+export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule" | "logWork" | "logWorkForOthers" | "canEditEstimate";
 export interface TicketDecision {
     container: "sprint" | "scheduled" | "backlog";
     capabilities: {
@@ -101,6 +101,8 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
             can: {
                 edit,
                 logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
+                logWorkForOthers: !isOrgAdmin(actor.role) ? deny("WORKLOG_FOR_OTHERS_DENIED")
+                    : !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
                 cancel: cancel.allowed ? allow : deny(cancel.reason),
@@ -113,9 +115,9 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
     };
 }
 
-export function decideWorklog(viewerId: number | undefined, worklog: { author_id: number }) {
-    const own = viewerId != null && Number(worklog.author_id) === viewerId;
-    return { canEdit: own, canDelete: own };
+export function decideWorklog(actor: Pick<TaskActor, 'userId' | 'role'> | undefined, worklog: { author_id: number }) {
+    const allowed = actor != null && (Number(worklog.author_id) === actor.userId || isOrgAdmin(actor.role));
+    return { canEdit: allowed, canDelete: allowed };
 }
 
 export function decideTickets(actor: TaskActor, tickets: readonly DecisionTicket[], context: TicketDecisionContext) {
