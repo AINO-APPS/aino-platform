@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-02",
+  "updated": "2026-11-04",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -671,20 +671,90 @@
     },
     {
       "id": "time-tracking-on-task",
-      "name": "manual worklogs, inline original/remaining estimates, remaining choices and legacy Android timer compatibility",
+      "name": "manual worklogs, estimates, remaining choices, admin attribution and attendance warnings",
       "decision": "D13",
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+        "owner_tests": [
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "remaining choices send auto/set/leave payloads for %s"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "inline estimates use only the server capability and immediately show the new forecast and overrun"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "person picker follows only the server capability (%j)"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "list shows logged-by attribution only when someone else logged the author’s time"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "shows both returned attendance warnings after the worklog saves and the dialog closes"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "changing the worked day and duration shows edit warnings after save, then clears them after a clean correction"
+          }
+        ]
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+        "owner_tests": [
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "remaining choices send auto/set/leave payloads for %s"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "inline estimates use only the server capability and immediately show the new forecast and overrun"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "person picker follows only the server capability (%j)"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "list shows logged-by attribution only when someone else logged the author’s time"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "shows both returned attendance warnings after the worklog saves and the dialog closes"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "changing the worked day and duration shows edit warnings after save, then clears them after a clean correction"
+          }
+        ]
       },
       "android": {
-        "status": "waived",
-        "waiver": "Temporary manual-worklogs ticket 02 rollout: web/desktop replace the ticket timer with Log work; Android keeps compatible Start/Stop until native worklogs ship. Ticket 08 owns and closes this time-tracking parity waiver; contracts/android-worklogs-waiver.json tracks uncovered endpoints."
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+        "owner_tests": [
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "loggingWorkUpdatesListAndSharedTimeSpentWithTheEnteredFields"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "editingWorklogKeepsItsIdentityAndReplacesTimeSpentFromServer"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "deletingWorklogRemovesItAndUsesServerTotal"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "serverCapabilitiesHideLogEditAndDeleteWithoutInferringFromRoles"
+          }
+        ]
       },
       "ios": {
         "status": "waived",

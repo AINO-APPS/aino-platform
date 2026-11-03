@@ -13,17 +13,15 @@ const inventory = read(path.join(root, 'contracts', 'http-route-inventory.json')
 const prior = read(path.join(android, 'contracts', 'http-route-inventory.json'));
 const coverage = read(path.join(android, 'contracts', 'android-endpoint-coverage.json'));
 const nativeWaivers = read(path.join(android, 'docs', 'parity-waivers.json')).waivers;
-const temporary = read(path.join(root, 'contracts', 'android-worklogs-waiver.json')).waivers;
 const key = e => `${e.method} ${e.path.replace(/:[^/]+/g, ':param')}`;
 const existing = new Set(prior.endpoints.map(key));
 const proven = new Set(coverage.covered.map(key));
 const waived = new Set(nativeWaivers.map(w => w.key));
-for (const waiver of temporary) {
-    if (!waiver.key || !waiver.owner || !waiver.reason || !waiver.removeWhen) throw new Error('Temporary Android waivers require key, owner, reason and removal condition.');
-    if (!inventory.endpoints.some(e => key(e) === waiver.key)) throw new Error(`Stale platform waiver: ${waiver.key}`);
-    if (proven.has(waiver.key)) throw new Error(`Remove shipped Android waiver: ${waiver.key}`);
-    waived.add(waiver.key);
-}
+const manualWorklogs = inventory.endpoints.filter(e => /^\/api\/tasks\/:param\/(?:worklogs(?:\/:param)?|estimates)$/.test(e.path.replace(/:[^/]+/g, ':param')));
+const missingWorklogs = manualWorklogs.filter(e => !proven.has(key(e)));
+if (missingWorklogs.length) throw new Error(`Manual worklog routes require Android coverage, not waivers: ${missingWorklogs.map(key).join(', ')}`);
+const staleWorklogs = manualWorklogs.filter(e => waived.has(key(e)));
+if (staleWorklogs.length) throw new Error(`Remove shipped manual-worklog Android waivers: ${staleWorklogs.map(key).join(', ')}`);
 const uncovered = inventory.endpoints.filter(e => !existing.has(key(e)) && !proven.has(key(e)) && !waived.has(key(e)));
 if (uncovered.length) throw new Error(`New platform routes lack Android coverage or a rollout waiver: ${uncovered.map(key).join(', ')}`);
 const pending = inventory.endpoints.filter(e => !proven.has(key(e)) && !waived.has(key(e)));
