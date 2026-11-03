@@ -92,4 +92,17 @@ describe("SprintCancelledSection", () => {
         await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
         expect(screen.queryByText("Kept history")).toBeNull();
     });
+
+    test("follows board refreshes without a websocket event or collapsing open history", async () => {
+        const first = { id: 13, title: "Existing cancellation", workflow_state_key: "cancelled" };
+        const second = { id: 14, title: "New cancellation", workflow_state_key: "cancelled" };
+        getTasks.mockResolvedValueOnce({ data: { tasks: [first] } });
+        const { rerender } = render(<SprintCancelledSection sprintId={4} boardTasks={[{ id: 14 }]} onOpenDetail={vi.fn()} />);
+        fireEvent.click(await screen.findByRole("button", { name: /Cancelled/ }));
+        getTasks.mockResolvedValueOnce({ data: { tasks: [first, second] } });
+        rerender(<SprintCancelledSection sprintId={4} boardTasks={[]} onOpenDetail={vi.fn()} />);
+        expect(await screen.findByText("New cancellation")).toBeInTheDocument();
+        expect(screen.getByText("Existing cancellation")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /^Cancelled/ })).toHaveAttribute("aria-expanded", "true");
+    });
 });

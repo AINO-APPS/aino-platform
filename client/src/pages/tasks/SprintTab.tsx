@@ -180,7 +180,7 @@ export default function SprintTab({
                 </AsyncSection>
             )}
             {!plan && (
-                <SprintCancelledSection sprintId={selectedSprintId} scopeParams={scopeParams} onOpenDetail={onOpenDetail} />
+                <SprintCancelledSection sprintId={selectedSprintId} scopeParams={scopeParams} boardTasks={tasks} onOpenDetail={onOpenDetail} />
             )}
 
             {tasks.length === 0 && !loading && !error && (

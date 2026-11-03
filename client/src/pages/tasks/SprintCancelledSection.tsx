@@ -11,6 +11,7 @@ interface SprintCancelledSectionProps {
     sprintId: number | string | null | undefined;
     /** The board's team scope (`team_id` / `unassigned`), so the list matches the columns. */
     scopeParams?: Record<string, unknown>;
+    boardTasks?: readonly unknown[];
     onOpenDetail: (task: Task) => void;
 }
 
@@ -21,7 +22,7 @@ interface SprintCancelledSectionProps {
  * without this a cancelled ticket simply vanished. It is history: no drag, no
  * actions, just a way back into the ticket.
  */
-export default function SprintCancelledSection({ sprintId, scopeParams, onOpenDetail }: SprintCancelledSectionProps) {
+export default function SprintCancelledSection({ sprintId, scopeParams, boardTasks, onOpenDetail }: SprintCancelledSectionProps) {
     const teamId = scopeParams?.team_id;
     const unassigned = scopeParams?.unassigned;
     const scopeKey = JSON.stringify([sprintId, teamId, unassigned]);
@@ -60,9 +61,12 @@ export default function SprintCancelledSection({ sprintId, scopeParams, onOpenDe
 
     useEffect(() => {
         setOpen(false);
+    }, [scopeKey]);
+
+    useEffect(() => {
         void load();
         return () => { request.current++; };
-    }, [load]);
+    }, [load, boardTasks]);
 
     useRealtimeEvent(["task_updated", "task_assigned"], () => { void load(); });
 
