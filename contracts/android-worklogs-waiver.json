@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "waivers": [
+    {
+      "key": "GET /api/tasks/:param/worklogs",
+      "owner": "manual-worklogs ticket 07",
+      "reason": "Temporary ticket 01 rollout waiver: the platform ships the read-only worklog route before the Android worklog UI. Legacy Android Start/Stop keeps its response shape; stop now records a worklog.",
+      "removeWhen": "manual-worklogs ticket 07 ships Android worklog list coverage"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ const {
 } = require("../../../modules/tasks/tasks.enrich");
 const { loadTicketDecisionContext, decideTickets } = require("../../../modules/tasks/tasks.capabilities");
 const { loadLifecycleContext } = require("../../../modules/tasks/tasks.workflow");
+const { getTimeSpent } = require("../../../modules/tasks/tasks.worklogs");
 import type { TaskActor } from "../../../modules/tasks/tasks.policy";
 import type { LifecycleContext } from "../../../modules/tasks/tasks.workflow";
 
@@ -43,9 +44,10 @@ async function enrichTasks(
     if (!tasks.length) return [];
     const taskIds = tasks.map(t => t.id);
 
-    const [labelsMap, commentMap] = await Promise.all([
+    const [labelsMap, commentMap, timeSpent] = await Promise.all([
         getLabelsForTasks(taskIds, db),
         getCommentCounts(taskIds, db),
+        getTimeSpent(db, taskIds, actor.orgId),
     ]);
 
     const assigneeIds = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
@@ -87,6 +89,8 @@ async function enrichTasks(
         const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
             ...t,
+            time_spent_minutes: timeSpent[t.id] ?? 0,
+            logged_minutes: timeSpent[t.id] ?? 0,
             workflow_state_key: state?.key ?? null,
             workflow_state_name: state?.name ?? null,
             workflow_state_category: state?.category ?? null,
@@ -117,6 +121,8 @@ async function enrichTaskSummaries(
     const enriched = await enrichTasks(tasks, db, actor, lifecycle);
     return tasks.map((task, index) => ({
         ...task,
+        time_spent_minutes: enriched[index].time_spent_minutes,
+        logged_minutes: enriched[index].logged_minutes,
         container: enriched[index].container,
         capabilities: enriched[index].capabilities,
     }));

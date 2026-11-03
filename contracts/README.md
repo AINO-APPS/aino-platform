@@ -21,7 +21,34 @@ AINO_LEGACY_REPO=/path/to/legacy-clone node contracts/generate-mobile-route-map.
 
 The legacy commit is pinned to `d9d779c7520dbf052ba587ac2af649ec59920864` and is also asserted by `scripts/validate-contracts.mjs`, so the map always describes that immutable history. The generator fails with an explicit message when the clone or the commit is unavailable. After regenerating, review the classification diff.
 
-Validate with `npm run contracts:validate` from the repository root.
+Validate with `npm run contracts:validate` from the repository root. Model
+checks/generation in npm scripts use `--platform-only`: they never rewrite or
+require generated files in a native sibling checkout.
+
+### Worklogs rollout (ticket 01)
+
+`GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,
+day worked, minutes, optional start/comment, timestamps, and computed
+`time_spent_minutes`. Entries are newest day worked first, then creation time/id.
+Ticket read responses carry `time_spent_minutes`; `logged_minutes` is the same
+computed sum for older apps. Timer routes are deprecated but their envelopes
+are unchanged; stopping atomically creates one worklog, rounded up to at least
+one minute. Estimate naming remains unchanged until ticket 04.
+
+`worklogs.mjs` defines the new field-level contract. `reviewed-task-baseline.json`
+preserves already-published precise task schemas/operations when regenerating
+with the historical baseline generator; unrelated contracts must not regress.
+
+Android is inspected read-only. The native checker validates its committed
+snapshot; the platform delta gate additionally checks **this checkout's** current
+inventory against native coverage and waivers. A temporary route waiver lives in
+`android-worklogs-waiver.json` and must be removed when ticket 07 ships coverage:
+
+```powershell
+node scripts\check-android-endpoint-parity.mjs <Android-checkout>
+```
+
+No Android snapshots or source files are rewritten by this command.
 
 The mobile map covers backend calls made through the shared Axios `api` instance. Direct external `fetch` calls (for application updates, GitHub releases, and geocoding) are intentionally excluded because they are not AINO server routes. Validation fails if any wrapper call could not be resolved to a string or template-literal path.
 

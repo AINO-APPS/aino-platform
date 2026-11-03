@@ -10,6 +10,7 @@ Owns employee time-tracking behavior and its persistence boundary.
 - `PUT /api/tracker/theme`
 - `GET /api/tracker/weekly`
 - `GET /api/tracker/task-summary`
+- `GET /api/tracker/task-time` (non-deleted worklogs grouped by recorded day worked; response shape unchanged)
 - `GET /api/tracker/history`
 - `GET /api/tracker/analytics`
 - `GET /api/tracker/status`
@@ -59,3 +60,14 @@ Managers approve through the existing `/api/manager/approvals` endpoints.
 - Approver resolution is injected from `utils/approver.ts`.
 - WebSocket fan-out is injected from `utils/ws.ts`.
 - Audit logging remains an HTTP cross-cutting concern in the route adapter.
+
+## Ticket time
+
+`attendance.taskTime.ts` reads `task_worklogs` through this module's repository,
+scoped to the author and their organization. Date ranges and grouping use the
+recorded `day_worked`, not the current request's timezone. Soft-deleted entries
+are excluded. The public tracker envelope remains `[{ date, minutes, entries }]`.
+Attendance clock-in/out and its work timer are unchanged.
+
+The real-PG HTTP seam is covered by
+`server/__tests__/tasks.worklogRoutes.integration.test.ts`.

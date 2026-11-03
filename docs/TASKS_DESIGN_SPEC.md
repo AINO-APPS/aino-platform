@@ -139,7 +139,7 @@ are referenced by the parity matrix and the phase plan.
 | D10 | **`project_id` and `work_item_type_id` become filters** on backlog, board and schedule. |
 | D11 | **Completed sprints are immutable.** No task edits, drags or re-open. The only writable artefact is the retrospective. |
 | D12 | **Scope-change baseline:** `sprint_baselines` records committed points and item ids at sprint start; explicit scope add/remove re-baselines. Enables "+8 scope added". |
-| D13 | **Time tracking is a first-class task field** — `logged` vs `estimated` — with the existing timer startable from a task and rolled into the timesheet. |
+| D13 | **Time spent comes from worklogs**, summed on read over non-deleted entries. Ticket detail shows a read-only worklog list; the timesheet groups by day worked. Legacy Start/Stop remains during the manual-worklogs rollout: stopping creates a worklog, never writes a ticket total, and preserves the old response envelope. Estimates keep their legacy name until ticket 04. |
 
 ### 4.2 "Completed" visibility
 
@@ -516,7 +516,7 @@ is absent. `/tasks` redirects to `/tasks/backlog` preserving the query string.
 
 Kept as the deep surface. Changes: bottom sheet on narrow viewports (D39),
 `planned_date` and `due_date` shown as distinct fields with distinct labels, a
-`logged / estimate` row with a start-timer control (D13), and the issue key
+`time spent / estimate` row with a legacy start-timer control and read-only worklogs below it (D13), and the issue key
 prominent and copyable (D26). Tab order: Details, Comments, History. Existing
 dependencies, blockers, acceptance criteria, custom fields, parent/child and Git
 refs stay.

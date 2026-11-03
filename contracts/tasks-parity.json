@@ -671,20 +671,20 @@
     },
     {
       "id": "time-tracking-on-task",
-      "name": "logged vs estimated, timer from task, timesheet rollup",
+      "name": "worklog time spent and read-only list, legacy timer compatibility, timesheet by day worked",
       "decision": "D13",
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.time.test.ts"
+        "owner_test": "client/src/pages/tasks/__tests__/TaskDetailSheet.test.tsx"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.time.test.ts"
+        "owner_test": "client/src/pages/tasks/__tests__/TaskDetailSheet.test.tsx"
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "status": "waived",
+        "waiver": "Temporary manual-worklogs ticket 01 rollout: Android retains legacy Start/Stop responses while the platform records worklogs. Ticket 07 owns the native worklog list and removes this waiver; contracts/android-worklogs-waiver.json tracks the new route."
       },
       "ios": {
         "status": "waived",

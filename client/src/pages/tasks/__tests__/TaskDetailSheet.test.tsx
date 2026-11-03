@@ -7,17 +7,20 @@ import { formatMinutes, summariseTime } from "../time";
 const getTaskTimer = vi.fn();
 const startTaskTimer = vi.fn();
 const stopTaskTimer = vi.fn();
+const getTaskWorklogs = vi.fn();
 
 vi.mock("../../../api/tasks", () => ({
     getTaskTimer: (...args: unknown[]) => getTaskTimer(...args),
     startTaskTimer: (...args: unknown[]) => startTaskTimer(...args),
     stopTaskTimer: (...args: unknown[]) => stopTaskTimer(...args),
+    getTaskWorklogs: (...args: unknown[]) => getTaskWorklogs(...args),
 }));
 
 beforeEach(() => {
     getTaskTimer.mockReset().mockResolvedValue({ data: { running: false } });
     startTaskTimer.mockReset().mockResolvedValue({ data: { running: true } });
-    stopTaskTimer.mockReset().mockResolvedValue({ data: { minutes: 15 } });
+    stopTaskTimer.mockReset().mockResolvedValue({ data: { minutes: 15, time: { logged: 25 } } });
+    getTaskWorklogs.mockReset().mockResolvedValue({ data: { worklogs: [], time_spent_minutes: 0 } });
 });
 
 describe("TaskDetailSheet", () => {
@@ -90,6 +93,39 @@ describe("TaskDetailSheet", () => {
 });
 
 describe("TaskTimePanel", () => {
+    test("shows read-only worklogs with author, day, duration and migration comment below the time panel", async () => {
+        getTaskWorklogs.mockResolvedValue({ data: { time_spent_minutes: 90, worklogs: [
+            { id: 1, task_id: 1, author_id: 1, logged_by_id: 1, author: { full_name: 'Alice' }, logged_by: { full_name: 'Alice' },
+                day_worked: '2026-11-02', minutes: 90, comment: 'Migrated from timer', start_time: '09:30:00' },
+        ] } });
+        render(<TaskTimePanel task={{ id: 1, logged_minutes: 90 }} />);
+        const list = await screen.findByRole('list', { name: 'Worklogs' });
+        expect(list.textContent).toContain('Alice');
+        expect(list.textContent).toContain('1h 30m');
+        expect(list.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-02');
+        expect(list.textContent).toContain('Migrated from timer');
+        expect(screen.queryByRole('button', { name: /Edit worklog|Delete worklog|Log work/ })).toBeNull();
+        expect(screen.getByRole('button', { name: /Start timer/ })).toBeTruthy();
+    });
+
+    test("stopping refreshes the list and trusts the server total rather than adding to stale ticket time", async () => {
+        getTaskTimer.mockResolvedValue({ data: { running: true } });
+        stopTaskTimer.mockResolvedValue({ data: { minutes: 1, time: { logged: 31 } } });
+        getTaskWorklogs.mockResolvedValueOnce({ data: { worklogs: [], time_spent_minutes: 30 } })
+            .mockResolvedValue({ data: { time_spent_minutes: 31, worklogs: [{ id: 4, author_id: 1, logged_by_id: 1, author: { full_name: 'Alice' }, day_worked: '2026-11-03', minutes: 1, comment: 'Latest stop' }] } });
+        render(<TaskTimePanel task={{ id: 1, logged_minutes: 999 }} />);
+        fireEvent.click(await screen.findByRole('button', { name: /Stop timer/ }));
+        expect(await screen.findByText('Latest stop')).toBeTruthy();
+        expect(screen.getByText('31m / —')).toBeTruthy();
+    });
+
+    test("worklog load failure is visible without removing the timer", async () => {
+        getTaskWorklogs.mockRejectedValue(new Error('offline'));
+        render(<TaskTimePanel task={{ id: 1 }} />);
+        expect(await screen.findByRole('alert')).toHaveTextContent('Could not load worklogs');
+        expect(screen.getByRole('button', { name: /Start timer/ })).toBeTruthy();
+    });
+
     test("shows logged against estimated", async () => {
         render(<TaskTimePanel task={{ id: 1, estimated_minutes: 120, logged_minutes: 45 }} />);
         expect(await screen.findByText("45m / 2h")).toBeTruthy();
