@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { logTaskWork, type LogWorkResponse } from '../../api/tasks';
+import { logTaskWork, editTaskWorklog, type LogWorkInput, type LogWorkResponse, type TaskWorklog } from '../../api/tasks';
+import { formatMinutes } from './time';
 import s from './LogWorkDialog.module.css';
 
 function today() {
@@ -8,15 +9,22 @@ function today() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-export default function LogWorkDialog({ taskId, onClose, onSaved }: {
-    taskId: number; onClose: () => void; onSaved: (response: LogWorkResponse) => void;
+export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
+    taskId: number; worklog?: TaskWorklog; onClose: () => void; onSaved: (response: LogWorkResponse) => void;
 }) {
     const id = useId();
     const dialog = useRef<HTMLDialogElement>(null);
-    const [dayWorked, setDayWorked] = useState(today);
-    const [timeSpent, setTimeSpent] = useState('');
-    const [startTime, setStartTime] = useState('');
-    const [comment, setComment] = useState('');
+    const [dayWorked, setDayWorked] = useState(() => worklog?.day_worked ?? today());
+    const [timeSpent, setTimeSpent] = useState(() => worklog ? formatMinutes(worklog.minutes) : '');
+    const [startTime, setStartTime] = useState(() => worklog?.start_time?.slice(0, 5) ?? '');
+    const [comment, setComment] = useState(() => worklog?.comment ?? '');
+    const patch: Partial<LogWorkInput> = worklog ? {
+        ...(dayWorked !== worklog.day_worked ? { day_worked: dayWorked } : {}),
+        ...(timeSpent !== formatMinutes(worklog.minutes) ? { time_spent: timeSpent } : {}),
+        ...(startTime !== (worklog.start_time?.slice(0, 5) ?? '') ? { start_time: startTime || null } : {}),
+        ...(comment !== (worklog.comment ?? '') ? { comment: comment || null } : {}),
+    } : {};
+    const unchanged = !!worklog && !Object.keys(patch).length;
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [durationError, setDurationError] = useState(false);
@@ -31,12 +39,12 @@ export default function LogWorkDialog({ taskId, onClose, onSaved }: {
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
-        if (busy) return;
+        if (busy || unchanged) return;
         setBusy(true);
         setError('');
         setDurationError(false);
         try {
-            const { data } = await logTaskWork(taskId, {
+            const { data } = worklog ? await editTaskWorklog(taskId, worklog.id, patch) : await logTaskWork(taskId, {
                 day_worked: dayWorked, time_spent: timeSpent,
                 ...(startTime ? { start_time: startTime } : {}), ...(comment ? { comment } : {}),
             });
@@ -52,7 +60,7 @@ export default function LogWorkDialog({ taskId, onClose, onSaved }: {
         onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}
         onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}>
         <form onSubmit={submit}>
-            <header><p className={s.eyebrow}>Ticket worklog</p><h2 id={`${id}-title`}>Log work</h2>
+            <header><p className={s.eyebrow}>Ticket worklog</p><h2 id={`${id}-title`}>{worklog ? 'Edit worklog' : 'Log work'}</h2>
                 <p className={s.hint}>Record the time you spent, including work from earlier days.</p></header>
             <fieldset disabled={busy} className={s.fields}>
                 <label htmlFor={`${id}-day`}>Day worked</label>
@@ -71,7 +79,7 @@ export default function LogWorkDialog({ taskId, onClose, onSaved }: {
             {error && !durationError && <p className={s.error} role="alert">{error}</p>}
             <footer className={s.actions}>
                 <button type="button" disabled={busy} onClick={onClose}>Cancel</button>
-                <button className={s.primary} type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save work'}</button>
+                <button className={s.primary} type="submit" disabled={busy || unchanged}>{busy ? 'Saving…' : 'Save work'}</button>
             </footer>
         </form>
     </dialog>, document.body);

@@ -15,6 +15,8 @@ export interface TaskWorklog {
     created_at: string;
     updated_at: string;
     deleted_at: null;
+    canEdit: boolean;
+    canDelete: boolean;
 }
 
 export const getTaskWorklogs = (id: number | string) =>
@@ -23,16 +25,23 @@ export const getTaskWorklogs = (id: number | string) =>
 export interface LogWorkInput {
     day_worked: string;
     time_spent: string;
-    start_time?: string;
-    comment?: string;
+    start_time?: string | null;
+    comment?: string | null;
 }
+export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null }
 export interface LogWorkResponse {
     worklog: TaskWorklog;
-    ticket: { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null };
+    ticket: WorklogTicketSummary;
     warnings: string[];
 }
 export const logTaskWork = (id: number | string, input: LogWorkInput) =>
     API.post<LogWorkResponse>(`/tasks/${id}/worklogs`, input);
+
+export const editTaskWorklog = (id: number | string, worklogId: number, input: Partial<LogWorkInput>) =>
+    API.patch<LogWorkResponse>(`/tasks/${id}/worklogs/${worklogId}`, input);
+
+export const deleteTaskWorklog = (id: number | string, worklogId: number) =>
+    API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`);
 
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {

@@ -469,6 +469,8 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "PATCH  /api/tasks/:id/unschedule",
   "GET    /api/tasks/:id/worklogs",
   "POST   /api/tasks/:id/worklogs",
+  "DELETE /api/tasks/:id/worklogs/:worklogId",
+  "PATCH  /api/tasks/:id/worklogs/:worklogId",
   "GET    /api/tasks/assignable-users",
   "GET    /api/tasks/available-sprints",
   "GET    /api/tasks/backlog",
