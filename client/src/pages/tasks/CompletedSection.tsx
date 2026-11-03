@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, ChevronRight, CheckCircle2 } from "../../constants/icons";
+import { ChevronDown, ChevronRight, CheckCircle2, XCircle } from "../../constants/icons";
 import s from "./CompletedSection.module.css";
 
 interface CompletedSectionProps {
@@ -76,6 +76,11 @@ export default function CompletedSection({
                             </span>
                             <span className={s["completed-row-title"]}>{task.title}</span>
                             <span className={s["completed-date"]}>
+                                {task.workflow_state_key === "cancelled" && (
+                                    <span className={s["completed-cancelled"]}>
+                                        <XCircle size={12} aria-hidden="true" /> Cancelled
+                                    </span>
+                                )}
                                 {formatDate(task.completed_at)}
                             </span>
                         </button>

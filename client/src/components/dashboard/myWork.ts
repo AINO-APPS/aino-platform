@@ -101,6 +101,33 @@ export function myWorkCount(tasks: MyWorkTask[], userId: number | string): numbe
     return tasks.filter((task) => isMine(task, userId) && !isCancelled(task)).length;
 }
 
+export interface MyWorkStats {
+    done: number;
+    inProgress: number;
+    inReview: number;
+    pending: number;
+    total: number;
+}
+
+/**
+ * The card's state breakdown over exactly the tickets `myWorkCount` counts, so
+ * the stat row and the list beside it can never disagree. Open work outside
+ * progress or review reads as pending.
+ */
+export function myWorkStats(tasks: MyWorkTask[], userId: number | string): MyWorkStats {
+    const mine = tasks.filter((task) => isMine(task, userId) && !isCancelled(task));
+    const open = mine.filter((task) => !task.completed_at);
+    const inProgress = open.filter((task) => task.workflow_state_category === "in_progress").length;
+    const inReview = open.filter((task) => task.workflow_state_category === "in_review").length;
+    return {
+        done: mine.length - open.length,
+        inProgress,
+        inReview,
+        pending: open.length - inProgress - inReview,
+        total: mine.length,
+    };
+}
+
 /**
  * The dot colour for a workflow state.
  *

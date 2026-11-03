@@ -3,13 +3,11 @@ import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../AuthContext";
 import { useWorkState } from "../WorkStateContext";
-import { getTaskSummary } from "../api/workforce";
 import { getCalendarEvents, getActiveAnnouncements } from "../api/notes";
 import { QUOTE_ROTATION_INTERVAL } from "../constants";
 import DashboardSkeleton from "./dashboard/DashboardSkeleton";
 import TodayEventsCard from "../components/dashboard/TodayEventsCard";
 import EventReminderToast from "../components/notifications/EventReminderToast";
-import TasksSummary from "../components/dashboard/TasksSummary";
 import PendingApprovalsCard from "../components/dashboard/PendingApprovalsCard";
 import MyWorkCard from "../components/dashboard/MyWorkCard";
 import WorkTimerCard from "../components/dashboard/WorkTimerCard";
@@ -47,15 +45,13 @@ async function fetchDashboard() {
     now.getMonth(),
     now.getDate() + 2,
   ).toISOString();
-  const [taskRes, eventsRes, tomorrowRes, announcementsRes] =
+  const [eventsRes, tomorrowRes, announcementsRes] =
     await Promise.allSettled([
-      getTaskSummary(),
       getCalendarEvents(dayStart, dayEnd),
       getCalendarEvents(dayEnd, tomorrowEnd),
       getActiveAnnouncements(),
     ]);
   return {
-    taskSummary: taskRes.status === "fulfilled" ? taskRes.value.data : null,
     todayEvents:
       eventsRes.status === "fulfilled"
         ? (eventsRes.value.data as any) || []
@@ -83,7 +79,6 @@ export default function Dashboard() {
     queryKey: DASHBOARD_QUERY_KEY,
     queryFn: fetchDashboard,
   });
-  const taskSummary = data?.taskSummary ?? null;
   const todayEvents: any[] = data?.todayEvents ?? EMPTY;
   const tomorrowEvents: any[] = data?.tomorrowEvents ?? EMPTY;
   const announcements: any[] = data?.announcements ?? EMPTY;
@@ -194,7 +189,7 @@ export default function Dashboard() {
       <div className={s["dashboard-content"]}>
         <WorkTimerCard />
         <TodayEventsCard events={todayEvents} tomorrowEvents={tomorrowEvents} />
-        <TasksSummary taskSummary={taskSummary} />
+        {/* One work card: its stat row replaced the duplicate "Today's Planner". */}
         <MyWorkCard />
         {isManager && <PendingApprovalsCard />}
       </div>

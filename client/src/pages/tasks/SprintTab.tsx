@@ -3,6 +3,7 @@ import { ArrowDownCircle, ClipboardList } from "../../constants/icons";
 import SprintProgressCard from "./SprintProgressCard";
 import SprintImportPanel from "./SprintImportPanel";
 import KanbanBoard from "./KanbanBoard";
+import SprintCancelledSection from "./SprintCancelledSection";
 import SprintPlan from "./SprintPlan";
 import AsyncSection from "../../components/common/AsyncSection";
 import s from "../Tasks.module.css";
@@ -43,6 +44,8 @@ interface SprintTabProps {
     teamMode?: "sprints" | "continuous";
     /** Reload the sprint's tasks after a failed load. */
     onRetry: () => void;
+    /** The board's team scope, for the cancelled list. */
+    scopeParams?: Record<string, unknown>;
 }
 
 /**
@@ -84,6 +87,7 @@ export default function SprintTab({
     onSelectEpic,
     teamMode = "sprints",
     onRetry,
+    scopeParams,
 }: SprintTabProps) {
     return (
         <>
@@ -174,6 +178,9 @@ export default function SprintTab({
                         attribution={attribution}
                     />
                 </AsyncSection>
+            )}
+            {!plan && (
+                <SprintCancelledSection sprintId={selectedSprintId} scopeParams={scopeParams} onOpenDetail={onOpenDetail} />
             )}
 
             {tasks.length === 0 && !loading && !error && (

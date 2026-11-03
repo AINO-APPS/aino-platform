@@ -97,7 +97,7 @@
   background: var(--text-muted);
 }
 .t-progress { background: var(--warning, #f59e0b); }
-.t-review { background: var(--primary); }
+.t-review { background: #8b7cf6; }
 .t-neutral { background: var(--text-muted); }
 
 .priority {
