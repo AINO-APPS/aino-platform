@@ -86,6 +86,155 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect((await request(app).get('/api/tasks/99999/worklogs')).status).toBe(404);
     });
 
+    test('worklog capabilities are server-decided for the author, not another member or admin', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Own effort' })).body.id;
+        await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' });
+        expect(saved.body.worklog).toMatchObject({ canEdit: true, canDelete: true });
+        for (const role of ['employee', 'super_admin']) {
+            const other = await request(app).get(`/api/tasks/${id}/worklogs`).set('x-test-user', '2').set('x-test-role', role);
+            expect(other.status).toBe(200);
+            expect(other.body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        }
+    });
+
+    test('author corrects every worklog field while another member or admin is forbidden', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Correct effort' })).body.id;
+        await pool.query('UPDATE organizations SET work_hours_per_day = 7 WHERE id = 1');
+        await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', start_time: '09:00', time_spent: '1h', comment: 'First' })).body.worklog;
+        const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
+        for (const role of ['employee', 'super_admin']) {
+            expect((await request(app).patch(endpoint).set('x-test-user', '2').set('x-test-role', role).send({ comment: 'Not mine' })).status).toBe(403);
+        }
+        const edited = await request(app).patch(endpoint).send({ day_worked: '2026-11-02', start_time: '10:30', time_spent: '1d', comment: 'Corrected' });
+        expect(edited.status).toBe(200);
+        expect(edited.body).toMatchObject({ worklog: { id: original.id, author_id: 1, logged_by_id: 1, canEdit: true, canDelete: true,
+            day_worked: '2026-11-02', start_time: '10:30:00', minutes: 420, comment: 'Corrected', created_at: original.created_at },
+            ticket: { id, time_spent_minutes: 420, logged_minutes: 420 }, warnings: [] });
+        const commentOnly = await request(app).patch(endpoint).send({ comment: null });
+        expect(commentOnly.status).toBe(200);
+        expect(commentOnly.body.worklog).toMatchObject({ minutes: 420, day_worked: '2026-11-02', start_time: '10:30:00', comment: null });
+        expect((await request(app).patch(endpoint).send({ start_time: null })).body.worklog.start_time).toBeNull();
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body.time_spent_minutes).toBe(420);
+        expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_updated')).toHaveLength(3);
+        const audit = (await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_updated`).set('x-test-role', 'super_admin')).body;
+        expect(audit).toMatchObject({ total: 3, logs: expect.arrayContaining([expect.objectContaining({ actor_id: 1 })]) });
+    });
+
+    test('author soft-deletes work, excluding it from list, ticket and daily totals but preserving history', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Remove mistake' })).body.id;
+        await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Mistake' })).body.worklog;
+        await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '30m', comment: 'Keep' });
+        const endpoint = `/api/tasks/${id}/worklogs/${original.id}`;
+        for (const role of ['employee', 'super_admin']) {
+            expect((await request(app).delete(endpoint).set('x-test-user', '2').set('x-test-role', role)).status).toBe(403);
+        }
+        const deleted = await request(app).delete(endpoint);
+        expect(deleted.status).toBe(200);
+        expect(deleted.body).toMatchObject({ ticket: { id, time_spent_minutes: 30, logged_minutes: 30 } });
+        const list = (await request(app).get(`/api/tasks/${id}/worklogs`)).body;
+        expect(list).toMatchObject({ time_spent_minutes: 30, worklogs: [{ comment: 'Keep' }] });
+        expect(list.worklogs).toHaveLength(1);
+        expect((await request(app).get(`/api/tasks/${id}/detail`)).body.time_spent_minutes).toBe(30);
+        expect((await request(app).get('/api/tracker/task-time?from=2026-11-01&to=2026-11-01')).body[0].minutes).toBe(30);
+        const history = (await request(app).get(`/api/tasks/${id}/history`)).body;
+        const removed = history.find((h: any) => h.action === 'worklog_deleted');
+        expect(JSON.parse(removed.old_value)).toMatchObject({ id: original.id, minutes: 60, comment: 'Mistake' });
+        expect(JSON.parse(removed.new_value)).toMatchObject({ id: original.id, deleted_at: expect.any(String) });
+        expect(history.filter((h: any) => h.action === 'worklog_added')).toHaveLength(2);
+        expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=worklog_deleted`).set('x-test-role', 'super_admin')).body.total).toBe(1);
+        expect((await request(app).delete(endpoint)).status).toBe(404);
+        expect((await request(app).patch(endpoint).send({ comment: 'Cannot resurrect' })).status).toBe(404);
+    });
+
+    test('edit/delete remain own-author actions after Done or Cancelled and reject bad input without mutation', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Validate corrections' })).body.id;
+        const otherId = (await request(app).post('/api/tasks/backlog').send({ title: 'Other ticket' })).body.id;
+        const worklog = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', comment: 'Keep' })).body.worklog;
+        const endpoint = `/api/tasks/${id}/worklogs/${worklog.id}`;
+        for (const fields of [{}, { day_worked: '2026-02-30' }, { day_worked: null }, { start_time: '25:00' }, { comment: 123 }, { author_id: 2 }, { remaining_mode: 'auto' }]) {
+            const result = await request(app).patch(endpoint).send(fields);
+            expect(result.status).toBe(400);
+            expect(result.body.code).toBe('INVALID_WORKLOG');
+        }
+        for (const time_spent of ['abc', '0m', '-1h', '', null]) {
+            const result = await request(app).patch(endpoint).send({ time_spent });
+            expect(result.status).toBe(400);
+            expect(result.body.code).toBe('INVALID_DURATION');
+        }
+        expect((await request(app).delete(endpoint).send({ remaining_mode: 'auto' })).status).toBe(400);
+        for (const method of ['patch', 'delete']) {
+            expect((await request(app)[method](`/api/tasks/${otherId}/worklogs/${worklog.id}`).send({ comment: 'No' })).status).toBe(404);
+            expect((await request(app)[method](endpoint).set('x-test-org', '2').send({ comment: 'No' })).status).toBe(404);
+            expect((await request(app)[method](`/api/tasks/${id}/worklogs/99999`).send({ comment: 'No' })).status).toBe(404);
+        }
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([worklog]);
+        expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => ['worklog_updated', 'worklog_deleted'].includes(h.action))).toEqual([]);
+        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'done') WHERE id = $1", [id]);
+        expect((await request(app).patch(endpoint).send({ comment: 'After Done' })).status).toBe(200);
+        await pool.query("INSERT INTO workflow_states (org_id, key, name, category, is_terminal) VALUES (1, 'cancelled', 'Cancelled', 'done', TRUE)");
+        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'cancelled') WHERE id = $1", [id]);
+        expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs[0]).toMatchObject({ canEdit: true, canDelete: true });
+        expect((await request(app).patch(endpoint).send({ comment: 'After cancellation' })).status).toBe(200);
+        expect((await request(app).delete(endpoint)).status).toBe(200);
+    });
+
+    test.each(['patch', 'delete'])('%s publishes committed worklog changes and durable audit/history', async method => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Committed correction' })).body.id;
+        await pool.query('UPDATE users SET team_id = 1 WHERE id = 2');
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' })).body.worklog;
+        const received: Array<{ userId: number; event: string; payload: any; visible: Promise<any> }> = [];
+        const send = require('../utils/ws').sendToUser;
+        send.mockImplementation((_tenant: number, userId: number, event: string, payload: any) => {
+            received.push({ userId, event, payload, visible: request(app).get(`/api/tasks/${id}/worklogs`).then((r: any) => r.body) });
+        });
+        try {
+            const result = await request(app)[method](`/api/tasks/${id}/worklogs/${original.id}`).send(method === 'patch' ? { time_spent: '30m' } : {});
+            expect(result.status).toBe(200);
+            expect(received.map(({ userId, event, payload }) => ({ userId, event, payload }))).toEqual([
+                { userId: 1, event: 'task_updated', payload: { taskId: id, action: 'updated' } },
+                { userId: 2, event: 'task_updated', payload: { taskId: id, action: 'updated' } },
+            ]);
+            for (const message of received) {
+                const visible = await message.visible;
+                expect(visible.time_spent_minutes).toBe(method === 'patch' ? 30 : 0);
+                expect(visible.worklogs).toEqual(method === 'patch' ? [result.body.worklog] : []);
+            }
+        } finally { send.mockReset(); }
+    });
+
+    test.each([['patch', 'task_history'], ['patch', 'audit_logs'], ['delete', 'task_history'], ['delete', 'audit_logs']])('%s rolls back when %s fails, without announcing changes', async (method, table) => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Atomic correction' })).body.id;
+        const original = (await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' })).body.worklog;
+        const messages: unknown[] = [];
+        const send = require('../utils/ws').sendToUser;
+        send.mockImplementation((...message: unknown[]) => messages.push(message));
+        await pool.query(`CREATE FUNCTION reject_correction() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'test record failure'; END $$;
+            CREATE TRIGGER reject_correction BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION reject_correction()`);
+        try {
+            expect((await request(app)[method](`/api/tasks/${id}/worklogs/${original.id}`).send(method === 'patch' ? { time_spent: '30m' } : {})).status).toBe(500);
+            expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body).toEqual({ worklogs: [original], time_spent_minutes: 60 });
+            const action = method === 'patch' ? 'worklog_updated' : 'worklog_deleted';
+            expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === action)).toEqual([]);
+            expect((await request(app).get(`/api/admin/audit-logs?entity_id=${id}&action=${action}`).set('x-test-role', 'super_admin')).body.total).toBe(0);
+            expect(messages).toEqual([]);
+        } finally {
+            await pool.query(`DROP TRIGGER reject_correction ON ${table}; DROP FUNCTION reject_correction()`);
+            send.mockReset();
+        }
+    });
+
+    test('invalid route identifiers are refused without a database error', async () => {
+        for (const method of ['patch', 'delete']) {
+            for (const path of ['/api/tasks/no/worklogs/1', '/api/tasks/1/worklogs/no', '/api/tasks/1/worklogs/0', '/api/tasks/1/worklogs/1.5']) {
+                expect((await request(app)[method](path).send({ comment: 'No' })).status).toBe(400);
+            }
+        }
+    });
+
     test("logs work through HTTP with org durations, visible history and refreshed ticket totals", async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Manual work' })).body.id;
         await pool.query('UPDATE organizations SET work_hours_per_day = 7 WHERE id = 1');

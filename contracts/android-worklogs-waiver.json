@@ -2,6 +2,18 @@
   "schemaVersion": 1,
   "waivers": [
     {
+      "key": "PATCH /api/tasks/:param/worklogs/:param",
+      "owner": "manual-worklogs ticket 08",
+      "reason": "Temporary ticket 03 rollout: web/desktop edit authored worklogs before Android ticket 07 ships the native dialog. Legacy Start/Stop remains compatible.",
+      "removeWhen": "manual-worklogs ticket 08 proves native edit-worklog coverage"
+    },
+    {
+      "key": "DELETE /api/tasks/:param/worklogs/:param",
+      "owner": "manual-worklogs ticket 08",
+      "reason": "Temporary ticket 03 rollout: web/desktop confirm authored-worklog deletion before Android ticket 07 ships the native action.",
+      "removeWhen": "manual-worklogs ticket 08 proves native delete-worklog coverage"
+    },
+    {
       "key": "GET /api/tasks/:param/worklogs",
       "owner": "manual-worklogs ticket 07",
       "reason": "Temporary ticket 01 rollout waiver: the platform ships the read-only worklog route before the Android worklog UI. Legacy Android Start/Stop keeps its response shape; stop now records a worklog.",

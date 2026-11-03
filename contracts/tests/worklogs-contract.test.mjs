@@ -19,6 +19,29 @@ test('manual log-work route has duration input, saved worklog, summary, warnings
     assert.ok(api.components.schemas.TicketCapability.properties.reason.enum.includes('WORKLOG_CANCELLED'));
 });
 
+test('worklog edit/delete contracts expose author capabilities, partial patch and soft-delete summary', () => {
+    const endpoint = '/api/tasks/{id}/worklogs/{worklogId}';
+    for (const method of ['patch', 'delete']) {
+        assert.ok(inventory.endpoints.some(e => e.method === method.toUpperCase() && e.path === '/api/tasks/:id/worklogs/:worklogId'));
+        assert.ok(api.paths[endpoint][method].responses['403']);
+        assert.ok(api.paths[endpoint][method].responses['404']);
+    }
+    assert.deepEqual(api.paths[endpoint].patch.requestBody.content['application/json'].schema, { $ref: '#/components/schemas/EditWorklogRequest' });
+    const patch = api.components.schemas.EditWorklogRequest;
+    assert.equal(patch.minProperties, 1);
+    assert.equal(patch.additionalProperties, false);
+    assert.ok(!patch.required?.length);
+    assert.deepEqual(Object.keys(patch.properties).sort(), ['comment', 'day_worked', 'start_time', 'time_spent']);
+    assert.deepEqual(api.paths[endpoint].delete.responses['200'].content['application/json'].schema, { $ref: '#/components/schemas/DeleteWorklogResponse' });
+    assert.deepEqual(api.components.schemas.DeleteWorklogResponse.required, ['ticket']);
+    for (const capability of ['canEdit', 'canDelete']) {
+        assert.ok(api.components.schemas.TaskWorklog.required.includes(capability));
+        assert.equal(api.components.schemas.TaskWorklog.properties[capability].type, 'boolean');
+    }
+    const waiver = JSON.parse(fs.readFileSync(path.join(root, 'contracts/android-worklogs-waiver.json'), 'utf8'));
+    for (const method of ['PATCH', 'DELETE']) assert.ok(waiver.waivers.some(w => w.key === `${method} /api/tasks/:param/worklogs/:param`));
+});
+
 test('read-only worklog route documents its author, worked day and computed time', () => {
     assert.ok(inventory.endpoints.some(e => e.method === 'GET' && e.path === '/api/tasks/:id/worklogs'));
     const operation = api.paths['/api/tasks/{id}/worklogs'].get;
