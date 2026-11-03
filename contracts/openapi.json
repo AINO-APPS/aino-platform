@@ -20728,7 +20728,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "List a ticket’s worklogs and computed time spent (read-only)",
+        "summary": "List a ticket’s worklogs, author capabilities and computed time spent",
         "operationId": "get_api_tasks_id_worklogs",
         "parameters": [
           {
@@ -20907,6 +20907,246 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LogWorkRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/worklogs/{worklogId}": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Soft-delete an authored worklog",
+        "operationId": "delete_api_tasks_id_worklogs_worklogId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worklogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worklog soft-deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorklogResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_WORKLOG: unsupported fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED: only the author can delete a visible worklog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or active worklog not found in this organization/ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Only the author can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining modes and admin override are deferred.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorklogRequest"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Correct an authored worklog",
+        "operationId": "patch_api_tasks_id_worklogs_worklogId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worklogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worklog corrected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogWorkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DURATION or INVALID_WORKLOG; nothing is changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED: only the author can correct a visible worklog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or active worklog not found in this organization/ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Accepts only changed day worked, duration, start time or comment. Null clears optional fields. Only the worklog author may edit; Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated worklog aggregate; failed warning reads never block or roll back corrections. Estimates and admin override are later tickets.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditWorklogRequest"
               }
             }
           }
@@ -23023,6 +23263,14 @@
             ],
             "additionalProperties": false
           },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Server-decided: the current viewer is the worklog author. Org-admin override is deferred to ticket 05."
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Server-decided: the current viewer is the worklog author."
+          },
           "day_worked": {
             "type": "string",
             "format": "date",
@@ -23064,6 +23312,8 @@
           "logged_by_id",
           "author",
           "logged_by",
+          "canEdit",
+          "canDelete",
           "day_worked",
           "start_time",
           "minutes",
@@ -23184,6 +23434,54 @@
           "worklog",
           "ticket",
           "warnings"
+        ],
+        "additionalProperties": false
+      },
+      "EditWorklogRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "day_worked": {
+            "type": "string",
+            "format": "date"
+          },
+          "time_spent": {
+            "type": "string",
+            "description": "Positive duration in w/d/h/m units, with whitespace and decimals. A day uses org work_hours_per_day; a week is five working days. Rounded to whole minutes."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$",
+            "description": "Optional local start time (HH:mm or HH:mm:ss)."
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          }
+        },
+        "minProperties": 1
+      },
+      "DeleteWorklogRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "DeleteWorklogResponse": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          }
+        },
+        "required": [
+          "ticket"
         ],
         "additionalProperties": false
       }

@@ -47,6 +47,31 @@ export async function recordWorklogAddition(db: TasksDb, taskId: number, userId:
         [orgId, userId, taskId, JSON.stringify(worklog), ip ?? null, userAgent ?? null]);
 }
 
+export async function lockWorklog(db: TasksDb, taskId: number, worklogId: number) {
+    return (await db.query('SELECT * FROM task_worklogs WHERE task_id = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE',
+        [taskId, worklogId])).rows[0];
+}
+
+export async function updateWorklog(db: TasksDb, worklogId: number, input: LogWorkFields, minutes: number) {
+    await db.query(`UPDATE task_worklogs SET day_worked = $2, start_time = $3, minutes = $4, comment = $5, updated_at = NOW()
+        WHERE id = $1`, [worklogId, input.day_worked, input.start_time || null, minutes, input.comment ?? null]);
+}
+
+export async function softDeleteWorklog(db: TasksDb, worklogId: number) {
+    return (await db.query('UPDATE task_worklogs SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *', [worklogId])).rows[0];
+}
+
+type LogWorkFields = { day_worked: string; start_time?: string | null; comment?: string | null };
+
+export async function recordWorklogChange(db: TasksDb, taskId: number, userId: number, orgId: number | null,
+    action: 'worklog_updated' | 'worklog_deleted', before: Record<string, unknown>, after: Record<string, unknown>, ip?: string, userAgent?: string) {
+    await db.query(`INSERT INTO task_history (task_id, user_id, action, field, old_value, new_value)
+        VALUES ($1, $2, $3, 'worklog', $4, $5)`, [taskId, userId, action, JSON.stringify(before), JSON.stringify(after)]);
+    await db.query(`INSERT INTO audit_logs (org_id, actor_id, action, entity_type, entity_id, details, ip_address, user_agent)
+        VALUES ($1, $2, $3, 'task', $4, $5, $6, $7)`,
+        [orgId, userId, action, taskId, JSON.stringify({ before, after }), ip ?? null, userAgent ?? null]);
+}
+
 export async function lockRunningTimer(db: TasksDb, taskId: number, userId: number, orgId: number | null) {
     return (await db.query(`SELECT tt.id, tt.started_at FROM task_timers tt JOIN tasks t ON t.id = tt.task_id
         WHERE tt.task_id = $1 AND tt.user_id = $2 AND tt.stopped_at IS NULL

@@ -6,6 +6,8 @@ export function applyWorklogContract(paths, schemas) {
     schemas.TaskWorklog = object({
         id: { type: 'integer' }, task_id: { type: 'integer' }, author_id: { type: 'integer' }, logged_by_id: { type: 'integer' },
         author: user, logged_by: user,
+        canEdit: { type: 'boolean', description: 'Server-decided: the current viewer is the worklog author. Org-admin override is deferred to ticket 05.' },
+        canDelete: { type: 'boolean', description: 'Server-decided: the current viewer is the worklog author.' },
         day_worked: { type: 'string', format: 'date', description: 'Recorded day worked; never rebucketed in the viewing timezone.' },
         start_time: { type: ['string', 'null'], description: 'Optional local time of day (HH:mm:ss).' },
         minutes: { type: 'integer', minimum: 1 }, comment: { type: ['string', 'null'] },
@@ -15,7 +17,7 @@ export function applyWorklogContract(paths, schemas) {
     schemas.Task.properties.time_spent_minutes = { type: 'integer', minimum: 0, description: 'Sum of non-deleted worklog minutes, computed on read; never stored.' };
     schemas.Task.properties.logged_minutes.description = 'Legacy alias of time_spent_minutes, computed from non-deleted worklogs.';
     const operation = paths['/api/tasks/{id}/worklogs'].get;
-    operation.summary = 'List a ticket’s worklogs and computed time spent (read-only)';
+    operation.summary = 'List a ticket’s worklogs, author capabilities and computed time spent';
     operation.responses['200'].content['application/json'].schema = ref('TaskWorklogList');
     schemas.LogWorkRequest = {
         type: 'object', additionalProperties: false, required: ['day_worked', 'time_spent'], properties: {
@@ -37,6 +39,25 @@ export function applyWorklogContract(paths, schemas) {
     post.responses['201'] = { description: 'Worklog saved', content: { 'application/json': { schema: ref('LogWorkResponse') } } };
     post.responses['400'].description = 'INVALID_DURATION or INVALID_WORKLOG: no work is saved.';
     post.responses['403'].description = 'ACCESS_DENIED or WORKLOG_CANCELLED: the viewer cannot log work on this ticket.';
+    schemas.EditWorklogRequest = { ...schemas.LogWorkRequest, required: [], minProperties: 1 };
+    schemas.DeleteWorklogRequest = { type: 'object', additionalProperties: false, properties: {} };
+    schemas.DeleteWorklogResponse = object({ ticket: ref('WorklogTicketSummary') });
+    const edit = paths['/api/tasks/{id}/worklogs/{worklogId}'].patch;
+    edit.summary = 'Correct an authored worklog';
+    edit.description = 'Accepts only changed day worked, duration, start time or comment. Null clears optional fields. Only the worklog author may edit; Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated worklog aggregate; failed warning reads never block or roll back corrections. Estimates and admin override are later tickets.';
+    edit.requestBody = { required: true, content: { 'application/json': { schema: ref('EditWorklogRequest') } } };
+    edit.responses['200'] = { description: 'Worklog corrected', content: { 'application/json': { schema: ref('LogWorkResponse') } } };
+    edit.responses['400'].description = 'INVALID_DURATION or INVALID_WORKLOG; nothing is changed.';
+    edit.responses['403'].description = 'ACCESS_DENIED: only the author can correct a visible worklog.';
+    edit.responses['404'] = { description: 'Ticket or active worklog not found in this organization/ticket.', content: { 'application/json': { schema: ref('Error') } } };
+    const remove = paths['/api/tasks/{id}/worklogs/{worklogId}'].delete;
+    remove.summary = 'Soft-delete an authored worklog';
+    remove.description = 'Only the author can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining modes and admin override are deferred.';
+    remove.requestBody = { required: false, content: { 'application/json': { schema: ref('DeleteWorklogRequest') } } };
+    remove.responses['200'] = { description: 'Worklog soft-deleted', content: { 'application/json': { schema: ref('DeleteWorklogResponse') } } };
+    remove.responses['400'].description = 'INVALID_WORKLOG: unsupported fields.';
+    remove.responses['403'].description = 'ACCESS_DENIED: only the author can delete a visible worklog.';
+    remove.responses['404'] = { description: 'Ticket or active worklog not found in this organization/ticket.', content: { 'application/json': { schema: ref('Error') } } };
     schemas.TicketCapability.properties.reason.enum.push('WORKLOG_CANCELLED');
     const can = schemas.TicketCapabilities.properties.can;
     can.properties.logWork = ref('TicketCapability');

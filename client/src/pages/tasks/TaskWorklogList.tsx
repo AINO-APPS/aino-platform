@@ -3,8 +3,9 @@ import { getTaskWorklogs, type TaskWorklog } from "../../api/tasks";
 import { formatMinutes } from "./time";
 import s from "./TaskTimePanel.module.css";
 
-export default function TaskWorklogList({ taskId, revision, saved, onTotal }: {
-    taskId: number; revision: unknown; saved?: TaskWorklog[]; onTotal?: (minutes: number) => void;
+export default function TaskWorklogList({ taskId, revision, saved, deleted, onTotal, onEdit, onDelete }: {
+    taskId: number; revision: unknown; saved?: TaskWorklog[]; deleted?: number[]; onTotal?: (minutes: number) => void;
+    onEdit?: (worklog: TaskWorklog) => void; onDelete?: (worklog: TaskWorklog) => void;
 }) {
     const [worklogs, setWorklogs] = useState<TaskWorklog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -24,7 +25,8 @@ export default function TaskWorklogList({ taskId, revision, saved, onTotal }: {
         return () => { cancelled = true; };
     }, [taskId, revision]);
 
-    const visible = [...worklogs, ...(saved ?? []).filter(row => !worklogs.some(entry => entry.id === row.id))]
+    const visible = [...worklogs.filter(row => !saved?.some(entry => entry.id === row.id)), ...(saved ?? [])]
+        .filter(row => !deleted?.includes(row.id))
         .sort((a, b) => b.day_worked.localeCompare(a.day_worked) || String(b.created_at).localeCompare(String(a.created_at)) || b.id - a.id);
     return <div className={s["worklogs"]}>
         <h3 className={s["worklog-heading"]}>Worklogs</h3>
@@ -43,6 +45,10 @@ export default function TaskWorklogList({ taskId, revision, saved, onTotal }: {
                         {worklog.author_id !== worklog.logged_by_id && <span> · Logged by {worklog.logged_by.full_name || worklog.logged_by.username}</span>}
                     </div>
                     {worklog.comment && <p className={s["worklog-comment"]}>{worklog.comment}</p>}
+                    {(worklog.canEdit || worklog.canDelete) && <div className={s["time-actions"]}>
+                        {worklog.canEdit && <button type="button" className={s["time-button"]} aria-label="Edit worklog" onClick={() => onEdit?.(worklog)}>Edit</button>}
+                        {worklog.canDelete && <button type="button" className={s["time-button"]} aria-label="Delete worklog" onClick={() => onDelete?.(worklog)}>Delete</button>}
+                    </div>}
                 </li>)}
             </ol>}
     </div>;

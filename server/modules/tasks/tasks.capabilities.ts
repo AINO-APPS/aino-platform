@@ -112,6 +112,11 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
     };
 }
 
+export function decideWorklog(viewerId: number | undefined, worklog: { author_id: number }) {
+    const own = viewerId != null && Number(worklog.author_id) === viewerId;
+    return { canEdit: own, canDelete: own };
+}
+
 export function decideTickets(actor: TaskActor, tickets: readonly DecisionTicket[], context: TicketDecisionContext) {
     return tickets.map((ticket) => decideTicket(actor, ticket, context));
 }

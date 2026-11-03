@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LogWorkResponse, TaskWorklog } from "../../api/tasks";
 import LogWorkDialog from "./LogWorkDialog";
+import DeleteWorklogDialog from "./DeleteWorklogDialog";
 import { actionDecision } from "./ticketCapabilities";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { formatMinutes, summariseTime } from "./time";
@@ -16,15 +17,20 @@ interface TaskTimePanelProps {
 /** Manual worklogs; the server decides who can log and supplies authoritative totals. */
 export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     const [open, setOpen] = useState(false);
+    const [editing, setEditing] = useState<TaskWorklog | undefined>();
+    const [deleting, setDeleting] = useState<TaskWorklog | undefined>();
+    const [deleted, setDeleted] = useState<number[]>([]);
     const [logged, setLogged] = useState<number | null>(null);
     const [saved, setSaved] = useState<TaskWorklog[]>([]);
     const [revision, setRevision] = useState(0);
     const [warnings, setWarnings] = useState<string[]>([]);
     const taskId = task?.id;
     const canLogWork = actionDecision(task, 'logWork').allowed;
-    useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setRevision(0); setWarnings([]); }, [taskId]);
+    useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setEditing(undefined); setDeleting(undefined); setDeleted([]); setRevision(0); setWarnings([]); }, [taskId]);
     useRealtimeEvent(['task_updated'], event => {
         if (String((event.data as { taskId?: number })?.taskId) !== String(taskId)) return;
+        setSaved([]);
+        setDeleted([]);
         setRevision(value => value + 1);
     }, !!taskId);
     const onSaved = (response: LogWorkResponse) => {
@@ -32,6 +38,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
         setLogged(response.ticket.time_spent_minutes);
         setSaved(current => [response.worklog, ...current.filter(row => row.id !== response.worklog.id)]);
         setOpen(false);
+        setEditing(undefined);
         onLogged?.(response.worklog.minutes);
     };
     const summary = summariseTime({
@@ -64,8 +71,15 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
             </div>
 
             <WorklogWarnings warnings={warnings} />
-            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} onTotal={revision > 0 ? setLogged : undefined} />}
-            {open && canLogWork && <LogWorkDialog taskId={taskId} onClose={() => setOpen(false)} onSaved={onSaved} />}
+            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} deleted={deleted} onEdit={setEditing} onDelete={setDeleting} onTotal={revision > 0 ? setLogged : undefined} />}
+            {deleting && <DeleteWorklogDialog taskId={taskId} worklog={deleting} onClose={() => setDeleting(undefined)} onDeleted={ticket => {
+                setLogged(ticket.time_spent_minutes);
+                setDeleted(current => [...current, deleting.id]);
+                setSaved(current => current.filter(row => row.id !== deleting.id));
+                setDeleting(undefined);
+                onLogged?.(-deleting.minutes);
+            }} />}
+            {(editing || (open && canLogWork)) && <LogWorkDialog key={editing?.id ?? 'new'} taskId={taskId} worklog={editing} onClose={() => { setOpen(false); setEditing(undefined); }} onSaved={onSaved} />}
         </section>
     );
 }
