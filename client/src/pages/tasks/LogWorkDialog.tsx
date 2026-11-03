@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { logTaskWork, editTaskWorklog, type LogWorkInput, type LogWorkResponse, type TaskWorklog } from '../../api/tasks';
 import { formatMinutes } from './time';
 import s from './LogWorkDialog.module.css';
+import RemainingEstimateChoice, { useRemainingChoice } from './RemainingEstimateChoice';
 
 function today() {
     const now = new Date();
@@ -24,7 +25,8 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
         ...(startTime !== (worklog.start_time?.slice(0, 5) ?? '') ? { start_time: startTime || null } : {}),
         ...(comment !== (worklog.comment ?? '') ? { comment: comment || null } : {}),
     } : {};
-    const unchanged = !!worklog && !Object.keys(patch).length;
+    const remaining = useRemainingChoice();
+    const unchanged = !!worklog && !Object.keys(patch).length && remaining.mode === 'auto';
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [durationError, setDurationError] = useState(false);
@@ -44,7 +46,8 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
         setError('');
         setDurationError(false);
         try {
-            const { data } = worklog ? await editTaskWorklog(taskId, worklog.id, patch) : await logTaskWork(taskId, {
+            const { data } = worklog ? await editTaskWorklog(taskId, worklog.id, { ...patch, ...remaining.payload }) : await logTaskWork(taskId, {
+                ...remaining.payload,
                 day_worked: dayWorked, time_spent: timeSpent,
                 ...(startTime ? { start_time: startTime } : {}), ...(comment ? { comment } : {}),
             });
@@ -76,6 +79,7 @@ export default function LogWorkDialog({ taskId, worklog, onClose, onSaved }: {
                 <label htmlFor={`${id}-comment`}>Comment (optional)</label>
                 <textarea id={`${id}-comment`} rows={3} maxLength={10000} value={comment} onChange={event => setComment(event.target.value)} />
             </fieldset>
+            <RemainingEstimateChoice choice={remaining} disabled={busy} />
             {error && !durationError && <p className={s.error} role="alert">{error}</p>}
             <footer className={s.actions}>
                 <button type="button" disabled={busy} onClick={onClose}>Cancel</button>

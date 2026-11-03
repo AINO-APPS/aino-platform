@@ -48,7 +48,7 @@
       },
       "logWork": {
         "allowed": true
-      }
+      }, "canEditEstimate": { "allowed": true }
     }
   },
   "team_id": 7,

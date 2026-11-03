@@ -4,6 +4,7 @@ import { taskActorFromRequest } from "../../modules/tasks/tasks.policy";
 import { getTicketWorklogs, logWork, editWorklog, deleteWorklog, InvalidWorklog } from "../../modules/tasks/tasks.worklogs";
 import { InvalidDuration } from "../../modules/tasks/tasks.duration";
 import { getTask } from "../../modules/tasks/tasks.service";
+import { InvalidEstimate } from "../../modules/tasks/tasks.estimates";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
@@ -36,7 +37,7 @@ router.post('/:id/worklogs', auth, loadUserContext, async (req: Request, res: Re
         if ('conflict' in result && result.conflict) return res.status(result.conflict.status).json(result.conflict.body);
         return res.status(201).json(result);
     } catch (err) {
-        if (err instanceof InvalidDuration || err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
+        if (err instanceof InvalidEstimate || err instanceof InvalidDuration || err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
         req.log.error({ err }, 'Error logging work');
         return res.status(500).json({ error: 'Failed to log work' });
     }
@@ -50,7 +51,7 @@ router.patch('/:id/worklogs/:worklogId', auth, loadUserContext, async (req: Requ
         if ('conflict' in result && result.conflict) return res.status(result.conflict.status).json(result.conflict.body);
         return res.json(result);
     } catch (err) {
-        if (err instanceof InvalidDuration || err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
+        if (err instanceof InvalidEstimate || err instanceof InvalidDuration || err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
         req.log.error({ err }, 'Error editing worklog');
         return res.status(500).json({ error: 'Failed to edit worklog' });
     }
@@ -64,7 +65,7 @@ router.delete('/:id/worklogs/:worklogId', auth, loadUserContext, async (req: Req
         if ('conflict' in result && result.conflict) return res.status(result.conflict.status).json(result.conflict.body);
         return res.json(result);
     } catch (err) {
-        if (err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
+        if (err instanceof InvalidEstimate || err instanceof InvalidWorklog) return res.status(400).json({ code: err.code, error: err.message });
         req.log.error({ err }, 'Error deleting worklog');
         return res.status(500).json({ error: 'Failed to delete worklog' });
     }

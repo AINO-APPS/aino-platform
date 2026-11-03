@@ -123,16 +123,16 @@ only for its author, including after Done or Cancelled; another member or admin
 gets 403 for now. Missing, deleted or foreign-ticket worklogs return 404.
 Deleted entries leave lists and all computed totals but remain in history.
 Web/desktop reuse the prefilled Log work dialog with changed-fields-only patches;
-delete requires confirmation. Estimates and behalf logging remain owned by later
-tickets; unsupported inputs are refused for now. The temporary Android route
+delete requires confirmation. Estimates and remaining choices are documented below;
+behalf logging remains owned by ticket 05. The temporary Android route
 waiver is removed when ticket 08 proves native edit/delete coverage.
 
 `stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
 and the legacy history entry, and returns the unchanged timer-stop envelope.
 Concurrent stops record only once. The day/start time use the caller's
 `X-Timezone-Offset` (JavaScript convention); elapsed minutes round up to at least
-one. Start/Stop remain compatibility routes during this rollout. Estimates retain
-`estimated_minutes` until manual-worklogs ticket 04.
+one. Start/Stop remain compatibility routes during this rollout. Their legacy time
+summary reads original estimate through the compatibility alias.
 
 Migration `0019_task_worklogs` stops running timers and converts timer history,
 using the owning organization's timezone (UTC fallback) and the comment
@@ -144,3 +144,28 @@ Public seams: `tasks.worklogRoutes.integration.test.ts` exercises the mounted
 HTTP router on real PostgreSQL; `tasks.worklogMigration.integration.test.ts`
 exercises baseline/upgrade/replay. Run `npm run test:pg -- --runInBand tasks.worklog`
 in `server/`. Without `TASKS_SCHEMA_TEST_DATABASE_URL`, plain Jest skips PG tests.
+## Original and remaining estimates (manual-worklogs ticket 04)
+
+`tasks.estimates.ts` owns `setEstimates` and the pure `adjustRemaining` seam;
+`tasks.estimateRepository.ts` owns estimate SQL. `PATCH /api/tasks/:id/estimates`
+accepts `original_estimate` and/or `remaining_estimate` duration strings; empty
+text clears, `0m` sets zero. Setting original seeds a null remaining only when
+remaining is omitted. `can.canEditEstimate` shares `logWork`'s decision.
+The endpoint records `estimate_changed` history and audit in the write transaction,
+then emits the usual team-scoped `task_updated` after commit.
+
+Worklog create/edit/delete accept `remaining_mode` (`auto`, default; `set`; `leave`).
+`set` requires `remaining_estimate`; empty clears. `auto` applies the minutes delta,
+never below zero, and leaves null forecasts null. Deleting returns time to the
+forecast. Work and forecast share the ticket lock and transaction, including audit
+failures. Reads and write summaries expose original/remaining minutes and retain
+`estimated_minutes` as an alias of original for older clients.
+
+Migration `0020_task_estimates` renames the plan, adds nullable nonnegative remaining,
+and backfills from active worklogs. Replaying never resets an edited/cleared forecast.
+The new-tenant baseline matches. Web/desktop render server-capability-gated inline
+editors, all three remaining choices, and an overrun bar. The temporary Android
+waiver belongs to ticket 08; no native or tracker changes are included here.
+Tests: `tasks.estimates.test.ts`, `tasks.estimateMigration.integration.test.ts`,
+`tasks.worklogRoutes.integration.test.ts`, `tasks.capabilities.integration.test.ts`
+(real PostgreSQL), and client `Estimates.test.tsx` / `LogWork.test.tsx` (RTL).
