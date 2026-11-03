@@ -20,6 +20,20 @@ export interface TaskWorklog {
 export const getTaskWorklogs = (id: number | string) =>
     API.get<{ worklogs: TaskWorklog[]; time_spent_minutes: number }>(`/tasks/${id}/worklogs`);
 
+export interface LogWorkInput {
+    day_worked: string;
+    time_spent: string;
+    start_time?: string;
+    comment?: string;
+}
+export interface LogWorkResponse {
+    worklog: TaskWorklog;
+    ticket: { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null };
+    warnings: string[];
+}
+export const logTaskWork = (id: number | string, input: LogWorkInput) =>
+    API.post<LogWorkResponse>(`/tasks/${id}/worklogs`, input);
+
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };

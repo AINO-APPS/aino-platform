@@ -22,6 +22,31 @@ export async function lockTicket(db: TasksDb, taskId: number, orgId: number | nu
     return (await db.query("SELECT id, estimated_minutes FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE", [taskId, orgId])).rows[0];
 }
 
+export async function lockWorklogTicket(db: TasksDb, taskId: number, orgId: number | null) {
+    return (await db.query('SELECT * FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE', [taskId, orgId])).rows[0];
+}
+
+export async function workingHoursPerDay(db: TasksDb, orgId: number | null): Promise<number> {
+    const row = (await db.query('SELECT work_hours_per_day FROM organizations WHERE id IS NOT DISTINCT FROM $1', [orgId])).rows[0];
+    return Number(row?.work_hours_per_day ?? 8);
+}
+
+export async function insertWorklog(db: TasksDb, taskId: number, userId: number,
+    input: { day_worked: string; start_time?: string | null; comment?: string | null }, minutes: number) {
+    return (await db.query(`INSERT INTO task_worklogs (task_id, author_id, logged_by_id, day_worked, start_time, minutes, comment)
+        VALUES ($1, $2, $2, $3, $4, $5, $6) RETURNING id`,
+        [taskId, userId, input.day_worked, input.start_time || null, minutes, input.comment ?? null])).rows[0].id as number;
+}
+
+export async function recordWorklogAddition(db: TasksDb, taskId: number, userId: number, orgId: number | null,
+    worklog: Record<string, unknown>, ip?: string, userAgent?: string) {
+    await db.query(`INSERT INTO task_history (task_id, user_id, action, field, new_value)
+        VALUES ($1, $2, 'worklog_added', 'worklog', $3)`, [taskId, userId, JSON.stringify(worklog)]);
+    await db.query(`INSERT INTO audit_logs (org_id, actor_id, action, entity_type, entity_id, details, ip_address, user_agent)
+        VALUES ($1, $2, 'worklog_added', 'task', $3, $4, $5, $6)`,
+        [orgId, userId, taskId, JSON.stringify(worklog), ip ?? null, userAgent ?? null]);
+}
+
 export async function lockRunningTimer(db: TasksDb, taskId: number, userId: number, orgId: number | null) {
     return (await db.query(`SELECT tt.id, tt.started_at FROM task_timers tt JOIN tasks t ON t.id = tt.task_id
         WHERE tt.task_id = $1 AND tt.user_id = $2 AND tt.stopped_at IS NULL

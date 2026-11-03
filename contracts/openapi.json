@@ -20810,6 +20810,107 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Log work on a ticket",
+        "operationId": "post_api_tasks_id_worklogs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Worklog saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogWorkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DURATION or INVALID_WORKLOG: no work is saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or WORKLOG_CANCELLED: the viewer cannot log work on this ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Estimates, behalf logging and attendance warnings are separate rollout tickets.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogWorkRequest"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -21877,7 +21978,8 @@
               "SPRINT_FROZEN",
               "IN_SPRINT",
               "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
+              "CANCELLED_TERMINAL",
+              "WORKLOG_CANCELLED"
             ]
           }
         },
@@ -21945,6 +22047,9 @@
               },
               "schedule": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "logWork": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -21954,7 +22059,8 @@
               "transfer",
               "delete",
               "placeInSprint",
-              "schedule"
+              "schedule",
+              "logWork"
             ],
             "additionalProperties": false
           }
@@ -22986,6 +23092,94 @@
         "required": [
           "worklogs",
           "time_spent_minutes"
+        ],
+        "additionalProperties": false
+      },
+      "LogWorkRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "day_worked",
+          "time_spent"
+        ],
+        "properties": {
+          "day_worked": {
+            "type": "string",
+            "format": "date"
+          },
+          "time_spent": {
+            "type": "string",
+            "description": "Positive duration in w/d/h/m units, with whitespace and decimals. A day uses org work_hours_per_day; a week is five working days. Rounded to whole minutes."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$",
+            "description": "Optional local start time (HH:mm or HH:mm:ss)."
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          }
+        }
+      },
+      "WorklogTicketSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Legacy alias for time spent."
+          },
+          "estimated_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "time_spent_minutes",
+          "logged_minutes",
+          "estimated_minutes"
+        ],
+        "additionalProperties": false
+      },
+      "LogWorkResponse": {
+        "type": "object",
+        "properties": {
+          "worklog": {
+            "$ref": "#/components/schemas/TaskWorklog"
+          },
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Empty until attendance warnings ship in ticket 06."
+          }
+        },
+        "required": [
+          "worklog",
+          "ticket",
+          "warnings"
         ],
         "additionalProperties": false
       }

@@ -87,6 +87,20 @@ its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 `time_spent_minutes`. `getTimeSpent` batches sums for ticket read surfaces;
 `logged_minutes` in responses is a legacy alias, never the stored ticket column.
 
+`logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
+`day_worked`, `time_spent`, optional `start_time` and `comment`, and returns
+`{ worklog, ticket, warnings }` with authoritative time spent and the legacy
+estimate. It locks the org-scoped ticket, checks `can.logWork` through the
+capabilities module, and writes worklog/history/audit in one transaction.
+Realtime `task_updated` reaches the ticket's people and team only after commit.
+Done is allowed; Cancelled returns 403 `WORKLOG_CANCELLED`; frozen sprints remain
+read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
+`INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
+whitespace and decimals; a week is five org working days, rounded to whole minutes.
+Web/desktop replace the ticket timer with the capability-driven Log work dialog.
+Edits/deletes, estimates, behalf logging and attendance warnings remain owned by
+later tickets; `warnings` is empty and unsupported inputs are refused for now.
+
 `stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
 and the legacy history entry, and returns the unchanged timer-stop envelope.
 Concurrent stops record only once. The day/start time use the caller's

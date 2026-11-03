@@ -35,7 +35,7 @@ vi.mock("../../../api/tasks", () => ({
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     getTaskHistory: vi.fn().mockResolvedValue({ data: [] }),
     getTaskComments: vi.fn().mockResolvedValue({ data: [] }),
-    getTaskTimer: vi.fn().mockResolvedValue({ data: { running: false } }),
+    getTaskWorklogs: vi.fn().mockResolvedValue({ data: { worklogs: [], time_spent_minutes: 0 } }),
     getTaskCustomFieldValues: vi.fn().mockResolvedValue({ data: {} }),
     getTaskGitRefs: vi.fn().mockResolvedValue({ data: [] }),
     getScheduleOverlays: vi.fn().mockResolvedValue({ data: null }),

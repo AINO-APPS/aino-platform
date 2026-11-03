@@ -18,6 +18,7 @@ const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
 const denialMessages: Record<CapabilityReason, string> = {
     ACCESS_DENIED: "Access denied",
+    WORKLOG_CANCELLED: "Work cannot be logged on a cancelled ticket.",
     SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
@@ -101,6 +102,17 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         await database?.drop();
     });
 
+    test.each(actors)("%s has the edit-based logWork decision, including Done but excluding Cancelled", async (_name, userId, teamId, role, writable) => {
+        const actor: TaskActor = { userId, teamId, role, orgId: 1, teamVisibility: true };
+        for (const state of [101, 104, 105]) {
+            const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, workflow_state_id)
+                VALUES ('Record effort', 2, 3, 1, 1, $1) RETURNING *`, [state])).rows[0];
+            const context = await loadTicketDecisionContext(pool, actor, [ticket]);
+            expect((decideTicket(actor, ticket, context).capabilities.can as any).logWork)
+                .toEqual(!writable ? denied('ACCESS_DENIED') : state === 105 ? denied('WORKLOG_CANCELLED') : allowed);
+        }
+    });
+
     test("a deadline without a planned day stays in the backlog in both decision forms", async () => {
         const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, due_date)
             VALUES ('Deadline only', 2, 1, 1, '2026-11-30') RETURNING *`)).rows[0];
@@ -128,6 +140,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 ],
                 can: {
                     edit: { allowed: true },
+                    logWork: { allowed: true },
                     changeState: { allowed: true },
                     cancel: { allowed: true },
                     transfer: { allowed: false, reason: "ACCESS_DENIED" },
@@ -191,6 +204,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                         })),
                         can: {
                             edit: write,
+                            logWork: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             changeState: status,
                             cancel,
                             transfer: role === "super_admin" ? write : denied("ACCESS_DENIED"),
@@ -201,12 +215,12 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     },
                 });
                 expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
-                for (const action of ["edit", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
+                for (const action of ["edit", "logWork", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
                     const verdict = decisions[index].capabilities.can[action];
                     const conflict = await ticketActionConflict(pool, actor, tickets[index], action, context);
                     expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);
                     if (!verdict.allowed) {
-                        expect(conflict?.status).toBe(verdict.reason === "ACCESS_DENIED" ? 403 : 409);
+                        expect(conflict?.status).toBe(['ACCESS_DENIED', 'WORKLOG_CANCELLED'].includes(verdict.reason) ? 403 : 409);
                         expect(conflict?.body.error).toBe(denialMessages[verdict.reason]);
                     }
                 }

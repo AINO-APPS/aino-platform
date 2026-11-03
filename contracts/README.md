@@ -25,7 +25,7 @@ Validate with `npm run contracts:validate` from the repository root. Model
 checks/generation in npm scripts use `--platform-only`: they never rewrite or
 require generated files in a native sibling checkout.
 
-### Worklogs rollout (ticket 01)
+### Worklogs rollout (tickets 01–02)
 
 `GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,
 day worked, minutes, optional start/comment, timestamps, and computed
@@ -35,6 +35,14 @@ computed sum for older apps. Timer routes are deprecated but their envelopes
 are unchanged; stopping atomically creates one worklog, rounded up to at least
 one minute. Estimate naming remains unchanged until ticket 04.
 
+`POST /api/tasks/:id/worklogs` takes day worked, time spent in org-aware w/d/h/m
+format, optional start time and comment. It returns 201 with `{ worklog, ticket,
+warnings }`; warnings are empty until ticket 06. Invalid duration returns 400
+`INVALID_DURATION`; Cancelled returns 403 `WORKLOG_CANCELLED`, while Done allows
+logging. `capabilities.can.logWork` controls the web/desktop Log work dialog.
+History and audit commit atomically and realtime follows commit. Timer operations
+are marked deprecated in both OpenAPI and the route inventory and remain usable.
+
 `worklogs.mjs` defines the new field-level contract. `reviewed-task-baseline.json`
 preserves already-published precise task schemas/operations when regenerating
 with the historical baseline generator; unrelated contracts must not regress.
@@ -42,7 +50,8 @@ with the historical baseline generator; unrelated contracts must not regress.
 Android is inspected read-only. The native checker validates its committed
 snapshot; the platform delta gate additionally checks **this checkout's** current
 inventory against native coverage and waivers. A temporary route waiver lives in
-`android-worklogs-waiver.json` and must be removed when ticket 07 ships coverage:
+`android-worklogs-waiver.json`: ticket 07 owns list coverage, ticket 08 closes
+manual logging and the tasks-parity time-tracking waiver:
 
 ```powershell
 node scripts\check-android-endpoint-parity.mjs <Android-checkout>

@@ -45,6 +45,9 @@
       },
       "schedule": {
         "allowed": true
+      },
+      "logWork": {
+        "allowed": true
       }
     }
   },

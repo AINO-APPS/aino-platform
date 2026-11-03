@@ -1,84 +1,39 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Play, Square } from "../../constants/icons";
-import { getTaskTimer, startTaskTimer, stopTaskTimer } from "../../api/tasks";
+import { useEffect, useState } from "react";
+import type { LogWorkResponse, TaskWorklog } from "../../api/tasks";
+import LogWorkDialog from "./LogWorkDialog";
+import { actionDecision } from "./ticketCapabilities";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { formatMinutes, summariseTime } from "./time";
 import s from "./TaskTimePanel.module.css";
 import TaskWorklogList from "./TaskWorklogList";
 
 interface TaskTimePanelProps {
     task: any;
-    /** Called after a timer stops so the parent can refresh logged minutes. */
     onLogged?: (minutes: number) => void;
 }
 
-/**
- * Computed time spent against the legacy estimate. Start/Stop remains during
- * rollout; stopping refreshes the read-only worklogs below the time panel.
- */
+/** Manual worklogs; the server decides who can log and supplies authoritative totals. */
 export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
-    const [running, setRunning] = useState(false);
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
+    const [open, setOpen] = useState(false);
     const [logged, setLogged] = useState<number | null>(null);
+    const [saved, setSaved] = useState<TaskWorklog[]>([]);
     const [revision, setRevision] = useState(0);
-
     const taskId = task?.id;
-
-    useEffect(() => {
-        setLogged(null);
-        setError("");
-        if (!taskId) {
-            setRunning(false);
-            return;
-        }
-        let cancelled = false;
-        getTaskTimer(taskId)
-            .then((res) => {
-                if (!cancelled) setRunning(!!(res.data as any)?.running);
-            })
-            .catch(() => {
-                if (!cancelled) setRunning(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [taskId]);
-
-    const start = useCallback(async () => {
-        if (!taskId) return;
-        setBusy(true);
-        setError("");
-        try {
-            await startTaskTimer(taskId);
-            setRunning(true);
-        } catch {
-            setError("Could not start the timer");
-        } finally {
-            setBusy(false);
-        }
-    }, [taskId]);
-
-    const stop = useCallback(async () => {
-        if (!taskId) return;
-        setBusy(true);
-        setError("");
-        try {
-            const res = await stopTaskTimer(taskId);
-            const minutes = Number((res.data as any)?.minutes) || 0;
-            setRunning(false);
-            setLogged(Number((res.data as any)?.time?.logged) || 0);
-            setRevision(value => value + 1);
-            onLogged?.(minutes);
-        } catch {
-            setError("Could not stop the timer");
-        } finally {
-            setBusy(false);
-        }
-    }, [taskId, task?.logged_minutes, onLogged]);
-
+    const canLogWork = actionDecision(task, 'logWork').allowed;
+    useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setRevision(0); }, [taskId]);
+    useRealtimeEvent(['task_updated'], event => {
+        if (String((event.data as { taskId?: number })?.taskId) !== String(taskId)) return;
+        setRevision(value => value + 1);
+    }, !!taskId);
+    const onSaved = (response: LogWorkResponse) => {
+        setLogged(response.ticket.time_spent_minutes);
+        setSaved(current => [response.worklog, ...current.filter(row => row.id !== response.worklog.id)]);
+        setOpen(false);
+        onLogged?.(response.worklog.minutes);
+    };
     const summary = summariseTime({
         estimated_minutes: task?.estimated_minutes,
-        logged_minutes: logged ?? task?.logged_minutes,
+        logged_minutes: logged ?? task?.time_spent_minutes ?? task?.logged_minutes,
     });
 
     return (
@@ -101,34 +56,12 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
             )}
 
             <div className={s["time-actions"]}>
-                {running ? (
-                    <button
-                        type="button"
-                        className={s["time-button"]}
-                        onClick={stop}
-                        disabled={busy}
-                    >
-                        <Square size={13} aria-hidden="true" /> Stop timer
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        className={s["time-button"]}
-                        onClick={start}
-                        disabled={busy}
-                    >
-                        <Play size={13} aria-hidden="true" /> Start timer
-                    </button>
-                )}
+                {canLogWork && <button type="button" className={s["time-button"]} onClick={() => setOpen(true)}>Log work</button>}
                 {summary.over && <span className={s["time-over-label"]}>Over estimate</span>}
             </div>
 
-            {error && (
-                <p className={s["time-error"]} role="alert">
-                    {error}
-                </p>
-            )}
-            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} />}
+            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} onTotal={revision > 0 ? setLogged : undefined} />}
+            {open && canLogWork && <LogWorkDialog taskId={taskId} onClose={() => setOpen(false)} onSaved={onSaved} />}
         </section>
     );
 }

@@ -6,6 +6,12 @@
       "owner": "manual-worklogs ticket 07",
       "reason": "Temporary ticket 01 rollout waiver: the platform ships the read-only worklog route before the Android worklog UI. Legacy Android Start/Stop keeps its response shape; stop now records a worklog.",
       "removeWhen": "manual-worklogs ticket 07 ships Android worklog list coverage"
+    },
+    {
+      "key": "POST /api/tasks/:param/worklogs",
+      "owner": "manual-worklogs ticket 08",
+      "reason": "Temporary ticket 02 rollout: web/desktop log work manually while Android retains compatible Start/Stop. Ticket 08 proves and closes native manual-worklog parity.",
+      "removeWhen": "manual-worklogs ticket 08 proves native log-work coverage"
     }
   ]
 }
