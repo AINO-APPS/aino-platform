@@ -1,5 +1,6 @@
 import React from "react";
 import { ChevronDown, ChevronRight, CheckCircle2 } from "../../constants/icons";
+import TicketHistoryRow from "./TicketHistoryRow";
 import s from "./CompletedSection.module.css";
 
 interface CompletedSectionProps {
@@ -65,20 +66,12 @@ export default function CompletedSection({
                     )}
 
                     {tasks.map((task) => (
-                        <button
+                        <TicketHistoryRow
                             key={task.id}
-                            type="button"
-                            className={s["completed-row"]}
-                            onClick={() => onOpenDetail(task)}
-                        >
-                            <span className={s["completed-key"]}>
-                                {task.issue_key || `#${task.id}`}
-                            </span>
-                            <span className={s["completed-row-title"]}>{task.title}</span>
-                            <span className={s["completed-date"]}>
-                                {formatDate(task.completed_at)}
-                            </span>
-                        </button>
+                            task={task}
+                            onOpenDetail={onOpenDetail}
+                            formatDate={formatDate}
+                        />
                     ))}
 
                     {!showingAll && (

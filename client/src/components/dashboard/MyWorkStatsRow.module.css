@@ -1,0 +1,58 @@
+/* In Review has its own violet so a green-branded org never paints it like Done. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.2rem 0 0.7rem;
+}
+
+@media (max-width: 360px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0.25rem;
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cell.done { background: color-mix(in srgb, var(--success, #4daa57) 10%, transparent); }
+.cell.done .value { color: var(--success, #4daa57); }
+.cell.progress { background: color-mix(in srgb, var(--warning, #f59e0b) 10%, transparent); }
+.cell.progress .value { color: var(--warning, #f59e0b); }
+.cell.review { background: color-mix(in srgb, #8b7cf6 12%, transparent); }
+.cell.review .value { color: #8b7cf6; }
+.cell.pending { background: color-mix(in srgb, var(--text-secondary, #9b9b9b) 12%, transparent); }
+.cell.pending .value { color: var(--text-secondary, #9b9b9b); }
+
+.bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--border);
+  margin-bottom: 0.4rem;
+}
+
+.fill { height: 100%; }
+.fill.done { background: var(--success, #4daa57); }
+.fill.progress { background: var(--warning, #f59e0b); }
+.fill.review { background: #8b7cf6; }

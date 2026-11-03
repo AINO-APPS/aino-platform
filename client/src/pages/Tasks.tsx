@@ -482,7 +482,7 @@ export default function Tasks() {
             epics={epics.epics}
             selectedEpicId={epics.selectedEpicId}
             onSelectEpic={(id) => tasksRoute.setFilters({ epic: id ? String(id) : "" })}
-            teamMode={teamMode.mode}
+            teamMode={teamMode.mode} scopeParams={teamScopeParams}
             onRetry={() => { setLoading(true); fetchTasks().finally(() => setLoading(false)); }}
           />
         )}

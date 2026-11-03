@@ -62,6 +62,33 @@ beforeEach(() => {
     getScheduled.mockResolvedValue({ data: { tasks: [] } });
 });
 
+describe("MyWorkCard stats", () => {
+    test("shows the state breakdown of the same tickets it lists", async () => {
+        hasFeature.mockReturnValue(false);
+        const monday = nextMonday();
+        getTasks.mockImplementation((_d: unknown, params: { start_date: string }) =>
+            Promise.resolve({
+                data: {
+                    tasks: params.start_date === monday
+                        ? [
+                            { id: 1, title: "Writing", container: "scheduled", assigned_to: 7, planned_date: monday, workflow_state_category: "in_progress" },
+                            { id: 2, title: "Shipped", container: "scheduled", assigned_to: 7, planned_date: monday, completed_at: "2026-11-02T10:00:00Z" },
+                        ]
+                        : [],
+                },
+            }),
+        );
+
+        renderCard();
+
+        expect(await screen.findByText("1 of 2 done")).toBeInTheDocument();
+        const cell = (label: string) => screen.getAllByText(label).find((node) => node.previousSibling)!.parentElement;
+        expect(cell("In Progress")).toHaveTextContent("1In Progress");
+        expect(cell("Done")).toHaveTextContent("1Done");
+        expect(screen.getByRole("progressbar", { name: "My work progress" })).toHaveAttribute("aria-valuenow", "1");
+    });
+});
+
 describe("MyWorkCard", () => {
     test("My Work reads the server container even when date and sprint metadata disagree", async () => {
         hasFeature.mockReturnValue(false);
@@ -114,8 +141,9 @@ describe("MyWorkCard", () => {
         expect(screen.getByText("Sprint 12")).toBeInTheDocument();
         expect(screen.queryByText("Theirs")).not.toBeInTheDocument();
         expect(screen.queryByText("Cancelled")).not.toBeInTheDocument();
-        // The workflow state's own name, not its category bucket.
-        expect(screen.getByText("In Progress")).toBeInTheDocument();
+        // The workflow state's own name, not its category bucket (the stat row
+        // also has an "In Progress" label, so read the row itself).
+        expect(screen.getByText("Mine").parentElement).toHaveTextContent("In Progress");
         expect(getBacklog).not.toHaveBeenCalled();
     });
 

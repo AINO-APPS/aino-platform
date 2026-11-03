@@ -7,9 +7,8 @@ import useWebSocket from "../../hooks/useWebSocket";
 import { getActiveSprint, getSprintTasks, getTasks, getTaskDetail } from "../../api/tasks";
 import {
     capGroups,
-    myDoneCount,
     myOpenTasks,
-    myWorkCount,
+    myWorkStats,
     overdueFrom,
     previousWeekEnd,
     rowDayLabel,
@@ -19,8 +18,10 @@ import {
     weekGroups,
     weekRange,
     type MyWorkGroup,
+    type MyWorkStats,
     type MyWorkTask,
 } from "./myWork";
+import MyWorkStatsRow from "./MyWorkStatsRow";
 import s from "./MyWorkCard.module.css";
 
 /** The fields the card uses from `GET /sprints/active`. */
@@ -44,7 +45,7 @@ const MyWorkCard = memo(function MyWorkCard() {
     const [sprint, setSprint] = useState<SprintData | null>(null);
     const [groups, setGroups] = useState<MyWorkGroup[]>([]);
     const [hidden, setHidden] = useState(0);
-    const [counts, setCounts] = useState({ done: 0, total: 0 });
+    const [stats, setStats] = useState<MyWorkStats>({ done: 0, inProgress: 0, inReview: 0, pending: 0, total: 0 });
     const [loaded, setLoaded] = useState(false);
     /** The lookup failed — an outage must not read as "you have nothing to do". */
     const [failed, setFailed] = useState(false);
@@ -69,7 +70,7 @@ const MyWorkCard = memo(function MyWorkCard() {
         const capped = capGroups(weekGroups(myOpenTasks(overdueRows, userId), myOpenTasks(weekRows, userId), range.start));
         setGroups(capped.groups);
         setHidden(capped.hidden);
-        setCounts({ done: myDoneCount(weekRows, userId), total: myWorkCount(weekRows, userId) });
+        setStats(myWorkStats(weekRows, userId));
     }, []);
 
     const loadSprint = useCallback(async (running: SprintData, userId: number | string) => {
@@ -81,7 +82,7 @@ const MyWorkCard = memo(function MyWorkCard() {
         const capped = capGroups(sprintGroups(myOpenTasks(rows, userId)));
         setGroups(capped.groups);
         setHidden(capped.hidden);
-        setCounts({ done: myDoneCount(rows, userId), total: myWorkCount(rows, userId) });
+        setStats(myWorkStats(rows, userId));
     }, []);
 
     const loadCard = useCallback(async () => {
@@ -174,11 +175,13 @@ const MyWorkCard = memo(function MyWorkCard() {
             <h3 className={s.title}>
                 <span className="page-icon">{sprint ? <Zap size={18} /> : <CalendarDays size={18} />}</span>
                 <span className={s["title-text"]}>{sprint ? sprint.name : "This Week"}</span>
-                {counts.total > 0 && (
-                    <span className={s["done-count"]}>{counts.done} of {counts.total} done</span>
+                {stats.total > 0 && (
+                    <span className={s["done-count"]}>{stats.done} of {stats.total} done</span>
                 )}
                 <span className={s.arrow}>›</span>
             </h3>
+
+            {stats.total > 0 && <MyWorkStatsRow stats={stats} />}
 
             {empty ? (
                 <p className={s["empty-text"]}>

@@ -13,6 +13,7 @@ import {
     myDoneCount,
     myOpenTasks,
     myWorkCount,
+    myWorkStats,
     previousWeekEnd,
     rowDayLabel,
     sprintGroups,
@@ -64,6 +65,23 @@ describe("mine", () => {
     test("cancelled is neither done nor counted", () => {
         expect(myDoneCount(tasks, ME)).toBe(1);
         expect(myWorkCount(tasks, ME)).toBe(2);
+    });
+});
+
+describe("myWorkStats", () => {
+    test("buckets the same tickets the card counts by state", () => {
+        const tasks = [
+            task({ id: 1, completed_at: "2026-10-27T10:00:00Z" }),
+            task({ id: 2, workflow_state_category: "in_progress" }),
+            task({ id: 3, workflow_state_category: "in_review" }),
+            task({ id: 4, workflow_state_category: "open" }),
+            task({ id: 5 }),
+            task({ id: 6, assigned_to: 999 }),
+            task({ id: 7, workflow_state_key: CANCELLED_STATE_KEY, completed_at: "2026-10-27T10:00:00Z" }),
+        ];
+
+        expect(myWorkStats(tasks, ME)).toEqual({ done: 1, inProgress: 1, inReview: 1, pending: 2, total: 5 });
+        expect(myWorkStats(tasks, ME).total).toBe(myWorkCount(tasks, ME));
     });
 });
 
