@@ -1,4 +1,4 @@
-/** Ticket 01's precise worklog contract; legacy timer envelopes are unchanged. */
+/** Manual-worklog rollout contract; legacy timer envelopes are unchanged. */
 export function applyWorklogContract(paths, schemas) {
     const ref = name => ({ $ref: `#/components/schemas/${name}` });
     const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
@@ -17,6 +17,30 @@ export function applyWorklogContract(paths, schemas) {
     const operation = paths['/api/tasks/{id}/worklogs'].get;
     operation.summary = 'List a ticket’s worklogs and computed time spent (read-only)';
     operation.responses['200'].content['application/json'].schema = ref('TaskWorklogList');
+    schemas.LogWorkRequest = {
+        type: 'object', additionalProperties: false, required: ['day_worked', 'time_spent'], properties: {
+            day_worked: { type: 'string', format: 'date' },
+            time_spent: { type: 'string', description: 'Positive duration in w/d/h/m units, with whitespace and decimals. A day uses org work_hours_per_day; a week is five working days. Rounded to whole minutes.' },
+            start_time: { type: ['string', 'null'], pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$', description: 'Optional local start time (HH:mm or HH:mm:ss).' },
+            comment: { type: ['string', 'null'], maxLength: 10000 },
+        },
+    };
+    schemas.WorklogTicketSummary = object({ id: { type: 'integer' }, time_spent_minutes: { type: 'integer', minimum: 0 },
+        logged_minutes: { type: 'integer', minimum: 0, description: 'Legacy alias for time spent.' }, estimated_minutes: { type: ['integer', 'null'], minimum: 0 } });
+    schemas.LogWorkResponse = object({ worklog: ref('TaskWorklog'), ticket: ref('WorklogTicketSummary'),
+        warnings: { type: 'array', items: { type: 'string' }, description: 'Empty until attendance warnings ship in ticket 06.' } });
+    const post = paths['/api/tasks/{id}/worklogs'].post;
+    post.summary = 'Log work on a ticket';
+    post.description = 'Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Estimates, behalf logging and attendance warnings are separate rollout tickets.';
+    post.requestBody = { required: true, content: { 'application/json': { schema: ref('LogWorkRequest') } } };
+    delete post.responses['200'];
+    post.responses['201'] = { description: 'Worklog saved', content: { 'application/json': { schema: ref('LogWorkResponse') } } };
+    post.responses['400'].description = 'INVALID_DURATION or INVALID_WORKLOG: no work is saved.';
+    post.responses['403'].description = 'ACCESS_DENIED or WORKLOG_CANCELLED: the viewer cannot log work on this ticket.';
+    schemas.TicketCapability.properties.reason.enum.push('WORKLOG_CANCELLED');
+    const can = schemas.TicketCapabilities.properties.can;
+    can.properties.logWork = ref('TicketCapability');
+    can.required.push('logWork');
     schemas.TaskTimerStopResponse.properties.minutes.minimum = 1;
     schemas.TaskTimerStopResponse.properties.minutes.description = 'Minutes recorded as one worklog by this stop, rounded up to at least one.';
     for (const [url, method] of [['/api/tasks/{id}/timer', 'get'], ['/api/tasks/{id}/timer/start', 'post'], ['/api/tasks/{id}/timer/stop', 'post']]) {

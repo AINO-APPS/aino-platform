@@ -101,6 +101,7 @@ export interface TicketCapabilitiesCan {
   delete: TicketCapability;
   placeInSprint: TicketCapability;
   schedule: TicketCapability;
+  logWork: TicketCapability;
 }
 
 export interface BacklogResponsePagination {

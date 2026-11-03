@@ -66,6 +66,9 @@
           "schedule": {
             "allowed": false,
             "reason": "IN_SPRINT"
+          },
+          "logWork": {
+            "allowed": true
           }
         }
       },

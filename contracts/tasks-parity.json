@@ -671,20 +671,20 @@
     },
     {
       "id": "time-tracking-on-task",
-      "name": "worklog time spent and read-only list, legacy timer compatibility, timesheet by day worked",
+      "name": "manual Log work dialog, computed time spent, worklog list and legacy Android timer compatibility",
       "decision": "D13",
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/TaskDetailSheet.test.tsx"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/TaskDetailSheet.test.tsx"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx"
       },
       "android": {
         "status": "waived",
-        "waiver": "Temporary manual-worklogs ticket 01 rollout: Android retains legacy Start/Stop responses while the platform records worklogs. Ticket 07 owns the native worklog list and removes this waiver; contracts/android-worklogs-waiver.json tracks the new route."
+        "waiver": "Temporary manual-worklogs ticket 02 rollout: web/desktop replace the ticket timer with Log work; Android keeps compatible Start/Stop until native worklogs ship. Ticket 08 owns and closes this time-tracking parity waiver; contracts/android-worklogs-waiver.json tracks uncovered endpoints."
       },
       "ios": {
         "status": "waived",
