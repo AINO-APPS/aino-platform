@@ -79,7 +79,13 @@ for containers and capabilities; Notes routes keep their reads and error handlin
 Linked-ticket lookups receive the actor's org from the route's loaded user
 context; links to another organization's tickets return no details.
 
-## Worklogs and legacy timers
+## Manual worklogs (ADR-019)
+
+Web/desktop and Android record ticket time only through manual worklogs; there is
+no ticket Start/Stop UI. The attendance timer is unrelated and unchanged. Both
+clients render server capabilities, author/logged-by attribution, inline original
+and remaining estimates, all three remaining choices, and post-save warnings.
+Deprecated server timer routes remain available for older-client compatibility.
 
 `tasks.worklogs.ts` is the worklog interface; `tasks.worklogRepository.ts` owns
 its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
@@ -89,15 +95,15 @@ its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 
 `logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
 `day_worked`, `time_spent`, optional `start_time`, `comment` and `author_id`, and returns
-`{ worklog, ticket, warnings }` with authoritative time spent and the legacy
-estimate. It locks the org-scoped ticket, checks `can.logWork` through the
+`{ worklog, ticket, warnings }` with authoritative time spent, original/remaining
+estimates, and legacy logged/estimated aliases. It locks the org-scoped ticket, checks `can.logWork` through the
 capabilities module, and writes worklog/history/audit in one transaction.
 Realtime `task_updated` reaches the ticket's people and team only after commit.
 Done is allowed; Cancelled returns 403 `WORKLOG_CANCELLED`; frozen sprints remain
 read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 `INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
 whitespace and decimals; a week is five org working days, rounded to whole minutes.
-Web/desktop replace the ticket timer with the capability-driven Log work dialog.
+Web/desktop and Android replace the ticket timer with capability-driven Log work.
 `tasks.worklogWarnings.ts` exports the reusable
 `computeWorklogWarnings(db, orgId, { author_id, day_worked })` hook. Call it only
 **after** the write transaction commits. Both `logWork` and `editWorklog` call it
@@ -110,8 +116,8 @@ No attendance entries means no total warning. Attendance reads go through the
 attendance service (including its existing per-day summary and author timezone);
 worklog aggregation lives in `tasks.worklogWarningRepository.ts`. Both reads are
 best-effort so a read failure cannot undo the worklog or turn a saved response
-into an error. The web displays plain-language warnings after closing the save
-dialog, and clears them on the next clean save or ticket change.
+into an error. Web and Android display plain-language warnings after closing the
+save dialog/sheet, and clear them on the next clean save or ticket change.
 
 `editWorklog` (`PATCH /api/tasks/:id/worklogs/:worklogId`) accepts any changed
 subset of those fields; null clears start time or comment. `deleteWorklog`
@@ -124,7 +130,7 @@ Cancelled. Other members get 403. `getTicketWorklogs` takes the viewer's actor
 so serialization and correction guards use the same decision. Missing, deleted
 or foreign-ticket worklogs return 404.
 Deleted entries leave lists and all computed totals but remain in history.
-Web/desktop reuse the prefilled Log work dialog with changed-fields-only patches;
+Web/desktop and Android reuse prefilled Log work forms with changed-fields-only patches;
 delete requires confirmation. `can.logWorkForOthers` gates the Person picker.
 Any supplied `author_id` on create or edit (even self, null or malformed values)
 requires that capability, otherwise 403 `WORKLOG_FOR_OTHERS_DENIED`. Authorized
@@ -132,8 +138,9 @@ authors must be integer user ids in the actor's organization; missing/foreign or
 malformed people return 400 `INVALID_WORKLOG`. Omitting author uses the caller
 on create and keeps the current author on edit. `logged_by_id` always records
 the original logger and never changes on correction; history/audit record the
-current actor. The list shows both identities when they differ. Estimates and remaining choices are documented below. The temporary Android route
-waiver is removed when ticket 08 proves native edit/delete coverage.
+current actor. The list shows both identities when they differ. Estimates and
+remaining choices are documented below. All five worklog/estimate routes have
+native coverage; no temporary manual-worklog parity waiver remains.
 
 `stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
 and the legacy history entry, and returns the unchanged timer-stop envelope.
@@ -152,7 +159,8 @@ Public seams: `tasks.worklogRoutes.integration.test.ts` exercises the mounted
 HTTP router on real PostgreSQL; `tasks.worklogMigration.integration.test.ts`
 exercises baseline/upgrade/replay. Run `npm run test:pg -- --runInBand tasks.worklog`
 in `server/`. Without `TASKS_SCHEMA_TEST_DATABASE_URL`, plain Jest skips PG tests.
-## Original and remaining estimates (manual-worklogs ticket 04)
+
+## Original and remaining estimates
 
 `tasks.estimates.ts` owns `setEstimates` and the pure `adjustRemaining` seam;
 `tasks.estimateRepository.ts` owns estimate SQL. `PATCH /api/tasks/:id/estimates`
@@ -171,9 +179,11 @@ failures. Reads and write summaries expose original/remaining minutes and retain
 
 Migration `0020_task_estimates` renames the plan, adds nullable nonnegative remaining,
 and backfills from active worklogs. Replaying never resets an edited/cleared forecast.
-The new-tenant baseline matches. Web/desktop render server-capability-gated inline
-editors, all three remaining choices, and an overrun bar. The temporary Android
-waiver belongs to ticket 08; no native or tracker changes are included here.
+The new-tenant baseline matches. Web/desktop and Android render
+server-capability-gated inline editors, all three remaining choices, and an overrun
+bar. Tasks parity points to real web RTL and Android fake-API ticket-view-model
+tests. The platform's read-only native parity gate requires coverage for all five
+manual-worklog/estimate routes without changing unrelated baseline parity debt.
 Tests: `tasks.estimates.test.ts`, `tasks.estimateMigration.integration.test.ts`,
 `tasks.worklogRoutes.integration.test.ts`, `tasks.capabilities.integration.test.ts`
 (real PostgreSQL), and client `Estimates.test.tsx` / `LogWork.test.tsx` (RTL).

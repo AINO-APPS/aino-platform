@@ -25,7 +25,7 @@ Validate with `npm run contracts:validate` from the repository root. Model
 checks/generation in npm scripts use `--platform-only`: they never rewrite or
 require generated files in a native sibling checkout.
 
-### Worklogs rollout (tickets 01–02)
+### Manual worklogs and estimates
 
 `GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,
 day worked, minutes, optional start/comment, timestamps, and computed
@@ -33,13 +33,21 @@ day worked, minutes, optional start/comment, timestamps, and computed
 Ticket read responses carry `time_spent_minutes`; `logged_minutes` is the same
 computed sum for older apps. Timer routes are deprecated but their envelopes
 are unchanged; stopping atomically creates one worklog, rounded up to at least
-one minute. Estimate naming remains unchanged until ticket 04.
+one minute. Ticket summaries expose original and remaining estimate minutes;
+`estimated_minutes` remains an alias of original for older apps.
 
 `POST /api/tasks/:id/worklogs` takes day worked, time spent in org-aware w/d/h/m
-format, optional start time and comment. It returns 201 with `{ worklog, ticket,
-warnings }`; warnings are empty until ticket 06. Invalid duration returns 400
+format, optional start time, comment and an org-admin `author_id`. It returns 201
+with `{ worklog, ticket, warnings }`; approved leave and excess attendance produce
+advisory `ON_LEAVE` / `EXCEEDS_ATTENDANCE` warnings after saving. Invalid duration returns 400
 `INVALID_DURATION`; Cancelled returns 403 `WORKLOG_CANCELLED`, while Done allows
-logging. `capabilities.can.logWork` controls the web/desktop Log work dialog.
+logging. Server capabilities control the web/desktop and Android Log work,
+estimate and person controls, plus edit/delete on each worklog.
+`PATCH` / `DELETE /api/tasks/:id/worklogs/:worklogId` correct or soft-delete work.
+All three worklog writes accept `remaining_mode`: `auto` (default, duration delta),
+`set` (requires `remaining_estimate`), or `leave`. `PATCH /api/tasks/:id/estimates`
+sets or clears original/remaining estimates; original seeds null remaining when
+remaining is omitted. The native ticket timer is retired, not the server routes.
 History and audit commit atomically and realtime follows commit. Timer operations
 are marked deprecated in both OpenAPI and the route inventory and remain usable.
 
@@ -49,9 +57,12 @@ with the historical baseline generator; unrelated contracts must not regress.
 
 Android is inspected read-only. The native checker validates its committed
 snapshot; the platform delta gate additionally checks **this checkout's** current
-inventory against native coverage and waivers. A temporary route waiver lives in
-`android-worklogs-waiver.json`: ticket 07 owns list coverage, ticket 08 closes
-manual logging and the tasks-parity time-tracking waiver:
+inventory against native coverage and waivers. All five manual-worklog/estimate
+operations require actual native coverage, even if already in its snapshot;
+none can be excused by a waiver. The temporary manual-worklog waivers are removed.
+Unrelated existing pending/unmatched routes remain reported as baseline debt.
+The tasks-parity time-tracking entry ships on web/desktop and Android with RTL
+and public ticket-view-model behavioral owners:
 
 ```powershell
 node scripts\check-android-endpoint-parity.mjs <Android-checkout>

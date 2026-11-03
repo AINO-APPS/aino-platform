@@ -139,7 +139,7 @@ are referenced by the parity matrix and the phase plan.
 | D10 | **`project_id` and `work_item_type_id` become filters** on backlog, board and schedule. |
 | D11 | **Completed sprints are immutable.** No task edits, drags or re-open. The only writable artefact is the retrospective. |
 | D12 | **Scope-change baseline:** `sprint_baselines` records committed points and item ids at sprint start; explicit scope add/remove re-baselines. Enables "+8 scope added". |
-| D13 | **Time spent comes from worklogs**, summed on read over non-deleted entries. Web/desktop ticket detail replaces Start/Stop with a capability-driven **Log work** dialog (day worked, org-aware time spent, optional start and comment) and a worklog list; the timesheet groups by day worked. Done allows work; Cancelled refuses it. Legacy Start/Stop remains server-side for older Android clients during the rollout: stopping creates a worklog, never writes a ticket total, and preserves the old response envelope. Ticket 08 closes native time-tracking parity. Estimates keep their legacy name until ticket 04. |
+| D13 | **Manual worklogs are the only ticket time-entry UI on web/desktop and Android** (ADR-019). Time spent is summed on read over non-deleted worklogs; the timesheet groups by day worked. Server capabilities drive Log work, inline **original/remaining estimate** editing, the org-admin Person picker, and each worklog's edit/delete actions (ADR-016). Log/edit/delete offer **adjust automatically** (default), **set to**, or **leave unchanged**; auto applies the duration delta, never makes remaining negative, and preserves null. Setting original fills a null remaining when remaining is omitted. Worklogs show author and original logged-by when different. Approved-leave and excess-attendance warnings appear after saving and never block it. Done allows logging; Cancelled refuses new work but retains authorized corrections. No ticket timer UI remains. Deprecated server Start/Stop routes keep their paths/envelopes for older Android builds: stop creates a worklog, never writes a ticket total. Legacy logged/estimated minutes alias time spent/original estimate until phase 3 cleanup. |
 
 ### 4.2 "Completed" visibility
 
@@ -516,7 +516,9 @@ is absent. `/tasks` redirects to `/tasks/backlog` preserving the query string.
 
 Kept as the deep surface. Changes: bottom sheet on narrow viewports (D39),
 `planned_date` and `due_date` shown as distinct fields with distinct labels, a
-`time spent / estimate` row with a server-capability-driven Log work control and worklogs below it (D13), and the issue key
+`time spent / original estimate` row with remaining estimate, over-estimate state,
+inline estimate editors, a server-capability-driven Log work control and worklogs
+below it (D13), and the issue key
 prominent and copyable (D26). Tab order: Details, Comments, History. Existing
 dependencies, blockers, acceptance criteria, custom fields, parent/child and Git
 refs stay.

@@ -56,8 +56,6 @@ test('worklog edit/delete contracts expose author capabilities, partial patch an
         assert.ok(api.components.schemas.TaskWorklog.required.includes(capability));
         assert.equal(api.components.schemas.TaskWorklog.properties[capability].type, 'boolean');
     }
-    const waiver = JSON.parse(fs.readFileSync(path.join(root, 'contracts/android-worklogs-waiver.json'), 'utf8'));
-    for (const method of ['PATCH', 'DELETE']) assert.ok(waiver.waivers.some(w => w.key === `${method} /api/tasks/:param/worklogs/:param`));
 });
 
 test('read-only worklog route documents its author, worked day and computed time', () => {
