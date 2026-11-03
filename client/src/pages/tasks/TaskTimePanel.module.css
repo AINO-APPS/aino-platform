@@ -79,6 +79,22 @@
     color: var(--danger, #ef4444);
 }
 
+.worklog-warnings {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-inline-start: 3px solid var(--warning, #b87916);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--font-meta-size);
+    line-height: 1.5;
+}
+
+.worklog-warnings ul {
+    margin: 4px 0 0;
+    padding-inline-start: 18px;
+}
+
 .worklogs {
     margin-top: 8px;
     padding-top: 10px;

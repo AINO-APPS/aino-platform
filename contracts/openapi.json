@@ -20900,7 +20900,7 @@
             }
           }
         },
-        "description": "Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Estimates, behalf logging and attendance warnings are separate rollout tickets.",
+        "description": "Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving, using the author’s local attendance day and worklogs across tickets; they never block or roll back the write. Estimates and behalf logging are separate rollout tickets.",
         "requestBody": {
           "required": true,
           "content": {
@@ -23171,9 +23171,13 @@
           "warnings": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "ON_LEAVE",
+                "EXCEEDS_ATTENDANCE"
+              ]
             },
-            "description": "Empty until attendance warnings ship in ticket 06."
+            "description": "Advisory checks after commit, never blocking the save. ON_LEAVE means approved leave on the author’s recorded day; EXCEEDS_ATTENDANCE means the author’s non-deleted day total across tickets exceeds attendance working minutes (excluding breaks). No attendance entries means no attendance-total warning. Failed warning reads are best-effort."
           }
         },
         "required": [

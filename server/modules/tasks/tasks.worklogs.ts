@@ -8,6 +8,7 @@ import { parseDuration } from "./tasks.duration";
 import { ticketActionConflict } from "./tasks.writeGuards";
 import { findTeamMemberIds } from "./tasks.repository";
 import { emitTaskUpdated } from "../../utils/taskNotifications";
+import { computeWorklogWarnings } from './tasks.worklogWarnings';
 
 export interface LogWorkInput {
     day_worked: string;
@@ -37,7 +38,7 @@ function validateWorklog(input: LogWorkInput) {
 /** Permission is rechecked under the ticket lock; all durable records precede realtime. */
 export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, taskId: number, actor: TaskActor,
     input: LogWorkInput, source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
-    return db.transaction(async (client, context) => {
+    const result = await db.transaction(async (client, context) => {
         const tx = client as TasksDb;
         const task = await repository.lockWorklogTicket(tx, taskId, actor.orgId);
         if (!task) return { conflict: { status: 404, body: { error: 'Task not found' } } };
@@ -56,6 +57,8 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         return { worklog, ticket: { id: taskId, time_spent_minutes: list.time_spent_minutes,
             logged_minutes: list.time_spent_minutes, estimated_minutes: task.estimated_minutes }, warnings: [] };
     });
+    if (!result.worklog) return result;
+    return { ...result, warnings: await computeWorklogWarnings(db, actor.orgId, result.worklog) };
 }
 
 /** Batched read: missing and empty tickets have zero time, never the obsolete stored total. */

@@ -28,10 +28,10 @@ export function applyWorklogContract(paths, schemas) {
     schemas.WorklogTicketSummary = object({ id: { type: 'integer' }, time_spent_minutes: { type: 'integer', minimum: 0 },
         logged_minutes: { type: 'integer', minimum: 0, description: 'Legacy alias for time spent.' }, estimated_minutes: { type: ['integer', 'null'], minimum: 0 } });
     schemas.LogWorkResponse = object({ worklog: ref('TaskWorklog'), ticket: ref('WorklogTicketSummary'),
-        warnings: { type: 'array', items: { type: 'string' }, description: 'Empty until attendance warnings ship in ticket 06.' } });
+        warnings: { type: 'array', items: { type: 'string', enum: ['ON_LEAVE', 'EXCEEDS_ATTENDANCE'] }, description: 'Advisory checks after commit, never blocking the save. ON_LEAVE means approved leave on the author’s recorded day; EXCEEDS_ATTENDANCE means the author’s non-deleted day total across tickets exceeds attendance working minutes (excluding breaks). No attendance entries means no attendance-total warning. Failed warning reads are best-effort.' } });
     const post = paths['/api/tasks/{id}/worklogs'].post;
     post.summary = 'Log work on a ticket';
-    post.description = 'Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Estimates, behalf logging and attendance warnings are separate rollout tickets.';
+    post.description = 'Logs the viewer’s own work; done tickets are allowed. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving, using the author’s local attendance day and worklogs across tickets; they never block or roll back the write. Estimates and behalf logging are separate rollout tickets.';
     post.requestBody = { required: true, content: { 'application/json': { schema: ref('LogWorkRequest') } } };
     delete post.responses['200'];
     post.responses['201'] = { description: 'Worklog saved', content: { 'application/json': { schema: ref('LogWorkResponse') } } };

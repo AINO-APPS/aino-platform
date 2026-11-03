@@ -13,6 +13,43 @@ beforeEach(() => {
     api.logTaskWork.mockReset().mockResolvedValue({ data: { worklog, ticket: { id: 1, time_spent_minutes: 150, logged_minutes: 150 }, warnings: [] } });
 });
 describe('Log work on a ticket', () => {
+    test('shows both returned attendance warnings after the worklog saves and the dialog closes', async () => {
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE', 'EXCEEDS_ATTENDANCE'] } });
+        render(<TaskTimePanel task={ticket} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '2h 30m' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        expect(await screen.findByText('Review work')).toBeTruthy();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        const warning = screen.getByRole('status');
+        expect(warning).toHaveTextContent('Work saved');
+        expect(warning).toHaveTextContent('The author has approved leave on this day.');
+        expect(warning).toHaveTextContent('The author’s total work logged for this day exceeds their clocked-in working time.');
+    });
+
+    test('clears stale warnings after another clean save or switching tickets', async () => {
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE'] } });
+        const view = render(<TaskTimePanel task={ticket} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '1h' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await screen.findByRole('status');
+        api.logTaskWork.mockResolvedValue({ data: { worklog: { ...worklog, id: 5 }, ticket: { time_spent_minutes: 180 }, warnings: [] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '30m' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(screen.queryByRole('status')).toBeNull();
+        api.logTaskWork.mockResolvedValue({ data: { worklog, ticket: { time_spent_minutes: 150 }, warnings: ['ON_LEAVE'] } });
+        fireEvent.click(screen.getByRole('button', { name: 'Log work' }));
+        fireEvent.change(screen.getByLabelText('Time spent'), { target: { value: '1h' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save work' }));
+        await screen.findByRole('status');
+        view.rerender(<TaskTimePanel task={{ ...ticket, id: 2 }} />);
+        await screen.findByText('No work logged yet');
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
     test('shows an invalid-duration error beside time spent and saves no worklog', async () => {
         api.logTaskWork.mockRejectedValue({ response: { data: { code: 'INVALID_DURATION', error: 'Enter a positive duration.' } } });
         render(<TaskTimePanel task={ticket} />);

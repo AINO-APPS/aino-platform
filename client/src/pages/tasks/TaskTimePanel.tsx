@@ -6,6 +6,7 @@ import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 import { formatMinutes, summariseTime } from "./time";
 import s from "./TaskTimePanel.module.css";
 import TaskWorklogList from "./TaskWorklogList";
+import WorklogWarnings from './WorklogWarnings';
 
 interface TaskTimePanelProps {
     task: any;
@@ -18,14 +19,16 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     const [logged, setLogged] = useState<number | null>(null);
     const [saved, setSaved] = useState<TaskWorklog[]>([]);
     const [revision, setRevision] = useState(0);
+    const [warnings, setWarnings] = useState<string[]>([]);
     const taskId = task?.id;
     const canLogWork = actionDecision(task, 'logWork').allowed;
-    useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setRevision(0); }, [taskId]);
+    useEffect(() => { setLogged(null); setSaved([]); setOpen(false); setRevision(0); setWarnings([]); }, [taskId]);
     useRealtimeEvent(['task_updated'], event => {
         if (String((event.data as { taskId?: number })?.taskId) !== String(taskId)) return;
         setRevision(value => value + 1);
     }, !!taskId);
     const onSaved = (response: LogWorkResponse) => {
+        setWarnings(response.warnings);
         setLogged(response.ticket.time_spent_minutes);
         setSaved(current => [response.worklog, ...current.filter(row => row.id !== response.worklog.id)]);
         setOpen(false);
@@ -60,6 +63,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
                 {summary.over && <span className={s["time-over-label"]}>Over estimate</span>}
             </div>
 
+            <WorklogWarnings warnings={warnings} />
             {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} onTotal={revision > 0 ? setLogged : undefined} />}
             {open && canLogWork && <LogWorkDialog taskId={taskId} onClose={() => setOpen(false)} onSaved={onSaved} />}
         </section>

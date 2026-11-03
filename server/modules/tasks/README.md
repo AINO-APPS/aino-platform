@@ -98,8 +98,20 @@ read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 `INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
 whitespace and decimals; a week is five org working days, rounded to whole minutes.
 Web/desktop replace the ticket timer with the capability-driven Log work dialog.
-Edits/deletes, estimates, behalf logging and attendance warnings remain owned by
-later tickets; `warnings` is empty and unsupported inputs are refused for now.
+Edits/deletes, estimates and behalf logging remain owned by later tickets;
+unsupported inputs are refused for now.
+
+`tasks.worklogWarnings.ts` exports the reusable
+`computeWorklogWarnings(db, orgId, { author_id, day_worked })` hook. Call it only
+**after** the write transaction commits. It returns `ON_LEAVE` for approved leave
+on any recorded day and `EXCEEDS_ATTENDANCE` when the author's non-deleted worklog
+minutes across all org tickets that day exceed attendance working minutes.
+No attendance entries means no total warning. Attendance reads go through the
+attendance service (including its existing per-day summary and author timezone);
+worklog aggregation lives in `tasks.worklogWarningRepository.ts`. Both reads are
+best-effort so a read failure cannot undo the worklog or turn a saved response
+into an error. The web displays plain-language warnings after closing the save
+dialog, and clears them on the next clean save or ticket change.
 
 `stopLegacyTimer` locks the ticket and timer in one transaction, records a worklog
 and the legacy history entry, and returns the unchanged timer-stop envelope.

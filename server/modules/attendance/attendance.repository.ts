@@ -165,6 +165,22 @@ export async function listRecentEntries(
     )).rows;
 }
 
+export async function getAuthorTimezoneOffset(db: AttendanceDb, userId: number, orgId: number | null): Promise<number | null> {
+    const { rows } = await db.query('SELECT timezone_offset FROM users WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2', [userId, orgId]);
+    return rows.length ? Number(rows[0].timezone_offset) : null;
+}
+
+export async function hasApprovedLeaveForDate(
+    db: AttendanceDb, userId: number, orgId: number | null, date: string,
+): Promise<boolean> {
+    const { rows } = await db.query(`SELECT EXISTS (
+        SELECT 1 FROM leaves l JOIN users u ON u.id = l.user_id
+        WHERE l.user_id = $1 AND u.org_id IS NOT DISTINCT FROM $2
+          AND l.date::date = $3::date AND l.status = 'approved'
+    ) AS approved`, [userId, orgId, date]);
+    return rows[0].approved;
+}
+
 export async function listApprovedLeaveDates(
     db: AttendanceDb,
     userId: number,

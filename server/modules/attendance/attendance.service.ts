@@ -585,4 +585,6 @@ async function assertManualDateUnlocked(
     }
 }
 
+export { getWorklogDayAttendance, hasApprovedLeaveForDate } from './attendance.worklogEvidence';
+
 export type AttendanceService = ReturnType<typeof createAttendanceService>;
