@@ -283,7 +283,7 @@ export const findDefaultTicketProject = async (
     teamId: number | null,
 ) => (await db.query(
     `SELECT COALESCE(
-        (SELECT project_id FROM sprints WHERE id = $2),
+        (SELECT s.project_id FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $2 AND p.org_id = $1),
         (SELECT id FROM projects WHERE org_id = $1 AND origin_team_id = $3),
         (SELECT id FROM projects WHERE org_id = $1 AND is_general ORDER BY id LIMIT 1)
      ) AS id`,

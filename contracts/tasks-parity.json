@@ -10,6 +10,16 @@
   ],
   "features": [
     {
+      "id": "ticket-create-project",
+      "name": "Required project picker, active member defaults, legacy create resolution and project-only sprints",
+      "decision": "D54",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native picker follows in ticket 13. Older clients omit project_id and retain server sprint/team/General resolution until the client-version gate." },
+      "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the required project picker." }
+    },
+    {
       "id": "service-desk-project",
       "name": "Service Desk project settings, keyed copies, system status sync and cancel-on-delete",
       "decision": "D31",

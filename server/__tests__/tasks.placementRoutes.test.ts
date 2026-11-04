@@ -214,13 +214,13 @@ describe("PATCH /:id/assign-sprint", () => {
         expect(lastPlacement()).toMatchObject({ target: { sprint: null } });
     });
 
-    test("maps a cross-team move to 409 SPRINT_TEAM_MISMATCH", async () => {
-        mockPlaceTickets.mockResolvedValue(refused("SPRINT_TEAM_MISMATCH"));
+    test("maps a cross-project move to 409 SPRINT_PROJECT_MISMATCH", async () => {
+        mockPlaceTickets.mockResolvedValue(refused("SPRINT_PROJECT_MISMATCH"));
 
         const res = await request(app).patch("/api/tasks/5/assign-sprint").send({ sprint_id: 50 });
 
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a non-admin cannot target another team's sprint", async () => {
@@ -359,11 +359,11 @@ describe("PUT /:id", () => {
     });
 
     test("maps a placement refusal and writes nothing else", async () => {
-        mockPlaceTickets.mockResolvedValue(refused("SPRINT_TEAM_MISMATCH"));
+        mockPlaceTickets.mockResolvedValue(refused("SPRINT_PROJECT_MISMATCH"));
 
         const res = await request(app).put("/api/tasks/5").send({ sprint_id: 50, title: "Renamed" });
 
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 });

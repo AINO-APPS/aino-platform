@@ -61,6 +61,7 @@ export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) 
     return API.get("/tasks", { params, signal });
 };
 export const addTask = (data: AnyData) => API.post("/tasks", data);
+export const getMyProjects = () => API.get("/projects/mine");
 export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);

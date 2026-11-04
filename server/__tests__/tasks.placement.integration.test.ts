@@ -217,7 +217,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     test.each([
         ["into a completed sprint", { due_date: "2026-11-20" }, { sprint: ALPHA_DONE }, "SPRINT_FROZEN"],
         ["out of a completed sprint", { sprint_id: ALPHA_DONE, due_date: "2026-10-31" }, "backlog", "SPRINT_FROZEN"],
-        ["into another team's sprint", { due_date: "2026-11-20" }, { sprint: BETA_PLANNED }, "SPRINT_TEAM_MISMATCH"],
+        ["into another team's sprint", { due_date: "2026-11-20" }, { sprint: BETA_PLANNED }, "SPRINT_PROJECT_MISMATCH"],
     ] as const)("refuses a move %s and leaves the row untouched", async (_label, seed, target, code) => {
         const id = await ticket(seed);
         const before = (await pool.query("SELECT * FROM tasks WHERE id = $1", [id])).rows[0];
@@ -270,7 +270,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
         expect(results).toEqual([
             expect.objectContaining({ id: mine, ok: true }),
-            expect.objectContaining({ id: theirs, ok: false, code: "SPRINT_TEAM_MISMATCH" }),
+            expect.objectContaining({ id: theirs, ok: false, code: "SPRINT_PROJECT_MISMATCH" }),
         ]);
         expect((await pool.query("SELECT sprint_id FROM tasks WHERE id = $1", [mine])).rows[0].sprint_id).toBe(ALPHA_PLANNED);
     });

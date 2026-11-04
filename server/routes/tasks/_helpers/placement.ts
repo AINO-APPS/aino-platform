@@ -21,7 +21,6 @@ const STATUS: Record<PlacementRefusalCode, number> = {
     NOT_FOUND: 404,
     SPRINT_NOT_FOUND: 400,
     SPRINT_FROZEN: 409,
-    SPRINT_TEAM_MISMATCH: 409,
     IN_SPRINT: 409,
     TEAM_NOT_FOUND: 400,
     TEAM_UNCHANGED: 400,

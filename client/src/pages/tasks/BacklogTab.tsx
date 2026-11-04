@@ -35,6 +35,7 @@ import { useTaskCtx } from "./TaskContext";
 import CompletedSection from "./CompletedSection";
 import BacklogCard from "./BacklogCard";
 import QuickAdd from "./QuickAdd";
+import CreateProjectPicker from "./CreateProjectPicker";
 import s from "./BacklogTab.module.css";
 
 function getPriority(p: string | undefined): PriorityOption {
@@ -42,6 +43,9 @@ function getPriority(p: string | undefined): PriorityOption {
 }
 
 interface BacklogTabProps {
+    projectRequired?: boolean;
+    createProjects?: any[];
+    canQuickCreate?: boolean;
     backlogTasks: any[];
     sortedBacklogTasks: any[];
     backlogLoading: boolean;
@@ -117,6 +121,9 @@ interface BacklogTabProps {
 }
 
 export default function BacklogTab({
+    projectRequired = false,
+    createProjects = [],
+    canQuickCreate = true,
     backlogTasks,
     sortedBacklogTasks,
     backlogLoading,
@@ -253,7 +260,7 @@ export default function BacklogTab({
             )}
 
             {/* Quick-add: capture without a modal, keeping focus for the next one. */}
-            <QuickAdd onCreate={onQuickAdd} />
+            {canQuickCreate && <QuickAdd onCreate={onQuickAdd} />}
 
             {bulkBar}
 
@@ -331,7 +338,8 @@ export default function BacklogTab({
                                 />
                             </div>
                             <SprintSelector
-                                sprints={availableSprints}
+                                sprints={projectRequired ? availableSprints.filter((sprint: any) =>
+                                    String(sprint.project_id) === String(backlogProjectId)) : availableSprints}
                                 selected={backlogSprintId as any}
                                 onChange={(id: any) => {
                                     setBacklogSprintId(id);
@@ -361,7 +369,9 @@ export default function BacklogTab({
                                     onChange={setBacklogWorkItemType}
                                 />
                             </div>
-                            {availableProjects && availableProjects.length > 0 && (
+                            {projectRequired ? <CreateProjectPicker projects={createProjects} value={backlogProjectId}
+                                onChange={id => { setBacklogProjectId(id); setBacklogSprintId(null); }} />
+                            : availableProjects && availableProjects.length > 0 && (
                                 <div className={s["form-extra-group"]}>
                                     <label>
                                         <Folder
@@ -407,7 +417,8 @@ export default function BacklogTab({
                                     </button>
                                 ))}
                             </div>
-                            <button type="submit" className="btn btn-primary btn-fullwidth">
+                            <button type="submit" className="btn btn-primary btn-fullwidth"
+                                disabled={projectRequired && !createProjects.some(project => String(project.id) === String(backlogProjectId))}>
                                 Create Ticket
                             </button>
                         </div>

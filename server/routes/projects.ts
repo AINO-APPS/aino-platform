@@ -23,6 +23,7 @@ import {
     createProjectWithGrants,
     findProjectById,
     listProjectMembers,
+    listActiveProjects,
     ProjectAccessRepositoryError,
     removeProjectMember,
     updateProjectMemberRole,
@@ -92,6 +93,17 @@ function sendProjectAccessError(res: Response, err: unknown): boolean {
 }
 
 // ─── List projects in the requester's org ─────────────────────────────────
+router.get("/mine", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        if (!req.userOrgId) return res.json([]);
+        const projects = await addCapabilitiesToProjects(req, await listActiveProjects(req.db!, req.userOrgId));
+        return res.json(projects.filter((project) => project.capabilities.canCreateTickets));
+    } catch (err) {
+        req.log.error({ err }, "Failed to list my projects");
+        return res.status(500).json({ error: "Failed to list my projects" });
+    }
+});
+
 //
 // Returns a plain array by default (back-compat with callers that expected
 // the original shape). When `?paginate=1` is supplied, returns

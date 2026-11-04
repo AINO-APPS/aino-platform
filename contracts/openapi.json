@@ -14373,7 +14373,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "POST /api/tasks",
+        "summary": "Create a dated ticket in a project",
         "operationId": "post_api_tasks",
         "parameters": [
           {
@@ -14394,7 +14394,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Task"
                 }
               }
             }
@@ -14420,11 +14420,35 @@
             }
           },
           "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "description": "READ_ONLY_ROLE: the actor must be a project member or project admin",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "archived": {
+                    "value": {
+                      "error": "This project is archived and its tickets are read-only.",
+                      "code": "PROJECT_ARCHIVED"
+                    }
+                  },
+                  "mismatch": {
+                    "value": {
+                      "error": "A ticket may only join a sprint in its own project.",
+                      "code": "SPRINT_PROJECT_MISMATCH"
+                    }
+                  }
                 }
               }
             }
@@ -14449,7 +14473,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              }
+            }
+          }
+        },
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/{id}": {
@@ -17726,7 +17761,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "POST /api/tasks/backlog",
+        "summary": "Create a backlog ticket in a project",
         "operationId": "post_api_tasks_backlog",
         "parameters": [
           {
@@ -17747,7 +17782,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Task"
                 }
               }
             }
@@ -17773,11 +17808,35 @@
             }
           },
           "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "description": "READ_ONLY_ROLE: the actor must be a project member or project admin",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "archived": {
+                    "value": {
+                      "error": "This project is archived and its tickets are read-only.",
+                      "code": "PROJECT_ARCHIVED"
+                    }
+                  },
+                  "mismatch": {
+                    "value": {
+                      "error": "A ticket may only join a sprint in its own project.",
+                      "code": "SPRINT_PROJECT_MISMATCH"
+                    }
+                  }
                 }
               }
             }
@@ -17802,7 +17861,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              }
+            }
+          }
+        },
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/bulk": {
@@ -22744,6 +22814,87 @@
         }
       }
     },
+    "/api/projects/mine": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List active projects where the actor can create tickets",
+        "operationId": "get_api_projects_mine",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProjectList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Returns only non-archived projects with canCreateTickets, resolved from the actor's effective personal/team role and organization-admin override."
+      }
+    },
     "/api/service-desk/tickets": {
       "post": {
         "tags": [
@@ -24808,7 +24959,6 @@
               "ACCESS_DENIED",
               "SPRINT_FROZEN",
               "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
               "CANCELLED_TERMINAL",
               "READ_ONLY_ROLE",
               "PROJECT_ARCHIVED",
@@ -24839,7 +24989,6 @@
               "ACCESS_DENIED",
               "SPRINT_FROZEN",
               "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
               "CANCELLED_TERMINAL",
               "READ_ONLY_ROLE",
               "PROJECT_ARCHIVED",
@@ -27047,6 +27196,131 @@
           "time_spent_minutes",
           "original_estimate_minutes",
           "remaining_estimate_minutes"
+        ],
+        "additionalProperties": false
+      },
+      "MyProjectList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Project"
+        }
+      },
+      "CreateTicketRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Web selection; legacy omission resolves from sprint, team, then General."
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Must belong to the resolved project."
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Legacy compatibility hint, chosen explicitly by organization admins only."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "label_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "story_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "work_item_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workflow_state_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "parent_task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "acceptance_criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "is_blocked": {
+            "type": "boolean"
+          },
+          "blocked_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "title"
         ],
         "additionalProperties": false
       },

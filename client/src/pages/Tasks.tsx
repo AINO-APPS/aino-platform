@@ -2,7 +2,7 @@ import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as Gly
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getProjects, assignTaskToSprint } from "../api/tasks";
+import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, assignTaskToSprint } from "../api/tasks";
 import { getLocalToday } from "../api/client";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
@@ -53,6 +53,7 @@ import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
 import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
 import TasksOverlays from "./tasks/TasksOverlays";
 import TasksConfirmDialogs from "./tasks/TasksConfirmDialogs";
+import { useTicketProjects } from "./tasks/hooks/useTicketProjects";
 
 import s from "./Tasks.module.css";
 
@@ -92,13 +93,7 @@ export default function Tasks() {
     queryKey: ["tasks", "labels"],
     queryFn: async () => (await getTaskLabels()).data as any[],
   });
-  const { data: availableProjects = EMPTY, isFetched: projectsFetched } = useQuery({
-    queryKey: ["tasks", "projects"],
-    queryFn: async () => {
-      const r = await getProjects(false);
-      return Array.isArray(r.data) ? (r.data as any[]) : [];
-    },
-  });
+  const { availableProjects, projectsFetched, createProjects } = useTicketProjects(currentUser);
   const { data: availableSprints = EMPTY, isFetched: sprintsFetched } = useQuery({
     queryKey: ["tasks", "availableSprints"],
     // "Agile & Sprints" gate: skip the (server-403-gated) sprint lookup
@@ -194,6 +189,8 @@ export default function Tasks() {
     backlogFilters: filters.backlogFilters,
     /** Team scope from the admin switcher (team_id or unassigned). */
     scopeParams: teamScopeParams,
+    projectOwnership, createProjects,
+    createProjectUserKey: `${currentUser?.tenant_id}.${currentUser?.id}`,
     selectedSprintId,
     showConfirm,
     closeConfirm,

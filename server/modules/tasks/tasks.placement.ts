@@ -71,8 +71,6 @@ export type PlacementRefusalCode =
     | "NOT_FOUND"
     | "SPRINT_NOT_FOUND"
     | "SPRINT_FROZEN"
-    | "SPRINT_TEAM_MISMATCH"
-    | "SPRINT_PROJECT_MISMATCH"
     | "IN_SPRINT"
     | "TEAM_NOT_FOUND"
     | "TEAM_UNCHANGED";

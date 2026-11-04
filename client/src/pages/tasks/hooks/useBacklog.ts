@@ -13,6 +13,7 @@ import { writeError } from "../ticketCapabilities";
 import { useApplyBulkStatus } from "./useApplyBulkStatus";
 import type { Task } from "../../../types";
 import { reverseBulkAction } from "./backlogUndo";
+import { useCreateProjectSelection } from "./useCreateProjectSelection";
 
 interface BacklogSummary {
     total: number;
@@ -29,8 +30,12 @@ type ShowConfirm = (
 
 /** Stable default so an omitted scope never re-triggers every fetch. */
 const EMPTY_SCOPE: Record<string, unknown> = {};
+const EMPTY_PROJECTS: any[] = [];
 
 interface UseBacklogParams {
+    projectOwnership?: boolean;
+    createProjects?: any[];
+    createProjectUserKey?: string;
     activeTab: string;
     backlogOpen: boolean;
     date: string;
@@ -54,6 +59,9 @@ export function useBacklog({
     date,
     backlogFilters,
     scopeParams = EMPTY_SCOPE,
+    projectOwnership = false,
+    createProjects = EMPTY_PROJECTS,
+    createProjectUserKey = "",
     selectedSprintId,
     showConfirm,
     closeConfirm,
@@ -90,6 +98,10 @@ export function useBacklog({
     );
     const [backlogWorkItemType, setBacklogWorkItemType] = useState("");
     const [backlogProjectId, setBacklogProjectId] = useState("");
+    const createSelection = useCreateProjectSelection({
+        enabled: projectOwnership, projects: createProjects, currentProjectId: scopeParams.project_id,
+        userKey: createProjectUserKey, value: backlogProjectId, onChange: setBacklogProjectId,
+    });
     const [scheduleTaskId, setScheduleTaskId] = useState<number | string | null>(
         null,
     );
@@ -292,6 +304,10 @@ export function useBacklog({
     const handleAddBacklog = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!backlogTitle.trim()) return;
+        if (projectOwnership && !createSelection.projects.some(project => String(project.id) === backlogProjectId)) {
+            setError("Choose a project where you can create tickets.");
+            return;
+        }
         try {
             await addBacklogTask({
                 // An admin viewing a team's backlog creates the ticket there.
@@ -316,17 +332,13 @@ export function useBacklog({
             setBacklogSprintId("");
             setBacklogStoryPoints(null);
             setBacklogWorkItemType("");
+            createSelection.remember();
             setBacklogProjectId("");
             setBacklogFormOpen(false);
             fetchBacklog(true);
             if (backlogSprintId && activeTab === "sprint") fetchTasks();
         } catch (err) {
-            const error = err as {
-                response?: { data?: { error?: string } };
-            };
-            setError(
-                error.response?.data?.error || "Failed to create backlog item",
-            );
+            setError(writeError(err, "Failed to create backlog item"));
         }
     };
 
@@ -335,17 +347,23 @@ export function useBacklog({
      * caller keeps focus, so consecutive entry never needs the mouse.
      */
     const quickAdd = useCallback(async (title: string) => {
+        if (projectOwnership && !createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id))) {
+            setError("Choose a project where you can create tickets.");
+            return;
+        }
         try {
             await addBacklogTask({
                 ...(scopeParams.team_id ? { team_id: scopeParams.team_id } : {}),
+                ...(scopeParams.project_id ? { project_id: scopeParams.project_id } : {}),
                 title, priority: "medium",
             });
+            createSelection.remember(String(scopeParams.project_id));
             await fetchBacklog(true);
         } catch (err) {
             const error = err as { response?: { data?: { error?: string } } };
             setError(error.response?.data?.error || "Failed to create backlog item");
         }
-    }, [fetchBacklog, setError]);
+    }, [fetchBacklog, setError, scopeKey, projectOwnership, createSelection.projects, createProjectUserKey]);
 
     const inlineEdit = useBacklogInlineEdit({ setBacklogTasks, fetchBacklog, setError, undo, onMoved });
 
@@ -491,6 +509,9 @@ export function useBacklog({
     }, [fetchCompleted]);
 
     return {
+        projectRequired: projectOwnership,
+        createProjects: createSelection.projects,
+        canQuickCreate: !projectOwnership || createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id)),
         backlogTasks,
         setBacklogTasks,
         backlogLoading,

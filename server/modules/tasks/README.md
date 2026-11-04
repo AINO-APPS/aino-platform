@@ -67,6 +67,20 @@ exposes `project_ownership` to select this behavior independently of plan flags.
 Run `npm run test:pg -- projectPlanning --runInBand` from `server` for the
 project planning PostgreSQL route tests.
 
+`GET /api/projects/mine` is the create-picker listing: only active projects with
+the actor's `canCreateTickets` capability are returned. The web create form
+requires one, preferring the current project and then the user's last successful
+create project; archived and viewer-only defaults are discarded. No available
+project leaves an explanatory empty picker and disables creation.
+
+`tasks.ownership.ts` resolves create ownership from the explicit request, then
+the sprint's project, then the legacy team project, then General. In project mode
+every resolved destination must be active and writable by a member/project admin
+(or org admin); an invalid or refused explicit project never falls back.
+Create, edit, bulk and plan placement all refuse a sprint from another project
+with `SPRINT_PROJECT_MISMATCH`. This replaces the legacy team mismatch code;
+flag-off tenants retain their existing team-scoped placement rules.
+
 ## Migration review and publication
 
 At `/projects`, **Review project migration** opens the super-admin review.
@@ -124,7 +138,7 @@ no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.
 
 The optional `{ targetSprintId }` loader option evaluates `placeInSprint` against
-a specific destination, including access, freeze and team ownership. Without a
+a specific destination, including access, freeze and project ownership. Without a
 destination it describes the general placement action, not permission to enter
 every sprint. A requested destination that is missing or inaccessible denies
 access. Placement's exported `placementRefusal` shares its existing freeze,

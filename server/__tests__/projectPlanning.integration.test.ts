@@ -68,6 +68,18 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
     });
 
+    test("my projects picker includes only active projects where the actor can create tickets", async () => {
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES (30, 1, 'viewer')");
+        await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = 20");
+        const picker = await request(app).get("/api/projects/mine");
+        expect(picker.status).toBe(200);
+        expect(picker.body.map((project: any) => project.id)).toEqual([10]);
+        expect(picker.body[0].capabilities.canCreateTickets).toBe(true);
+        const admin = await request(app).get("/api/projects/mine").set("x-role", "super_admin");
+        expect(admin.body.map((project: any) => project.id).sort((a: number, b: number) => a - b))
+            .toEqual([1, 10, 30]);
+    });
+
     test("creates a sprint in the selected project, not the actor's generated team project", async () => {
         const created = await request(app).post("/api/sprints").send({
             project_id: 20, name: "Second stream", start_date: "2026-11-01", end_date: "2026-11-14",
@@ -78,6 +90,61 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(listed.body.sprints).toEqual([]);
         const selected = await request(app).get("/api/sprints?project_id=20");
         expect(selected.body.sprints.map((sprint: any) => sprint.id)).toEqual([created.body.sprint.id]);
+    });
+
+    test.each(["/api/tasks", "/api/tasks/backlog"])("%s resolves request, sprint, team and General ownership and refuses invalid projects", async (path) => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date) VALUES
+            (200, 20, 'Second', '2026-11-01', '2026-11-14')`);
+        const create = (body: any) => request(app).post(path).send({ title: "New ticket", ...body });
+        const explicit = await create({ project_id: 20 });
+        expect(explicit.status).toBe(200);
+        expect(explicit.body).toMatchObject({ project_id: 20, ticket_key: "TWO-1" });
+        const sprint = await create({ sprint_id: 200 });
+        expect(sprint.status).toBe(200);
+        expect(sprint.body).toMatchObject({ project_id: 20, sprint_id: 200 });
+        const legacy = await create({});
+        expect(legacy.status).toBe(200);
+        expect(legacy.body.project_id).toBe(10);
+        await pool.query("UPDATE projects SET origin_team_id = NULL WHERE id = 10");
+        const general = await request(app).post(path).set("x-role", "super_admin").send({ title: "General fallback" });
+        expect(general.status).toBe(200);
+        expect(general.body.project_id).toBe(1);
+        const invalid = await create({ project_id: "not-an-id" });
+        expect(invalid.status).toBe(400);
+        const partial = await create({ project_id: "20garbage" });
+        expect(partial.status).toBe(400);
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES (30, 1, 'viewer')");
+        const viewer = await create({ project_id: 30 });
+        expect(viewer.status).toBe(403);
+        expect(viewer.body.code).toBe("READ_ONLY_ROLE");
+        await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = 20");
+        const archived = await create({ project_id: 20 });
+        expect(archived.status).toBe(409);
+        expect(archived.body.code).toBe("PROJECT_ARCHIVED");
+    });
+
+    test("create, edit, bulk and plan placement refuse another project's sprint without changing the ticket", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date) VALUES
+            (200, 20, 'Second', '2026-11-01', '2026-11-14')`);
+        for (const path of ["/api/tasks", "/api/tasks/backlog"]) {
+            const created = await request(app).post(path).send({ title: "Mismatch", project_id: 10, sprint_id: 200 });
+            expect(created.status).toBe(409);
+            expect(created.body.code).toBe("SPRINT_PROJECT_MISMATCH");
+        }
+        const created = await request(app).post("/api/tasks/backlog").send({ title: "Keep here", project_id: 10 });
+        expect(created.status).toBe(200);
+        const id = created.body.id;
+        const edited = await request(app).put(`/api/tasks/${id}`).send({ title: "Wrong sprint", sprint_id: 200 });
+        expect(edited.status).toBe(409);
+        expect(edited.body.code).toBe("SPRINT_PROJECT_MISMATCH");
+        const bulk = await request(app).post("/api/tasks/bulk").send({ ids: [id], action: "move_to_sprint", value: 200 });
+        expect(bulk.status).toBe(200);
+        expect(bulk.body).toMatchObject({ changed: 0, results: [{ id, ok: false, code: "SPRINT_PROJECT_MISMATCH" }] });
+        const placed = await request(app).patch(`/api/tasks/${id}/assign-sprint`).send({ sprint_id: 200 });
+        expect(placed.status).toBe(409);
+        expect(placed.body.code).toBe("SPRINT_PROJECT_MISMATCH");
+        const detail = await request(app).get("/api/tasks/backlog?project_id=10");
+        expect(detail.body.tasks).toEqual([expect.objectContaining({ id, title: "Keep here", sprint_id: null, project_id: 10 })]);
     });
 
     test("project backlog, sprint board and plan isolate streams and legacy team scope maps to its generated project", async () => {

@@ -212,6 +212,7 @@ are referenced by the parity matrix and the phase plan.
 | D51 | **Schedule overlays** show approved leave, holidays and booked meetings as read-only, independently toggleable background bands — reusing existing data instead of building a capacity model (which D33 defers). |
 | D52 | **Team mode is web-only configuration.** `server/middleware/webOnly.ts` already blocks agile editor/reviewer routes for native clients, so the Continuous/Sprints switch is edited on web and only *read* by Android and the iOS webview. |
 | D53 | **The home card shows the running sprint or this week — never the backlog.** With an active sprint (and the tenant `agile` feature) it lists the viewer's tickets in that sprint; otherwise the tickets assigned to the viewer with a `planned_date` in this Monday–Sunday window, with open tickets planned before it pinned as **Overdue**. Both modes keep strictly `assigned_to = me` and drop `cancelled`, which the date-range query does not exclude; an empty week says so instead of falling back to the backlog, because a section whose meaning flips is the ambiguity ADR-015 exists to end. |
+| D54 | **Project-owned creation (ADR-017):** the web requires an active `canCreateTickets` project, defaulting to the current or last-used project. Older clients may omit it; the server resolves request → sprint → legacy team project → General. Archived/viewer-only destinations are refused. Create, edit, bulk and plan placement use `SPRINT_PROJECT_MISMATCH` when a sprint belongs to another project. |
 
 ---
 

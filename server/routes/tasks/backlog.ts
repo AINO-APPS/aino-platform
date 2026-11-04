@@ -19,12 +19,11 @@ const {
 } = require('../../modules/tasks/tasks.sprintRepository');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
-const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
-const { findDefaultTicketProject } = require('../../modules/tasks/tasks.repository');
+const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
+const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { ticketActionConflict, ticketCreationConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
@@ -227,10 +226,6 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null, taskActorFromRequest(req));
-        if (project.error) return res.status(project.error.status).json(project.error.body);
-        let validProjectId = project.projectId;
-
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
         let assignedTo = null;
@@ -277,15 +272,12 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
-        if (!validProjectId) {
-            validProjectId = await findDefaultTicketProject(
-                req.db!,
-                req.userOrgId || null,
-                validSprintId,
-                owner.teamId ?? null,
-            );
-        }
-        if (!validProjectId) throw new Error("No default project exists for this organization");
+        const project = await resolveCreateProjectId(req.db!, {
+            actor: taskActorFromRequest(req), explicitProjectId: project_id,
+            sprintId: validSprintId, teamId: owner.teamId,
+        });
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        const validProjectId = project.projectId;
         const creationRefusal = await ticketCreationConflict(req, validProjectId);
         if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 

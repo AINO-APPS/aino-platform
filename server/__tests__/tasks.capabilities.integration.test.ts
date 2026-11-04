@@ -27,7 +27,6 @@ const denialMessages: Record<CapabilityReason, string> = {
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
     IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
-    SPRINT_TEAM_MISMATCH: "This ticket belongs to another team. An org admin must transfer it before it can join this sprint.",
     SPRINT_PROJECT_MISMATCH: "A ticket may only join a sprint in its own project.",
 };
 const actors = [
@@ -177,6 +176,24 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         expect(decision.capabilities.can.comment.allowed).toBe(comment);
         expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && (userId === 4 || role === "project_admin"));
         if (!write) expect(decision.capabilities.can.edit).toEqual(denied(archived ? "PROJECT_ARCHIVED" : comment ? "READ_ONLY_ROLE" : "ACCESS_DENIED"));
+    });
+
+    test("project-mode placement ignores team hints but refuses a different project's sprint with the shared message", async () => {
+        const sprint = (await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0];
+        const destination = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'CAPDEST', 'Another project') RETURNING id")).rows[0];
+        await pool.query(`INSERT INTO sprints (id, team_id, project_id, name, start_date, end_date)
+            VALUES (21, 2, $1, 'Other project', '2026-11-01', '2026-11-14')`, [destination.id]);
+        const actor: TaskActor = { ...member, role: "super_admin", projectOwnership: true };
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, project_id, workflow_state_id)
+            VALUES ('Project placement', 2, 1, 2, $1, 101) RETURNING *`, [sprint.project_id])).rows[0];
+        for (const [targetSprintId, permitted] of [[10, true], [21, false]] as const) {
+            const context = await loadTicketDecisionContext(pool, actor, [ticket], { targetSprintId });
+            expect(decideTicket(actor, ticket, context).capabilities.can.placeInSprint)
+                .toEqual(permitted ? allowed : denied("SPRINT_PROJECT_MISMATCH"));
+            if (!permitted) expect((await ticketActionConflict(pool, actor, ticket, "placeInSprint", context))?.body)
+                .toEqual({ code: "SPRINT_PROJECT_MISMATCH", error: "A ticket may only join a sprint in its own project." });
+        }
     });
 
     test("a team member sees every other active state and all ticket actions", async () => {
@@ -332,7 +349,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
     test.each([
         ["own team's planned sprint", 10, true, undefined],
         ["completed destination", 13, false, "SPRINT_FROZEN"],
-        ["another team's sprint", 20, false, "SPRINT_TEAM_MISMATCH"],
+        ["another team's sprint", 20, false, "SPRINT_PROJECT_MISMATCH"],
         ["missing destination", 999, false, "ACCESS_DENIED"],
     ])("placing into %s uses the selected destination", async (_label, targetSprintId, permitted, reason) => {
             const actor = { ...member, role: "super_admin" };

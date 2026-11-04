@@ -4,7 +4,9 @@
 
 **Blocked by:** 07, 08
 
-**Status:** ready-for-agent
+**Status:** claimed
+
+Claimed by `ticket/projects-own-tickets-09` in `.worktrees/projects-own-tickets-09`.
 
 Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 

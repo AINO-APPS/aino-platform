@@ -33,9 +33,9 @@ const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.work
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { resolveCreateTeamId, requireTicketProjectId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
-const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
+const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
@@ -117,13 +117,6 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        // Stage 3: optional project assignment + auto issue key. We validate
-        // the project here so a missing/invalid value returns 400 before we
-        // open the create transaction.
-        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null, taskActorFromRequest(req));
-        if (project.error) return res.status(project.error.status).json(project.error.body);
-        let validProjectId = project.projectId;
-
         const targetDate = date || getLocalToday(req);
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
@@ -182,7 +175,12 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
-        validProjectId = await requireTicketProjectId(req.db!, validProjectId, req.userOrgId || null, validSprintId, owner.teamId ?? null);
+        const project = await resolveCreateProjectId(req.db!, {
+            actor: taskActorFromRequest(req), explicitProjectId: project_id,
+            sprintId: validSprintId, teamId: owner.teamId,
+        });
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        const validProjectId = project.projectId;
         const creationRefusal = await ticketCreationConflict(req, validProjectId);
         if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 

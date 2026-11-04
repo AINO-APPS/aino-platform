@@ -11,7 +11,7 @@ import { placementRefusal } from "./tasks.placementRules";
 import { findDecisionOwners, findDecisionProjects, findDecisionSprints } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
-    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED"
+    | "IN_SPRINT" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED"
     | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"

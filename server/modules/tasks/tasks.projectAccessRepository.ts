@@ -20,6 +20,13 @@ interface ActorProjectQuery {
 const ORG_ADMIN_ROLES = ["super_admin", "hr_admin", "platform_admin"];
 const PROJECT_ROLES = new Set<ProjectRole>(["project_admin", "member", "viewer"]);
 
+export async function listActiveProjects(db: ProjectAccessRepositoryDb, orgId: number): Promise<any[]> {
+    return (await db.query(
+        "SELECT * FROM projects WHERE org_id = $1 AND is_archived = FALSE ORDER BY LOWER(name), id",
+        [orgId],
+    )).rows;
+}
+
 export class ProjectAccessRepositoryError extends Error {
     constructor(
         message: string,

@@ -21,7 +21,7 @@
   "routes/public.ts": 5,
   "routes/serviceDesk.ts": 12,
   "routes/sprints.ts": 12,
-  "routes/tasks/backlog.ts": 11,
+  "routes/tasks/backlog.ts": 9,
   "routes/tasks/carryForward.ts": 5,
   "routes/tasks/comments.ts": 12,
   "routes/tasks/crud.ts": 21,

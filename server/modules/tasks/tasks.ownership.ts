@@ -1,18 +1,13 @@
 /**
- * Ticket ownership: which team a ticket belongs to, and the rules for changing
- * that team.
- *
- * Ownership is a property of the ticket (`tasks.team_id`), not of who created
- * it. It is set on create (explicit team for admins, else the sprint's team,
- * else the creator's team), adopted from a sprint on first assignment, and
- * changed only by an explicit admin transfer.
- *
- * Cross-team sprint assignment is rejected: an admin must transfer the ticket
- * first, so the move is deliberate and auditable.
+ * Create ownership resolves a project before allocating the stored ticket key.
+ * Project-mode access never falls back from an invalid or refused selection.
+ * Team hints and team-scoped placement remain for flag-off/legacy clients.
  */
 
 import { isOrgAdmin, type TaskActor } from "./tasks.policy";
 import { findDefaultTicketProject } from "./tasks.repository";
+import { findProjectById } from "./tasks.projectAccessRepository";
+import { projectCapabilities } from "./tasks.projectAccess";
 
 export interface OwnershipDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -26,6 +21,34 @@ export interface OwnershipError {
 export interface ResolvedCreateTeam {
     teamId: number | null;
     error?: OwnershipError;
+}
+
+/** Request project, sprint project, legacy team project, then General. Never
+ * fall back from an explicitly refused project to somewhere else. */
+export async function resolveCreateProjectId(
+    db: OwnershipDb,
+    options: { actor: TaskActor; explicitProjectId?: unknown; sprintId: number | null; teamId: number | null },
+): Promise<{ projectId: number | null; error?: OwnershipError }> {
+    const { actor, explicitProjectId } = options;
+    const explicit = explicitProjectId !== undefined && explicitProjectId !== null && explicitProjectId !== "";
+    const id = explicit ? Number(explicitProjectId) : null;
+    if (explicit && (!Number.isSafeInteger(id) || Number(id) <= 0)) {
+        return { projectId: null, error: { status: 400, body: { error: "Invalid project" } } };
+    }
+    const projectId = await requireTicketProjectId(db, id, actor.orgId, options.sprintId, options.teamId);
+    if (!actor.projectOwnership && !explicit) return { projectId };
+    const project = actor.orgId ? await findProjectById(db, projectId, actor.orgId) : null;
+    if (!project) return { projectId: null, error: { status: 400, body: { error: "Invalid project" } } };
+    if (project.is_archived) return { projectId: null, error: { status: 409, body: {
+        error: "This project is archived and its tickets are read-only.", code: "PROJECT_ARCHIVED",
+    } } };
+    if (actor.projectOwnership) {
+        const role = isOrgAdmin(actor.role) ? "project_admin" : await actor.projectAccess?.roleForProject(projectId) ?? null;
+        if (!projectCapabilities(role).canCreateTickets) return { projectId: null, error: { status: 403, body: {
+            error: "Your project role allows reading and commenting only.", code: "READ_ONLY_ROLE",
+        } } };
+    }
+    return { projectId };
 }
 
 export async function requireTicketProjectId(
@@ -87,10 +110,10 @@ export async function resolveCreateTeamId(
         teamId = explicit;
     }
 
-    if (options.sprint) {
+    if (options.sprint && !actor.projectOwnership) {
         const sprintTeamId = options.sprint.team_id ?? null;
         if (teamId !== null && sprintTeamId !== null && Number(teamId) !== Number(sprintTeamId)) {
-            return { teamId: null, error: { status: 409, body: sprintTeamMismatchBody() } };
+            return { teamId: null, error: { status: 409, body: sprintProjectMismatchBody() } };
         }
         if (teamId === null) teamId = sprintTeamId;
     }
@@ -99,10 +122,10 @@ export async function resolveCreateTeamId(
     return { teamId };
 }
 
-export function sprintTeamMismatchBody(): Record<string, unknown> {
+export function sprintProjectMismatchBody(): Record<string, unknown> {
     return {
-        error: "This ticket belongs to another team. An org admin must transfer it before it can join this sprint.",
-        code: "SPRINT_TEAM_MISMATCH",
+        error: "A ticket may only join a sprint in its own project.",
+        code: "SPRINT_PROJECT_MISMATCH",
     };
 }
 

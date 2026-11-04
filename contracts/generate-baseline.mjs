@@ -24,6 +24,9 @@ Object.assign(details,{
  "GET /api/agile/workflow-states":["Read the workflow for the default or selected project",0,"WorkflowStateList"],
  "GET /api/agile/config":["Read Agile settings and the default or selected project workflow",0,"FreeFormObject"],
  "GET /api/projects":["List projects",0,"ProjectList"],
+ "GET /api/projects/mine":["List active projects where the actor can create tickets",0,"MyProjectList"],
+ "POST /api/tasks":["Create a dated ticket in a project","CreateTicketRequest","Task"],
+ "POST /api/tasks/backlog":["Create a backlog ticket in a project","CreateTicketRequest","Task"],
  "GET /api/projects/migration/review":["Review generated projects, grants and migration moves (web organization admin)",0,"ProjectMigrationReview"],
  "POST /api/projects/migration/switch":["Publish every project key and enable ownership atomically once (web super_admin only)",0,"ProjectOwnershipState"],
  "POST /api/projects/migration/switch-back":["Emergency restore team visibility; retain published keys (web platform_admin only)",0,"ProjectOwnershipState"],
@@ -71,6 +74,12 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
  if(["post","put","patch","delete"].includes(method)&&e.path.startsWith("/api/"))parameters.push({$ref:"#/components/parameters/CsrfHeader"});
  const op={tags:[tagFor(e.path)],summary:d[0],operationId:`${method}_${e.path.replace(/[:{}]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")}`,parameters,security:publicOps.has(key)?[]:[{cookieAuth:[]},{bearerAuth:[]}],responses:{"200":{description:"Successful response",content:content(R(d[2]||"FreeFormValue"))},"400":err("Invalid request"),"401":err("Authentication required or session invalid"),"403":err("Forbidden, CSRF header missing, or feature unavailable"),"429":err("Rate limit exceeded"),"500":err("Unexpected server error")}};
  if(d[1])op.requestBody={required:true,content:content(R(d[1]))};
+ if(key==="GET /api/projects/mine")op.description="Returns only non-archived projects with canCreateTickets, resolved from the actor's effective personal/team role and organization-admin override.";
+ if(key==="POST /api/tasks"||key==="POST /api/tasks/backlog"){
+  op.description="Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back.";
+  op.responses["403"]=err("READ_ONLY_ROLE: the actor must be a project member or project admin");
+  op.responses["409"]={description:"PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",content:{"application/json":{schema:R("Error"),examples:{archived:{value:{error:"This project is archived and its tickets are read-only.",code:"PROJECT_ARCHIVED"}},mismatch:{value:{error:"A ticket may only join a sprint in its own project.",code:"SPRINT_PROJECT_MISMATCH"}}}}}};
+ }
  if(key==="POST /api/projects/:id/key"||key==="POST /api/projects/:id/key/preview"){
   op.responses["403"]=err("Project-admin canRenameKey capability required");
   op.responses["404"]=err("Project not found in the actor's organization");
@@ -113,8 +122,8 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
 const obj=(properties,required=[])=>({type:"object",properties,required,additionalProperties:false});
 const schemas={
  Error:{type:"object",required:["error"],properties:{error:{type:"string"},code:{type:"string"},feature:{type:"string"},plan:{type:"string"}},additionalProperties:true},
- TicketCapability:{type:"object",properties:{allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED","SPRINT_PROJECT_MISMATCH"]}},required:["allowed"],additionalProperties:false},
- TicketTransitionCapability:{type:"object",properties:{to:{type:"integer"},allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED","SPRINT_PROJECT_MISMATCH"]}},required:["to","allowed"],additionalProperties:false},
+ TicketCapability:{type:"object",properties:{allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED","SPRINT_PROJECT_MISMATCH"]}},required:["allowed"],additionalProperties:false},
+ TicketTransitionCapability:{type:"object",properties:{to:{type:"integer"},allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED","SPRINT_PROJECT_MISMATCH"]}},required:["to","allowed"],additionalProperties:false},
  TicketCapabilities:{type:"object",properties:{transitions:{type:"array",items:R("TicketTransitionCapability")},can:{type:"object",properties:{edit:R("TicketCapability"),changeState:R("TicketCapability"),cancel:R("TicketCapability"),transfer:R("TicketCapability"),delete:R("TicketCapability"),placeInSprint:R("TicketCapability"),schedule:R("TicketCapability"),comment:R("TicketCapability"),logWork:R("TicketCapability"),logWorkForOthers:R("TicketCapability")},required:["edit","changeState","cancel","transfer","delete","placeInSprint","schedule","comment","logWork","logWorkForOthers"],additionalProperties:false}},required:["transitions","can"],additionalProperties:false},
  FreeFormObject:{type:"object",additionalProperties:true},FreeFormValue:{description:"Response shape is not yet exhaustively modeled in this baseline"},
  User:obj({id:{type:"integer"},username:{type:"string"},full_name:{type:["string","null"]},email:{type:["string","null"],format:"email"},avatar:{type:["string","null"]},role:{type:"string"},org_id:{type:["integer","null"]},tenant_id:{type:["integer","null"]},has_reports:{type:"boolean"},must_change_password:{type:"boolean"}},["id","username","role"]),
@@ -201,6 +210,22 @@ const schemas={
  };
 // Keep reviewed field-level contracts intact when rebuilding the route baseline.
 Object.assign(schemas,reviewed.schemas);
+schemas.MyProjectList={type:"array",items:R("Project")};
+schemas.CreateTicketRequest={type:"object",properties:{
+ title:{type:"string",minLength:1,maxLength:200},
+ description:{type:["string","null"],maxLength:5000},
+ project_id:{type:["integer","null"],minimum:1,description:"Web selection; legacy omission resolves from sprint, team, then General."},
+ sprint_id:{type:["integer","null"],minimum:1,description:"Must belong to the resolved project."},
+ team_id:{type:["integer","null"],minimum:1,description:"Legacy compatibility hint, chosen explicitly by organization admins only."},
+ priority:{type:"string",enum:["low","medium","high"]},
+ assigned_to:{type:["integer","null"]},date:{type:"string",format:"date"},
+ due_date:{type:["string","null"],format:"date"},
+ label_ids:{type:"array",items:{type:"integer"}},
+ story_points:{type:["number","null"]},work_item_type_id:{type:["integer","null"]},
+ workflow_state_id:{type:["integer","null"]},parent_task_id:{type:["integer","null"]},
+ acceptance_criteria:{type:["array","null"],items:{type:"object",additionalProperties:true}},
+ is_blocked:{type:"boolean"},blocked_reason:{type:["string","null"]},
+},required:["title"],additionalProperties:false};
 for(const [route,operations] of Object.entries(reviewed.paths))Object.assign(paths[route]||={},operations);
 Object.assign(schemas.SearchTask.properties,{
  ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},

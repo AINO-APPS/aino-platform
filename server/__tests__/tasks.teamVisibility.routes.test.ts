@@ -468,7 +468,7 @@ describe("sprint moves", () => {
             .set(asAdmin())
             .send({ sprint_id: 60 });
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a ticket may join its own team's sprint", async () => {
@@ -486,7 +486,7 @@ describe("sprint moves", () => {
             .set(asAdmin())
             .send({ sprint_id: 60 });
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a bulk move reports the cross-team ticket as skipped", async () => {
@@ -498,7 +498,7 @@ describe("sprint moves", () => {
         expect(res.status).toBe(200);
         expect(res.body.changed).toBe(0);
         expect(res.body.results[0].ok).toBe(false);
-        expect(res.body.results[0].error).toMatch(/another team/);
+        expect(res.body.results[0].error).toMatch(/own project/);
     });
 });
 

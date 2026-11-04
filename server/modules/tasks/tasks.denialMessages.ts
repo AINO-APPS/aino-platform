@@ -1,5 +1,5 @@
 import type { CapabilityReason } from "./tasks.capabilities";
-import { sprintTeamMismatchBody } from "./tasks.ownership";
+import { sprintProjectMismatchBody } from "./tasks.ownership";
 
 export const CAPABILITY_DENIAL_MESSAGES: Record<CapabilityReason, string> = {
     ACCESS_DENIED: "Access denied",
@@ -11,6 +11,5 @@ export const CAPABILITY_DENIAL_MESSAGES: Record<CapabilityReason, string> = {
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
     IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
-    SPRINT_TEAM_MISMATCH: String(sprintTeamMismatchBody().error),
-    SPRINT_PROJECT_MISMATCH: "This ticket and sprint belong to different projects.",
+    SPRINT_PROJECT_MISMATCH: String(sprintProjectMismatchBody().error),
 };
