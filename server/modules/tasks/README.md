@@ -23,6 +23,8 @@ locking, permanent key reservations, stored ticket-key rewrites, published-key
 aliases and one project audit entry all share a transaction. Preview only reads.
 The projects route emits `project_updated` after commit; web project lists,
 boards and open ticket details refetch rather than deriving keys from the event.
+The tenant-wide frame carries only `project_id`; old/new keys and ticket counts
+remain in the authorized HTTP response, not the broadcast.
 Project creation also claims a unique reservation so competing creates/renames
 cannot reuse an earlier key. Run `npm run test:pg -- projectsKeyRename.integration --runInBand`
 from `server` for the PostgreSQL route coverage.

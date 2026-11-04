@@ -31,6 +31,10 @@ test("project_updated is a documented post-commit invalidation and has explicit 
   assert.match(yaml, /#\/components\/messages\/ProjectUpdatedEvent/);
   assert.match(yaml, /enum: \[project_updated\]/);
   assert.match(yaml, /after commit/);
+  const projectEvent = yaml.slice(yaml.indexOf("    ProjectUpdatedEvent:"), yaml.indexOf("    AttendanceUpdateEvent:"));
+  assert.match(projectEvent, /required: \[project_id\]/);
+  assert.match(projectEvent, /additionalProperties: false/);
+  assert.doesNotMatch(projectEvent, /old_key|new_key|affected_tickets/);
   const feature = JSON.parse(read("tasks-parity.json")).features.find(item => item.id === "project-key-rename");
   assert.equal(feature.web.status, "shipped");
   assert.equal(feature.desktop.status, "shipped");

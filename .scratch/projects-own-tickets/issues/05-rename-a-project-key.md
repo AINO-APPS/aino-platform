@@ -63,3 +63,23 @@ Validation:
 
 No ticket05 gaps. Native Android settings remain explicitly web-only per the spec;
 its project-scoped realtime adoption remains tracked separately in ticket13.
+
+## Privacy follow-up
+
+Merged integration `6a419b0c6f4e5df2f4de41b0c9c438a7310480a3`.
+The post-commit tenant-wide `project_updated` frame and matching local browser
+event now contain only `project_id`, never old/new keys or affected ticket count.
+Authorized HTTP preview/rename responses and audit details retain those fields.
+ID-only invalidation still refreshes settings lists, boards and ticket detail.
+AsyncAPI forbids additional event-data properties; route and web tests assert
+the exact minimized payload. Ticket05 remains resolved.
+
+Follow-up validation:
+- `server`: `npm run test:pg -- projectsKeyRename.integration --runInBand` — 7 passed;
+  verified red before the payload fix, then green, including post-commit timing.
+- `client`: `npm test -- src\components\tasks\__tests__\ProjectKeySettings.test.tsx src\pages\tasks\__tests__\capabilityFreshness.test.tsx` — 10 passed.
+- Server and client `npm run typecheck` passed.
+- `npm run contracts:validate` — 61 passed; `git diff --check` passed.
+- `npm run check:guardrails` encounters inherited integration file-size failures:
+  `routes/sprints.ts` 1005/959 and `routes/tasks/crud.ts` 685/682 lines. Neither file
+  is modified by this follow-up; no unrelated ratchet changes made.

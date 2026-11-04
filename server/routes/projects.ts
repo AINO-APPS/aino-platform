@@ -232,7 +232,7 @@ async function renameProjectKey(req: Request, res: Response, preview: boolean) {
             teamIds: request.userTeamIds ?? (request.userTeamId == null ? undefined : [Number(request.userTeamId)]),
         }, id, req.body?.key, preview);
         if (!preview) {
-            try { broadcast(req.tenantId == null ? null : Number(req.tenantId), "project_updated", result); }
+            try { broadcast(req.tenantId == null ? null : Number(req.tenantId), "project_updated", { project_id: result.project_id }); }
             catch (err) { req.log.error({ err }, "Project key committed but realtime delivery failed"); }
         }
         return res.json(result);

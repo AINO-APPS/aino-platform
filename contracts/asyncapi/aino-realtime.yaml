@@ -454,7 +454,8 @@ components:
       description: >-
         Tenant-wide invalidation emitted after commit of a project key rename.
         Boards, lists and open ticket details refetch stored keys. Do not derive
-        ticket keys from this frame. Generated unpublished keys create no aliases.
+        ticket keys from this frame. Only the project ID is broadcast: keys and
+        ticket counts remain in the authorized HTTP response, never this event.
       payload:
         type: object
         required: [type, data]
@@ -462,12 +463,10 @@ components:
           type: { type: string, enum: [project_updated] }
           data:
             type: object
-            required: [project_id, old_key, new_key, affected_tickets]
+            required: [project_id]
+            additionalProperties: false
             properties:
               project_id: { $ref: '#/components/schemas/PositiveId' }
-              old_key: { type: string }
-              new_key: { type: string }
-              affected_tickets: { type: integer, minimum: 0 }
     AttendanceUpdateEvent:
       summary: Sent to the acting user's own connections when their attendance changes.
       payload:

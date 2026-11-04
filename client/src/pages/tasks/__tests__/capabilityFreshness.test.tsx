@@ -98,7 +98,7 @@ test("a project key rename refreshes open boards, lists and the matching ticket 
     });
     act(() => result.current.setDetailTask({ ...ticket, project_id: 10, ticket_key: "OLD-2" } as any));
     await act(async () => { window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
-        detail: { type: "project_updated", data: { project_id: 10, old_key: "OLD", new_key: "NEW" } },
+        detail: { type: "project_updated", data: { project_id: 10 } },
     })); });
     await waitFor(() => expect(result.current.detailTask?.issue_key).toBe("NEW-2"));
     expect(result.current.tasks[0].ticket_key).toBe("NEW-2");

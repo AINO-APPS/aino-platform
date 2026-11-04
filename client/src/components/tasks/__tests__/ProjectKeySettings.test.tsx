@@ -49,6 +49,7 @@ beforeEach(() => {
 });
 
 test("project settings preview the affected count, warn, then refresh visible ticket keys after confirmation", async () => {
+  const dispatch = vi.spyOn(window, "dispatchEvent");
   const user = userEvent.setup();
   renderSettings();
   expect(await screen.findByText("OLD-2")).toBeInTheDocument();
@@ -62,6 +63,10 @@ test("project settings preview the affected count, warn, then refresh visible ti
   await waitFor(() => expect(api.renameProjectKey).toHaveBeenCalledWith(10, "NEW"));
   expect(await screen.findByText("NEW-2")).toBeInTheDocument();
   expect(screen.queryByText("OLD-2")).not.toBeInTheDocument();
+  const event = dispatch.mock.calls.map(([event]) => event)
+    .find(event => event.type === REALTIME_EVENT) as CustomEvent;
+  expect(event.detail).toEqual({ type: "project_updated", data: { project_id: 10 } });
+  dispatch.mockRestore();
 });
 
 test("rename controls are hidden without canRenameKey", async () => {
@@ -76,7 +81,7 @@ test("an open project list refreshes ticket keys when another admin renames", as
   expect(await screen.findByText("OLD-2")).toBeInTheDocument();
   api.key = "NEW";
   await act(async () => { window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
-    detail: { type: "project_updated", data: { project_id: 10, old_key: "OLD", new_key: "NEW" } },
+    detail: { type: "project_updated", data: { project_id: 10 } },
   })); });
   expect(await screen.findByText("NEW-2")).toBeInTheDocument();
 });
