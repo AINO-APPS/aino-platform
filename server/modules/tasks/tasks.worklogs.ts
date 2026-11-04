@@ -6,11 +6,11 @@ import { summariseTime } from "./tasks.time";
 import { localDate } from "./tasks.timesheet";
 import { parseDuration } from "./tasks.duration";
 import { ticketActionConflict } from "./tasks.writeGuards";
-import { findTeamMemberIds } from "./tasks.repository";
 import { emitTaskUpdated } from "../../utils/taskNotifications";
 import { computeWorklogWarnings } from './tasks.worklogWarnings';
 import { decideWorklog, loadTicketDecisionContext } from "./tasks.capabilities";
 import { applyRemaining, estimateSummary, type RemainingInput } from './tasks.estimates';
+import { findEffortReaders } from "./tasks.effortAudience";
 
 export interface LogWorkInput extends RemainingInput {
     day_worked: string;
@@ -67,7 +67,7 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(tx, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
         context.afterCommit(async () => {
-            const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
+            const members = await findEffortReaders(db, task, actor);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
@@ -106,7 +106,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         const worklog = list.worklogs.find(row => row.id === worklogId)!;
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_updated', before, worklog, source.ip, source.userAgent);
         context.afterCommit(async () => {
-            const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
+            const members = await findEffortReaders(db as TasksDb, task, actor);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
@@ -136,7 +136,7 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_deleted', before, deleted, source.ip, source.userAgent);
         const total = (await getTimeSpent(tx, [taskId], actor.orgId))[taskId] ?? 0;
         context.afterCommit(async () => {
-            const members = task.team_id == null ? [] : await findTeamMemberIds(db as TasksDb, task.team_id, actor.orgId);
+            const members = await findEffortReaders(db as TasksDb, task, actor);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
         return { ticket: estimateSummary(task, total) };
@@ -186,7 +186,7 @@ export async function stopLegacyTimer(db: TasksDb & Pick<DbContext, "transaction
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(client as TasksDb, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
         context.afterCommit(async () => {
-            const members = task.team_id == null ? [] : await findTeamMemberIds(db, task.team_id, actor.orgId);
+            const members = await findEffortReaders(db, task, actor);
             emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
         });
         const total = list.time_spent_minutes;

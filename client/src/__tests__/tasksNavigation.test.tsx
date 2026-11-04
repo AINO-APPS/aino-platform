@@ -136,6 +136,7 @@ import { queryClient } from "../queryClient";
 
 beforeAll(async () => {
     await import("../pages/Tasks");
+    await import("../pages/Projects");
 });
 
 describe.each(["web", "desktop"])("%s Tasks navigation through the app router", (platform) => {

@@ -725,7 +725,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .toEqual({ allowed: false, reason: "CANCELLED_TERMINAL" });
     });
 
-    test("ticket mutation responses carry fresh decisions after every placement and state change", async () => {
+    test("flag-off project workflow mutation responses carry fresh decisions after every placement and state change", async () => {
         const project = (await pool.query(
             "INSERT INTO projects (org_id, key, name) VALUES (1, 'MUT', 'Mutation workflow') RETURNING id",
         )).rows[0];

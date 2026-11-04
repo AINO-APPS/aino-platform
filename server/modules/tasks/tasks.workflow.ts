@@ -1,6 +1,6 @@
 export * from "./tasks.workflowRules";
 
-import { decideTicket, loadTicketDecisionContext, type DecisionTicket, type TicketDecisionContext } from "./tasks.capabilities";
+import { decideTicket, lifecycleForTicket, loadTicketDecisionContext, type DecisionTicket, type TicketDecisionContext } from "./tasks.capabilities";
 import { capabilityConflict } from "./tasks.writeGuards";
 import type { TaskActor } from "./tasks.policy";
 import {
@@ -19,8 +19,8 @@ export async function assertLifecycleMove(
     decisionContext?: TicketDecisionContext,
 ): Promise<Conflict | null> {
     if (!target) return null;
-    const projectLifecycle = decisionContext?.lifecyclesByProject?.get(Number(task.project_id));
-    const lifecycle = projectLifecycle ?? context ?? await loadLifecycleContext(db, orgId, task.project_id == null ? null : Number(task.project_id));
+    const lifecycle = decisionContext ? lifecycleForTicket(actor, task, decisionContext)
+        : context ?? await loadLifecycleContext(db, orgId, task.project_id == null ? null : Number(task.project_id));
     const loaded = decisionContext ?? await loadTicketDecisionContext(db, actor, [task], { lifecycle });
     const decision = decideTicket(actor, task, loaded);
     const sameState = Number(task.workflow_state_id) === Number(target.id);

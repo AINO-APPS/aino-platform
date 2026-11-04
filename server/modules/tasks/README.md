@@ -4,6 +4,14 @@ The service owns task-domain orchestration and the repository is the sole owner
 of its SQL. Legacy task route adapters retain authentication, request parsing,
 access checks, response serialization, and error compatibility.
 
+Tickets belong to exactly one project with a stored key (ADR-017). Projects own
+backlog, board, sprints, workflow and access; teams can hold grants in any number
+of projects and never own a project. Creating a project requires team lead or
+above, grants the creator project-admin and may grant teams member access.
+User-facing guides: [Projects](../../../docs/PROJECTS.md) and
+[Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
+flag-off compatibility policy.
+
 ## Service Desk copies
 
 `tasks.serviceDesk.ts` creates copies in the platform organization's configured
@@ -159,13 +167,15 @@ for move/preview, workflow mapping, permissions, rollback and legacy coverage.
 The batch result follows input order; each entry is `{ container, capabilities }`.
 The single-ticket form returns the same decision for write-path callers.
 
-Load context once for the whole request. It contains the org lifecycle, a
-batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
+Load context once for the whole request. It contains project lifecycles, the
+legacy org-template fallback, a batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
 creator-team lookup. Project mode also loads archived state and the actor's
 effective project roles. Pass an already loaded lifecycle as the loader's
 `{ lifecycle }` option to reuse it. Both decide forms are synchronous and perform
 no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.
+Flag-off authorization still evaluates migrated project state IDs against their
+project graph; tickets retaining real legacy template state IDs use the org graph.
 
 The optional `{ targetSprintId }` loader option evaluates `placeInSprint` against
 a specific destination, including access, freeze and project ownership. Without a
@@ -236,7 +246,7 @@ Deprecated server timer routes remain available for older-client compatibility.
 its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 (with creation time/id tie-breaks), author/logged-by identities, and
 `time_spent_minutes`, `original_estimate_minutes` and `remaining_estimate_minutes`.
-Both clients refresh all three values from this envelope, including null and zero.
+Clients must refresh all three values from this envelope, including null and zero.
 `getTimeSpent` batches sums for ticket read surfaces;
 `logged_minutes` in responses is a legacy alias, never the stored ticket column.
 
@@ -245,12 +255,18 @@ Both clients refresh all three values from this envelope, including null and zer
 `{ worklog, ticket, warnings }` with authoritative time spent, original/remaining
 estimates, and legacy logged/estimated aliases. It locks the org-scoped ticket, checks `can.logWork` through the
 capabilities module, and writes worklog/history/audit in one transaction.
-Realtime `task_updated` reaches the ticket's people and team only after commit.
+Realtime `task_updated` reaches the ticket's people and project readers only after
+commit in project mode; flag-off compatibility retains the legacy team audience.
+`tasks.effortAudience.ts` shares this audience rule across worklog create/edit/delete,
+legacy timer-stop and estimate writes, without broadcasting worklog fields.
 Done is allowed; Cancelled returns 403 `WORKLOG_CANCELLED`; frozen sprints remain
 read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 `INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
 whitespace and decimals; a week is five org working days, rounded to whole minutes.
-Web/desktop and Android replace the ticket timer with capability-driven Log work.
+Web/desktop replace the ticket timer with capability-driven Log work. The Android
+projects integration at `bbfc1108` does not yet include the separate manual-worklogs
+integration; see the [closeout gap](../../../.scratch/projects-own-tickets/issues/14-docs-glossary-and-parity-closeout.md#cross-branch-parity-gap-pre-existing)
+before claiming native worklog parity.
 `tasks.worklogWarnings.ts` exports the reusable
 `computeWorklogWarnings(db, orgId, { author_id, day_worked }, tenantId)` hook.
 Failures retain the error/stack and log tenant, org, saved author, worked day and advisory operation. Call it only
@@ -320,7 +336,8 @@ accepts `original_estimate` and/or `remaining_estimate` duration strings; empty
 text clears, `0m` sets zero. Setting original seeds a null remaining only when
 remaining is omitted. `can.canEditEstimate` shares `logWork`'s decision.
 The endpoint records `estimate_changed` history and audit in the write transaction,
-then emits the usual team-scoped `task_updated` after commit.
+then emits `task_updated` to the same project-reader audience after commit
+(legacy team audience while project ownership is off).
 
 Worklog create/edit/delete accept `remaining_mode` (`auto`, default; `set`; `leave`).
 `set` requires `remaining_estimate`; empty clears. `auto` applies the minutes delta,

@@ -58,9 +58,9 @@ team ownership remains binding until an org enables `project_ownership`; see
 
 ## Workflow state
 
-The single status of a ticket (`tasks.workflow_state_id`). Org-configurable,
-seeded as New, In Progress, In Review, Done and Cancelled. Formerly `tasks.status`,
-which no longer exists.
+The single status of a ticket. Configurable per project, initially copied from
+the organization's workflow template. Typical states are New, In Progress,
+In Review, Done and Cancelled.
 
 **Avoid:** "column" as a synonym for status.
 
@@ -79,7 +79,7 @@ An allowed move from one workflow state to another, recorded in
 ## Capability
 
 What the current user may do to a ticket right now, given its workflow state,
-container, team and the user's role. Decided by the server and sent with the
+container, project role and archive state. Decided by the server and sent with the
 ticket; clients render it and never derive it.
 
 **Avoid:** "permission" for the per-ticket answer (a permission is a role's
@@ -114,8 +114,9 @@ and given back when it leaves.
 ## Placement
 
 Moving a ticket between the three planning containers (sprint, Scheduled,
-backlog), together with the due-date bookkeeping that goes with it. A team
-transfer that takes a ticket out of its sprint is also a placement.
+backlog), together with the due-date bookkeeping that goes with it. A project
+move that takes a ticket out of its source project's sprint is also a placement;
+it replaces team transfer.
 
 **Avoid:** "assign" for sprint membership; assignment means the assignee.
 
@@ -128,7 +129,7 @@ Sprint lifecycle: planned, active, paused, completed.
 
 ## Current sprint
 
-The one sprint a team lands on: its active sprint, otherwise its paused sprint,
+The one sprint a project lands on: its active sprint, otherwise its paused sprint,
 otherwise none. Planned and completed sprints are never current. Decided by the
 server.
 
@@ -142,8 +143,8 @@ worked out when it is read; moving a ticket does not record a new baseline.
 
 ## Board
 
-The Kanban view of one sprint, with one column per active workflow state.
-Backlog is not a column. Cancelled has no column.
+The view of one project's sprint, with one column per active state in that
+project's workflow. Backlog is not a column. Cancelled has no column.
 
 ## Column
 
@@ -162,7 +163,13 @@ by `DELETE FROM tasks`), excluded from the board and open backlog, and
 irreversible in the current model. Done must be reopened before it can be
 cancelled.
 
-## Unassigned
+## Worklog
 
-The admin-only bucket for legacy tickets whose owning team could not be
-determined during backfill (`tasks.team_id IS NULL`). Not a team and not a state.
+A record of time spent on a ticket, attributed to the person who did the work
+and the day worked. The person recording it may be a different authorized
+person. Correcting or deleting an entry preserves its history.
+
+## Timesheet
+
+A person's worklogs collected over a period. It reports work already recorded;
+it is not a ticket container or a separate time-entry source.

@@ -39,3 +39,11 @@ and alias search are in place.
 Validation passed: 1,348 Play tests, 1,354 Direct tests, Play lint, both
 assemblies, and all five Android guardrails. Device tests were not run.
 Platform endpoint/realtime parity and tasks-parity closeout remain with ticket 14.
+
+Ticket14 closeout updates the shipped project matrix entries and proves all
+eight project-facing HTTP operations plus all 85 realtime event routes against
+Android `bbfc1108`. The checkbox remains open: unfiltered native parity still
+fails because this Android integration lacks the separate manual-worklogs
+integration (five endpoints and `TicketWorklogsTest` owners). See the
+[exact validation results and remaining gaps](14-docs-glossary-and-parity-closeout.md).
+The focused green project gate is not being reported as full native parity.

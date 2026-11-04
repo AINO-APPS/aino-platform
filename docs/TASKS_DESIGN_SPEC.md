@@ -6,6 +6,15 @@
 **Parity matrix:** [`contracts/tasks-parity.json`](../contracts/tasks-parity.json)
 **Parity gate:** `node scripts/validate-tasks-parity.mjs` (wired into `contracts:validate`)
 
+**Phase 2 shipped behavior:** [ADR-017](adr/ADR-017-projects-own-tickets.md) and
+[Projects](PROJECTS.md) supersede this historical design's team ownership,
+optional keys and org-wide workflow after per-org switch-over. Web/desktop and
+Android ship project Plan scope, required create, preview/confirm moves,
+capability-driven read-only actions and alias lookup. Project administration
+remains web-only. See [Service Desk](SERVICE_DESK.md) for copy lifecycle and the
+[closeout record](../.scratch/projects-own-tickets/issues/14-docs-glossary-and-parity-closeout.md)
+for integrated validation and outstanding cross-branch parity gaps.
+
 This is the single source of truth for the Tasks domain model, information
 architecture, per-view behaviour, API surface, and per-client parity. It follows
 the convention established by [`CHAT_DESIGN_SPEC.md`](./CHAT_DESIGN_SPEC.md).
@@ -212,8 +221,8 @@ are referenced by the parity matrix and the phase plan.
 | D51 | **Schedule overlays** show approved leave, holidays and booked meetings as read-only, independently toggleable background bands — reusing existing data instead of building a capacity model (which D33 defers). |
 | D52 | **Team mode is web-only configuration.** `server/middleware/webOnly.ts` already blocks agile editor/reviewer routes for native clients, so the Continuous/Sprints switch is edited on web and only *read* by Android and the iOS webview. |
 | D53 | **The home card shows the running sprint or this week — never the backlog.** With an active sprint (and the tenant `agile` feature) it lists the viewer's tickets in that sprint; otherwise the tickets assigned to the viewer with a `planned_date` in this Monday–Sunday window, with open tickets planned before it pinned as **Overdue**. Both modes keep strictly `assigned_to = me` and drop `cancelled`, which the date-range query does not exclude; an empty week says so instead of falling back to the backlog, because a section whose meaning flips is the ambiguity ADR-015 exists to end. |
-| D55 | **Project-owned creation (ADR-017):** the web requires an active `canCreateTickets` project, defaulting to the current or last-used project. Older clients may omit it; the server resolves request → sprint → legacy team project → General. Archived/viewer-only destinations are refused. Create, edit, bulk and plan placement use `SPRINT_PROJECT_MISMATCH` when a sprint belongs to another project. |
-| D54 | **Project moves are transactional placements (ADR-017).** With project ownership on, `canMoveProject` requires member or higher in the active source project. Web/desktop select a creatable project, preview `POST /tasks/:id/move-project/preview { project_id }`, then confirm `POST /tasks/:id/move-project`. Both validate source/target grants and archive state and share workflow mapping (active key, first active category by order/id, initial fallback). Preview reserves no number. Commit allocates the target key, aliases the old key, clears the source project's sprint while restoring the personal due date and retaining a planned day, writes history/audit, then emits `task_updated`. Project moves retain legacy `team_id`; `/transfer` keeps its envelope and maps the target team to its generated project, changing `team_id` only before switch-over. Android's native picker follows in ticket13; its legacy transfer remains supported. |
+| D55 | **Project-owned creation (ADR-017):** web/desktop and Android require an active `canCreateTickets` project, defaulting to the current or last-used project. Older clients may omit it; the server resolves request → sprint → legacy team project → General. Archived/viewer-only destinations are refused. Create, edit, bulk and plan placement use `SPRINT_PROJECT_MISMATCH` when a sprint belongs to another project. |
+| D54 | **Project moves are transactional placements (ADR-017).** With project ownership on, `canMoveProject` requires member or higher in the active source project. Web/desktop and Android select a creatable project, preview `POST /tasks/:id/move-project/preview { project_id }`, then confirm `POST /tasks/:id/move-project`. Both validate source/target grants and archive state and share workflow mapping (active key, first active category by order/id, initial fallback). Preview reserves no number. Commit allocates the target key, aliases the old key, clears the source project's sprint while restoring the personal due date and retaining a planned day, writes history/audit, then emits `task_updated`. Project moves retain legacy `team_id`; `/transfer` keeps its envelope and maps the target team to its generated project, changing `team_id` only before switch-over. Older Android clients' legacy transfer remains supported until the Phase 3 gate. |
 
 ---
 

@@ -36,5 +36,7 @@ test("only project mismatch is in the capability catalogue and create-picker par
     const feature = read("tasks-parity.json").features.find(item => item.id === "ticket-create-project");
     assert.equal(feature.web.status, "shipped");
     assert.equal(feature.desktop.status, "shipped");
-    assert.ok(feature.android.waiver);
+    assert.equal(feature.android.status, "shipped");
+    assert.match(feature.android.owner_test, /ProjectOwnershipViewModelTest\.kt$/);
+    assert.equal(feature.android.waiver, undefined);
 });

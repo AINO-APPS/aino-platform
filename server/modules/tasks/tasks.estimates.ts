@@ -5,7 +5,7 @@ import { parseDuration, InvalidDuration } from './tasks.duration';
 import { lockWorklogTicket, workingHoursPerDay, readTimeSpent } from './tasks.worklogRepository';
 import { writeEstimates, writeRemaining, recordEstimateChange } from './tasks.estimateRepository';
 import { ticketActionConflict } from './tasks.writeGuards';
-import { findTeamMemberIds } from './tasks.repository';
+import { findEffortReaders } from './tasks.effortAudience';
 import { emitTaskUpdated } from '../../utils/taskNotifications';
 
 export interface RemainingAdjustment { mode: 'auto' | 'set' | 'leave'; value?: number | null }
@@ -60,7 +60,7 @@ export async function setEstimates(db: TasksDb & Pick<DbContext,'transaction'>, 
         await recordEstimateChange(tx,taskId,actor.userId,actor.orgId,before,after,source.ip,source.userAgent);
         const total = (await readTimeSpent(tx,[taskId],actor.orgId))[taskId] ?? 0;
         context.afterCommit(async () => {
-            const members = task.team_id == null ? [] : await findTeamMemberIds(db,task.team_id,actor.orgId);
+            const members = await findEffortReaders(db, task, actor);
             emitTaskUpdated(source.tenantId,taskId,'updated',[task.user_id,task.assigned_to,actor.userId,...members]);
         });
         return { ticket:estimateSummary({...task,...after},total) };

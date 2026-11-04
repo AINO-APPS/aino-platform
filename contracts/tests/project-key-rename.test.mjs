@@ -39,4 +39,7 @@ test("project_updated is a documented post-commit invalidation and has explicit 
   assert.equal(feature.web.status, "shipped");
   assert.equal(feature.desktop.status, "shipped");
   assert.ok(feature.android.waiver);
+  const realtime = JSON.parse(read("tasks-parity.json")).features.find(item => item.id === "project-key-realtime-refresh");
+  assert.equal(realtime?.android.status, "shipped");
+  assert.match(realtime.android.owner_test, /RealtimeEventRegistryTest\.kt$/);
 });

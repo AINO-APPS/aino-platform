@@ -10,13 +10,74 @@
   ],
   "features": [
     {
+      "id": "project-key-realtime-refresh",
+      "name": "Post-commit project key invalidation refetches current project and ticket data",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/core/realtime/RealtimeEventRegistryTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/core/realtime/RealtimeEventRegistryTest.kt",
+          "name": "routesTheCrossDeviceSyncEvents"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits payload-free project invalidation and refetch." }
+    },
+    {
+      "id": "project-ticket-read-only-actions",
+      "name": "Archived and viewer ticket controls follow server capabilities while comments stay available",
+      "decision": "D51",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "archivedAndViewerTicketsExposeOnlyTheActionsAllowedByTheServer"
+        }, {
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "anArchivedTicketCanStillBeCommentedOnWhenTheServerAllowsIt"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits capability-driven project ticket controls." }
+    },
+    {
+      "id": "ticket-key-alias-lookup",
+      "name": "Current and historical ticket keys resolve to the canonical project-owned ticket",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "searchingAnOldKeyUsesServerResolutionAndShowsTheCurrentTicket"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits canonical ticket-key routing and aliases." }
+    },
+    {
       "id": "ticket-create-project",
       "name": "Required project picker, active member defaults, legacy create resolution and project-only sprints",
       "decision": "D55",
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native picker follows in ticket 13. Older clients omit project_id and retain server sprint/team/General resolution until the client-version gate." },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "createDefaultsToCurrentProjectAndRefusesAnUnavailableProject"
+        }]
+      },
       "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the required project picker." }
     },
     {
@@ -26,7 +87,14 @@
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native project picker/move UI is ticket13. Older builds retain POST /tasks/:id/transfer and its response shape, now mapped to the generated team project." },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "moveShowsServerPreviewBeforeConfirmAndPublishesTheCanonicalTicket"
+        }]
+      },
       "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the project move dialog." }
     },
     {
@@ -1096,7 +1164,17 @@
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
-      "android": { "status": "waived", "waiver": "Native project switcher is tracked in projects-own-tickets ticket 13; legacy team scope maps to the generated project until then." },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "changingProjectScopesBacklogAndTheCurrentSprintInsteadOfTheActorsTeam"
+        }, {
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "everyRoleCanSelectAnAccessibleProjectIncludingArchivedReadOnlyProjects"
+        }]
+      },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web project switcher." }
     },
     {
@@ -1116,7 +1194,7 @@
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
-      "android": { "status": "waived", "waiver": "Project settings and key rename are web-only per ADR-017 phase 2; native project-scoped realtime refresh is tracked in projects-own-tickets ticket 13." },
+      "android": { "status": "waived", "waiver": "Project settings and key rename remain web-only per ADR-017. Android routes project_updated to task refetch; native create, scope, moves and alias lookup shipped in ticket 13." },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits project key settings and realtime refresh from the web bundle." }
     }
   ],

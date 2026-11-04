@@ -1,5 +1,11 @@
 # AINO API Documentation
 
+Project ownership, roles, stored keys/aliases, archive and per-org switch-over
+are described in [Projects](docs/PROJECTS.md); keyed work copies, status sync and
+cancel-on-delete are described in [Service Desk](docs/SERVICE_DESK.md).
+The machine-validated current route and payload source is
+[`contracts/openapi.json`](contracts/openapi.json).
+
 > **Base URL**: `/api`  
 > **Authentication**: JWT via HTTP-only cookies  
 > **Rate Limiting**: General API (5000/15min), Auth endpoints have stricter limits noted below  

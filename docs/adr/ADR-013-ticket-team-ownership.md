@@ -1,10 +1,15 @@
 # ADR-013: Tickets are owned by exactly one team; team membership is the visibility boundary
 
-- **Status:** Superseded by [ADR-017](ADR-017-projects-own-tickets.md) (2026-11-03); binding on existing code until ADR-017 ships
+- **Status:** Superseded by [ADR-017](ADR-017-projects-own-tickets.md) (2026-11-03); retained only for organizations with project ownership switched off
 - **Date:** 2026-10-27
 - **Related:** ADR-014 (workflow transition enforcement), `docs/TASKS_DESIGN_SPEC.md`, `.scratch/plan-jira-parity/spec.md`
 
 ## Context
+
+Phase 2 implements ADR-017: projects now own tickets, sprints, workflows and
+visibility after per-organization switch-over. The decision below is historical
+and describes the flag-off compatibility path, not the project-mode policy.
+See [Projects](../PROJECTS.md) for review, publication and emergency switch-back.
 
 Users belong to exactly one team (`users.team_id`), and sprints are team-owned
 (`sprints.team_id`). Projects, however, are org-wide and have no team

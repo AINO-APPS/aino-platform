@@ -64,6 +64,37 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params));
     });
 
+    test('ticket14 worklog changes invalidate readers from another project team after commit', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Cross-team forecast' })).body.id;
+        const projectId = (await pool.query('SELECT project_id FROM tasks WHERE id=$1', [id])).rows[0].project_id;
+        await pool.query("INSERT INTO project_members (project_id,user_id,role) VALUES ($1,1,'member'),($1,2,'viewer') ON CONFLICT DO NOTHING", [projectId]);
+        const sendToUser = require('../utils/ws').sendToUser as jest.Mock;
+        sendToUser.mockClear();
+        const saved = await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-project-mode', 'on')
+            .send({ day_worked: '2026-11-01', time_spent: '30m' });
+        expect(saved.status).toBe(201);
+        expect(sendToUser).toHaveBeenCalledWith(1, 2, 'task_updated', { taskId: id, action: 'updated' });
+        const changes = [
+            ['patch', `/api/tasks/${id}/worklogs/${saved.body.worklog.id}`, { time_spent: '45m' }],
+            ['delete', `/api/tasks/${id}/worklogs/${saved.body.worklog.id}`, {}],
+            ['patch', `/api/tasks/${id}/estimates`, { original_estimate: '2h' }],
+        ] as const;
+        for (const [method, endpoint, body] of changes) {
+            sendToUser.mockClear();
+            expect((await request(app)[method](endpoint).set('x-test-project-mode', 'on').send(body)).status).toBe(200);
+            expect(sendToUser).toHaveBeenCalledWith(1, 2, 'task_updated', { taskId: id, action: 'updated' });
+            expect(sendToUser).not.toHaveBeenCalledWith(1, 3, 'task_updated', expect.anything());
+        }
+        expect((await request(app).post(`/api/tasks/${id}/timer/start`).set('x-test-project-mode', 'on')).status).toBe(200);
+        sendToUser.mockClear();
+        expect((await request(app).post(`/api/tasks/${id}/timer/stop`).set('x-test-project-mode', 'on')).status).toBe(200);
+        expect(sendToUser).toHaveBeenCalledWith(1, 2, 'task_updated', { taskId: id, action: 'updated' });
+        sendToUser.mockClear();
+        expect((await request(app).post(`/api/tasks/${id}/worklogs`)
+            .send({ day_worked: '2026-11-01', time_spent: '30m' })).status).toBe(201);
+        expect(sendToUser).not.toHaveBeenCalledWith(1, 2, 'task_updated', expect.anything());
+    });
+
     test('worklog list includes both persisted estimates, including explicit zero and null', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'List forecast' })).body.id;
         const endpoint = `/api/tasks/${id}/worklogs`;

@@ -56,9 +56,13 @@ const DECISION = /^D[0-9]+$/;
 const CLIENT_ROOTS = {
   web: root,
   desktop: root,
-  android: path.join(repoRoot, "aino-android"),
+  android: process.env.AINO_ANDROID_REPO
+    ? path.resolve(process.env.AINO_ANDROID_REPO) : path.join(repoRoot, "aino-android"),
   ios: path.join(repoRoot, "aino-ios"),
 };
+if (process.env.AINO_ANDROID_REPO && !fs.existsSync(path.join(CLIENT_ROOTS.android, "app", "src"))) {
+  throw new Error("AINO_ANDROID_REPO must name an existing Android checkout; native owners were not verified.");
+}
 
 /** True when the client's repository is checked out beside this one. */
 const clientRepoPresent = (client) => {

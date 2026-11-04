@@ -24,6 +24,9 @@ The legacy commit is pinned to `d9d779c7520dbf052ba587ac2af649ec59920864` and is
 Validate with `npm run contracts:validate` from the repository root. Model
 checks/generation in npm scripts use `--platform-only`: they never rewrite or
 require generated files in a native sibling checkout.
+Contract test files run serially: generator/validator negative tests temporarily
+mutate shared contract inputs and restore them. Parallel files could read the
+temporary missing-field schema and fail fixture validation nondeterministically.
 
 ### Manual worklogs and estimates
 
@@ -69,6 +72,39 @@ node scripts\check-android-endpoint-parity.mjs <Android-checkout>
 ```
 
 No Android snapshots or source files are rewritten by this command.
+
+### Project ownership (Phase 2)
+
+Android ticket13 ships project-scoped Plan/create, move preview/confirm,
+server-capability actions and current/alias key lookup. The matrix names its
+`ProjectOwnershipViewModelTest` behavioral owners. Settings, member/workflow
+administration, key rename and migration publication remain web-only; their
+waivers are intentional, not pending native work.
+
+For split worktrees, explicitly select the **integrated** Android checkout,
+not a dirty main or an unrelated sibling branch:
+
+```powershell
+$env:AINO_ANDROID_REPO = '<Android-integration-checkout>'
+node scripts\validate-tasks-parity.mjs
+node scripts\check-android-endpoint-parity.mjs $env:AINO_ANDROID_REPO --projects-only
+node "$env:AINO_ANDROID_REPO\scripts\check-realtime-parity.mjs" .
+```
+
+The explicit owner-root fails if unavailable instead of silently skipping native
+tests. `--projects-only` proves eight required project-facing operations from
+the native scanner's committed source coverage and refuses rollout waivers.
+It is a **focused** check, not a substitute for the unfiltered endpoint gate
+above; that gate still requires the separate manual-worklogs rollout. Realtime
+includes the payload-free `project_updated` invalidation, routed by Android to
+Tasks refetch, and the existing `task_updated` invalidation after moves.
+The native realtime script may refresh its own snapshot when emitters change;
+run it on a clean disposable checkout and inspect the resulting diff.
+
+On Windows a native snapshot check can fail solely because `core.autocrlf`
+checked out generated JSON/Markdown as CRLF. Validate an LF checkout
+(`git -c core.autocrlf=false worktree add --detach ... <integration-ref>`) rather
+than rewriting another worktree. Record focused and unfiltered results separately.
 
 The mobile map covers backend calls made through the shared Axios `api` instance. Direct external `fetch` calls (for application updates, GitHub releases, and geocoding) are intentionally excluded because they are not AINO server routes. Validation fails if any wrapper call could not be resolved to a string or template-literal path.
 

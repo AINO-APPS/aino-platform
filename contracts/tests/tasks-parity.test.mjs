@@ -9,6 +9,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const script = path.join(root, "scripts/validate-tasks-parity.mjs");
 const matrixPath = path.join(root, "contracts/tasks-parity.json");
 
+test("an explicitly selected Android checkout must exist instead of silently skipping native owners", () => {
+  assert.throws(() => execFileSync(process.execPath, [script], {
+    cwd: root,
+    env: { ...process.env, AINO_ANDROID_REPO: path.join(root, "contracts", "missing-android-checkout") },
+    stdio: "pipe",
+  }), error => {
+    assert.match(String(error.stderr), /AINO_ANDROID_REPO must name an existing Android checkout/);
+    return true;
+  });
+});
+
 const run = () => {
   try {
     const stdout = execFileSync(process.execPath, [script], { cwd: root, encoding: "utf8" });

@@ -22,8 +22,7 @@ export async function createServiceDeskBacklogTask(
     db: ServiceDeskTaskDb,
     input: ServiceDeskTaskInput,
 ): Promise<void> {
-    // The mirrored ticket belongs to the creator's team, so the team that
-    // triages the service desk sees it without the creator's help.
+    // Retain the creator's team only for flag-off visibility and emergency rollback.
     const creator = (await db.query("SELECT team_id FROM users WHERE id = $1", [input.creatorId])).rows[0];
     const project = await findServiceDeskProject(db, input.orgId);
     if (!project?.workflow_state_id) throw new Error("No active Service Desk project with an initial workflow state");

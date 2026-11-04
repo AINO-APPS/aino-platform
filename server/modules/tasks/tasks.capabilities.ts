@@ -52,7 +52,7 @@ export async function loadTicketDecisionContext(
     if (options.targetSprintId != null) ids.push(options.targetSprintId);
     const [sprintRows, lifecyclesByProject] = await Promise.all([
         findDecisionSprints(db, ids, actor.orgId),
-        Promise.all([...new Set(tickets.flatMap((ticket) => !actor.projectOwnership || ticket.project_id == null ? [] : [Number(ticket.project_id)]))]
+        Promise.all([...new Set(tickets.flatMap((ticket) => ticket.project_id == null ? [] : [Number(ticket.project_id)]))]
             .map(async (projectId) => [projectId, await loadLifecycleContext(db, actor.orgId, projectId)] as const)),
     ]);
     const sprints = new Map(sprintRows.map((sprint) => [Number(sprint.id), sprint]));
@@ -73,6 +73,8 @@ export async function loadTicketDecisionContext(
     }
     return {
         lifecycle: options.lifecycle ?? (lifecyclesByProject.length === 1
+            && (actor.projectOwnership || tickets.every((ticket) => ticket.workflow_state_id == null
+                || lifecyclesByProject[0][1].stateById.has(Number(ticket.workflow_state_id))))
             ? lifecyclesByProject[0][1]
             : await loadLifecycleContext(db, actor.orgId, actor.projectOwnership ? undefined : null)),
         lifecyclesByProject: new Map(lifecyclesByProject),
@@ -86,8 +88,15 @@ export async function loadTicketDecisionContext(
 const allow: Capability = Object.freeze({ allowed: true });
 const deny = (reason: CapabilityReason): Capability => ({ allowed: false, reason });
 
+export function lifecycleForTicket(actor: TaskActor, ticket: DecisionTicket, context: TicketDecisionContext): LifecycleContext {
+    const project = context.lifecyclesByProject?.get(Number(ticket.project_id));
+    // Rollback changes authorization, not migrated state IDs; retain true legacy template states too.
+    return project && (actor.projectOwnership || ticket.workflow_state_id == null
+        || project.stateById.has(Number(ticket.workflow_state_id))) ? project : context.lifecycle;
+}
+
 export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: TicketDecisionContext): TicketDecision {
-    const lifecycle = context.lifecyclesByProject?.get(Number(ticket.project_id)) ?? context.lifecycle;
+    const lifecycle = lifecycleForTicket(actor, ticket, context);
     const frozen = ticket.sprint_id != null && isSprintFrozen(context.sprints.get(Number(ticket.sprint_id)));
     const current = stateOf(lifecycle, ticket);
     const terminal = isCancelled(current);
