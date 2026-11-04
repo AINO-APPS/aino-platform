@@ -216,7 +216,7 @@ export async function findProjectById(
     orgId: number,
 ): Promise<any | null> {
     const result = await db.query(
-        "SELECT id, org_id FROM projects WHERE id = $1 AND org_id = $2",
+        "SELECT id, org_id, is_archived FROM projects WHERE id = $1 AND org_id = $2",
         [projectId, orgId],
     );
     return result.rows[0] ?? null;

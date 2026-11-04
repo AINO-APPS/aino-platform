@@ -84,6 +84,8 @@ describe("project route characterization", () => {
                 canManageMembers: false,
                 canRenameKey: false,
                 canEditWorkflow: false,
+                canCreateTickets: false,
+                canArchive: false,
             },
         }]);
         expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");
@@ -124,15 +126,15 @@ describe("project route characterization", () => {
         expect(mockQuery).not.toHaveBeenCalled();
     });
 
-    test("refuses deletion of a project with tasks unless force is explicit", async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ key: "APP" }], rowCount: 1 })
+    test("refuses deletion of a project that has had tasks even with force", async () => {
+        mockTxQuery
+            .mockResolvedValueOnce({ rows: [{ key: "APP", has_had_tickets: true }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ c: 4 }], rowCount: 1 });
 
-        const res = await request(makeApp()).delete("/api/projects/9");
+        const res = await request(makeApp()).delete("/api/projects/9?force=1");
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "PROJECT_NOT_EMPTY", task_count: 4 });
-        expect(mockTransaction).not.toHaveBeenCalled();
+        expect(res.body).toMatchObject({ code: "PROJECT_NOT_EMPTY" });
+        expect(mockTransaction).toHaveBeenCalledTimes(1);
     });
 });

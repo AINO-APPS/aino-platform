@@ -51,6 +51,7 @@ export interface Task {
   key_aliases?: string[];
   key_alias?: boolean;
   requested_key?: string;
+  project?: TaskProject;
 }
 
 export interface Sprint {
@@ -105,6 +106,17 @@ export interface TicketCapabilitiesCan {
   delete: TicketCapability;
   placeInSprint: TicketCapability;
   schedule: TicketCapability;
+  comment: TicketCapability;
+  logWork: TicketCapability;
+  logWorkForOthers: TicketCapability;
+}
+
+export interface TaskProject {
+  id: number;
+  key: string;
+  name: string;
+  color?: string;
+  is_archived: boolean;
 }
 
 export interface BacklogResponsePagination {

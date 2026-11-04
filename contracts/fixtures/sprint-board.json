@@ -66,6 +66,9 @@
           "placeInSprint": {
             "allowed": true
           },
+          "comment": { "allowed": true },
+          "logWork": { "allowed": true },
+          "logWorkForOthers": { "allowed": false, "reason": "ACCESS_DENIED" },
           "schedule": {
             "allowed": false,
             "reason": "IN_SPRINT"

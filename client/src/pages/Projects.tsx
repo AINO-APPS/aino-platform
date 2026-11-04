@@ -51,7 +51,7 @@ export default function Projects() {
   const queryClient = useQueryClient();
   useRealtimeEvent(["project_updated"], () => { void queryClient.invalidateQueries({ queryKey: ["admin", "projects"] }); });
   const canCreate = (ROLE_LEVELS[user?.role] || 1) >= 2; // team lead+
-  const canEdit = (ROLE_LEVELS[user?.role] || 1) >= 3; // manager+
+  const canUnarchive = ["super_admin", "hr_admin", "platform_admin"].includes(user?.role);
   // Delete is destructive — gated to super_admin and platform_admin
   // (both clear the server's requireRole('super_admin') check). Previously
   // only an exact "super_admin" string matched, which hid the trash icon
@@ -140,37 +140,7 @@ export default function Projects() {
       if (selectedId === p.id) setSelectedId(null);
       await queryClient.invalidateQueries({ queryKey: ["admin", "projects"] });
     } catch (e: any) {
-      // Server refuses (409 PROJECT_NOT_EMPTY) when tasks still belong
-      // to the project. Offer the super_admin a clear, second-step
-      // confirmation to force-detach the tasks and proceed. The tasks
-      // themselves are kept; only their issue key (project_id +
-      // task_number) is cleared.
       const data = e.response?.data;
-      if (e.response?.status === 409 && data?.code === "PROJECT_NOT_EMPTY") {
-        const n = data.task_count || "?";
-        const ok = confirm(
-          `"${p.name}" still contains ${n} task${n === 1 ? "" : "s"}.\n\n` +
-            `Force-delete will detach every task from this project — the tickets stay, ` +
-            `but they lose their ${p.key}-N issue key, and any GitHub branches/PRs that ` +
-            `mention those keys will no longer link back.\n\n` +
-            `Continue with force-delete?`,
-        );
-        if (!ok) return;
-        try {
-          const res = await deleteProject(p.id, { force: true } as any);
-          const detached = (res as any)?.data?.detached_tasks || n;
-          toast.success(
-            `Project deleted (detached ${detached} task${detached === 1 ? "" : "s"})`,
-          );
-          if (selectedId === p.id) setSelectedId(null);
-          await queryClient.invalidateQueries({
-            queryKey: ["admin", "projects"],
-          });
-        } catch (err2: any) {
-          toast.error(err2.response?.data?.error || "Failed to force-delete");
-        }
-        return;
-      }
       toast.error(data?.error || "Failed to delete");
     }
   }
@@ -214,7 +184,8 @@ export default function Projects() {
               <ProjectCard
                 key={p.id}
                 project={p}
-                canEdit={canEdit}
+                canEdit={p.capabilities?.canAdminister === true}
+                canUnarchive={canUnarchive}
                 canDelete={canDelete}
                 isSelected={selectedId === p.id}
                 onSelect={() =>
@@ -271,6 +242,7 @@ export default function Projects() {
 interface ProjectCardProps {
   project: any;
   canEdit: boolean;
+  canUnarchive: boolean;
   canDelete: boolean;
   isSelected: boolean;
   onSelect: () => void;
@@ -283,6 +255,7 @@ interface ProjectCardProps {
 function ProjectCard({
   project: p,
   canEdit,
+  canUnarchive,
   canDelete,
   isSelected,
   onSelect,
@@ -307,6 +280,7 @@ function ProjectCard({
         </div>
         <div style={styles.cardBody}>
           <h3 style={styles.cardTitle}>{p.name}</h3>
+          {p.is_archived && <span className="badge">Archived project</span>}
           {p.description && <p style={styles.cardDesc}>{p.description}</p>}
           <div style={styles.cardMeta}>
             <span>
@@ -337,7 +311,7 @@ function ProjectCard({
           <button title="Edit" style={styles.iconBtn} onClick={onEdit}>
             <Edit3 size={14} />
           </button>
-          <button
+          {(p.capabilities?.canArchive === true || p.is_archived && canUnarchive) && <button
             title={p.is_archived ? "Unarchive" : "Archive"}
             style={styles.iconBtn}
             onClick={onArchive}
@@ -347,8 +321,8 @@ function ProjectCard({
             ) : (
               <Archive size={14} />
             )}
-          </button>
-          {canDelete && (
+          </button>}
+          {canDelete && p.has_had_tickets === false && (
             <button
               title="Delete"
               style={{ ...styles.iconBtn, color: "#ef4444" }}

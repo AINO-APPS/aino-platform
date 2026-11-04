@@ -11,7 +11,7 @@
   "components/organization/OfficeLocationSettings.tsx": 914,
   "components/profile/EditProfileModal.tsx": 699,
   "pages/AgileSettings.tsx": 863,
-  "pages/Projects.tsx": 796,
+  "pages/Projects.tsx": 770,
   "pages/SprintInsights.tsx": 747,
   "pages/Tasks.tsx": 579,
   "pages/admin/AddPeopleWizard.tsx": 935,

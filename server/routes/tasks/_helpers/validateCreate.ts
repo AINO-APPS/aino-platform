@@ -5,6 +5,8 @@
  * twice; one copy here keeps a new limit from landing on only one of them.
  */
 import { findActiveProject } from "../../../modules/tasks/tasks.repository";
+import type { TaskActor } from "../../../modules/tasks/tasks.policy";
+import { findProjectById } from "../../../modules/tasks/tasks.projectAccessRepository";
 
 /**
  * The optional project on `POST /tasks` and `POST /tasks/backlog`: resolved
@@ -15,11 +17,18 @@ export async function resolveCreateProject(
     db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> },
     projectId: unknown,
     orgId: number | null,
-): Promise<{ projectId: number | null; error?: { status: number; body: { error: string } } }> {
+    actor?: TaskActor,
+): Promise<{ projectId: number | null; error?: { status: number; body: { error: string; code?: string } } }> {
     if (projectId === undefined || projectId === null || projectId === "") return { projectId: null };
     const numeric = parseInt(String(projectId), 10);
     if (Number.isNaN(numeric) || !orgId) return { projectId: null };
     const project = await findActiveProject(db as any, numeric, orgId);
+    if (!project && actor?.projectOwnership) {
+        const archived = await findProjectById(db, numeric, orgId);
+        if (archived?.is_archived) return { projectId: null, error: { status: 409, body: {
+            error: "This project is archived and its tickets are read-only.", code: "PROJECT_ARCHIVED",
+        } } };
+    }
     if (!project) return { projectId: null, error: { status: 400, body: { error: "Invalid project or project is archived" } } };
     return { projectId: project.id };
 }

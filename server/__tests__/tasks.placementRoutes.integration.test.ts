@@ -125,6 +125,46 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         return (await pool.query("SELECT sprint_id, planned_date, due_date, pre_sprint_due_date FROM tasks WHERE id = $1", [id])).rows[0];
     }
 
+    test("ticket07 project viewers may comment but cannot edit or rank; archived tickets remain readable", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const project = (await pool.query("SELECT id FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        await pool.query("DELETE FROM project_members WHERE project_id = $1", [project.id]);
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'viewer')", [project.id]);
+        const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, project_id) VALUES ('Read only', 2, 1, $1) RETURNING *", [project.id])).rows[0];
+        const edit = await request(app).put(`/api/tasks/${ticket.id}`).send({ title: "Not allowed" });
+        expect(edit.status).toBe(403);
+        expect(edit.body.code).toBe("READ_ONLY_ROLE");
+        for (const path of ["/api/tasks", "/api/tasks/backlog"]) {
+            const create = await request(app).post(path).send({ title: "Viewer create", project_id: project.id });
+            expect(create.status).toBe(403);
+            expect(create.body.code).toBe("READ_ONLY_ROLE");
+        }
+        expect((await request(app).patch(`/api/tasks/${ticket.id}/rank`).send({})).body.code).toBe("READ_ONLY_ROLE");
+        expect((await request(app).post(`/api/tasks/${ticket.id}/comments`).send({ content: "A comment" })).status).toBe(200);
+        await pool.query("UPDATE project_members SET role = 'project_admin' WHERE project_id = $1 AND user_id = 1", [project.id]);
+        const administrator = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(administrator.status).toBe(200);
+        expect(administrator.body.capabilities.can.logWorkForOthers).toEqual({ allowed: true });
+        await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = $1", [project.id]);
+        const archivedCreate = await request(app).post("/api/tasks/backlog").send({ title: "Archived create", project_id: project.id });
+        expect(archivedCreate.body.code).toBe("PROJECT_ARCHIVED");
+        for (const [method, suffix, body] of [
+            ["put", "", { title: "Archived" }], ["post", "/timer/start", {}],
+            ["patch", "/block", { is_blocked: true }], ["patch", "/rank", {}],
+        ] as const) {
+            const result = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
+            expect(result.status).toBe(409);
+            expect(result.body.code).toBe("PROJECT_ARCHIVED");
+        }
+        const read = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(read.status).toBe(200);
+        expect(read.body.project.is_archived).toBe(true);
+        expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).status).toBe(200);
+        const search = await request(app).get("/api/search").query({ q: ticket.ticket_key });
+        expect(search.body.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: ticket.id })]));
+        expect((await request(app).post(`/api/tasks/${ticket.id}/comments`).send({ content: "Still commenting" })).status).toBe(200);
+    });
+
     function expectTicketDecision(ticket: any) {
         expect(ticket).toMatchObject({
             container: expect.stringMatching(/^(sprint|scheduled|backlog)$/),

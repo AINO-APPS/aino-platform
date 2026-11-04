@@ -12,7 +12,7 @@ import type { Request, Response } from "express";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 
-const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { canAccessTask, denyTaskAccess, ticketActionConflict } = require("./_helpers/access");
 const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { logHistory } = require("./_helpers/logHistory");
 const { elapsedMinutes, summariseTime, findRunningTimer, startTimer, stopTimer } = require("../../modules/tasks/tasks.time");
@@ -25,6 +25,13 @@ async function loadTask(req: Request, res: Response) {
     if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
         denyTaskAccess(res, task, taskActorFromRequest(req));
         return null;
+    }
+    if (req.method !== "GET") {
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "logWork");
+        if (refusal) {
+            res.status(refusal.status).json(refusal.body);
+            return null;
+        }
     }
     return task;
 }

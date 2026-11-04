@@ -21,6 +21,7 @@ export async function changeProjectKey(
             if (!await createProjectAccess(client, actor).allows(projectId, "renameKey")) {
                 throw new ProjectKeyError(403, "ACCESS_DENIED", "Only project admins can rename project keys");
             }
+            if (project.is_archived) throw new ProjectKeyError(409, "PROJECT_ARCHIVED", "This project is archived and its tickets are read-only.");
             if (typeof key !== "string" || !/^[A-Z][A-Z0-9_]{1,9}$/.test(key)) {
                 throw new ProjectKeyError(400, "INVALID_PROJECT_KEY",
                     "Project key must be 2–10 uppercase letters/digits/underscores starting with a letter.");

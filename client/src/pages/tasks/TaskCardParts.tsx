@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ArchivedProjectLabel from "./ArchivedProjectLabel";
 import { CalendarDays, MessageSquare, Ban, Clock, X, ChevronUp, ChevronDown, Minus } from "../../constants/icons";
 import { StoryPointBadge, WorkItemTypeBadge } from "../../components/agile/AgilePickers";
 import { PRIORITIES, type PriorityOption } from "./constants";
@@ -170,6 +171,7 @@ export function CardBody({
                 {actionsSlot}
             </div>
             <div className={s["task-title"]}>{titleSlot ?? task.title}</div>
+            <ArchivedProjectLabel task={task} />
             {description && <div className={s["card-desc"]}>{description}</div>}
             <div className={s["card-foot"]}>
                 {showStatus && <StatusPill status={status} />}

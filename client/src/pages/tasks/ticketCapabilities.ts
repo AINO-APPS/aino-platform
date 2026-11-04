@@ -10,6 +10,9 @@ export type TicketAction = keyof TicketCapabilities["can"];
 const REASONS: Record<string, string> = {
     INVALID_TRANSITION: "This workflow transition is not allowed.",
     ACCESS_DENIED: "You do not have permission to do this.",
+    READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
+    PROJECT_ARCHIVED: "This project is archived. Tickets are read-only; comments are still open.",
+    SPRINT_PROJECT_MISMATCH: "The sprint belongs to another project.",
     SPRINT_FROZEN: "This sprint is frozen. Move the ticket out first.",
     IN_SPRINT: "This ticket is in a sprint. Move it out before scheduling a day.",
     SPRINT_TEAM_MISMATCH: "The sprint belongs to another team.",
@@ -23,6 +26,11 @@ export function reasonCopy(code?: string): string {
 
 export function actionDecision(ticket: Ticket, action: TicketAction): TicketCapability {
     return ticket?.capabilities?.can?.[action] ?? { allowed: false };
+}
+
+export function isReadOnlyTicket(ticket: Ticket): boolean {
+    const reason = actionDecision(ticket, "edit").reason;
+    return reason === "READ_ONLY_ROLE" || reason === "PROJECT_ARCHIVED";
 }
 
 export function decisionProps(decision: TicketCapability | undefined) {

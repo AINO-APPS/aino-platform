@@ -152,6 +152,31 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
         expect(orgWrite.status).toBe(405);
     });
 
+    test("ticket07 project admins archive, only org admins unarchive, and deleted keys stay reserved", async () => {
+        const created = await request(app).post("/api/projects").set("x-test-role", "team_lead")
+            .send({ key: "ARC", name: "Archive" });
+        const id = created.body.id;
+        const archived = await request(app).patch(`/api/projects/${id}/archive`).send({ is_archived: true });
+        expect(archived.status).toBe(200);
+        expect(archived.body.capabilities.canCreateTickets).toBe(false);
+        expect((await request(app).patch(`/api/projects/${id}/archive`).send({ is_archived: false })).status).toBe(403);
+        expect((await request(app).patch(`/api/projects/${id}/archive`).set("x-test-role", "hr_admin")
+            .send({ is_archived: false })).status).toBe(200);
+        expect((await request(app).delete(`/api/projects/${id}`).set("x-test-role", "super_admin")).status).toBe(200);
+        expect((await request(app).post("/api/projects").set("x-test-role", "team_lead")
+            .send({ key: "ARC", name: "Reused" })).status).toBe(409);
+    });
+
+    test("ticket07 force cannot delete a project that has ever had tickets, even after they leave", async () => {
+        const created = await request(app).post("/api/projects").set("x-test-role", "team_lead")
+            .send({ key: "USED", name: "Used" });
+        await pool.query("INSERT INTO tasks (title, user_id, org_id, project_id) VALUES ('History', 1, 1, $1)", [created.body.id]);
+        const result = await request(app).delete(`/api/projects/${created.body.id}?force=1`).set("x-test-role", "super_admin");
+        expect(result.status).toBe(409);
+        await pool.query("DELETE FROM tasks WHERE project_id = $1", [created.body.id]);
+        expect((await request(app).delete(`/api/projects/${created.body.id}`).set("x-test-role", "super_admin")).status).toBe(409);
+    });
+
     test("team leads create projects with their own admin grant and independent team grants", async () => {
         const denied = await request(app)
             .post("/api/projects")
@@ -165,12 +190,7 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-role", "team_lead")
             .send({ key: "ALPHA", name: "Alpha Stream", team_ids: [1, 2] });
         expect(created.status).toBe(200);
-        expect(created.body.capabilities).toEqual({
-            canAdminister: true,
-            canManageMembers: true,
-            canRenameKey: true,
-            canEditWorkflow: true,
-        });
+        expect(created.body.capabilities).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
 
         const grants = (await pool.query(
             "SELECT user_id, team_id, role FROM project_members WHERE project_id = $1 ORDER BY user_id NULLS LAST, team_id",
@@ -187,12 +207,7 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-team", "1");
         expect(listed.status).toBe(200);
         expect(listed.body.find((project: any) => project.id === created.body.id).capabilities)
-            .toEqual({
-                canAdminister: true,
-                canManageMembers: true,
-                canRenameKey: true,
-                canEditWorkflow: true,
-            });
+            .toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
 
         const second = await request(app)
             .post("/api/projects")
@@ -217,12 +232,10 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
         expect(await access.roleForProject(10)).toBe("project_admin");
         expect(await access.roleForProject(11)).toBe("viewer");
         expect(await access.accessibleProjectIds()).toEqual(expect.arrayContaining([10, 11]));
-        expect(await access.capabilities(10)).toEqual({
-            canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true,
-        });
+        expect(await access.capabilities(10)).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
         expect(await access.capabilitiesForProjects([10, 11])).toEqual(new Map([
-            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true }],
-            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false, canEditWorkflow: false }],
+            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true }],
+            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false, canCreateTickets: false, canEditWorkflow: false, canArchive: false }],
         ]));
     });
 

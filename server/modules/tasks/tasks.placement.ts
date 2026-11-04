@@ -64,6 +64,9 @@ export interface PlacementContext {
 
 export type PlacementRefusalCode =
     | "ACCESS_DENIED"
+    | "READ_ONLY_ROLE"
+    | "PROJECT_ARCHIVED"
+    | "SPRINT_PROJECT_MISMATCH"
     | "NOT_FOUND"
     | "SPRINT_NOT_FOUND"
     | "SPRINT_FROZEN"
@@ -182,6 +185,12 @@ export async function transferTicket(
     if (same(before.team_id, team.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
     const project = await repo.ensureTeamProject(ctx.db, team.id, ctx.actor.orgId);
     if (!project) return refusedTransfer(id, "TEAM_NOT_FOUND");
+    if (ctx.ticketActor.projectOwnership) {
+        const destination = { ...before, project_id: project.id, sprint_id: null };
+        const destinationContext = await loadTicketDecisionContext(ctx.db, ctx.ticketActor, [destination]);
+        const destinationVerdict = decideTicket(ctx.ticketActor, destination, destinationContext).capabilities.can.edit;
+        if (!destinationVerdict.allowed) return refusedTransfer(id, destinationVerdict.reason as PlacementRefusalCode);
+    }
 
     const sprints = await lockSprints(ctx, [before.sprint_id]);
     const origin = before.sprint_id == null ? null : sprints.get(Number(before.sprint_id));

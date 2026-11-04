@@ -22592,7 +22592,10 @@
               "SPRINT_FROZEN",
               "IN_SPRINT",
               "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
+              "CANCELLED_TERMINAL",
+              "READ_ONLY_ROLE",
+              "PROJECT_ARCHIVED",
+              "SPRINT_PROJECT_MISMATCH"
             ]
           }
         },
@@ -22618,7 +22621,10 @@
               "SPRINT_FROZEN",
               "IN_SPRINT",
               "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
+              "CANCELLED_TERMINAL",
+              "READ_ONLY_ROLE",
+              "PROJECT_ARCHIVED",
+              "SPRINT_PROJECT_MISMATCH"
             ]
           }
         },
@@ -22660,6 +22666,15 @@
               },
               "schedule": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "comment": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "logWork": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "logWorkForOthers": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -22669,7 +22684,10 @@
               "transfer",
               "delete",
               "placeInSprint",
-              "schedule"
+              "schedule",
+              "comment",
+              "logWork",
+              "logWorkForOthers"
             ],
             "additionalProperties": false
           }
@@ -23020,21 +23038,29 @@
           "canAdminister": {
             "type": "boolean"
           },
+          "canCreateTickets": {
+            "type": "boolean"
+          },
           "canManageMembers": {
+            "type": "boolean"
+          },
+          "canEditWorkflow": {
             "type": "boolean"
           },
           "canRenameKey": {
             "type": "boolean"
           },
-          "canEditWorkflow": {
+          "canArchive": {
             "type": "boolean"
           }
         },
         "required": [
           "canAdminister",
+          "canCreateTickets",
           "canManageMembers",
+          "canEditWorkflow",
           "canRenameKey",
-          "canEditWorkflow"
+          "canArchive"
         ],
         "additionalProperties": false
       },
@@ -24367,6 +24393,36 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/TicketCapabilities"
+          },
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "is_archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "is_archived"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -24595,6 +24651,36 @@
           "requested_key": {
             "type": "string",
             "description": "The key used to fetch the ticket, which may be an alias."
+          },
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "is_archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "is_archived"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

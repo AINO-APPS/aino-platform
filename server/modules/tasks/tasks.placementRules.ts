@@ -15,11 +15,13 @@ export function placementRefusal(
     target: PlacementTarget,
     targetSprint: any,
     sprints: Map<number, any>,
-): "SPRINT_FROZEN" | "SPRINT_TEAM_MISMATCH" | "IN_SPRINT" | null {
+    projectOwnership = false,
+): "SPRINT_FROZEN" | "SPRINT_TEAM_MISMATCH" | "SPRINT_PROJECT_MISMATCH" | "IN_SPRINT" | null {
     const origin = ticket.sprint_id == null ? null : sprints.get(Number(ticket.sprint_id));
     const staysInOrigin = origin != null && targetSprint != null && Number(targetSprint.id) === Number(origin.id);
     if ((origin?.status === "completed" && !staysInOrigin) || targetSprint?.status === "completed") return "SPRINT_FROZEN";
-    if (targetSprint && !canMoveIntoTeamSprint(ticket.team_id, targetSprint.team_id)) return "SPRINT_TEAM_MISMATCH";
+    if (targetSprint && projectOwnership && Number(ticket.project_id) !== Number(targetSprint.project_id)) return "SPRINT_PROJECT_MISMATCH";
+    if (targetSprint && !projectOwnership && !canMoveIntoTeamSprint(ticket.team_id, targetSprint.team_id)) return "SPRINT_TEAM_MISMATCH";
     if (typeof target === "object" && "day" in target && ticket.sprint_id != null) return "IN_SPRINT";
     return null;
 }

@@ -19,7 +19,7 @@ const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
 
-const { ticketActionConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
+const { ticketActionConflict, ticketCreationConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
@@ -120,7 +120,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         // Stage 3: optional project assignment + auto issue key. We validate
         // the project here so a missing/invalid value returns 400 before we
         // open the create transaction.
-        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null);
+        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null, taskActorFromRequest(req));
         if (project.error) return res.status(project.error.status).json(project.error.body);
         let validProjectId = project.projectId;
 
@@ -160,6 +160,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 orgId: req.userOrgId || null,
                 actorTeamId: req.userTeamId ?? null,
                 isAdmin: isOrgAdmin(req.userRole),
+                actor: taskActorFromRequest(req),
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             const sprint = target.sprint;
@@ -182,8 +183,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
         validProjectId = await requireTicketProjectId(req.db!, validProjectId, req.userOrgId || null, validSprintId, owner.teamId ?? null);
+        const creationRefusal = await ticketCreationConflict(req, validProjectId);
+        if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 
-        // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
         const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
@@ -207,15 +209,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         // a task with no history entry, or labels mapped to a half-written
         // task). Wrap them in a transaction so the entire create is atomic.
         //
-        // Stage 3: when a project is assigned, we also reserve the next
-        // `task_number` within the project. The UPDATE … RETURNING approach
-        // is concurrency-safe — the row-level lock around the project row
-        // serialises competing INSERTs so two requests can't both grab the
-        // same number.
-        //
-        // The ticket is inserted with no container and then placed in the same
-        // transaction: into the sprint (which wins, so no planned day is set),
-        // otherwise onto its planned day (ADR-015).
+        // Reserve the key and place the ticket in the same transaction.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             let taskNumber = null;
             if (validProjectId) {

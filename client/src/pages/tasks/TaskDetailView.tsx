@@ -15,6 +15,7 @@ import TaskMetaGrid from "./TaskMetaGrid";
 import TaskStatusControl from "./TaskStatusControl";
 import TaskTimePanel from "./TaskTimePanel";
 import TaskGitRefs from "./TaskGitRefs";
+import ArchivedProjectLabel from "./ArchivedProjectLabel";
 import s from "./TaskDetailModal.module.css";
 
 interface TaskDetailViewProps {
@@ -77,6 +78,7 @@ export default function TaskDetailView({
                             </span>
                         )}
                         <WorkItemTypeBadge value={task.work_item_type_id} />
+                        <ArchivedProjectLabel task={task} />
                         <StoryPointBadge value={task.story_points} />
                         <BlockerBadge task={task} />
                     </div>

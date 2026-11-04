@@ -55,9 +55,13 @@ Migration `0023_project_ownership_switch.sql` adds the retained timestamp and
 stamps already-enabled organizations. Run
 `npm run test:pg -- projectsMigration --runInBand` for the HTTP/PostgreSQL seam.
 
-Project roles do not filter project or ticket lists until ticket 06 changes
-visibility. This boundary intentionally keeps the current visibility policy
-unchanged.
+With project ownership enabled, ticket decisions use project roles rather than
+team membership. Viewers, reporters and assignees can comment; only members and
+project admins can write. Project admins and org admins can log work for others.
+An archived project refuses ticket writes with `PROJECT_ARCHIVED`, but reading,
+key lookup, search and comments remain available. Unarchiving requires an org
+admin. Deletion remains super-admin-only and refuses any project whose persistent
+`has_had_tickets` bit is set, even after its tickets leave. Keys stay reserved.
 
 Placement — any change to a ticket's sprint, planned day, or the due date that
 follows sprint membership — goes through `tasks.placement.ts` (rules),
@@ -73,7 +77,8 @@ The single-ticket form returns the same decision for write-path callers.
 
 Load context once for the whole request. It contains the org lifecycle, a
 batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
-creator-team lookup. Pass an already loaded lifecycle as the loader's
+creator-team lookup. Project mode also loads archived state and the actor's
+effective project roles. Pass an already loaded lifecycle as the loader's
 `{ lifecycle }` option to reuse it. Both decide forms are synchronous and perform
 no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.
@@ -97,7 +102,8 @@ deliberately excluded and remains a column/write-guard concern.
 ## Write guards
 
 `tasks.writeGuards.ts` adapts a decision action to a conflict. Access refusals
-remain 403 (404 for another org); lifecycle and placement conflicts remain 409.
+and `READ_ONLY_ROLE` remain 403 (404 for another org); lifecycle, archived-project
+and placement conflicts remain 409.
 Guards and placement share capability denial text in `tasks.denialMessages.ts`.
 Cancellation of completed work now uses `INVALID_TRANSITION`, and cancellation
 or state changes on Cancelled tickets use `CANCELLED_TERMINAL`, matching the

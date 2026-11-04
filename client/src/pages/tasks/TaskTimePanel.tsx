@@ -3,6 +3,7 @@ import { Play, Square } from "../../constants/icons";
 import { getTaskTimer, startTaskTimer, stopTaskTimer } from "../../api/tasks";
 import { formatMinutes, summariseTime } from "./time";
 import s from "./TaskTimePanel.module.css";
+import { actionDecision, reasonCopy } from "./ticketCapabilities";
 
 interface TaskTimePanelProps {
     task: any;
@@ -98,7 +99,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
                 </div>
             )}
 
-            <div className={s["time-actions"]}>
+            {actionDecision(task, "logWork").allowed && <div className={s["time-actions"]}>
                 {running ? (
                     <button
                         type="button"
@@ -119,7 +120,8 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
                     </button>
                 )}
                 {summary.over && <span className={s["time-over-label"]}>Over estimate</span>}
-            </div>
+            </div>}
+            {!actionDecision(task, "logWork").allowed && <p>{reasonCopy(actionDecision(task, "logWork").reason)}</p>}
 
             {error && (
                 <p className={s["time-error"]} role="alert">

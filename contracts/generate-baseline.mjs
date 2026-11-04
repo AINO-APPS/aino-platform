@@ -100,9 +100,9 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
 const obj=(properties,required=[])=>({type:"object",properties,required,additionalProperties:false});
 const schemas={
  Error:{type:"object",required:["error"],properties:{error:{type:"string"},code:{type:"string"},feature:{type:"string"},plan:{type:"string"}},additionalProperties:true},
- TicketCapability:{type:"object",properties:{allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL"]}},required:["allowed"],additionalProperties:false},
- TicketTransitionCapability:{type:"object",properties:{to:{type:"integer"},allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL"]}},required:["to","allowed"],additionalProperties:false},
- TicketCapabilities:{type:"object",properties:{transitions:{type:"array",items:R("TicketTransitionCapability")},can:{type:"object",properties:{edit:R("TicketCapability"),changeState:R("TicketCapability"),cancel:R("TicketCapability"),transfer:R("TicketCapability"),delete:R("TicketCapability"),placeInSprint:R("TicketCapability"),schedule:R("TicketCapability")},required:["edit","changeState","cancel","transfer","delete","placeInSprint","schedule"],additionalProperties:false}},required:["transitions","can"],additionalProperties:false},
+ TicketCapability:{type:"object",properties:{allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED"]}},required:["allowed"],additionalProperties:false},
+ TicketTransitionCapability:{type:"object",properties:{to:{type:"integer"},allowed:{type:"boolean"},reason:{type:"string",enum:["INVALID_TRANSITION","ACCESS_DENIED","SPRINT_FROZEN","IN_SPRINT","SPRINT_TEAM_MISMATCH","CANCELLED_TERMINAL","READ_ONLY_ROLE","PROJECT_ARCHIVED"]}},required:["to","allowed"],additionalProperties:false},
+ TicketCapabilities:{type:"object",properties:{transitions:{type:"array",items:R("TicketTransitionCapability")},can:{type:"object",properties:{edit:R("TicketCapability"),changeState:R("TicketCapability"),cancel:R("TicketCapability"),transfer:R("TicketCapability"),delete:R("TicketCapability"),placeInSprint:R("TicketCapability"),schedule:R("TicketCapability"),comment:R("TicketCapability"),logWork:R("TicketCapability"),logWorkForOthers:R("TicketCapability")},required:["edit","changeState","cancel","transfer","delete","placeInSprint","schedule","comment","logWork","logWorkForOthers"],additionalProperties:false}},required:["transitions","can"],additionalProperties:false},
  FreeFormObject:{type:"object",additionalProperties:true},FreeFormValue:{description:"Response shape is not yet exhaustively modeled in this baseline"},
  User:obj({id:{type:"integer"},username:{type:"string"},full_name:{type:["string","null"]},email:{type:["string","null"],format:"email"},avatar:{type:["string","null"]},role:{type:"string"},org_id:{type:["integer","null"]},tenant_id:{type:["integer","null"]},has_reports:{type:"boolean"},must_change_password:{type:"boolean"}},["id","username","role"]),
  AuthResponse:obj({user:R("User"),token:{type:"string",description:"Mirrors the JWT cookie for native clients"}},["user","token"]),
@@ -117,7 +117,7 @@ const schemas={
  ApiHealth:{type:"object",required:["status","time"],properties:{status:{enum:["ok","error"]},time:{type:"string",format:"date-time"},error:{type:"string"}},additionalProperties:false}
  ,OkResponse:obj({ok:{const:true}},["ok"])
  ,ProjectRole:{type:"string",enum:["project_admin","member","viewer"]}
- ,ProjectCapabilities:obj({canAdminister:{type:"boolean"},canManageMembers:{type:"boolean"},canRenameKey:{type:"boolean"},canEditWorkflow:{type:"boolean"}},["canAdminister","canManageMembers","canRenameKey","canEditWorkflow"])
+ ,ProjectCapabilities:obj({canAdminister:{type:"boolean"},canCreateTickets:{type:"boolean"},canManageMembers:{type:"boolean"},canEditWorkflow:{type:"boolean"},canRenameKey:{type:"boolean"},canArchive:{type:"boolean"}},["canAdminister","canCreateTickets","canManageMembers","canEditWorkflow","canRenameKey","canArchive"])
  ,ProjectKeyRenameRequest:obj({key:{type:"string",pattern:"^[A-Z][A-Z0-9_]{1,9}$",minLength:2,maxLength:10}},["key"])
  ,ProjectKeyRenameResult:obj({project_id:{type:"integer",minimum:1},old_key:{type:"string"},new_key:{type:"string"},affected_tickets:{type:"integer",minimum:0}},["project_id","old_key","new_key","affected_tickets"])
  ,WorkflowCategory:{type:"string",enum:["open","in_progress","in_review","done"]}
@@ -188,10 +188,14 @@ Object.assign(schemas.SearchTask.properties,{
 });
 schemas.SearchTask.required=["id","ticket_key","issue_key","key_aliases",...schemas.SearchTask.required.filter(name=>name!=="id"),"container","capabilities"];
 Object.assign(schemas.Task.properties,{
+ project:{type:["object","null"],properties:{id:{type:"integer"},key:{type:"string"},name:{type:"string"},color:{type:"string"},is_archived:{type:"boolean"}},required:["id","key","name","is_archived"],additionalProperties:false},
  key_aliases:{type:"array",items:{type:"string"},description:"Former ticket keys that still resolve to this ticket."},
  key_alias:{type:"boolean",description:"True when the requested ticket key was a former key."},
  requested_key:{type:"string",description:"The key used to fetch the ticket, which may be an alias."}
 });
+schemas.TicketCapability.properties.reason.enum.push("SPRINT_PROJECT_MISMATCH");
+schemas.TicketTransitionCapability.properties.reason.enum.push("SPRINT_PROJECT_MISMATCH");
+schemas.SearchTask.properties.project=schemas.Task.properties.project;
 schemas.TaskByKey={type:"object",properties:{id:{type:"integer"},ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},key_alias:{type:"boolean"},requested_key:{type:"string"}},required:["id","ticket_key","issue_key","key_aliases","key_alias","requested_key"],additionalProperties:true};
 const openapi={openapi:"3.1.0",info:{title:"AINO Platform HTTP API",version:"0.1.0",description:"Initial contract baseline derived from mounted server routers and route tests. See contracts/README.md for explicit completeness limits."},servers:[{url:"/",description:"Current origin"}],tags:mounts.filter(m=>m.coverage==="baseline").map(m=>({name:m.id})).concat({name:"health"}),paths,components:{securitySchemes:{cookieAuth:{type:"apiKey",in:"cookie",name:"token",description:"HttpOnly JWT cookie used by web and desktop clients"},bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"JWT returned by auth flows for native mobile clients"}},parameters:{CsrfHeader:{name:"X-Requested-With",in:"header",required:true,description:"Required on mutating /api requests. AINO is preferred; WorkPulse is accepted for compatibility.",schema:{type:"string",enum:["AINO","WorkPulse"]}}},schemas}};
 fs.writeFileSync(path.join(root,"contracts/openapi.json"),JSON.stringify(openapi,null,2)+"\n");

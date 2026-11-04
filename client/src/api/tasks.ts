@@ -60,8 +60,7 @@ export const updateProject = (id: number | string, data: AnyData) =>
     API.put(`/projects/${id}`, data);
 export const archiveProject = (id: number | string, isArchived: boolean) =>
     API.patch(`/projects/${id}/archive`, { is_archived: isArchived });
-export const deleteProject = (id: number | string, { force = false }: { force?: boolean } = {}) =>
-    API.delete(`/projects/${id}`, { params: force ? { force: 1 } : {} });
+export const deleteProject = (id: number | string) => API.delete(`/projects/${id}`);
 export const getProjectTasks = (id: number | string, params?: Params) =>
     API.get(`/projects/${id}/tasks`, { params });
 export const getProjectWorkflow = (id: number | string) =>

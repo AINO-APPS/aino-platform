@@ -9,6 +9,7 @@ import { placeTickets, transferTicket } from "../modules/tasks/tasks.placement";
 import { ticketActionConflict } from "../modules/tasks/tasks.writeGuards";
 import { buildSprintBoardColumns } from "../modules/tasks/tasks.board";
 import { findSprintBoardCounts } from "../modules/tasks/tasks.sprintRepository";
+import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
 
 installPgTypeParsers();
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
@@ -17,6 +18,9 @@ const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", te
 const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
 const denialMessages: Record<CapabilityReason, string> = {
+    SPRINT_PROJECT_MISMATCH: "This ticket and sprint belong to different projects.",
+    READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
+    PROJECT_ARCHIVED: "This project is archived and its tickets are read-only.",
     ACCESS_DENIED: "Access denied",
     SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
@@ -110,6 +114,36 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         expect(decideTickets(member, [ticket], context)).toEqual([decideTicket(member, ticket, context)]);
     });
 
+    test.each([
+        ["personal admin", 1, null, "project_admin", true, true, false],
+        ["personal member", 1, null, "member", true, true, false],
+        ["personal viewer", 1, null, "viewer", false, true, false],
+        ["team admin", 1, 1, "project_admin", true, true, false],
+        ["team member", 1, 1, "member", true, true, false],
+        ["team viewer", 1, 1, "viewer", false, true, false],
+        ["reporter without a role", 2, null, null, false, true, false],
+        ["assignee without a role", 3, null, null, false, true, false],
+        ["org admin", 4, null, null, true, true, false],
+        ["no access", 5, null, null, false, false, false],
+        ["archived project", 1, null, "project_admin", false, true, true],
+    ] as const)("ticket07 project actor table: %s", async (_label, userId, teamId, role, write, comment, archived) => {
+        const project = (await pool.query("INSERT INTO projects (org_id, key, name, is_archived) VALUES (1, $1, 'Role matrix', $2) RETURNING id",
+            [`R${userId}${teamId ?? 0}${role === "project_admin" ? "A" : role === "member" ? "M" : "V"}${archived ? "X" : "N"}`, archived])).rows[0];
+        if (role) await pool.query(`INSERT INTO project_members (project_id, user_id, team_id, role) VALUES ($1, $2, $3, $4)`,
+            [project.id, teamId == null ? userId : null, teamId, role]);
+        const projectActor: TaskActor = {
+            userId, orgId: 1, teamId, role: userId === 4 ? "hr_admin" : "employee", teamVisibility: true, projectOwnership: true,
+            projectAccess: createProjectAccess(pool, { userId, orgId: 1, orgRole: userId === 4 ? "hr_admin" : "employee", teamIds: teamId ? [teamId] : [] }),
+        };
+        const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, assigned_to, org_id, project_id, workflow_state_id)
+            VALUES ('Project actor', 2, 3, 1, $1, 101) RETURNING *`, [project.id])).rows[0];
+        const decision = decideTicket(projectActor, ticket, await loadTicketDecisionContext(pool, projectActor, [ticket]));
+        expect(decision.capabilities.can.edit.allowed).toBe(write);
+        expect(decision.capabilities.can.comment.allowed).toBe(comment);
+        expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && (role === "project_admin" || userId === 4));
+        if (!write) expect(decision.capabilities.can.edit).toEqual(denied(archived ? "PROJECT_ARCHIVED" : comment ? "READ_ONLY_ROLE" : "ACCESS_DENIED"));
+    });
+
     test("a team member sees every other active state and all ticket actions", async () => {
         const ticket = (await pool.query(`INSERT INTO tasks
             (title, user_id, assigned_to, org_id, team_id, workflow_state_id)
@@ -134,6 +168,9 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     delete: { allowed: true },
                     placeInSprint: { allowed: true },
                     schedule: { allowed: true },
+                    comment: { allowed: true },
+                    logWork: { allowed: true },
+                    logWorkForOthers: { allowed: false, reason: "ACCESS_DENIED" },
                 },
             },
         });
@@ -197,6 +234,9 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                             delete: cancel,
                             placeInSprint: write,
                             schedule: !write.allowed ? write : sprint == null ? allowed : denied("IN_SPRINT"),
+                            comment: access ? allowed : denied("ACCESS_DENIED"),
+                            logWork: write,
+                            logWorkForOthers: !write.allowed ? write : role === "super_admin" ? allowed : denied("ACCESS_DENIED"),
                         },
                     },
                 });

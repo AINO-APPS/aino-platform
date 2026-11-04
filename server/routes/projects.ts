@@ -3,9 +3,9 @@
 //   GET    /api/projects             — list (active by default; `?include_archived=1`)
 //   POST   /api/projects             — create (team lead+)
 //   GET    /api/projects/:id         — single project
-//   PUT    /api/projects/:id         — update (manager+)
-//   PATCH  /api/projects/:id/archive — archive / unarchive (manager+)
-//   DELETE /api/projects/:id         — delete (super_admin only, only if empty)
+//   PUT    /api/projects/:id         — update (project admin)
+//   PATCH  /api/projects/:id/archive — archive (project admin), unarchive (org admin)
+//   DELETE /api/projects/:id         — delete (super_admin only, never had tickets)
 //   GET    /api/projects/:id/tasks   — list tasks in this project
 
 import express from "express";
@@ -15,8 +15,8 @@ const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logAction } = require("../utils/audit");
 const { enrichTasks } = require("./tasks/_helpers/enrich");
-const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
-import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
+const { taskActorFromRequest, isOrgAdmin } = require("../modules/tasks/tasks.policy");
+import { createProjectAccess, projectCapabilities } from "../modules/tasks/tasks.projectAccess";
 import { changeProjectKey, ProjectKeyError } from "../modules/tasks/tasks.projectKey";
 import { broadcast } from "../realtime/fanout";
 import {
@@ -58,7 +58,7 @@ function projectAccessForRequest(req: Request) {
 }
 
 async function addProjectCapabilities(req: Request, project: any): Promise<any> {
-    const capabilities = await projectAccessForRequest(req).capabilities(Number(project.id));
+    const capabilities = await projectAccessForRequest(req).capabilities(Number(project.id), project.is_archived);
     return { ...project, capabilities };
 }
 
@@ -67,12 +67,9 @@ async function addCapabilitiesToProjects(req: Request, projects: any[]): Promise
     const byProject = await access.capabilitiesForProjects(projects.map((project) => Number(project.id)));
     return projects.map((project) => ({
         ...project,
-        capabilities: byProject.get(Number(project.id)) ?? {
-            canAdminister: false,
-            canManageMembers: false,
-            canRenameKey: false,
-            canEditWorkflow: false,
-        },
+        capabilities: project.is_archived
+            ? { ...(byProject.get(Number(project.id)) ?? projectCapabilities(null)), canCreateTickets: false, canEditWorkflow: false, canRenameKey: false, canArchive: false }
+            : byProject.get(Number(project.id)) ?? projectCapabilities(null),
     }));
 }
 
@@ -195,7 +192,7 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
         logAction(req, "create", "project", inserted.id, { key: upperKey, name: inserted.name });
         res.json({
             ...inserted,
-            capabilities: { canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true },
+            capabilities: projectCapabilities("project_admin"),
         });
     } catch (err) {
         if (sendProjectAccessError(res, err)) return;
@@ -358,12 +355,13 @@ router.delete("/:id/members/:memberId", auth, loadUserContext, async (req: Reque
 });
 
 // ─── Update project ──────────────────────────────────────────────────────
-router.put("/:id", auth, loadUserContext, requireRole("manager"), async (req: Request, res: Response) => {
+router.put("/:id", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
         const existing = (await req.db!.query("SELECT * FROM projects WHERE id = $1 AND org_id = $2", [id, req.userOrgId])).rows[0];
         if (!existing) return res.status(404).json({ error: "Project not found" });
+        if (!await projectAccessForRequest(req).allows(id, "administer")) return res.status(403).json({ error: "Only project admins can edit projects" });
         // Key changes use the transactional key endpoint so old references survive.
         const { name, description, color, lead_user_id } = req.body || {};
         const newName = name?.trim() || existing.name;
@@ -397,11 +395,16 @@ router.put("/:id", auth, loadUserContext, requireRole("manager"), async (req: Re
 });
 
 // ─── Archive / unarchive ─────────────────────────────────────────────────
-router.patch("/:id/archive", auth, loadUserContext, requireRole("manager"), async (req: Request, res: Response) => {
+router.patch("/:id/archive", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
         const archived = !!req.body?.is_archived;
+        const existing = await findProjectById(req.db as any, id, Number(req.userOrgId));
+        if (!existing) return res.status(404).json({ error: "Project not found" });
+        if (archived ? !await projectAccessForRequest(req).allows(id, "administer") : !isOrgAdmin(req.userRole)) {
+            return res.status(403).json({ error: archived ? "Only project admins can archive" : "Only org admins can unarchive", code: "ACCESS_DENIED" });
+        }
         const r = await req.db!.query(
             "UPDATE projects SET is_archived = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3 RETURNING *",
             [archived, id, req.userOrgId]
@@ -417,47 +420,22 @@ router.patch("/:id/archive", auth, loadUserContext, requireRole("manager"), asyn
 
 // ─── Delete (super_admin only) ───────────────────────────────────────────
 //
-// By default the endpoint refuses if any tasks still belong to the project,
-// to protect against accidental data loss. A super_admin can override that
-// with `?force=1`, which detaches every task from the project (project_id
-// and task_number set to NULL — the tickets themselves stay; only their
-// issue key disappears). External references like branches/commits that
-// already mention `PROJ-N` will of course no longer resolve, which is the
-// whole reason we discourage this — but it's the right escape hatch when
-// a project was created by mistake.
+// The persistent history bit survives ticket moves and deletion.
 router.delete("/:id", auth, loadUserContext, requireRole("super_admin"), async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
-        const existing = (await req.db!.query("SELECT key FROM projects WHERE id = $1 AND org_id = $2", [id, req.userOrgId])).rows[0];
-        if (!existing) return res.status(404).json({ error: "Project not found" });
-        const force = req.query.force === "1" || req.body?.force === true;
-        const taskCount = (await req.db!.query("SELECT COUNT(*)::int AS c FROM tasks WHERE project_id = $1", [id])).rows[0].c;
-        if (taskCount > 0 && !force) {
-            return res.status(409).json({
-                error: `Cannot delete project: ${taskCount} task(s) still belong to it. Archive instead, or move/delete the tasks first, or retry with force=1 to detach them.`,
-                task_count: taskCount,
-                code: "PROJECT_NOT_EMPTY",
-            });
-        }
-        // Wrap detach + delete in a single transaction so a failure between
-        // them can't leave the project gone with task_number references still
-        // pointing into nowhere.
-        await (req.db as unknown as DbLike).transaction(async (client) => {
-            if (taskCount > 0) {
-                await client.query(
-                    "UPDATE tasks SET project_id = NULL, task_number = NULL WHERE project_id = $1",
-                    [id]
-                );
-            }
+        const result = await (req.db as unknown as DbLike).transaction(async (client) => {
+            const existing = (await client.query("SELECT key, has_had_tickets FROM projects WHERE id = $1 AND org_id = $2 FOR UPDATE", [id, req.userOrgId])).rows[0];
+            if (!existing) return { status: 404, body: { error: "Project not found" } };
+            const count = (await client.query("SELECT COUNT(*)::int AS c FROM tasks WHERE project_id = $1", [id])).rows[0].c;
+            if (existing.has_had_tickets || count > 0) return { status: 409, body: { error: "Cannot delete a project that has had tickets. Archive it instead.", code: "PROJECT_NOT_EMPTY" } };
+            await client.query("INSERT INTO reserved_project_keys (org_id, key, reason) VALUES ($1, $2, 'delete') ON CONFLICT DO NOTHING", [req.userOrgId, existing.key]);
             await client.query("DELETE FROM projects WHERE id = $1", [id]);
+            return { status: 200, body: { ok: true, detached_tasks: 0 } };
         });
-        logAction(req, "delete", "project", id, {
-            key: existing.key,
-            detached_tasks: taskCount,
-            forced: force && taskCount > 0,
-        });
-        res.json({ ok: true, detached_tasks: taskCount });
+        if (result.status === 200) logAction(req, "delete", "project", id, null);
+        res.status(result.status).json(result.body);
     } catch (err) {
         req.log.error({ err }, "Failed to delete project");
         res.status(500).json({ error: "Failed to delete project" });

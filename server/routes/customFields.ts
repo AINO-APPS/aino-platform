@@ -369,6 +369,10 @@ router.put("/task/:taskId", async (req: Request, res: Response) => {
         if (!Number.isFinite(taskId)) return res.status(400).json({ error: "Invalid task id" });
         const task = await loadTaskAccessible(req, taskId);
         if (!task) return res.status(404).json({ error: "Task not found" });
+        const { ticketActionConflict } = require("../modules/tasks/tasks.writeGuards");
+        const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
         const incoming = (req.body && typeof req.body.values === "object" && req.body.values) || {};
 
         const defs = await loadDefinitions(req);

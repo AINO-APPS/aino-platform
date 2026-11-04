@@ -5,7 +5,7 @@ import { CardBody, ScheduleControl } from "./TaskCardParts";
 import { useAgileConfig } from "../../AgileConfigContext";
 import IssueKey from "./IssueKey";
 import TaskCardMenu from "./TaskCardMenu";
-import { actionDecision, decisionProps, transitionOptions } from "./ticketCapabilities";
+import { actionDecision, decisionProps, isReadOnlyTicket, transitionOptions } from "./ticketCapabilities";
 import { useCardDensity } from "./TaskContext";
 import s from "./BacklogTab.module.css";
 import c from "./TaskCard.module.css";
@@ -177,7 +177,7 @@ export default function BacklogCard({
                     titleSlot={titleSlot}
                     actionsSlot={
                         <span className={s["backlog-actions"]}>
-                            <ScheduleControl
+                            {!isReadOnlyTicket(task) && <ScheduleControl
                                 {...decisionProps(actionDecision(task, "schedule"))}
                                 open={scheduleTaskId === task.id}
                                 date={scheduleDate}
@@ -185,16 +185,16 @@ export default function BacklogCard({
                                 onClose={() => setScheduleTaskId(null)}
                                 onDateChange={setScheduleDate}
                                 onConfirm={() => onScheduleTask(task.id, task.title)}
-                            />
+                            />}
                             <TaskCardMenu
                                 label={`Actions for ${issueKey}`}
                                 items={[
                                     { label: "Open task", onSelect: () => onOpenDetail(task) },
-                                    ...(onAddToSprint
+                                    ...(onAddToSprint && !isReadOnlyTicket(task)
                                         ? [{ label: "Add to sprint", ...decisionProps(actionDecision(task, "placeInSprint")), onSelect: () => onAddToSprint(task) }]
                                         : []),
-                                    { label: "Schedule to a day", ...decisionProps(actionDecision(task, "schedule")), onSelect: openSchedule },
-                                    ...(onInlineEdit ? [{
+                                    ...(!isReadOnlyTicket(task) ? [{ label: "Schedule to a day", ...decisionProps(actionDecision(task, "schedule")), onSelect: openSchedule }] : []),
+                                    ...(onInlineEdit && !isReadOnlyTicket(task) ? [{
                                         label: "Edit title", ...decisionProps(actionDecision(task, "edit")),
                                         onSelect: () => setEditingTitle(true),
                                     }, ...transitionOptions(task, workflowStates).map((option) => ({

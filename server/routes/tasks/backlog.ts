@@ -25,7 +25,7 @@ const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
-const { ticketActionConflict, denyTaskAccess } = require('./_helpers/access');
+const { ticketActionConflict, ticketCreationConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
@@ -227,7 +227,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null);
+        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null, taskActorFromRequest(req));
         if (project.error) return res.status(project.error.status).json(project.error.body);
         let validProjectId = project.projectId;
 
@@ -255,14 +255,14 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const { isFeatureEnabled } = require('../../utils/planCatalog');
         const agileOn = isFeatureEnabled((req as any).tenant, 'agile');
         if (sprint_id && agileOn) {
-            const callerIsOrgAdmin = isOrgAdmin(req.userRole);
-            const sprint = callerIsOrgAdmin
-                ? (await req.db!.query(
-                    'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
-                    [sprint_id, req.userOrgId]
-                )).rows[0]
-                : (await req.db!.query('SELECT id, team_id, end_date FROM sprints WHERE id = $1', [sprint_id])).rows[0];
-            if (sprint && (callerIsOrgAdmin || sprint.team_id === req.userTeamId)) {
+            const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
+            const target = await resolveSprintTarget(req.db!, {
+                sprintId: sprint_id, orgId: req.userOrgId || null, actorTeamId: req.userTeamId ?? null,
+                isAdmin: isOrgAdmin(req.userRole), actor: taskActorFromRequest(req),
+            });
+            if (target.error) return res.status(target.error.status).json(target.error.body);
+            const sprint = target.sprint;
+            if (sprint) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
             } else {
@@ -286,6 +286,8 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             );
         }
         if (!validProjectId) throw new Error("No default project exists for this organization");
+        const creationRefusal = await ticketCreationConflict(req, validProjectId);
+        if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 
         // Agile fields
         const sp = validateStoryPoints(story_points);

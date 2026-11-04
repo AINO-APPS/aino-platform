@@ -127,6 +127,7 @@ async function enrichTaskSummaries(
         ticket_key: enriched[index].ticket_key,
         issue_key: enriched[index].issue_key,
         key_aliases: enriched[index].key_aliases,
+        project: enriched[index].project,
     }));
 }
 

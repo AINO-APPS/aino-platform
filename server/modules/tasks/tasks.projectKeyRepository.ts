@@ -2,7 +2,7 @@ import type { ProjectAccessRepositoryDb } from "./tasks.projectAccessRepository"
 
 export async function lockProjectKey(db: ProjectAccessRepositoryDb, projectId: number, orgId: number) {
     return (await db.query(
-        "SELECT id, key, key_published FROM projects WHERE id = $1 AND org_id = $2 FOR UPDATE",
+        "SELECT id, key, key_published, is_archived FROM projects WHERE id = $1 AND org_id = $2 FOR UPDATE",
         [projectId, orgId],
     )).rows[0];
 }

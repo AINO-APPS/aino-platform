@@ -3,6 +3,7 @@ import {
     findGeneratedProjectIdForTeam,
     findProjectRoles,
     findProjectRolesForProjects,
+    findProjectById,
     type ProjectAccessRepositoryDb,
 } from "./tasks.projectAccessRepository";
 
@@ -45,9 +46,23 @@ export interface ProjectAccessActor {
 
 export interface ProjectCapabilities {
     canAdminister: boolean;
+    canCreateTickets: boolean;
     canManageMembers: boolean;
-    canRenameKey: boolean;
     canEditWorkflow: boolean;
+    canRenameKey: boolean;
+    canArchive: boolean;
+}
+
+export function projectCapabilities(role: ProjectRole | null, archived = false): ProjectCapabilities {
+    const admin = role === "project_admin";
+    return {
+        canAdminister: admin,
+        canCreateTickets: !archived && (admin || role === "member"),
+        canManageMembers: admin,
+        canEditWorkflow: admin && !archived,
+        canRenameKey: admin && !archived,
+        canArchive: admin && !archived,
+    };
 }
 
 /** Create one access resolver per request; its memoized roles never cross requests. */
@@ -99,15 +114,11 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
         return projectId;
     }
 
-    async function capabilities(projectId: number): Promise<ProjectCapabilities> {
+    async function capabilities(projectId: number, archived?: boolean): Promise<ProjectCapabilities> {
         const role = await roleForProject(projectId);
-        const canAdminister = projectRoleAllows(role, "administer");
-        return {
-            canAdminister,
-            canManageMembers: projectRoleAllows(role, "manageMembers"),
-            canRenameKey: projectRoleAllows(role, "renameKey"),
-            canEditWorkflow: canAdminister,
-        };
+        const isArchived = archived ?? (actor.orgId
+            ? (await findProjectById(db, projectId, actor.orgId))?.is_archived === true : false);
+        return projectCapabilities(role, isArchived);
     }
 
     async function capabilitiesForProjects(projectIds: number[]): Promise<Map<number, ProjectCapabilities>> {
@@ -127,13 +138,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
                 personalRole: grants.find((grant) => grant.userId === actor.userId)?.role ?? null,
                 teamRoles: grants.filter((grant) => grant.teamId != null).map((grant) => grant.role),
             });
-            const canAdminister = projectRoleAllows(role, "administer");
-            capabilitiesByProject.set(projectId, {
-                canAdminister,
-                canManageMembers: projectRoleAllows(role, "manageMembers"),
-                canRenameKey: projectRoleAllows(role, "renameKey"),
-                canEditWorkflow: canAdminister,
-            });
+            capabilitiesByProject.set(projectId, projectCapabilities(role));
         }
         return capabilitiesByProject;
     }
