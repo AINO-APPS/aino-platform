@@ -12,11 +12,15 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             work_days           TEXT NOT NULL DEFAULT '1,2,3,4,5',
             timezone            TEXT NOT NULL DEFAULT 'UTC',
             fiscal_year_start   INTEGER NOT NULL DEFAULT 1,
+            project_ownership    BOOLEAN NOT NULL DEFAULT FALSE,
+            service_desk_project_id INTEGER,
             created_by          INTEGER,
             created_at          TIMESTAMPTZ DEFAULT NOW(),
             updated_at          TIMESTAMPTZ DEFAULT NOW()
         )
     `);
+    await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS project_ownership BOOLEAN NOT NULL DEFAULT FALSE`);
+    await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS service_desk_project_id INTEGER`);
 
     // Migration: minimum hours an employee must log on a working day to be
     // counted as "Present" by attendance reports/calendar. NULL = use

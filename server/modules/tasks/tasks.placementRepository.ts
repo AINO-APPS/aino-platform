@@ -71,6 +71,120 @@ export async function findTeamInOrg(db: PlacementDb, teamId: number, orgId: numb
     )).rows[0] ?? null;
 }
 
+export async function ensureTeamProject(
+    db: PlacementDb,
+    teamId: number,
+    orgId: number | null,
+): Promise<{ id: number; key: string } | null> {
+    await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`aino:team-project:${orgId ?? "null"}`]);
+    const existing = (await db.query(
+        `SELECT id, key FROM projects WHERE org_id IS NOT DISTINCT FROM $1 AND origin_team_id = $2`,
+        [orgId, teamId],
+    )).rows[0];
+    if (existing) return existing;
+
+    const team = (await db.query(
+        `SELECT tm.name, tm.lead_id,
+                EXISTS (SELECT 1 FROM sprints s WHERE s.team_id = tm.id) AS has_sprints
+           FROM teams tm
+          WHERE tm.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2`,
+        [teamId, orgId],
+    )).rows[0];
+    if (!team) return null;
+
+    let baseKey = String(team.name || "TEAM").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!baseKey) baseKey = "TEAM";
+    if (!/^[A-Z]/.test(baseKey)) baseKey = `T${baseKey}`;
+    if (baseKey.length === 1) baseKey += "T";
+    baseKey = baseKey.slice(0, 10);
+    let key = baseKey;
+    for (let suffix = 1; ; suffix++) {
+        const collision = (await db.query(
+            `SELECT 1 FROM projects WHERE org_id IS NOT DISTINCT FROM $1 AND key = $2
+             UNION ALL
+             SELECT 1 FROM reserved_project_keys WHERE org_id IS NOT DISTINCT FROM $1 AND key = $2
+             LIMIT 1`,
+            [orgId, key],
+        )).rows[0];
+        if (!collision) break;
+        key = `${baseKey.slice(0, 10 - String(suffix).length)}${suffix}`;
+    }
+
+    const project = (await db.query(
+        `INSERT INTO projects (org_id, key, name, type, lead_user_id, origin_team_id, key_published)
+         VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+         RETURNING id, key`,
+        [orgId, key, team.name, team.has_sprints ? "scrum" : "task_list", team.lead_id, teamId],
+    )).rows[0];
+    await db.query(
+        `INSERT INTO reserved_project_keys (org_id, key, reason) VALUES ($1, $2, 'generated')
+         ON CONFLICT (org_id, key) DO NOTHING`,
+        [orgId, key],
+    );
+    await db.query(
+        `INSERT INTO project_members (project_id, team_id, role)
+         VALUES ($1, $2, 'member') ON CONFLICT (project_id, team_id) DO NOTHING`,
+        [project.id, teamId],
+    );
+    if (team.lead_id) {
+        await db.query(
+            `INSERT INTO project_members (project_id, user_id, role)
+             VALUES ($1, $2, 'project_admin')
+             ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'project_admin'`,
+            [project.id, team.lead_id],
+        );
+    }
+    return project;
+}
+
+export async function reserveProjectTicketNumber(db: PlacementDb, projectId: number): Promise<number> {
+    const row = (await db.query(
+        `UPDATE projects
+            SET next_task_number = GREATEST(
+                    next_task_number,
+                    COALESCE((SELECT MAX(task_number) + 1 FROM tasks WHERE project_id = $1), 1)
+                ) + 1,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING next_task_number - 1 AS task_number`,
+        [projectId],
+    )).rows[0];
+    if (!row) throw new Error(`Project ${projectId} was not found`);
+    return Number(row.task_number);
+}
+
+export async function insertTicketKeyAlias(
+    db: PlacementDb,
+    orgId: number,
+    key: string,
+    taskId: number,
+    projectId: number | null,
+    reason: "move" | "rename" | "migration",
+): Promise<void> {
+    await db.query(
+        `INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (org_id, key) DO NOTHING`,
+        [orgId, key, taskId, projectId, reason],
+    );
+}
+
+export async function setTeamAndProject(
+    db: PlacementDb,
+    id: number,
+    teamId: number,
+    projectId: number,
+    taskNumber: number,
+    ticketKey: string,
+    alsoLeaveSprint: boolean,
+): Promise<any> {
+    return (await db.query(
+        `UPDATE tasks SET team_id = $1, project_id = $2, task_number = $3, ticket_key = $4
+          ${alsoLeaveSprint ? `, ${LEAVE_SPRINT}` : ""} WHERE id = $5 RETURNING *`,
+        [teamId, projectId, taskNumber, ticketKey, id],
+    )).rows[0];
+}
+
 // Postgres evaluates every SET expression against the pre-update row, so these
 // read the old `sprint_id` / `due_date`. The own due date is remembered only on
 // first entry (sprint → sprint keeps the original) and given back only when

@@ -5,6 +5,7 @@
  * Routes and helpers call these instead of holding SQL, so the sprint queries
  * live next to the rules they serve.
  */
+import { findDefaultTicketProject } from "./tasks.repository";
 
 /**
  * Scheduled container: unsprinted tickets carrying a planned day.
@@ -21,6 +22,21 @@ export async function listScheduledTasks(db: SprintDb, whereSql: string, params:
 
 export interface SprintDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>;
+}
+
+export async function createSprintForTeam(
+    db: SprintDb,
+    orgId: number | null,
+    teamId: number,
+    input: { name: string; startDate: string; endDate: string; goal: string | null },
+) {
+    const projectId = await findDefaultTicketProject(db, orgId, null, teamId);
+    if (!projectId) throw new Error("No default project exists for this organization");
+    const result = await db.query(
+        "INSERT INTO sprints (team_id, project_id, name, start_date, end_date, goal, status) VALUES ($1, $2, $3, $4, $5, $6, 'planned') RETURNING id",
+        [teamId, projectId, input.name, input.startDate, input.endDate, input.goal],
+    );
+    return (await db.query("SELECT * FROM sprints WHERE id = $1", [result.rows[0].id])).rows[0];
 }
 
 /** One sprint, scoped to the requester's org. */

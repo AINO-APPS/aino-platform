@@ -33,7 +33,7 @@ const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.work
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateTeamId, requireTicketProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
 const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
@@ -178,6 +178,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
+        validProjectId = await requireTicketProjectId(req.db!, validProjectId, req.userOrgId || null, validSprintId, owner.teamId ?? null);
 
         // Agile fields
         const sp = validateStoryPoints(story_points);

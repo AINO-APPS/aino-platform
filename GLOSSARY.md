@@ -121,9 +121,10 @@ transfer that takes a ticket out of its sprint is also a placement.
 
 ## Sprint
 
-A time-boxed container owned by one team. A ticket is in at most one sprint. The
-board shows exactly one sprint at a time. Sprint lifecycle: planned, active,
-paused, completed.
+A time-boxed container owned by one project. While `project_ownership` is off,
+the existing team-based visibility and placement rules remain in force. A
+ticket is in at most one sprint. The board shows exactly one sprint at a time.
+Sprint lifecycle: planned, active, paused, completed.
 
 ## Current sprint
 

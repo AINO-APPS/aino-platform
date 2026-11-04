@@ -39,6 +39,17 @@ describe("task field deltas", () => {
         });
     });
 
+    test("a project transfer broadcasts the new stored key under both API names", () => {
+        expect(diffTask(
+            { project_id: 1, ticket_key: "ALPHA-7" },
+            { project_id: 2, ticket_key: "BETA-1" },
+        )).toEqual({
+            project_id: 2,
+            ticket_key: "BETA-1",
+            issue_key: "BETA-1",
+        });
+    });
+
     test("fields outside the allow-list are never broadcast", () => {
         const fields = diffTask(before, { ...before, org_id: 99, secret: "leak" });
         expect(fields).toEqual({});

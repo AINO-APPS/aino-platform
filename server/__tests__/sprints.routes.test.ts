@@ -249,9 +249,10 @@ describe("API sprint routes", () => {
         setupAuth("team_lead");
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // dup check — no dup
+            .mockResolvedValueOnce({ rows: [{ id: 20 }], rowCount: 1 }) // team's project
             .mockResolvedValueOnce({ rows: [{ id: 10 }], rowCount: 1 }) // INSERT
             .mockResolvedValueOnce({
-                rows: [{ id: 10, name: "Sprint 1", status: "planned", start_date: "2025-01-01", end_date: "2025-01-14", team_id: 1 }],
+                rows: [{ id: 10, project_id: 20, name: "Sprint 1", status: "planned", start_date: "2025-01-01", end_date: "2025-01-14", team_id: 1 }],
                 rowCount: 1,
             }); // SELECT by id
 
@@ -261,6 +262,8 @@ describe("API sprint routes", () => {
             .set("Cookie", authCookie())
             .send({ name: "Sprint 1", start_date: "2025-01-01", end_date: "2025-01-14" });
         expect(res.status).toBe(200);
+        expect(res.body.sprint.project_id).toBe(20);
+        expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO sprints \(team_id, project_id/.test(String(sql)))).toBe(true);
     });
 });
 

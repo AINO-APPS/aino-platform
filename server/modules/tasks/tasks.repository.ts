@@ -96,13 +96,16 @@ export const findParentId = async (db: TasksDb, id: number) =>
 export const setParent = async (db: TasksDb, id: number, parentId: number | null) =>
     db.query("UPDATE tasks SET parent_task_id = $1 WHERE id = $2", [parentId, id]);
 
-/** Resolve a canonical issue key (PROJ-123) inside one org. */
+/** Resolve a stored ticket key or one of its permanent aliases inside an org. */
 export const findByIssueKey = async (db: TasksDb, orgId: number | null, projectKey: string, taskNumber: number) =>
     (await db.query(
         `SELECT t.* FROM tasks t
-           JOIN projects p ON p.id = t.project_id
-          WHERE p.org_id = $1 AND p.key = $2 AND t.task_number = $3`,
-        [orgId, projectKey, taskNumber],
+          WHERE t.org_id = $1
+            AND (t.ticket_key = $2 OR EXISTS (
+                SELECT 1 FROM ticket_key_aliases a
+                 WHERE a.org_id = $1 AND a.key = $2 AND a.task_id = t.id
+            ))`,
+        [orgId, `${projectKey}-${taskNumber}`],
     )).rows[0];
 
 /** The stored LexoRank of one task, scoped to the org. */
@@ -198,12 +201,10 @@ export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | nu
  */
 export const findEpics = async (db: TasksDb, orgId: number | null) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.story_points, t.project_id,
-            CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
-                 THEN p.key || '-' || t.task_number END AS issue_key,
+            t.ticket_key, t.ticket_key AS issue_key,
             wit.name AS type_name, wit.color AS type_color
        FROM tasks t
        JOIN work_item_types wit ON wit.id = t.work_item_type_id
-       LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.org_id = $1 AND wit.is_epic = TRUE
       ORDER BY t.created_at ASC`, [orgId],
 )).rows;
@@ -232,14 +233,36 @@ export const findTaskIdsByIssueKeys = async (
     projectKeys: string[],
     taskNumbers: number[],
 ) => (await db.query(
-    `SELECT p.key AS project_key, t.task_number, t.id
+    `WITH requested AS (
+        SELECT project_key || '-' || task_number::text AS key
+          FROM UNNEST($2::text[], $3::int[]) AS pair(project_key, task_number)
+     )
+     SELECT t.ticket_key AS key, t.id
        FROM tasks t
-       JOIN projects p ON p.id = t.project_id
-      WHERE p.org_id = $1
-        AND (p.key, t.task_number) IN (
-            SELECT UNNEST($2::text[]), UNNEST($3::int[])
-        )`, [orgId, projectKeys, taskNumbers],
+      WHERE t.org_id = $1 AND t.ticket_key IN (SELECT key FROM requested)
+     UNION
+     SELECT a.key, a.task_id AS id
+       FROM ticket_key_aliases a
+      WHERE a.org_id = $1
+        AND a.task_id IS NOT NULL
+        AND a.key IN (SELECT key FROM requested)`,
+    [orgId, projectKeys, taskNumbers],
 )).rows;
+
+/** Project fallback for a ticket create: sprint, team, then General. */
+export const findDefaultTicketProject = async (
+    db: { query(sql: string, params?: unknown[]): Promise<{ rows: any[] }> },
+    orgId: number | null,
+    sprintId: number | null,
+    teamId: number | null,
+) => (await db.query(
+    `SELECT COALESCE(
+        (SELECT project_id FROM sprints WHERE id = $2),
+        (SELECT id FROM projects WHERE org_id = $1 AND origin_team_id = $3),
+        (SELECT id FROM projects WHERE org_id = $1 AND is_general ORDER BY id LIMIT 1)
+     ) AS id`,
+    [orgId, sprintId, teamId],
+)).rows[0]?.id ?? null;
 /** An active project in the caller's org, or none. */
 export const findActiveProject = async (db: TasksDb, projectId: number, orgId: number | null) =>
     (await db.query(

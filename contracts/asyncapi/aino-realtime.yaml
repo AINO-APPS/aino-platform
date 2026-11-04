@@ -429,6 +429,8 @@ components:
                       is_blocked: { type: boolean }
                       blocked_reason: { type: [string, "null"] }
                       project_id: { type: [integer, "null"] }
+                      ticket_key: { type: [string, "null"] }
+                      issue_key: { type: [string, "null"], description: Legacy alias of ticket_key. }
                       rank: { type: [string, "null"] }
                       estimated_minutes: { type: [integer, "null"] }
                       logged_minutes: { type: integer }

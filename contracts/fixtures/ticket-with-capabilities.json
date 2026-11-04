@@ -1,5 +1,7 @@
 {
   "id": 42,
+  "ticket_key": "OPS-42",
+  "issue_key": "OPS-42",
   "title": "Review the release plan",
   "priority": "high",
   "workflow_state_id": 102,
@@ -49,6 +51,7 @@
     }
   },
   "team_id": 7,
+  "project_id": 3,
   "rank": null,
   "is_blocked": false
 }

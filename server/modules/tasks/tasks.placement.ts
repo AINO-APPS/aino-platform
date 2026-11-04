@@ -180,6 +180,8 @@ export async function transferTicket(
     const team = await repo.findTeamInOrg(ctx.db, toTeamId, ctx.actor.orgId);
     if (!team) return refusedTransfer(id, "TEAM_NOT_FOUND");
     if (same(before.team_id, team.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
+    const project = await repo.ensureTeamProject(ctx.db, team.id, ctx.actor.orgId);
+    if (!project) return refusedTransfer(id, "TEAM_NOT_FOUND");
 
     const sprints = await lockSprints(ctx, [before.sprint_id]);
     const origin = before.sprint_id == null ? null : sprints.get(Number(before.sprint_id));
@@ -190,9 +192,25 @@ export async function transferTicket(
     const clearedSprint = origin != null && !same(origin.team_id, team.id)
         ? { id: Number(origin.id), name: origin.name }
         : null;
-    const after = await repo.setTeam(ctx.db, id, team.id, clearedSprint !== null);
+    const taskNumber = await repo.reserveProjectTicketNumber(ctx.db, Number(project.id));
+    const ticketKey = `${project.key}-${taskNumber}`;
+    if (before.ticket_key && before.ticket_key !== ticketKey && before.org_id != null) {
+        await repo.insertTicketKeyAlias(
+            ctx.db,
+            Number(before.org_id),
+            String(before.ticket_key),
+            id,
+            before.project_id == null ? null : Number(before.project_id),
+            "move",
+        );
+    }
+    const after = await repo.setTeamAndProject(
+        ctx.db, id, team.id, Number(project.id), taskNumber, ticketKey, clearedSprint !== null,
+    );
     await record(ctx, "transfer", before, after, [
         { action: "transferred", field: "team", from: before.team_id == null ? null : String(before.team_id), to: String(team.id) },
+        { action: "transferred", field: "project", from: before.project_id == null ? null : String(before.project_id), to: String(project.id) },
+        { action: "transferred", field: "ticket_key", from: before.ticket_key ?? null, to: ticketKey },
         ...historyFor(before, after, sprints),
     ]);
     return {

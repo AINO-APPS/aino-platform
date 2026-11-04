@@ -533,12 +533,9 @@ export async function listTaskTimersForDateRange(
 ): Promise<any[]> {
     return (await db.query(
         `SELECT tt.task_id, tt.started_at, tt.stopped_at, tt.minutes,
-                t.title AS task_title,
-                CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
-                     THEN p.key || '-' || t.task_number END AS issue_key
+                t.title AS task_title, t.ticket_key, t.ticket_key AS issue_key
            FROM task_timers tt
            JOIN tasks t ON t.id = tt.task_id
-      LEFT JOIN projects p ON p.id = t.project_id
           WHERE tt.user_id = $1
             AND tt.stopped_at IS NOT NULL
             AND (tt.started_at + $4::interval)::date BETWEEN $2::date AND $3::date

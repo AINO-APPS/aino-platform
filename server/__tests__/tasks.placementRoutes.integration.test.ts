@@ -140,6 +140,64 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         });
     });
 
+    test("a ticket created while ownership is off still returns its stored sprint-project key", async () => {
+        const res = await request(app)
+            .post("/api/tasks")
+            .send({ title: "Stored key", sprint_id: 10 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.ticket_key).toBeTruthy();
+        expect(res.body.issue_key).toBe(res.body.ticket_key);
+        expect(res.body.project_id).toBe((await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0].project_id);
+        expect((await pool.query("SELECT project_ownership FROM organizations WHERE id = 1")).rows[0].project_ownership).toBe(false);
+    });
+
+    test("ticket creation honors a requested project, otherwise the team project", async () => {
+        const teamProject = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'ALPHA', 'Alpha', 1, FALSE) RETURNING id`,
+        )).rows[0].id;
+        const teamCreated = await request(app).post("/api/tasks").send({ title: "Team project" });
+        expect(teamCreated.status).toBe(200);
+        expect(teamCreated.body.project_id).toBe(teamProject);
+        expect(teamCreated.body.ticket_key).toBe("ALPHA-1");
+
+        const explicitProject = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'EXPLICIT', 'Explicit') RETURNING id",
+        )).rows[0].id;
+        const explicitCreated = await request(app).post("/api/tasks").send({
+            title: "Explicit project",
+            project_id: explicitProject,
+            sprint_id: 10,
+        });
+        expect(explicitCreated.status).toBe(200);
+        expect(explicitCreated.body.project_id).toBe(explicitProject);
+        expect(explicitCreated.body.ticket_key).toBe("EXPLICIT-1");
+    });
+
+    test("a team transfer changes the project and key while preserving the previous key as an alias", async () => {
+        const created = await request(app).post("/api/tasks").send({ title: "Transfer me" });
+        expect(created.status).toBe(200);
+        const oldKey = created.body.ticket_key;
+
+        const transferred = await request(app)
+            .post(`/api/tasks/${created.body.id}/transfer`)
+            .set("x-test-role", "super_admin")
+            .send({ team_id: 2 });
+
+        expect(transferred.status).toBe(200);
+        expect(transferred.body.task.ticket_key).not.toBe(oldKey);
+        expect(transferred.body.task.issue_key).toBe(transferred.body.task.ticket_key);
+        expect((await pool.query(
+            "SELECT key, reason FROM ticket_key_aliases WHERE task_id = $1",
+            [created.body.id],
+        )).rows).toEqual([{ key: oldKey, reason: "move" }]);
+        expect((await pool.query(
+            "SELECT origin_team_id FROM projects WHERE id = $1",
+            [transferred.body.task.project_id],
+        )).rows[0].origin_team_id).toBe(2);
+    });
+
     test("read surfaces return fresh capabilities for the requesting actor", async () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "Capability surface" });
         expect(created.status).toBe(200);

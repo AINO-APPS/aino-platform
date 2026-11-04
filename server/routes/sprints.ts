@@ -15,6 +15,7 @@ const {
 } = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
 const {
+    createSprintForTeam,
     findSprintsForOrg,
     findSprintsForTeam,
     lockSprintForDeletion,
@@ -109,11 +110,9 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
         const existing = (await req.db!.query("SELECT id FROM sprints WHERE team_id = $1 AND name = $2", [req.userTeamId, name])).rows[0];
         if (existing) return res.status(400).json({ error: "A sprint with this name already exists for your team" });
 
-        const result = await req.db!.query(
-            "INSERT INTO sprints (team_id, name, start_date, end_date, goal, status) VALUES ($1, $2, $3, $4, $5, 'planned') RETURNING id",
-            [req.userTeamId, name, start_date, end_date, goal || null]
-        );
-        const newSprint = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [result.rows[0].id])).rows[0];
+        const newSprint = await createSprintForTeam(req.db!, req.userOrgId ?? null, req.userTeamId, {
+            name, startDate: start_date, endDate: end_date, goal: goal || null,
+        });
         res.json({ sprint: newSprint });
     } catch (err) {
         req.log.error({ err }, "Error creating sprint:");

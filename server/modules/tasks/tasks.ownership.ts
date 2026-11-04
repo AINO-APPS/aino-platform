@@ -12,6 +12,7 @@
  */
 
 import { isOrgAdmin, type TaskActor } from "./tasks.policy";
+import { findDefaultTicketProject } from "./tasks.repository";
 
 export interface OwnershipDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -25,6 +26,18 @@ export interface OwnershipError {
 export interface ResolvedCreateTeam {
     teamId: number | null;
     error?: OwnershipError;
+}
+
+export async function requireTicketProjectId(
+    db: OwnershipDb,
+    projectId: number | null,
+    orgId: number | null,
+    sprintId: number | null,
+    teamId: number | null,
+): Promise<number> {
+    const resolved = projectId ?? await findDefaultTicketProject(db, orgId, sprintId, teamId);
+    if (!resolved) throw new Error("No default project exists for this organization");
+    return resolved;
 }
 
 function parseId(value: unknown): number | null {

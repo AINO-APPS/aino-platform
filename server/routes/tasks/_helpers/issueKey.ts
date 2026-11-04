@@ -1,12 +1,10 @@
 // Issue-key helpers (Jira-style "PROJ-123").
 //
-// A task that belongs to a project gets a stable human-readable key formed
-// from the project's `key` column and the task's `task_number` (per-project
-// running counter). Legacy tasks without a project remain key-less.
+// Ticket keys are persisted on the task row; project and number are not
+// recombined on reads, so a later project-key change cannot rewrite history.
 //
 // Examples:
 //   { project: { key: 'PSSPMT' }, task_number: 123 } → 'PSSPMT-123'
-//   { project: null, task_number: null }              → null
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -56,7 +54,7 @@ async function resolveIssueKeys(keys: { projectKey: string; taskNumber: number }
     const taskNumbers = keys.map(k => k.taskNumber);
     const rows = await findTaskIdsByIssueKeys(db, orgId, projectKeys, taskNumbers);
     return rows.map((r: any) => ({
-        key: `${r.project_key}-${r.task_number}`,
+        key: r.key,
         task_id: r.id,
     }));
 }

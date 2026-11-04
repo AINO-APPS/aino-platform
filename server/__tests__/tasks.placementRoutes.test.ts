@@ -53,6 +53,7 @@ const request = require("supertest");
 const TICKET = {
     id: 5, org_id: 1, team_id: 10, user_id: 1, assigned_to: null, sprint_id: null,
     planned_date: null, due_date: null, title: "Ticket", workflow_state_id: 7, priority: "medium",
+    project_id: 100, task_number: 1, ticket_key: "TEAM-1",
 };
 const SPRINT = { id: 50, team_id: 10, end_date: "2026-11-14", name: "S" };
 
@@ -66,6 +67,7 @@ function respond(sql: string, params: unknown[] = []) {
         return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
     }
     if (/INSERT INTO tasks/.test(text)) return { rows: [{ id: 5 }], rowCount: 1 };
+    if (/SELECT COALESCE\(/.test(text) && /origin_team_id/.test(text)) return { rows: [{ id: 100 }], rowCount: 1 };
     // The completed-sprint guard: no sprint in these fixtures is completed.
     if (/FROM sprints WHERE id = ANY/.test(text)) return { rows: [], rowCount: 0 };
     if (/FROM sprints/.test(text)) return { rows: Number(params[0]) === SPRINT.id ? [SPRINT] : [], rowCount: 1 };
