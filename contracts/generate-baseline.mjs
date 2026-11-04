@@ -27,6 +27,7 @@ Object.assign(details,{
  "PUT /api/projects/:id/members/:memberId":["Change a project member role","ProjectRoleUpdate","ProjectMember"],
  "DELETE /api/projects/:id/members/:memberId":["Remove project member access",0,"OkResponse"],
  "GET /api/tasks/scheduled":["GET /api/tasks/backlog",0,"FreeFormValue"],
+ "GET /api/tasks/by-key/:key":["Resolve a current or former ticket key",0,"TaskByKey"],
  "GET /api/sprints":["List sprints for the current team",0,"SprintList"],
  "GET /api/sprints/:id/board":["Read a sprint board with column WIP status",0,"SprintBoard"]
 });
@@ -57,6 +58,7 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
  if(key==="GET /api/sprints/:id/board"){
   op.responses={"200":{description:"Sprint, active board columns, and enriched non-Cancelled tickets",content:content(R("SprintBoard"))},"400":err("Invalid sprint id"),"401":err("Authentication required or session invalid"),"403":err("Sprint is not accessible to the current actor"),"404":err("Sprint not found"),"429":err("Rate limit exceeded"),"500":err("Unexpected server error")};
  }
+ if(key==="GET /api/tasks/by-key/:key")op.responses["404"]=err("Ticket not found or not visible to the current actor");
  const p=e.path.replace(/:([A-Za-z0-9_]+)/g,"{$1}"); paths[p]||={}; paths[p][method]=op;
 }
 const obj=(properties,required=[])=>({type:"object",properties,required,additionalProperties:false});
@@ -100,7 +102,7 @@ const schemas={
  ,NotificationMetricCounts:obj({totalNotifications:{type:"integer",minimum:0},routingAttempts:{type:"integer",minimum:0},successfulRoutes:{type:"integer",minimum:0},failedRoutes:{type:"integer",minimum:0},deduplicatedCount:{type:"integer",minimum:0},validationFailures:{type:"integer",minimum:0},deliveryFailures:{type:"integer",minimum:0},deliveredCount:{type:"integer",minimum:0},displayedCount:{type:"integer",minimum:0},tappedCount:{type:"integer",minimum:0},routePersistedCount:{type:"integer",minimum:0},routeConsumedCount:{type:"integer",minimum:0}},["totalNotifications","routingAttempts","successfulRoutes","failedRoutes","deduplicatedCount","validationFailures","deliveryFailures","deliveredCount","displayedCount","tappedCount","routePersistedCount","routeConsumedCount"])
  ,NotificationMetricLatency:obj({averageMs:{type:"number",minimum:0},p50Ms:{type:"number",minimum:0},p95Ms:{type:"number",minimum:0}},["averageMs","p50Ms","p95Ms"])
  ,NotificationMetricsResponse:obj({windowHours:{type:"integer",minimum:1,maximum:168},successRate:{type:["number","null"],minimum:0,maximum:100},counts:R("NotificationMetricCounts"),latency:R("NotificationMetricLatency"),lastEventAt:{type:["string","null"],format:"date-time"}},["windowHours","successRate","counts","latency","lastEventAt"])
- ,SearchTask:obj({id:{type:"integer"},title:{type:"string"},description:{type:["string","null"]},workflow_state_key:{type:["string","null"]},priority:{type:"string"},planned_date:{type:["string","null"],format:"date"},due_date:{type:["string","null"]},sprint_id:{type:["integer","null"]},snippet:{type:"string"}},["id","title","description","priority","planned_date","due_date","sprint_id","snippet"])
+ ,SearchTask:obj({id:{type:"integer"},title:{type:"string"},description:{type:["string","null"]},workflow_state_key:{type:["string","null"]},priority:{type:"string"},planned_date:{type:["string","null"],format:"date"},due_date:{type:["string","null"]},sprint_id:{type:["integer","null"]},snippet:{type:"string"},ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},container:{type:"string",enum:["sprint","scheduled","backlog"]},capabilities:R("TicketCapabilities")},["id","ticket_key","issue_key","key_aliases","title","description","priority","planned_date","due_date","sprint_id","snippet","container","capabilities"])
  ,Task:obj({id:{type:"integer"},ticket_key:{type:"string",description:"Stored, org-unique ticket key. Never recomputed from a project's current key."},issue_key:{type:"string",description:"Legacy field retained for older clients; equal to ticket_key."},title:{type:"string"},description:{type:["string","null"]},priority:{type:"string",enum:["low","medium","high"]},workflow_state_id:{type:["integer","null"]},workflow_state_key:{type:["string","null"]},workflow_state_name:{type:["string","null"]},workflow_state_category:{type:["string","null"],enum:["open","in_progress","in_review","done",null]},planned_date:{type:["string","null"],format:"date",description:"Date-only planning metadata. Never affects backlog membership."},due_date:{type:["string","null"],format:"date"},completed_at:{type:["string","null"],format:"date-time",description:"Derived by the database from the workflow-state category. Clients never write it."},sprint_id:{type:["integer","null"]},container:{type:"string",enum:["sprint","scheduled","backlog"]},capabilities:R("TicketCapabilities"),team_id:{type:["integer","null"]},rank:{type:["string","null"],description:"LexoRank string, unique per team."},parent_task_id:{type:["integer","null"]},project_id:{type:"integer"},work_item_type_id:{type:["integer","null"]},story_points:{type:["number","null"]},estimated_minutes:{type:["integer","null"],minimum:0,description:"Planned effort in minutes. Shown against logged_minutes."},logged_minutes:{type:"integer",minimum:0,description:"Minutes logged by timers started from this task. Rolls into the timesheet."},assigned_to:{type:["integer","null"]},user_id:{type:"integer"},org_id:{type:["integer","null"]},is_blocked:{type:"boolean"},blocked_reason:{type:["string","null"]},acceptance_criteria:{type:["array","null"],items:{type:"object",additionalProperties:true}},created_at:{type:["string","null"],format:"date-time"}},["id","ticket_key","issue_key","title","priority","workflow_state_id","planned_date","due_date","completed_at","sprint_id","container","capabilities","team_id","project_id","rank","is_blocked"])
  ,Sprint:obj({id:{type:"integer"},project_id:{type:"integer"},team_id:{type:"integer"},name:{type:"string"},goal:{type:["string","null"]},status:{type:"string",enum:["planned","active","paused","completed"]},start_date:{type:["string","null"],format:"date"},end_date:{type:["string","null"],format:"date"},started_at:{type:["string","null"],format:"date-time"},completed_at:{type:["string","null"],format:"date-time"},paused_at:{type:["string","null"],format:"date-time"},velocity_points:{type:["number","null"]},auto_managed:{type:"boolean"},sprint_number:{type:["integer","null"]},carried_from_sprint_id:{type:["integer","null"]}},["id","project_id","team_id","name","status","auto_managed"])
  ,SprintList:obj({sprints:{type:"array",items:R("Sprint")},currentSprintId:{type:["integer","null"]}},["sprints","currentSprintId"])
@@ -125,6 +127,36 @@ const schemas={
 ,TaskTimeDayList:{type:"array",items:R("TaskTimeDay")}
 ,TrackerStatus:{type:"object",required:["state","floorMinutes","breakMinutes","floorSeconds","breakSeconds","entries","isWeekend","workMode","targetMinutes","dailyTargetMet","autoLoggedOut"],properties:{state:{type:"string",enum:["on_floor","on_break","logged_out"]},floorMinutes:{type:"integer",minimum:0,description:"Whole worked minutes; always floor(floorSeconds / 60)."},breakMinutes:{type:"integer",minimum:0,description:"Whole break minutes; always floor(breakSeconds / 60)."},floorSeconds:{type:"integer",minimum:0,description:"Exact worked seconds up to the server's now at response time (open session included). Clients anchor live timers on this."},breakSeconds:{type:"integer",minimum:0,description:"Exact break seconds up to the server's now at response time (open break included)."},totalMinutes:{type:"integer",minimum:0},entries:{type:"array",items:R("FreeFormObject")},isWeekend:{type:"boolean"},workMode:{type:"string"},targetMinutes:{type:"integer",minimum:0},dailyTargetMet:{type:"boolean"},autoLoggedOut:{type:"boolean"}},additionalProperties:true}
  };
+Object.assign(schemas.SearchTask.properties,{
+ ticket_key:{type:"string"},
+ issue_key:{type:"string"},
+ key_aliases:{type:"array",items:{type:"string"}},
+ container:{type:"string",enum:["sprint","scheduled","backlog"]},
+ capabilities:R("TicketCapabilities")
+});
+schemas.SearchTask.required=[
+ "id","ticket_key","issue_key","key_aliases",
+ ...schemas.SearchTask.required.filter((field)=>field!=="id"),
+ "container","capabilities"
+];
+Object.assign(schemas.Task.properties,{
+ key_aliases:{type:"array",items:{type:"string"},description:"Former ticket keys that still resolve to this ticket."},
+ key_alias:{type:"boolean",description:"True when the requested ticket key was a former key."},
+ requested_key:{type:"string",description:"The key used to fetch the ticket, which may be an alias."}
+});
+schemas.TaskByKey={
+ type:"object",
+ properties:{
+  id:{type:"integer"},
+  ticket_key:{type:"string"},
+  issue_key:{type:"string"},
+  key_aliases:{type:"array",items:{type:"string"}},
+  key_alias:{type:"boolean"},
+  requested_key:{type:"string"}
+ },
+ required:["id","ticket_key","issue_key","key_aliases","key_alias","requested_key"],
+ additionalProperties:true
+};
 const openapi={openapi:"3.1.0",info:{title:"AINO Platform HTTP API",version:"0.1.0",description:"Initial contract baseline derived from mounted server routers and route tests. See contracts/README.md for explicit completeness limits."},servers:[{url:"/",description:"Current origin"}],tags:mounts.filter(m=>m.coverage==="baseline").map(m=>({name:m.id})).concat({name:"health"}),paths,components:{securitySchemes:{cookieAuth:{type:"apiKey",in:"cookie",name:"token",description:"HttpOnly JWT cookie used by web and desktop clients"},bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"JWT returned by auth flows for native mobile clients"}},parameters:{CsrfHeader:{name:"X-Requested-With",in:"header",required:true,description:"Required on mutating /api requests. AINO is preferred; WorkPulse is accepted for compatibility.",schema:{type:"string",enum:["AINO","WorkPulse"]}}},schemas}};
 fs.writeFileSync(path.join(root,"contracts/openapi.json"),JSON.stringify(openapi,null,2)+"\n");
 console.log(`Generated ${mounts.length} mounts, ${endpoints.length} inventory endpoints, ${inventory.totals.openApiOperations} OpenAPI operations.`);

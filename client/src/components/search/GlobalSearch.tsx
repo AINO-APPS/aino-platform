@@ -96,6 +96,14 @@ export default function GlobalSearch({ onClose }: GlobalSearchProps) {
                                             <span className={s.itemIcon}><ClipboardList size={16} /></span>
                                             <div className={s.itemBody}>
                                                 <span className={s.itemTitle}>{t.title}</span>
+                                                {t.ticket_key && (
+                                                    <span className={s.snippet}>
+                                                        {t.ticket_key}
+                                                        {t.key_aliases?.length
+                                                            ? ` · Former keys: ${t.key_aliases.join(", ")}`
+                                                            : ""}
+                                                    </span>
+                                                )}
                                                 {t.snippet && (
                                                     <span className={s.snippet} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(t.snippet) }} />
                                                 )}

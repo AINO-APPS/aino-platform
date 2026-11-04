@@ -82,6 +82,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         app.use("/api/projects", require("../routes/projects"));
         app.use("/api/manager", require("../routes/manager"));
         app.use("/api/notes", require("../routes/notes"));
+        app.use("/api/search", require("../routes/search"));
     }, 120_000);
 
     afterAll(async () => {
@@ -158,6 +159,96 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(res.body.issue_key).toBe(res.body.ticket_key);
         expect(res.body.project_id).toBe((await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0].project_id);
         expect((await pool.query("SELECT project_ownership FROM organizations WHERE id = 1")).rows[0].project_ownership).toBe(false);
+    });
+
+    test("opening a ticket by its current key or alias returns its current key and former keys", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        const ticket = (await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Key lookup', 1, 1, 1, $1, 17, 'ALPHA-17') RETURNING id`,
+            [project.id],
+        )).rows[0];
+        await pool.query(
+            "INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason) VALUES (1, 'OLD-17', $1, $2, 'rename')",
+            [ticket.id, project.id],
+        );
+
+        const current = await request(app).get("/api/tasks/by-key/ALPHA-17");
+        const former = await request(app).get("/api/tasks/by-key/OLD-17");
+        const searched = await request(app).get("/api/tasks/search").query({ q: "OLD-17" });
+        const detail = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+
+        expect(current.status).toBe(200);
+        expect(current.body).toMatchObject({
+            id: ticket.id,
+            ticket_key: "ALPHA-17",
+            key_alias: false,
+            key_aliases: ["OLD-17"],
+        });
+        expect(former.status).toBe(200);
+        expect(former.body).toMatchObject({
+            id: ticket.id,
+            ticket_key: "ALPHA-17",
+            key_alias: true,
+            requested_key: "OLD-17",
+            key_aliases: ["OLD-17"],
+        });
+        expect(searched.body).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: ticket.id, key_aliases: ["OLD-17"] }),
+        ]));
+        expect(detail.body).toMatchObject({ id: ticket.id, key_aliases: ["OLD-17"] });
+    });
+
+    test("fetching by key hides unknown and invisible tickets as not found", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Private key', 2, 1, 2, $1, 18, 'ALPHA-18')`,
+            [project.id],
+        );
+
+        const unknown = await request(app).get("/api/tasks/by-key/ALPHA-999");
+        const invisible = await request(app).get("/api/tasks/by-key/ALPHA-18");
+
+        expect(unknown.status).toBe(404);
+        expect(invisible.status).toBe(404);
+        expect(invisible.body).toEqual({ error: "Task not found" });
+    });
+
+    test("code references that mention a former key resolve to its ticket", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        const ticket = (await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Referenced ticket', 1, 1, 1, $1, 19, 'ALPHA-19') RETURNING id`,
+            [project.id],
+        )).rows[0];
+        await pool.query(
+            "INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason) VALUES (1, 'OLD-19', $1, $2, 'move')",
+            [ticket.id, project.id],
+        );
+
+        const { extractIssueKeys, resolveIssueKeys } = require("../routes/tasks/_helpers/issueKey");
+        const keys = extractIssueKeys("feature/OLD-19-link");
+        const linked = await resolveIssueKeys(keys, 1, {
+            query: (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]),
+        });
+        const search = await request(app).get("/api/search").query({ q: "OLD-19" });
+
+        expect(linked).toEqual([{ key: "OLD-19", task_id: ticket.id, is_alias: true }]);
+        expect(search.status).toBe(200);
+        expect(search.body.tasks).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: ticket.id,
+                ticket_key: "ALPHA-19",
+                key_aliases: ["OLD-19"],
+            }),
+        ]));
     });
 
     test("ticket creation honors a requested project, otherwise the team project", async () => {

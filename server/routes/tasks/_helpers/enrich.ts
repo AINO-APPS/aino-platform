@@ -8,6 +8,7 @@ const {
     findProjectsByIds,
     findWorkflowStatesByIds,
 } = require("../../../modules/tasks/tasks.enrich");
+const { findTicketKeyAliasesByTaskIds } = require("../../../modules/tasks/tasks.repository");
 const { loadTicketDecisionContext, decideTickets } = require("../../../modules/tasks/tasks.capabilities");
 const { loadLifecycleContext } = require("../../../modules/tasks/tasks.workflow");
 import type { TaskActor } from "../../../modules/tasks/tasks.policy";
@@ -43,9 +44,10 @@ async function enrichTasks(
     if (!tasks.length) return [];
     const taskIds = tasks.map(t => t.id);
 
-    const [labelsMap, commentMap] = await Promise.all([
+    const [labelsMap, commentMap, aliasRows] = await Promise.all([
         getLabelsForTasks(taskIds, db),
         getCommentCounts(taskIds, db),
+        findTicketKeyAliasesByTaskIds(db, taskIds),
     ]);
 
     const assigneeIds = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
@@ -76,6 +78,11 @@ async function enrichTasks(
     for (const p of projectRows) projectMap[p.id] = p;
     const stateMap: Record<number, any> = {};
     for (const s of stateRows) stateMap[s.id] = s;
+    const aliasesByTaskId: Record<number, string[]> = {};
+    for (const alias of aliasRows) {
+        if (!aliasesByTaskId[alias.task_id]) aliasesByTaskId[alias.task_id] = [];
+        aliasesByTaskId[alias.task_id].push(alias.key);
+    }
 
     return tasks.map((t, index) => {
         const project = t.project_id ? (projectMap[t.project_id] || null) : null;
@@ -100,6 +107,7 @@ async function enrichTasks(
             project,
             ticket_key: ticketKey,
             issue_key: ticketKey,
+            key_aliases: aliasesByTaskId[t.id] || [],
             ...decisions[index],
         };
     });
@@ -116,6 +124,9 @@ async function enrichTaskSummaries(
         ...task,
         container: enriched[index].container,
         capabilities: enriched[index].capabilities,
+        ticket_key: enriched[index].ticket_key,
+        issue_key: enriched[index].issue_key,
+        key_aliases: enriched[index].key_aliases,
     }));
 }
 

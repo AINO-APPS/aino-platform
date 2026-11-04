@@ -191,7 +191,14 @@ export function useGlobalSearch({ onClose }: UseGlobalSearchOptions) {
         onClose();
         switch (type) {
             case "nav": navigate((data as NavItem).path); break;
-            case "task": navigate(`/tasks?taskId=${(data as AnyRecord).id}`); break;
+            case "task": {
+                const task = data as AnyRecord;
+                const key = typeof task.ticket_key === "string" ? task.ticket_key : null;
+                navigate(key
+                    ? `/tasks/key/${encodeURIComponent(key)}`
+                    : `/tasks?task=${encodeURIComponent(String(task.id))}`);
+                break;
+            }
             case "note": navigate(`/notes?pageId=${(data as AnyRecord).id}`); break;
             case "event": navigate("/calendar"); break;
             case "leave": navigate("/attendance#leaves"); break;

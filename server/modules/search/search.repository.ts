@@ -12,18 +12,25 @@ export async function searchTasks(
     userId: number,
     tsQuery: string,
     visibility: TaskVisibility = { kind: "personal", userId },
+    exactTaskIds: number[] = [],
 ) {
     const access = buildVisibilityPredicate(visibility, 2);
+    const exactKeyParameter = access.params.length + 2;
+    const exactKeyMatch = exactTaskIds.length ? ` OR t.id = ANY($${exactKeyParameter}::int[])` : "";
+    const exactKeyRank = exactTaskIds.length
+        ? `CASE WHEN t.id = ANY($${exactKeyParameter}::int[]) THEN 0 ELSE 1 END, `
+        : "";
     return (await db.query(
-        `SELECT t.id, t.title, t.description, ws.key AS workflow_state_key, t.priority,
+        `SELECT t.id, t.title, t.description, t.ticket_key, ws.key AS workflow_state_key, t.priority,
                 t.planned_date, t.due_date, t.sprint_id, t.user_id, t.assigned_to,
                 t.team_id, t.org_id, t.workflow_state_id, t.completed_at,
                 ts_headline('english', t.title || ' ' || COALESCE(t.description, ''),
                     to_tsquery('english', $1), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet
          FROM tasks t
          LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-         WHERE ${access.sql ? `${access.sql} AND ` : ""}to_tsvector('english', t.title || ' ' || COALESCE(t.description, '')) @@ to_tsquery('english', $1)
-         ORDER BY t.created_at DESC LIMIT 20`, [tsQuery, ...access.params],
+         WHERE ${access.sql ? `${access.sql} AND ` : ""}(to_tsvector('english', t.title || ' ' || COALESCE(t.description, '')) @@ to_tsquery('english', $1)${exactKeyMatch})
+         ORDER BY ${exactKeyRank}t.created_at DESC LIMIT 20`,
+        [tsQuery, ...access.params, ...(exactTaskIds.length ? [exactTaskIds] : [])],
     )).rows;
 }
 

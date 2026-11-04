@@ -48,6 +48,9 @@ export interface Task {
   blocked_reason?: string | null;
   acceptance_criteria?: Record<string, unknown>[] | null;
   created_at?: string | null;
+  key_aliases?: string[];
+  key_alias?: boolean;
+  requested_key?: string;
 }
 
 export interface Sprint {

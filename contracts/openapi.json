@@ -18159,7 +18159,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "GET /api/tasks/by-key/:key",
+        "summary": "Resolve a current or former ticket key",
         "operationId": "get_api_tasks_by_key_key",
         "parameters": [
           {
@@ -18185,7 +18185,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TaskByKey"
                 }
               }
             }
@@ -18212,6 +18212,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found or not visible to the current actor",
             "content": {
               "application/json": {
                 "schema": {
@@ -22585,17 +22595,50 @@
           },
           "snippet": {
             "type": "string"
+          },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "container": {
+            "type": "string",
+            "enum": [
+              "sprint",
+              "scheduled",
+              "backlog"
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/TicketCapabilities"
           }
         },
         "required": [
           "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
           "title",
           "description",
           "priority",
           "planned_date",
           "due_date",
           "sprint_id",
-          "snippet"
+          "snippet",
+          "container",
+          "capabilities",
+          "container",
+          "capabilities"
         ],
         "additionalProperties": false
       },
@@ -22788,6 +22831,21 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Former ticket keys that still resolve to this ticket."
+          },
+          "key_alias": {
+            "type": "boolean",
+            "description": "True when the requested ticket key was a former key."
+          },
+          "requested_key": {
+            "type": "string",
+            "description": "The key used to fetch the ticket, which may be an alias."
           }
         },
         "required": [
@@ -23633,6 +23691,41 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": true
+      },
+      "TaskByKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "key_alias": {
+            "type": "boolean"
+          },
+          "requested_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "key_alias",
+          "requested_key"
+        ],
         "additionalProperties": true
       }
     }

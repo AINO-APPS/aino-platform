@@ -10,7 +10,7 @@ Every surface follows this rule, so a project's tickets are invisible to people 
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017 (supersedes ADR-013).
 
