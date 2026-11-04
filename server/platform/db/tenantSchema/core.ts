@@ -148,6 +148,16 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
     `);
 
     await q(`
+        CREATE TABLE IF NOT EXISTS user_team_memberships (
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            team_id    INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, team_id)
+        )
+    `);
+    await q(`CREATE INDEX IF NOT EXISTS idx_user_team_memberships_team_id ON user_team_memberships(team_id)`);
+
+    await q(`
         CREATE TABLE IF NOT EXISTS time_entries (
             id              SERIAL PRIMARY KEY,
             user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
