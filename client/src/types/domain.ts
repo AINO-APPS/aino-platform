@@ -101,6 +101,7 @@ export interface Project {
     capabilities?: {
         canAdminister: boolean;
         canManageMembers: boolean;
+        canRenameKey: boolean;
     };
     [key: string]: unknown;
 }

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getProjectTasks } from "../../api/tasks";
 import Pagination from "../common/Pagination";
 import { X } from "../../constants/icons";
 import ProjectMembers from "./ProjectMembers";
+import ProjectKeySettings from "./ProjectKeySettings";
+import useRealtimeEvent from "../../hooks/useRealtimeEvent";
 
 interface ProjectTasksPanelProps {
   project: any;
@@ -15,6 +17,12 @@ interface ProjectTasksPanelProps {
 
 export default function ProjectTasksPanel({ project, users, teams, onClose }: ProjectTasksPanelProps) {
   const projectId = project.id;
+  const client = useQueryClient();
+  useRealtimeEvent(["project_updated"], event => {
+    if (Number((event.data as { project_id?: number })?.project_id) === Number(projectId)) {
+      void client.invalidateQueries({ queryKey: ["admin", "project-tasks", projectId] });
+    }
+  });
   const [limit, setLimit] = useState(25);
   const [offset, setOffset] = useState(0);
 
@@ -37,6 +45,7 @@ export default function ProjectTasksPanel({ project, users, teams, onClose }: Pr
 
   return (
     <div style={styles.panel}>
+      <ProjectKeySettings key={projectId} project={project} />
       <ProjectMembers
         projectId={projectId}
         canManageMembers={Boolean(project.capabilities?.canManageMembers)}

@@ -73,8 +73,12 @@ export function useTaskDetail({
         setTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task));
         setBacklogTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
     };
-    useRealtimeEvent(["task_updated"], async (event) => {
-        if (String((event.data as { taskId?: number })?.taskId) !== String(detailTask?.id) || !detailTask) return;
+    useRealtimeEvent(["task_updated", "project_updated"], async (event) => {
+        if (!detailTask) return;
+        const data = event.data as { taskId?: number; project_id?: number };
+        if (event.type === "project_updated"
+            ? Number(data?.project_id) !== Number(detailTask.project_id)
+            : String(data?.taskId) !== String(detailTask.id)) return;
         try {
             const { data } = await getTaskDetail(detailTask.id);
             replaceTicket(data as Task);

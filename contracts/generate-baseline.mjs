@@ -21,6 +21,8 @@ Object.assign(details,{
  "POST /api/projects":["Create a project with optional team grants","CreateProjectRequest","Project"],
  "GET /api/projects/:id":["Get a project and its project capabilities",0,"Project"],
  "PUT /api/projects/:id":["Update a project",0,"Project"],
+ "POST /api/projects/:id/key":["Rename a project key atomically (project admin)","ProjectKeyRenameRequest","ProjectKeyRenameResult"],
+ "POST /api/projects/:id/key/preview":["Preview affected ticket count without writing (project admin)","ProjectKeyRenameRequest","ProjectKeyRenameResult"],
  "PATCH /api/projects/:id/archive":["Archive or restore a project",0,"Project"],
  "GET /api/projects/:id/members":["List project member grants",0,"ProjectMemberList"],
  "POST /api/projects/:id/members":["Grant or update project access","ProjectMemberWrite","ProjectMember"],
@@ -44,6 +46,15 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
  if(["post","put","patch","delete"].includes(method)&&e.path.startsWith("/api/"))parameters.push({$ref:"#/components/parameters/CsrfHeader"});
  const op={tags:[tagFor(e.path)],summary:d[0],operationId:`${method}_${e.path.replace(/[:{}]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"")}`,parameters,security:publicOps.has(key)?[]:[{cookieAuth:[]},{bearerAuth:[]}],responses:{"200":{description:"Successful response",content:content(R(d[2]||"FreeFormValue"))},"400":err("Invalid request"),"401":err("Authentication required or session invalid"),"403":err("Forbidden, CSRF header missing, or feature unavailable"),"429":err("Rate limit exceeded"),"500":err("Unexpected server error")}};
  if(d[1])op.requestBody={required:true,content:content(R(d[1]))};
+ if(key==="POST /api/projects/:id/key"||key==="POST /api/projects/:id/key/preview"){
+  op.responses["403"]=err("Project-admin canRenameKey capability required");
+  op.responses["404"]=err("Project not found in the actor's organization");
+  op.responses["409"]=err("Project key already in use or permanently reserved");
+ }
+ if(key==="GET /api/tasks/by-key/:key"){
+  op.responses["200"]={description:"Ticket resolved from its current key or a former key. key_alias indicates an alias lookup.",content:content(R("TaskByKey"))};
+  op.responses["404"]=err("Ticket key is unknown or the ticket is not visible");
+ }
  if(key==="POST /api/chat/conversations/:id/read"){
   op.summary="Mark conversation read, optionally through a displayed message";
   op.responses["200"].content=content(R("OkResponse"));
@@ -81,7 +92,9 @@ const schemas={
  ApiHealth:{type:"object",required:["status","time"],properties:{status:{enum:["ok","error"]},time:{type:"string",format:"date-time"},error:{type:"string"}},additionalProperties:false}
  ,OkResponse:obj({ok:{const:true}},["ok"])
  ,ProjectRole:{type:"string",enum:["project_admin","member","viewer"]}
- ,ProjectCapabilities:obj({canAdminister:{type:"boolean"},canManageMembers:{type:"boolean"}},["canAdminister","canManageMembers"])
+ ,ProjectCapabilities:obj({canAdminister:{type:"boolean"},canManageMembers:{type:"boolean"},canRenameKey:{type:"boolean"}},["canAdminister","canManageMembers","canRenameKey"])
+ ,ProjectKeyRenameRequest:obj({key:{type:"string",pattern:"^[A-Z][A-Z0-9_]{1,9}$",minLength:2,maxLength:10}},["key"])
+ ,ProjectKeyRenameResult:obj({project_id:{type:"integer",minimum:1},old_key:{type:"string"},new_key:{type:"string"},affected_tickets:{type:"integer",minimum:0}},["project_id","old_key","new_key","affected_tickets"])
  ,Project:{type:"object",properties:{id:{type:"integer"},org_id:{type:"integer"},key:{type:"string"},name:{type:"string"},description:{type:["string","null"]},color:{type:"string"},lead_user_id:{type:["integer","null"]},lead_name:{type:["string","null"]},lead_username:{type:["string","null"]},task_count:{type:"integer"},next_task_number:{type:"integer"},type:{type:"string",enum:["scrum","kanban","task_list"]},origin_team_id:{type:["integer","null"]},key_published:{type:"boolean"},is_general:{type:"boolean"},is_archived:{type:"boolean"},created_by:{type:["integer","null"]},created_at:{type:["string","null"],format:"date-time"},updated_at:{type:["string","null"],format:"date-time"},capabilities:R("ProjectCapabilities")},required:["id","key","name","capabilities"],additionalProperties:true}
  ,ProjectMember:obj({id:{type:"integer"},project_id:{type:"integer"},user_id:{type:["integer","null"]},team_id:{type:["integer","null"]},role:R("ProjectRole"),granted_by:{type:["integer","null"]},created_at:{type:"string",format:"date-time"},user_name:{type:["string","null"]},username:{type:["string","null"]},team_name:{type:["string","null"]},granted_by_name:{type:["string","null"]}},["id","project_id","user_id","team_id","role","created_at"])
  ,ProjectMemberList:{type:"array",items:R("ProjectMember")}
@@ -128,35 +141,16 @@ const schemas={
 ,TrackerStatus:{type:"object",required:["state","floorMinutes","breakMinutes","floorSeconds","breakSeconds","entries","isWeekend","workMode","targetMinutes","dailyTargetMet","autoLoggedOut"],properties:{state:{type:"string",enum:["on_floor","on_break","logged_out"]},floorMinutes:{type:"integer",minimum:0,description:"Whole worked minutes; always floor(floorSeconds / 60)."},breakMinutes:{type:"integer",minimum:0,description:"Whole break minutes; always floor(breakSeconds / 60)."},floorSeconds:{type:"integer",minimum:0,description:"Exact worked seconds up to the server's now at response time (open session included). Clients anchor live timers on this."},breakSeconds:{type:"integer",minimum:0,description:"Exact break seconds up to the server's now at response time (open break included)."},totalMinutes:{type:"integer",minimum:0},entries:{type:"array",items:R("FreeFormObject")},isWeekend:{type:"boolean"},workMode:{type:"string"},targetMinutes:{type:"integer",minimum:0},dailyTargetMet:{type:"boolean"},autoLoggedOut:{type:"boolean"}},additionalProperties:true}
  };
 Object.assign(schemas.SearchTask.properties,{
- ticket_key:{type:"string"},
- issue_key:{type:"string"},
- key_aliases:{type:"array",items:{type:"string"}},
- container:{type:"string",enum:["sprint","scheduled","backlog"]},
- capabilities:R("TicketCapabilities")
+ ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},
+ container:{type:"string",enum:["sprint","scheduled","backlog"]},capabilities:R("TicketCapabilities")
 });
-schemas.SearchTask.required=[
- "id","ticket_key","issue_key","key_aliases",
- ...schemas.SearchTask.required.filter((field)=>field!=="id"),
- "container","capabilities"
-];
+schemas.SearchTask.required=["id","ticket_key","issue_key","key_aliases",...schemas.SearchTask.required.filter(name=>name!=="id"),"container","capabilities"];
 Object.assign(schemas.Task.properties,{
  key_aliases:{type:"array",items:{type:"string"},description:"Former ticket keys that still resolve to this ticket."},
  key_alias:{type:"boolean",description:"True when the requested ticket key was a former key."},
  requested_key:{type:"string",description:"The key used to fetch the ticket, which may be an alias."}
 });
-schemas.TaskByKey={
- type:"object",
- properties:{
-  id:{type:"integer"},
-  ticket_key:{type:"string"},
-  issue_key:{type:"string"},
-  key_aliases:{type:"array",items:{type:"string"}},
-  key_alias:{type:"boolean"},
-  requested_key:{type:"string"}
- },
- required:["id","ticket_key","issue_key","key_aliases","key_alias","requested_key"],
- additionalProperties:true
-};
+schemas.TaskByKey={type:"object",properties:{id:{type:"integer"},ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},key_alias:{type:"boolean"},requested_key:{type:"string"}},required:["id","ticket_key","issue_key","key_aliases","key_alias","requested_key"],additionalProperties:true};
 const openapi={openapi:"3.1.0",info:{title:"AINO Platform HTTP API",version:"0.1.0",description:"Initial contract baseline derived from mounted server routers and route tests. See contracts/README.md for explicit completeness limits."},servers:[{url:"/",description:"Current origin"}],tags:mounts.filter(m=>m.coverage==="baseline").map(m=>({name:m.id})).concat({name:"health"}),paths,components:{securitySchemes:{cookieAuth:{type:"apiKey",in:"cookie",name:"token",description:"HttpOnly JWT cookie used by web and desktop clients"},bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"JWT returned by auth flows for native mobile clients"}},parameters:{CsrfHeader:{name:"X-Requested-With",in:"header",required:true,description:"Required on mutating /api requests. AINO is preferred; WorkPulse is accepted for compatibility.",schema:{type:"string",enum:["AINO","WorkPulse"]}}},schemas}};
 fs.writeFileSync(path.join(root,"contracts/openapi.json"),JSON.stringify(openapi,null,2)+"\n");
 console.log(`Generated ${mounts.length} mounts, ${endpoints.length} inventory endpoints, ${inventory.totals.openApiOperations} OpenAPI operations.`);

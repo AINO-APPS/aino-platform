@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-02",
+  "updated": "2026-11-04",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -960,6 +960,16 @@
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
       "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "project-key-rename",
+      "name": "Transactional project key rename preview and post-commit realtime key refresh",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "android": { "status": "waived", "waiver": "Project settings and key rename are web-only per ADR-017 phase 2; native project-scoped realtime refresh is tracked in projects-own-tickets ticket 13." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits project key settings and realtime refresh from the web bundle." }
     }
   ],
   "non_goals": [

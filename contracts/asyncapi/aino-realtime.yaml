@@ -56,6 +56,7 @@ channels:
           - $ref: '#/components/messages/NotificationsChangedEvent'
           - $ref: '#/components/messages/TaskAssignedEvent'
           - $ref: '#/components/messages/TaskUpdatedEvent'
+          - $ref: '#/components/messages/ProjectUpdatedEvent'
           - $ref: '#/components/messages/AttendanceUpdateEvent'
           - $ref: '#/components/messages/TeamAttendanceUpdateEvent'
           - $ref: '#/components/messages/LeaveUpdateEvent'
@@ -448,6 +449,25 @@ components:
                     type: string
                     format: date-time
                     description: When the write happened. The later write wins per field.
+    ProjectUpdatedEvent:
+      name: project_updated
+      description: >-
+        Tenant-wide invalidation emitted after commit of a project key rename.
+        Boards, lists and open ticket details refetch stored keys. Do not derive
+        ticket keys from this frame. Generated unpublished keys create no aliases.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type: { type: string, enum: [project_updated] }
+          data:
+            type: object
+            required: [project_id, old_key, new_key, affected_tickets]
+            properties:
+              project_id: { $ref: '#/components/schemas/PositiveId' }
+              old_key: { type: string }
+              new_key: { type: string }
+              affected_tickets: { type: integer, minimum: 0 }
     AttendanceUpdateEvent:
       summary: Sent to the acting user's own connections when their attendance changes.
       payload:

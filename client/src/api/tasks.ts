@@ -45,6 +45,16 @@ export const getProjects = (
     return API.get("/projects", { params });
 };
 export const getProject = (id: number | string) => API.get(`/projects/${id}`);
+export interface ProjectKeyRenameResult {
+    project_id: number;
+    old_key: string;
+    new_key: string;
+    affected_tickets: number;
+}
+export const previewProjectKeyRename = (id: number | string, key: string) =>
+    API.post<ProjectKeyRenameResult>(`/projects/${id}/key/preview`, { key });
+export const renameProjectKey = (id: number | string, key: string) =>
+    API.post<ProjectKeyRenameResult>(`/projects/${id}/key`, { key });
 export const createProject = (data: AnyData) => API.post("/projects", data);
 export const updateProject = (id: number | string, data: AnyData) =>
     API.put(`/projects/${id}`, data);

@@ -91,6 +91,7 @@ export function useTaskDeltas(
     );
 
     useRealtimeEvent(["task_updated"], (msg) => onFrame(msg.data as TaskDeltaFrame), enabled);
+    useRealtimeEvent(["project_updated"], () => onRefresh?.(), enabled);
 
     return { attribution, clearAttribution: clear };
 }
