@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 34,
-    "concreteEndpoints": 524,
-    "openApiOperations": 262
+    "concreteEndpoints": 529,
+    "openApiOperations": 267
   },
   "standaloneRoutes": [
     {
@@ -85,7 +85,7 @@
       "mountPath": "/api/tasks",
       "source": "server/routes/tasks/index.ts",
       "coverage": "baseline",
-      "endpointCount": 48
+      "endpointCount": 53
     },
     {
       "id": "sprints",
@@ -2416,12 +2416,12 @@
     {
       "method": "GET",
       "path": "/api/sprints",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "POST",
       "path": "/api/sprints",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "DELETE",
@@ -2446,7 +2446,7 @@
     {
       "method": "GET",
       "path": "/api/sprints/:id/board",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2511,12 +2511,12 @@
     {
       "method": "GET",
       "path": "/api/sprints/:id/tasks",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
       "path": "/api/sprints/active",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2609,6 +2609,11 @@
       "coverage": "operation"
     },
     {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/estimates",
+      "coverage": "operation"
+    },
+    {
       "method": "GET",
       "path": "/api/tasks/:id/git",
       "coverage": "operation"
@@ -2656,17 +2661,20 @@
     {
       "method": "GET",
       "path": "/api/tasks/:id/timer",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
       "path": "/api/tasks/:id/timer/start",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
       "path": "/api/tasks/:id/timer/stop",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
@@ -2676,6 +2684,26 @@
     {
       "method": "PATCH",
       "path": "/api/tasks/:id/unschedule",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/worklogs",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/worklogs",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/worklogs/:worklogId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/worklogs/:worklogId",
       "coverage": "operation"
     },
     {

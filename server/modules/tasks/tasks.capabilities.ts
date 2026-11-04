@@ -11,10 +11,11 @@ import { placementRefusal } from "./tasks.placementRules";
 import { findDecisionOwners, findDecisionProjects, findDecisionSprints } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
-    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED";
+    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED"
+    | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"
-    | "comment" | "logWork" | "logWorkForOthers";
+    | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate";
 export interface TicketDecision {
     container: "sprint" | "scheduled" | "backlog";
     capabilities: {
@@ -51,7 +52,7 @@ export async function loadTicketDecisionContext(
     if (options.targetSprintId != null) ids.push(options.targetSprintId);
     const [sprintRows, lifecyclesByProject] = await Promise.all([
         findDecisionSprints(db, ids, actor.orgId),
-        Promise.all([...new Set(tickets.flatMap((ticket) => ticket.project_id == null ? [] : [Number(ticket.project_id)]))]
+        Promise.all([...new Set(tickets.flatMap((ticket) => !actor.projectOwnership || ticket.project_id == null ? [] : [Number(ticket.project_id)]))]
             .map(async (projectId) => [projectId, await loadLifecycleContext(db, actor.orgId, projectId)] as const)),
     ]);
     const sprints = new Map(sprintRows.map((sprint) => [Number(sprint.id), sprint]));
@@ -73,7 +74,7 @@ export async function loadTicketDecisionContext(
     return {
         lifecycle: options.lifecycle ?? (lifecyclesByProject.length === 1
             ? lifecyclesByProject[0][1]
-            : await loadLifecycleContext(db, actor.orgId)),
+            : await loadLifecycleContext(db, actor.orgId, actor.projectOwnership ? undefined : null)),
         lifecyclesByProject: new Map(lifecyclesByProject),
         sprints,
         ownerTeams: new Map(owners.map((owner) => [Number(owner.id), owner.team_id])),
@@ -137,6 +138,11 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
             transitions,
             can: {
                 edit,
+                logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
+                logWorkForOthers: actor.projectOwnership && !edit.allowed ? edit
+                    : !isOrgAdmin(actor.role) ? deny("WORKLOG_FOR_OTHERS_DENIED")
+                    : !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
+                canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
                 cancel: cancel.allowed ? allow : deny(cancel.reason),
                 transfer: actor.projectOwnership && !edit.allowed ? edit : !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,
@@ -145,12 +151,14 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
                 schedule: !edit.allowed ? edit : schedulingRefusal ? deny(schedulingRefusal) : allow,
                 comment: actor.projectOwnership ? canRead ? allow : deny("ACCESS_DENIED")
                     : canWriteTask(ticket, actor, ownerTeam) ? allow : deny("ACCESS_DENIED"),
-                logWork: edit,
-                logWorkForOthers: !edit.allowed ? edit
-                    : isOrgAdmin(actor.role) || actor.projectOwnership && project?.role === "project_admin" ? allow : deny("ACCESS_DENIED"),
             },
         },
     };
+}
+
+export function decideWorklog(actor: Pick<TaskActor, 'userId' | 'role'> | undefined, worklog: { author_id: number }) {
+    const allowed = actor != null && (Number(worklog.author_id) === actor.userId || isOrgAdmin(actor.role));
+    return { canEdit: allowed, canDelete: allowed };
 }
 
 export function decideTickets(actor: TaskActor, tickets: readonly DecisionTicket[], context: TicketDecisionContext) {

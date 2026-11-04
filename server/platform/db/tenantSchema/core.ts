@@ -264,7 +264,9 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             completed_at TIMESTAMPTZ,
             assigned_to  INTEGER REFERENCES users(id) ON DELETE SET NULL,
             due_date     DATE,
-            sprint_id    INTEGER
+            sprint_id    INTEGER,
+            original_estimate_minutes INTEGER CONSTRAINT tasks_original_estimate_nonnegative CHECK (original_estimate_minutes >= 0),
+            remaining_estimate_minutes INTEGER CONSTRAINT tasks_remaining_estimate_nonnegative CHECK (remaining_estimate_minutes >= 0)
         )
     `);
     // The planner-day indexes are created by migration 0015, after

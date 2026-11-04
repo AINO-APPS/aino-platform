@@ -52,6 +52,9 @@ export interface Task {
   key_alias?: boolean;
   requested_key?: string;
   project?: TaskProject;
+  time_spent_minutes?: number;
+  original_estimate_minutes?: number | null;
+  remaining_estimate_minutes?: number | null;
 }
 
 export interface Sprint {
@@ -109,6 +112,7 @@ export interface TicketCapabilitiesCan {
   comment: TicketCapability;
   logWork: TicketCapability;
   logWorkForOthers: TicketCapability;
+  canEditEstimate: TicketCapability;
 }
 
 export interface TaskProject {

@@ -1,0 +1,1964 @@
+{
+  "schemas": {
+    "SearchTask": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflow_state_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": "string"
+        },
+        "planned_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "due_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sprint_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "ticket_key": {
+          "type": "string"
+        },
+        "issue_key": {
+          "type": "string"
+        },
+        "key_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "container": {
+          "type": "string",
+          "enum": [
+            "sprint",
+            "scheduled",
+            "backlog"
+          ]
+        },
+        "capabilities": {
+          "$ref": "#/components/schemas/TicketCapabilities"
+        },
+        "project": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "is_archived": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "name",
+            "is_archived"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "ticket_key",
+        "issue_key",
+        "key_aliases",
+        "ticket_key",
+        "issue_key",
+        "key_aliases",
+        "title",
+        "description",
+        "priority",
+        "planned_date",
+        "due_date",
+        "sprint_id",
+        "snippet",
+        "container",
+        "capabilities",
+        "container",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "Task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "ticket_key": {
+          "type": "string",
+          "description": "Stored, org-unique ticket key. Never recomputed from a project's current key."
+        },
+        "issue_key": {
+          "type": "string",
+          "description": "Legacy field retained for older clients; equal to ticket_key."
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "workflow_state_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "workflow_state_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflow_state_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflow_state_category": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "open",
+            "in_progress",
+            "in_review",
+            "done",
+            null
+          ]
+        },
+        "planned_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date",
+          "description": "Date-only planning metadata. Never affects backlog membership."
+        },
+        "due_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "Derived by the database from the workflow-state category. Clients never write it."
+        },
+        "sprint_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "container": {
+          "type": "string",
+          "enum": [
+            "sprint",
+            "scheduled",
+            "backlog"
+          ]
+        },
+        "capabilities": {
+          "$ref": "#/components/schemas/TicketCapabilities"
+        },
+        "team_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rank": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "LexoRank string, unique per team."
+        },
+        "parent_task_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "project_id": {
+          "type": "integer"
+        },
+        "work_item_type_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "story_points": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "estimated_minutes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Planned effort in minutes. Shown against logged_minutes."
+        },
+        "logged_minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minutes logged by timers started from this task. Rolls into the timesheet."
+        },
+        "assigned_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "user_id": {
+          "type": "integer"
+        },
+        "org_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "is_blocked": {
+          "type": "boolean"
+        },
+        "blocked_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "acceptance_criteria": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "key_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Former ticket keys that still resolve to this ticket."
+        },
+        "key_alias": {
+          "type": "boolean",
+          "description": "True when the requested ticket key was a former key."
+        },
+        "requested_key": {
+          "type": "string",
+          "description": "The key used to fetch the ticket, which may be an alias."
+        },
+        "project": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "is_archived": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "name",
+            "is_archived"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "ticket_key",
+        "issue_key",
+        "title",
+        "priority",
+        "workflow_state_id",
+        "planned_date",
+        "due_date",
+        "completed_at",
+        "sprint_id",
+        "container",
+        "capabilities",
+        "team_id",
+        "project_id",
+        "rank",
+        "is_blocked"
+      ],
+      "additionalProperties": false
+    },
+    "TicketCapability": {
+      "type": "object",
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "INVALID_TRANSITION",
+            "ACCESS_DENIED",
+            "SPRINT_FROZEN",
+            "IN_SPRINT",
+            "SPRINT_TEAM_MISMATCH",
+            "CANCELLED_TERMINAL",
+            "READ_ONLY_ROLE",
+            "PROJECT_ARCHIVED",
+            "SPRINT_PROJECT_MISMATCH",
+            "WORKLOG_CANCELLED",
+            "WORKLOG_FOR_OTHERS_DENIED"
+          ]
+        }
+      },
+      "required": [
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
+    "TicketTransitionCapability": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "integer"
+        },
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "INVALID_TRANSITION",
+            "ACCESS_DENIED",
+            "SPRINT_FROZEN",
+            "IN_SPRINT",
+            "SPRINT_TEAM_MISMATCH",
+            "CANCELLED_TERMINAL",
+            "READ_ONLY_ROLE",
+            "PROJECT_ARCHIVED",
+            "SPRINT_PROJECT_MISMATCH"
+          ]
+        }
+      },
+      "required": [
+        "to",
+        "allowed"
+      ],
+      "additionalProperties": false
+    },
+    "TicketCapabilities": {
+      "type": "object",
+      "properties": {
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TicketTransitionCapability"
+          }
+        },
+        "can": {
+          "type": "object",
+          "properties": {
+            "edit": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "changeState": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "cancel": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "transfer": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "delete": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "placeInSprint": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "schedule": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "comment": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "logWork": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "logWorkForOthers": {
+              "$ref": "#/components/schemas/TicketCapability"
+            },
+            "canEditEstimate": {
+              "$ref": "#/components/schemas/TicketCapability"
+            }
+          },
+          "required": [
+            "edit",
+            "changeState",
+            "cancel",
+            "transfer",
+            "delete",
+            "placeInSprint",
+            "schedule",
+            "comment",
+            "logWork",
+            "logWorkForOthers",
+            "canEditEstimate"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "transitions",
+        "can"
+      ],
+      "additionalProperties": false
+    },
+    "SprintBoardColumn": {
+      "type": "object",
+      "properties": {
+        "stateId": {
+          "type": "integer"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "accepting": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "stateId",
+        "count",
+        "limit",
+        "accepting"
+      ],
+      "additionalProperties": false
+    },
+    "SprintBoard": {
+      "type": "object",
+      "properties": {
+        "sprint": {
+          "$ref": "#/components/schemas/Sprint"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/SprintBoardColumn"
+          }
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Task"
+          }
+        }
+      },
+      "required": [
+        "sprint",
+        "columns",
+        "tickets"
+      ],
+      "additionalProperties": false
+    },
+    "SprintList": {
+      "type": "object",
+      "properties": {
+        "sprints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Sprint"
+          }
+        },
+        "currentSprintId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sprints",
+        "currentSprintId"
+      ],
+      "additionalProperties": false
+    },
+    "OrgSettingsUpdate": {
+      "type": "object",
+      "properties": {
+        "service_desk_project_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "Active project in the same organization; null selects General fallback."
+        }
+      },
+      "additionalProperties": true
+    },
+    "OrgSettings": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "service_desk_project_id"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "service_desk_project_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "ServiceDeskTicketCreate": {
+      "type": "object",
+      "required": [
+        "ticket_type",
+        "title"
+      ],
+      "properties": {
+        "ticket_type": {
+          "type": "string",
+          "enum": [
+            "bug",
+            "feature_request",
+            "access_issue",
+            "other"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "default": "medium"
+        }
+      }
+    },
+    "ServiceDeskTicketUpdate": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "acknowledged",
+            "in_progress",
+            "resolved",
+            "closed"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "assigned_to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "admin_notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ServiceDeskTicket": {
+      "type": "object",
+      "required": [
+        "id",
+        "tenant_id",
+        "title",
+        "ticket_type",
+        "priority",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "tenant_id": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "ticket_type": {
+          "type": "string",
+          "enum": [
+            "bug",
+            "feature_request",
+            "access_issue",
+            "other"
+          ]
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "acknowledged",
+            "in_progress",
+            "resolved",
+            "closed"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "TaskHistoryEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "task_id",
+        "user_id",
+        "actor_type",
+        "action"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "task_id": {
+          "type": "integer"
+        },
+        "user_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "actor_type": {
+          "type": "string",
+          "enum": [
+            "user",
+            "system"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "description": "Includes service_desk_sync and service_desk_deleted for system-authored Service Desk events."
+        },
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "old_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "new_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "full_name": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "TaskWorklogList": {
+      "type": "object",
+      "properties": {
+        "worklogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/TaskWorklog"
+          },
+          "description": "Newest day worked first, then newest created time and id."
+        },
+        "time_spent_minutes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "original_estimate_minutes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "remaining_estimate_minutes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "worklogs",
+        "time_spent_minutes",
+        "original_estimate_minutes",
+        "remaining_estimate_minutes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "paths": {
+    "/api/tasks/{id}/schedule": {
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "PATCH /api/tasks/:id/schedule",
+        "operationId": "patch_api_tasks_id_schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreeFormValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ticket is in a sprint and cannot be scheduled to a day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "inSprint": {
+                    "value": {
+                      "error": "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
+                      "code": "IN_SPRINT"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sprints/{id}/board": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Read a sprint board with column WIP status",
+        "operationId": "get_api_sprints_id_board",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint, active board columns, and enriched non-Cancelled tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintBoard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sprint id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sprint is not accessible to the current actor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sprint not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sprints": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "List project sprints; legacy team scope maps to its generated project when ownership is enabled",
+        "operationId": "get_api_sprints",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint list and the server-selected current sprint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden or Agile unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Sprint list could not be loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Create a sprint owned by the selected project; flag-off callers retain team ownership",
+        "operationId": "post_api_sprints",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Archived project is read-only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSprintRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/scheduled": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "GET /api/tasks/backlog",
+        "operationId": "get_api_tasks_scheduled",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreeFormValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/org/current": {
+      "get": {
+        "tags": [
+          "organization"
+        ],
+        "operationId": "get_api_org_current",
+        "summary": "Read current organization settings",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current organization, or null when unassigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OrgSettings"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/org/settings": {
+      "put": {
+        "tags": [
+          "organization"
+        ],
+        "operationId": "put_api_org_settings",
+        "summary": "Update organization settings (HR admin or above)",
+        "description": "service_desk_project_id must be an active project in this organization. Null clears the setting; omission preserves it.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, archived or foreign project"
+          },
+          "403": {
+            "description": "Organization admin permission required"
+          }
+        }
+      }
+    },
+    "/api/service-desk/tickets": {
+      "post": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "post_api_service_desk_tickets",
+        "summary": "Submit a customer ticket",
+        "description": "Creates a keyed copy in the platform organization's Service Desk project, or General, in its initial workflow state. Returns 201 even if creating the copy fails; the failure is logged.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDeskTicketCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer ticket submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDeskTicket"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ticket input or missing tenant context"
+          }
+        }
+      }
+    },
+    "/api/service-desk/tickets/{id}": {
+      "patch": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "patch_api_service_desk_tickets_id",
+        "summary": "Update a Service Desk ticket",
+        "description": "Platform-tenant operators can update status. Open and acknowledged map to the initial state; in_progress maps to the first in_progress-category state; resolved and closed map to the first non-cancelled done-category state (sort_order then id). Sync is one way, bypasses transitions and records service_desk_sync history as a system actor. A cancelled copy is never synced again. Owners may only edit title, description and priority while open.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDeskTicketUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDeskTicket"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid update or owner ticket no longer open"
+          },
+          "403": {
+            "description": "Not platform tenant or ticket owner"
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "delete_api_service_desk_tickets_id",
+        "summary": "Delete a Service Desk ticket, retaining its platform copy",
+        "description": "Platform-tenant operators may delete a ticket; an owner may cancel their own open ticket. The copy moves to Cancelled and receives a service_desk_deleted system history note. A Done copy stays Done and receives only the note. The copy and its time/history are never deleted.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket deleted; copy retained"
+          },
+          "400": {
+            "description": "Owner ticket no longer open"
+          },
+          "403": {
+            "description": "Not platform tenant or ticket owner"
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/history": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "GET /api/tasks/:id/history",
+        "operationId": "get_api_tasks_id_history",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskHistoryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemaOrder": [
+    "Error",
+    "FreeFormObject",
+    "FreeFormValue",
+    "User",
+    "AuthResponse",
+    "LoginRequest",
+    "RegisterRequest",
+    "RegistrationMode",
+    "DeviceTokenRequest",
+    "Profile",
+    "ProfileUpdate",
+    "ClockEventRequest",
+    "Presence",
+    "PresenceUpdate",
+    "Liveness",
+    "Readiness",
+    "ApiHealth",
+    "OkResponse",
+    "Notification",
+    "NotificationListResponse",
+    "Announcement",
+    "AnnouncementListResponse",
+    "NotificationMetricEvent",
+    "NotificationMetricBatchRequest",
+    "NotificationMetricBatchResponse",
+    "NotificationMetricCounts",
+    "NotificationMetricLatency",
+    "NotificationMetricsResponse",
+    "SearchTask",
+    "Task",
+    "TicketCapability",
+    "TicketTransitionCapability",
+    "TicketCapabilities",
+    "Sprint",
+    "SprintBoardColumn",
+    "SprintBoard",
+    "SprintList",
+    "SprintBaseline",
+    "TaskListResponse",
+    "BacklogResponse",
+    "SearchNote",
+    "SearchUser",
+    "SearchEvent",
+    "SearchLeave",
+    "SearchSprint",
+    "SearchAuditLog",
+    "GlobalSearchResponse",
+    "WebviewCodeRequest",
+    "WebviewCodeResponse",
+    "WebviewSessionRequest",
+    "TaskTimeSummary",
+    "TaskTimerState",
+    "TaskTimerStopResponse",
+    "TaskTimeEntry",
+    "TaskTimeDay",
+    "TaskTimeDayList",
+    "TrackerStatus"
+  ],
+  "pathOrder": [
+    "/api/auth/activity",
+    "/api/auth/biometric",
+    "/api/auth/biometric/{id}",
+    "/api/auth/biometric/enroll",
+    "/api/auth/biometric/login",
+    "/api/auth/device-token",
+    "/api/auth/forgot-password",
+    "/api/auth/handoff",
+    "/api/auth/login",
+    "/api/auth/login/realm",
+    "/api/auth/logout",
+    "/api/auth/mfa/disable",
+    "/api/auth/mfa/enroll/confirm",
+    "/api/auth/mfa/enroll/start",
+    "/api/auth/mfa/status",
+    "/api/auth/mfa/step-up",
+    "/api/auth/mfa/verify",
+    "/api/auth/refresh",
+    "/api/auth/register",
+    "/api/auth/registration-mode",
+    "/api/auth/reset-password",
+    "/api/auth/switch-realm",
+    "/api/auth/webauthn",
+    "/api/auth/webauthn/{id}",
+    "/api/auth/webauthn/login/options",
+    "/api/auth/webauthn/login/verify",
+    "/api/auth/webauthn/register/options",
+    "/api/auth/webauthn/register/verify",
+    "/api/auth/webview/code",
+    "/api/auth/webview/session",
+    "/api/calendar",
+    "/api/calendar/{id}",
+    "/api/chat/blocked",
+    "/api/chat/calls",
+    "/api/chat/calls/{callId}",
+    "/api/chat/calls/{callId}/accept",
+    "/api/chat/calls/{callId}/end",
+    "/api/chat/calls/{callId}/reject",
+    "/api/chat/calls/{callId}/ringing",
+    "/api/chat/calls/active",
+    "/api/chat/calls/cancel",
+    "/api/chat/calls/delete",
+    "/api/chat/calls/quality",
+    "/api/chat/conversations",
+    "/api/chat/conversations/{id}",
+    "/api/chat/conversations/{id}/active-call",
+    "/api/chat/conversations/{id}/archive",
+    "/api/chat/conversations/{id}/avatar",
+    "/api/chat/conversations/{id}/calls",
+    "/api/chat/conversations/{id}/favourite",
+    "/api/chat/conversations/{id}/files",
+    "/api/chat/conversations/{id}/group",
+    "/api/chat/conversations/{id}/invite-link",
+    "/api/chat/conversations/{id}/invite-link/reset",
+    "/api/chat/conversations/{id}/join-requests",
+    "/api/chat/conversations/{id}/join-requests/{userId}/approve",
+    "/api/chat/conversations/{id}/join-requests/{userId}/deny",
+    "/api/chat/conversations/{id}/leave",
+    "/api/chat/conversations/{id}/members",
+    "/api/chat/conversations/{id}/messages",
+    "/api/chat/conversations/{id}/mute",
+    "/api/chat/conversations/{id}/participants/{userId}/role",
+    "/api/chat/conversations/{id}/pin",
+    "/api/chat/conversations/{id}/pinned",
+    "/api/chat/conversations/{id}/polls",
+    "/api/chat/conversations/{id}/read",
+    "/api/chat/conversations/{id}/read-status",
+    "/api/chat/conversations/{id}/transfer-owner",
+    "/api/chat/conversations/{id}/unread",
+    "/api/chat/conversations/group",
+    "/api/chat/ice-config",
+    "/api/chat/invite/{token}",
+    "/api/chat/invite/{token}/join",
+    "/api/chat/invite/{token}/request",
+    "/api/chat/link-preview",
+    "/api/chat/media-jobs/{id}/cancel",
+    "/api/chat/media-jobs/{id}/retry",
+    "/api/chat/messages/{id}",
+    "/api/chat/messages/{id}/delivered",
+    "/api/chat/messages/{id}/forward",
+    "/api/chat/messages/{id}/pin",
+    "/api/chat/messages/{id}/reactions",
+    "/api/chat/messages/{id}/star",
+    "/api/chat/messages/{id}/view",
+    "/api/chat/polls/{id}",
+    "/api/chat/polls/{id}/vote",
+    "/api/chat/presence",
+    "/api/chat/search",
+    "/api/chat/search-messages",
+    "/api/chat/starred",
+    "/api/chat/users/{userId}/block",
+    "/api/health",
+    "/api/leaves",
+    "/api/leaves/{id}",
+    "/api/leaves/{id}/approve",
+    "/api/leaves/{id}/reject",
+    "/api/leaves/{id}/revoke",
+    "/api/leaves/{id}/withdraw",
+    "/api/leaves/balance",
+    "/api/leaves/monthly-summary",
+    "/api/leaves/pending",
+    "/api/leaves/summary",
+    "/api/me/status",
+    "/api/me/status/activity-ping",
+    "/api/me/status/presence-preference",
+    "/api/meetings",
+    "/api/meetings/{code}",
+    "/api/meetings/{code}/hls/start",
+    "/api/meetings/{code}/hls/status",
+    "/api/meetings/{code}/hls/stop",
+    "/api/meetings/{code}/messages",
+    "/api/meetings/{id}",
+    "/api/meetings/{id}/participants",
+    "/api/meetings/{id}/participants/{userId}",
+    "/api/meetings/check-conflicts",
+    "/api/notifications",
+    "/api/notifications/{id}",
+    "/api/notifications/{id}/read",
+    "/api/notifications/announcements",
+    "/api/notifications/metrics",
+    "/api/notifications/metrics/events",
+    "/api/notifications/read-all",
+    "/api/profile",
+    "/api/profile/avatar",
+    "/api/profile/email",
+    "/api/profile/face-enroll",
+    "/api/profile/face-status",
+    "/api/profile/notification-prefs",
+    "/api/profile/password",
+    "/api/projects",
+    "/api/projects/{id}",
+    "/api/projects/{id}/archive",
+    "/api/projects/{id}/tasks",
+    "/api/public/branding",
+    "/api/public/branding/logo",
+    "/api/public/notes/{token}",
+    "/api/public/plan-catalog",
+    "/api/search",
+    "/api/sessions",
+    "/api/sessions/{id}",
+    "/api/sessions/token",
+    "/api/tasks",
+    "/api/tasks/{id}",
+    "/api/tasks/{id}/acceptance-criteria",
+    "/api/tasks/{id}/assign-sprint",
+    "/api/tasks/{id}/block",
+    "/api/tasks/{id}/children",
+    "/api/tasks/{id}/comments",
+    "/api/tasks/{id}/comments/{commentId}",
+    "/api/tasks/{id}/dependencies",
+    "/api/tasks/{id}/dependencies/{depId}",
+    "/api/tasks/{id}/detail",
+    "/api/tasks/{id}/git",
+    "/api/tasks/{id}/git/{refId}",
+    "/api/tasks/{id}/history",
+    "/api/tasks/{id}/parent",
+    "/api/tasks/{id}/rank",
+    "/api/tasks/{id}/schedule",
+    "/api/tasks/{id}/status",
+    "/api/tasks/{id}/timer",
+    "/api/tasks/{id}/timer/start",
+    "/api/tasks/{id}/timer/stop",
+    "/api/tasks/{id}/transfer",
+    "/api/tasks/{id}/unschedule",
+    "/api/tasks/assignable-users",
+    "/api/sprints/{id}/board",
+    "/api/sprints",
+    "/api/tasks/available-sprints",
+    "/api/tasks/backlog",
+    "/api/tasks/bulk",
+    "/api/tasks/by-key/{key}",
+    "/api/tasks/carry-forward",
+    "/api/tasks/epics",
+    "/api/tasks/labels",
+    "/api/tasks/labels/{id}",
+    "/api/tasks/labels/manage",
+    "/api/tasks/lookup/quicksearch",
+    "/api/tasks/scheduled",
+    "/api/tasks/schedule-overlays",
+    "/api/tasks/search",
+    "/api/tracker/analytics",
+    "/api/tracker/break-end",
+    "/api/tracker/break-start",
+    "/api/tracker/clock-in",
+    "/api/tracker/clock-out",
+    "/api/tracker/entries/{date}",
+    "/api/tracker/history",
+    "/api/tracker/manual-entries",
+    "/api/tracker/manual-entry",
+    "/api/tracker/manual-entry/{date}",
+    "/api/tracker/overtime-request",
+    "/api/tracker/overtime-requests",
+    "/api/tracker/status",
+    "/api/tracker/task-summary",
+    "/api/tracker/task-time",
+    "/api/tracker/theme",
+    "/api/tracker/weekly",
+    "/api/tracker/widgets",
+    "/api/tracker/work-mode-request",
+    "/api/user/preferences",
+    "/healthz",
+    "/readyz"
+  ]
+}

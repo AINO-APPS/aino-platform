@@ -1,6 +1,57 @@
 import API, { type AnyData, type Params } from "./client";
 import type { SprintList } from "../types/generated/tasks";
 
+export interface TaskWorklog {
+    id: number;
+    task_id: number;
+    author_id: number;
+    logged_by_id: number;
+    author: { id: number; username: string; full_name: string; avatar: string | null };
+    logged_by: { id: number; username: string; full_name: string; avatar: string | null };
+    day_worked: string;
+    start_time: string | null;
+    minutes: number;
+    comment: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: null;
+    canEdit: boolean;
+    canDelete: boolean;
+}
+
+export interface TaskWorklogListResponse {
+    worklogs: TaskWorklog[]; time_spent_minutes: number;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null;
+}
+export const getTaskWorklogs = (id: number | string) =>
+    API.get<TaskWorklogListResponse>(`/tasks/${id}/worklogs`);
+
+export interface RemainingInput { remaining_mode?: 'auto' | 'set' | 'leave'; remaining_estimate?: string }
+export interface LogWorkInput extends RemainingInput {
+    day_worked: string;
+    time_spent: string;
+    start_time?: string | null;
+    comment?: string | null;
+    author_id?: number;
+}
+export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null }
+export const setTaskEstimates = (id: number | string, input: { original_estimate?: string; remaining_estimate?: string }) =>
+    API.patch<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/estimates`, input);
+export interface LogWorkResponse {
+    worklog: TaskWorklog;
+    ticket: WorklogTicketSummary;
+    warnings: string[];
+}
+export const logTaskWork = (id: number | string, input: LogWorkInput) =>
+    API.post<LogWorkResponse>(`/tasks/${id}/worklogs`, input);
+
+export const editTaskWorklog = (id: number | string, worklogId: number, input: Partial<LogWorkInput>) =>
+    API.patch<LogWorkResponse>(`/tasks/${id}/worklogs/${worklogId}`, input);
+
+export const deleteTaskWorklog = (id: number | string, worklogId: number, input: RemainingInput = {}) =>
+    API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`, { data: input });
+
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };

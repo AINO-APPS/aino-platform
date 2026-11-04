@@ -165,6 +165,22 @@ export async function listRecentEntries(
     )).rows;
 }
 
+export async function getAuthorTimezoneOffset(db: AttendanceDb, userId: number, orgId: number | null): Promise<number | null> {
+    const { rows } = await db.query('SELECT timezone_offset FROM users WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2', [userId, orgId]);
+    return rows.length ? Number(rows[0].timezone_offset) : null;
+}
+
+export async function hasApprovedLeaveForDate(
+    db: AttendanceDb, userId: number, orgId: number | null, date: string,
+): Promise<boolean> {
+    const { rows } = await db.query(`SELECT EXISTS (
+        SELECT 1 FROM leaves l JOIN users u ON u.id = l.user_id
+        WHERE l.user_id = $1 AND u.org_id IS NOT DISTINCT FROM $2
+          AND l.date::date = $3::date AND l.status = 'approved'
+    ) AS approved`, [userId, orgId, date]);
+    return rows[0].approved;
+}
+
 export async function listApprovedLeaveDates(
     db: AttendanceDb,
     userId: number,
@@ -518,28 +534,22 @@ export async function insertWorkModeChangeRequest(
     return result?.rows?.[0]?.id ?? null;
 }
 
-/**
- * Stopped task timers in a local date range, for the timesheet.
- *
- * `timezoneModifier` is a Postgres interval string (e.g. `-330 minutes`) so the
- * day bucket matches the member's local day rather than UTC.
- */
-export async function listTaskTimersForDateRange(
+/** Worklogs in their recorded day-worked range; viewing timezone never moves time to another day. */
+export async function listTaskWorklogsForDateRange(
     db: AttendanceDb,
     userId: number,
     fromDate: string,
     toDate: string,
-    timezoneModifier: string,
 ): Promise<any[]> {
     return (await db.query(
-        `SELECT tt.task_id, tt.started_at, tt.stopped_at, tt.minutes,
+        `SELECT w.task_id, w.day_worked, w.minutes,
                 t.title AS task_title, t.ticket_key, t.ticket_key AS issue_key
-           FROM task_timers tt
-           JOIN tasks t ON t.id = tt.task_id
-          WHERE tt.user_id = $1
-            AND tt.stopped_at IS NOT NULL
-            AND (tt.started_at + $4::interval)::date BETWEEN $2::date AND $3::date
-          ORDER BY tt.started_at DESC`,
-        [userId, fromDate, toDate, timezoneModifier],
+           FROM task_worklogs w
+           JOIN tasks t ON t.id = w.task_id
+           JOIN users u ON u.id = w.author_id AND t.org_id IS NOT DISTINCT FROM u.org_id
+          WHERE w.author_id = $1 AND w.deleted_at IS NULL
+            AND w.day_worked BETWEEN $2::date AND $3::date
+          ORDER BY w.day_worked DESC, w.id DESC`,
+        [userId, fromDate, toDate],
     )).rows;
 }

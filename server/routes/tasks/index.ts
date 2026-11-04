@@ -30,6 +30,7 @@ const byKeyRouter = require('./byKey');
 const epicsRouter = require('./epics');
 const scheduleOverlaysRouter = require('./scheduleOverlays');
 const timerRouter = require('./timer');
+const worklogsRouter = require('./worklogs');
 const transferRouter = require('./transfer');
 const cancelRouter = require('./cancel');   // DELETE /:id (cancel, never hard-delete)
 const crudRouter = require('./crud');
@@ -64,6 +65,8 @@ router.use('/', byKeyRouter);         // /by-key/:key
 router.use('/', epicsRouter);         // /epics
 router.use('/', scheduleOverlaysRouter); // /schedule-overlays
 router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
+router.use('/', worklogsRouter);      // /:id/worklogs
+router.use('/', require('./estimates')); // /:id/estimates
 router.use('/', transferRouter);      // /:id/transfer (admin-only ownership move)
 router.use('/', cancelRouter);        // /:id (DELETE = cancel)
 

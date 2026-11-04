@@ -18,10 +18,11 @@ const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", te
 const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
 const denialMessages: Record<CapabilityReason, string> = {
-    SPRINT_PROJECT_MISMATCH: "This ticket and sprint belong to different projects.",
     READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
     PROJECT_ARCHIVED: "This project is archived and its tickets are read-only.",
     ACCESS_DENIED: "Access denied",
+    WORKLOG_CANCELLED: "Work cannot be logged on a cancelled ticket.",
+    WORKLOG_FOR_OTHERS_DENIED: "Only an org admin can log work for another person.",
     SPRINT_FROZEN: "This sprint is completed and no longer accepts task changes.",
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
@@ -42,6 +43,15 @@ const actors = [
     ["admin in team", 4, 1, "super_admin", true],
     ["admin outside team", 4, 2, "super_admin", true],
     ["admin without team", 4, null, "super_admin", true],
+    ["HR admin in team", 4, 1, "hr_admin", true],
+    ["HR admin outside team", 4, 2, "hr_admin", true],
+    ["HR admin without team", 4, null, "hr_admin", true],
+    ["platform admin in team", 4, 1, "platform_admin", true],
+    ["platform admin outside team", 4, 2, "platform_admin", true],
+    ["platform admin without team", 4, null, "platform_admin", true],
+    ["manager in team", 1, 1, "manager", true],
+    ["manager outside team", 1, 2, "manager", false],
+    ["manager without team", 1, null, "manager", false],
     ["non-member", 5, 2, "employee", false],
     ["non-member without team", 5, null, "employee", false],
 ] as const;
@@ -106,6 +116,30 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         await database?.drop();
     });
 
+    test.each([
+        ['employee', false], ['manager', false], ['hr_admin', true], ['super_admin', true], ['platform_admin', true],
+    ])('%s has the server-decided capability to log for others', async (role, admin) => {
+        const actor: TaskActor = { ...member, role: String(role) };
+        const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, workflow_state_id)
+            VALUES ('Behalf capability', 2, 1, 1, 101) RETURNING *`)).rows[0];
+        const context = await loadTicketDecisionContext(pool, actor, [ticket]);
+        expect((decideTicket(actor, ticket, context).capabilities.can as any).logWorkForOthers)
+            .toEqual(admin ? allowed : denied('WORKLOG_FOR_OTHERS_DENIED'));
+    });
+
+    test.each(actors)("%s has the edit-based logWork decision, including Done but excluding Cancelled", async (_name, userId, teamId, role, writable) => {
+        const actor: TaskActor = { userId, teamId, role, orgId: 1, teamVisibility: true };
+        for (const state of [101, 104, 105]) {
+            const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, workflow_state_id)
+                VALUES ('Record effort', 2, 3, 1, 1, $1) RETURNING *`, [state])).rows[0];
+            const context = await loadTicketDecisionContext(pool, actor, [ticket]);
+            expect((decideTicket(actor, ticket, context).capabilities.can as any).logWork)
+                .toEqual(!writable ? denied('ACCESS_DENIED') : state === 105 ? denied('WORKLOG_CANCELLED') : allowed);
+            expect(decideTicket(actor, ticket, context).capabilities.can.canEditEstimate)
+                .toEqual(!writable ? denied('ACCESS_DENIED') : state === 105 ? denied('WORKLOG_CANCELLED') : allowed);
+        }
+    });
+
     test("a deadline without a planned day stays in the backlog in both decision forms", async () => {
         const ticket = (await pool.query(`INSERT INTO tasks (title, user_id, org_id, team_id, due_date)
             VALUES ('Deadline only', 2, 1, 1, '2026-11-30') RETURNING *`)).rows[0];
@@ -141,7 +175,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         const decision = decideTicket(projectActor, ticket, await loadTicketDecisionContext(pool, projectActor, [ticket]));
         expect(decision.capabilities.can.edit.allowed).toBe(write);
         expect(decision.capabilities.can.comment.allowed).toBe(comment);
-        expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && (role === "project_admin" || userId === 4));
+        expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && userId === 4);
         if (!write) expect(decision.capabilities.can.edit).toEqual(denied(archived ? "PROJECT_ARCHIVED" : comment ? "READ_ONLY_ROLE" : "ACCESS_DENIED"));
     });
 
@@ -163,6 +197,9 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 ],
                 can: {
                     edit: { allowed: true },
+                    logWork: { allowed: true },
+                    logWorkForOthers: denied('WORKLOG_FOR_OTHERS_DENIED'),
+                    canEditEstimate: { allowed: true },
                     changeState: { allowed: true },
                     cancel: { allowed: true },
                     transfer: { allowed: false, reason: "ACCESS_DENIED" },
@@ -170,8 +207,6 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     placeInSprint: { allowed: true },
                     schedule: { allowed: true },
                     comment: { allowed: true },
-                    logWork: { allowed: true },
-                    logWorkForOthers: { allowed: false, reason: "ACCESS_DENIED" },
                 },
             },
         });
@@ -229,25 +264,27 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                         })),
                         can: {
                             edit: write,
+                            logWork: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
+                            logWorkForOthers: !['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? denied('WORKLOG_FOR_OTHERS_DENIED')
+                                : !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
+                            canEditEstimate: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             changeState: status,
                             cancel,
-                            transfer: role === "super_admin" ? write : denied("ACCESS_DENIED"),
+                            transfer: ['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? write : denied("ACCESS_DENIED"),
                             delete: cancel,
                             placeInSprint: write,
                             schedule: !write.allowed ? write : sprint == null ? allowed : denied("IN_SPRINT"),
                             comment: access ? allowed : denied("ACCESS_DENIED"),
-                            logWork: write,
-                            logWorkForOthers: !write.allowed ? write : role === "super_admin" ? allowed : denied("ACCESS_DENIED"),
                         },
                     },
                 });
                 expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
-                for (const action of ["edit", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
+                for (const action of ["edit", "logWork", "logWorkForOthers", "canEditEstimate", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
                     const verdict = decisions[index].capabilities.can[action];
                     const conflict = await ticketActionConflict(pool, actor, tickets[index], action, context);
                     expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);
                     if (!verdict.allowed) {
-                        expect(conflict?.status).toBe(verdict.reason === "ACCESS_DENIED" ? 403 : 409);
+                        expect(conflict?.status).toBe(['ACCESS_DENIED', 'WORKLOG_CANCELLED', 'WORKLOG_FOR_OTHERS_DENIED'].includes(verdict.reason) ? 403 : 409);
                         expect(conflict?.body.error).toBe(denialMessages[verdict.reason]);
                     }
                 }
@@ -374,7 +411,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             const tickets = (await pool.query(`INSERT INTO tasks
                 (title, user_id, org_id, team_id, workflow_state_id)
                 VALUES ('Waiting', 2, 1, 1, 101), ('Fills column', 2, 1, 1, 102) RETURNING *`)).rows;
-            const lifecycle = await loadLifecycleContext(pool, 1);
+            const lifecycle = await loadLifecycleContext(pool, 1, null);
             const context = await loadTicketDecisionContext(pool, member, tickets, { lifecycle });
             await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
             const withoutWip = await loadTicketDecisionContext(pool, member, tickets);
@@ -411,7 +448,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                        ('Board target', 2, 1, 1, 107, NULL),
                        ('Board cancelled', 2, 1, 1, 105, 11)
                 RETURNING *`)).rows;
-            const lifecycle = await loadLifecycleContext(client, 1);
+            const lifecycle = await loadLifecycleContext(client, 1, null);
             const columns = buildSprintBoardColumns(lifecycle, await findSprintBoardCounts(client, 1));
             const targetColumn = columns.find((column) => column.stateId === 107);
             expect(targetColumn).toEqual({ stateId: 107, count: 1, limit: 1, accepting: false });
@@ -420,7 +457,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
 
             await client.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
-            const disabledLifecycle = await loadLifecycleContext(client, 1);
+            const disabledLifecycle = await loadLifecycleContext(client, 1, null);
             const disabledColumns = buildSprintBoardColumns(
                 disabledLifecycle,
                 await findSprintBoardCounts(client, 1),

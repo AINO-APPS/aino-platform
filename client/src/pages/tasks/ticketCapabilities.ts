@@ -17,6 +17,8 @@ const REASONS: Record<string, string> = {
     IN_SPRINT: "This ticket is in a sprint. Move it out before scheduling a day.",
     SPRINT_TEAM_MISMATCH: "The sprint belongs to another team.",
     CANCELLED_TERMINAL: "Cancelled tickets cannot be changed.",
+    WORKLOG_CANCELLED: "Work cannot be logged on a cancelled ticket.",
+    WORKLOG_FOR_OTHERS_DENIED: "Only an org admin can log work for another person.",
     WIP_EXCEEDED: "This column has reached its work-in-progress limit.",
 };
 

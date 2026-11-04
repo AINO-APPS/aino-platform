@@ -72,6 +72,16 @@
           "schedule": {
             "allowed": false,
             "reason": "IN_SPRINT"
+          },
+          "logWork": {
+            "allowed": true
+          },
+          "logWorkForOthers": {
+            "allowed": false,
+            "reason": "WORKLOG_FOR_OTHERS_DENIED"
+          },
+          "canEditEstimate": {
+            "allowed": true
           }
         }
       },

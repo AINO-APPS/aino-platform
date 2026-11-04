@@ -1,9 +1,8 @@
 /**
  * Task time in the timesheet.
  *
- * A stopped timer is a row in `task_timers`; the timesheet reads those rows so
- * the time a person logged against a task shows up next to their attendance
- * instead of living only on the task.
+ * Worklogs are grouped by their recorded day worked. Legacy timer-shaped rows
+ * remain accepted by the pure summariser for compatibility.
  */
 
 export interface TaskTimerRow {
@@ -11,7 +10,8 @@ export interface TaskTimerRow {
     task_title?: string | null;
     ticket_key?: string | null;
     issue_key?: string | null;
-    started_at: string | Date;
+    started_at?: string | Date;
+    day_worked?: string;
     stopped_at?: string | Date | null;
     minutes?: number | null;
 }
@@ -44,10 +44,8 @@ export function localDate(startedAt: string | Date, timezoneOffsetMinutes = 0): 
 }
 
 /**
- * Group stopped timers into per-day, per-task rows, newest day first.
- *
- * `timezoneOffsetMinutes` is JS `getTimezoneOffset()` (positive west of UTC),
- * so a timer started at 23:30 IST lands on the day the person worked.
+ * Group worklogs into per-day, per-ticket rows, newest day first.
+ * Legacy timer inputs alone use the JS timezone offset; worklogs retain day_worked.
  */
 export function summariseTaskTime(
     rows: TaskTimerRow[],
@@ -58,7 +56,7 @@ export function summariseTaskTime(
     for (const row of rows) {
         const minutes = toMinutes(row.minutes);
         if (minutes === 0) continue;
-        const date = localDate(row.started_at, timezoneOffsetMinutes);
+        const date = row.day_worked ?? (row.started_at ? localDate(row.started_at, timezoneOffsetMinutes) : "");
         if (!date) continue;
 
         const day = byDate.get(date) ?? new Map<number, TaskTimeEntry>();

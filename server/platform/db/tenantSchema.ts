@@ -5,6 +5,7 @@ import { initializeCommunicationTenantSchema } from "./tenantSchema/communicatio
 import { initializeOperationsTenantSchema } from "./tenantSchema/operations";
 import { initializeConfigurationTenantSchema } from "./tenantSchema/configuration";
 import { initializeIntegrationTenantSchema } from "./tenantSchema/integrations";
+import { initializeWorklogSchema } from "./tenantSchema/worklogs";
 
 /** Initialise the tenant schema in its historical dependency order. */
 async function initTenantSchema(q: SchemaQuery): Promise<void> {
@@ -13,6 +14,7 @@ async function initTenantSchema(q: SchemaQuery): Promise<void> {
     await initializeOperationsTenantSchema(q);
     await initializeConfigurationTenantSchema(q);
     await initializeIntegrationTenantSchema(q);
+    await initializeWorklogSchema(q);
     logger.info("Tenant schema initialised");
 }
 
