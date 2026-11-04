@@ -163,6 +163,23 @@ export const findTeamMemberIds = async (
     )).rows.map((row: any) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
 };
 
+export async function findPlacementProjectAudience(db: TasksDb, projectIds: number[], orgId: number | null): Promise<number[]> {
+    if (orgId == null || projectIds.length === 0) return [];
+    return (await db.query(
+        `SELECT DISTINCT u.id FROM users u
+          WHERE u.org_id = $2 AND u.is_active = TRUE AND (
+            u.role IN ('super_admin', 'hr_admin', 'platform_admin') OR EXISTS (
+              SELECT 1 FROM project_members pm JOIN projects p ON p.id = pm.project_id
+               WHERE p.id = ANY($1::int[]) AND p.org_id = $2 AND (
+                 pm.user_id = u.id OR pm.team_id = u.team_id OR EXISTS (
+                   SELECT 1 FROM user_team_memberships m WHERE m.user_id = u.id AND m.team_id = pm.team_id
+                 )
+               )
+            )
+          )`, [projectIds, orgId],
+    )).rows.map((row: any) => Number(row.id));
+}
+
 export const setAssignee = async (db: TasksDb, id: number, assignee: number | null) =>
     db.query("UPDATE tasks SET assigned_to = $1 WHERE id = $2", [assignee, id]);
 

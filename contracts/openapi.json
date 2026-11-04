@@ -23344,6 +23344,214 @@
         }
       }
     },
+    "/api/tasks/{id}/move-project": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "moveTaskProject",
+        "summary": "Move a ticket transactionally to another project",
+        "description": "Requires project ownership and member or project-admin in both active projects. Maps state by active key, first active category, then initial state. A move allocates a new key, aliases the old key, clears the source project's sprint and records history/audit; task_updated follows commit. Legacy team ownership is retained. A preview reserves no sequence and may become stale before confirmation.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMoveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid id or unchanged project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or READ_ONLY_ROLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or same-org project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/move-project/preview": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "previewTaskProjectMove",
+        "summary": "Preview a project move without writes",
+        "description": "Requires project ownership and member or project-admin in both active projects. Maps state by active key, first active category, then initial state. A move allocates a new key, aliases the old key, clears the source project's sprint and records history/audit; task_updated follows commit. Legacy team ownership is retained. A preview reserves no sequence and may become stale before confirmation.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMovePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid id or unchanged project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or READ_ONLY_ROLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or same-org project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/{id}/worklogs": {
       "get": {
         "tags": [
@@ -25046,6 +25254,9 @@
               },
               "canEditEstimate": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "canMoveProject": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -25059,7 +25270,8 @@
               "comment",
               "logWork",
               "logWorkForOthers",
-              "canEditEstimate"
+              "canEditEstimate",
+              "canMoveProject"
             ],
             "additionalProperties": false
           }
@@ -27776,6 +27988,110 @@
             "$ref": "#/components/schemas/WorklogTicketSummary"
           }
         }
+      },
+      "ProjectMoveRequest": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMovePreview": {
+        "type": "object",
+        "properties": {
+          "target_project_id": {
+            "type": "integer"
+          },
+          "key_format": {
+            "type": "string",
+            "description": "Target prefix and <number>, not a reserved ticket number.",
+            "examples": [
+              "DEST-<number>"
+            ]
+          },
+          "workflow_state": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "in_review",
+                  "done"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "category"
+            ],
+            "additionalProperties": false
+          },
+          "leaves_sprint": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "target_project_id",
+          "key_format",
+          "workflow_state",
+          "leaves_sprint"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMoveResponse": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "moved": {
+            "const": true
+          },
+          "cleared_sprint": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "task",
+          "moved",
+          "cleared_sprint"
+        ],
+        "additionalProperties": false
       }
     }
   }

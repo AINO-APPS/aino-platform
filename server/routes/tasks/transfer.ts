@@ -1,10 +1,8 @@
 // POST /api/tasks/:id/transfer — move a ticket to another team.
 //
-// Ownership only changes deliberately. A cross-team sprint move is rejected
-// everywhere else; an org admin transfers the ticket first, and the transfer
-// clears any sprint that now belongs to the old team, writes history and the
-// audit log. The transfer is the only write path that changes `tasks.team_id`
-// after creation.
+// Compatibility adapter: the target team's generated project is the destination.
+// Flag-off transfers retain admin-only team ownership changes; after switch-over
+// members move projects and legacy team ownership stays available for rollback.
 
 import express from "express";
 import type { Request, Response } from "express";
@@ -37,16 +35,15 @@ router.post("/:id/transfer", auth, loadUserContext, async (req: Request, res: Re
             return res.status(400).json({ error: "team_id is required" });
         }
 
-        const outcome = await req.db!.transaction!(async (client: any, { afterCommit }: any) =>
-            transferTicket(
+        const outcome = await req.db!.transaction!(async (client: any, { afterCommit }: any) => {
+            const result = await transferTicket(
                 placementContext(req, client, afterCommit, { orgId: actor.orgId }),
                 id,
                 requestedTeamId,
-            ));
-        if (!outcome.ok) {
-            sendPlacementRefusal(res, new PlacementRefused(outcome));
-            return;
-        }
+            );
+            if (!result.ok) throw new PlacementRefused(result);
+            return result;
+        });
 
         const { task: updated, oldTeamId, clearedSprint } = outcome;
 
@@ -68,6 +65,7 @@ router.post("/:id/transfer", auth, loadUserContext, async (req: Request, res: Re
             cleared_sprint: clearedSprint,
         });
     } catch (err) {
+        if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err }, "Error transferring task:");
         res.status(500).json({ error: "Failed to transfer task" });
     }

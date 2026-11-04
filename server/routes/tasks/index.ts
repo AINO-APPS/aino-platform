@@ -68,6 +68,7 @@ router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
 router.use('/', worklogsRouter);      // /:id/worklogs
 router.use('/', require('./estimates')); // /:id/estimates
 router.use('/', transferRouter);      // /:id/transfer (admin-only ownership move)
+router.use('/', require('./moveProject')); // /:id/move-project and preview
 router.use('/', cancelRouter);        // /:id (DELETE = cancel)
 
 // Generic CRUD last (owns GET /, POST /, PUT /:id, PATCH /:id/status)

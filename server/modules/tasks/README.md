@@ -122,6 +122,36 @@ follows sprint membership — goes through `tasks.placement.ts` (rules),
 `tasks.placementRepository.ts` (SQL) and `tasks.placementEffects.ts` (realtime
 and notifications). See ADR-015. `scripts/check-placement-writes.mjs` enforces it.
 
+### Moving projects (ticket10)
+
+`previewProjectMove` and `moveTicketProject` share source/target authorization,
+archive checks and workflow mapping: active matching key, then first active
+category ordered by `sort_order, id`, then initial state. Preview only reads and
+returns `{ target_project_id, key_format, workflow_state, leaves_sprint }`; its
+key format is not a reservation. The HTTP adapters are
+`POST /api/tasks/:id/move-project/preview` and `POST /api/tasks/:id/move-project`,
+both accepting `{ project_id }`. They require project ownership to be enabled.
+
+The caller supplies one transaction. Placement locks serialize moves, project
+share locks prevent concurrent archive/key changes, and effective personal plus
+primary/secondary-team grants are checked on that transaction's connection.
+Commit allocates a target sequence, aliases the old key with reason `move`,
+maps state, and clears a source-project sprint using the ordinary sprint-exit
+due-date rules. A planned day survives. History and audit share the transaction;
+effects run only after commit. In project mode both projects' readers receive
+a payload-free ticket invalidation so source-only readers do not learn the new
+project's key/state. Legacy mode retains field deltas.
+
+`canMoveProject` requires member or higher in an active source project; target
+membership is checked by preview/commit. Project moves retain `team_id` for
+emergency switch-back. Legacy `/transfer` keeps its envelope and uses the same
+move operation against the target team's generated project; only flag-off
+transfers update legacy team ownership. After switch-over a retained team ID
+does not stop a transfer back into that team's generated project.
+
+Run `npm run test:pg -- tasks.placementRoutes.integration --runInBand -t ticket10`
+for move/preview, workflow mapping, permissions, rollback and legacy coverage.
+
 ## Ticket decisions (ADR-016)
 
 `tasks.capabilities.ts` exposes `loadTicketDecisionContext(db, actor, tickets)`,

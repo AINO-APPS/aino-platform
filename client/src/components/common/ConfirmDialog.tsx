@@ -12,6 +12,7 @@ interface ConfirmDialogProps {
     onConfirm?: () => void;
     onCancel?: () => void;
     isDanger?: boolean;
+    confirmDisabled?: boolean;
 }
 
 export default function ConfirmDialog({
@@ -23,6 +24,7 @@ export default function ConfirmDialog({
     onConfirm,
     onCancel,
     isDanger = true,
+    confirmDisabled = false,
 }: ConfirmDialogProps) {
     const modalRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,7 +100,7 @@ export default function ConfirmDialog({
                     <button className={s.cancelBtn} onClick={onCancel}>
                         {cancelText}
                     </button>
-                    <button className={`${s.confirmBtn} ${isDanger ? s.danger : s.primary}`} onClick={onConfirm}>
+                    <button className={`${s.confirmBtn} ${isDanger ? s.danger : s.primary}`} onClick={onConfirm} disabled={confirmDisabled}>
                         {confirmText}
                     </button>
                 </div>

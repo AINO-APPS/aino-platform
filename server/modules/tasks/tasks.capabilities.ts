@@ -15,7 +15,7 @@ export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_
     | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"
-    | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate";
+    | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate" | "canMoveProject";
 export interface TicketDecision {
     container: "sprint" | "scheduled" | "backlog";
     capabilities: {
@@ -145,7 +145,8 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
                 canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
                 cancel: cancel.allowed ? allow : deny(cancel.reason),
-                transfer: actor.projectOwnership && !edit.allowed ? edit : !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,
+                canMoveProject: actor.projectOwnership ? permission : deny("ACCESS_DENIED"),
+                transfer: actor.projectOwnership ? permission : !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,
                 delete: cancel.allowed ? allow : deny(cancel.reason),
                 placeInSprint,
                 schedule: !edit.allowed ? edit : schedulingRefusal ? deny(schedulingRefusal) : allow,

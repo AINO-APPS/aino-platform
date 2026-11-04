@@ -12,12 +12,22 @@
     {
       "id": "ticket-create-project",
       "name": "Required project picker, active member defaults, legacy create resolution and project-only sprints",
-      "decision": "D54",
+      "decision": "D55",
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
       "android": { "status": "waived", "waiver": "Native picker follows in ticket 13. Older clients omit project_id and retain server sprint/team/General resolution until the client-version gate." },
       "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the required project picker." }
+    },
+    {
+      "id": "move-ticket-project",
+      "name": "Member project move with preview, key alias and workflow/sprint mapping",
+      "decision": "D54",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native project picker/move UI is ticket13. Older builds retain POST /tasks/:id/transfer and its response shape, now mapped to the generated team project." },
+      "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the project move dialog." }
     },
     {
       "id": "service-desk-project",

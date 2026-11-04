@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getOrgTeams } from "../../api/organization";
 import { transferTask } from "../../api/tasks";
 import { actionDecision, decisionProps, isReadOnlyTicket, writeError } from "./ticketCapabilities";
+import MoveProjectDialog from "./MoveProjectDialog";
 
 interface Props {
     task: any;
@@ -14,11 +15,15 @@ interface Props {
 export default function TicketDetailActions({ task, onEdit, onCancel, onReplaced, onError }: Props) {
     const [teams, setTeams] = useState<any[] | null>(null);
     const [pending, setPending] = useState(false);
+    const [moving, setMoving] = useState(false);
+    const canMoveProject = actionDecision(task, "canMoveProject").allowed;
     if (isReadOnlyTicket(task)) return null;
     return <>
         <button className="btn btn-secondary btn-sm" {...decisionProps(actionDecision(task, "edit"))} onClick={onEdit}>Edit</button>
         <button className="btn btn-danger btn-sm" {...decisionProps(actionDecision(task, "cancel"))} onClick={onCancel}>Cancel ticket</button>
-        <button
+        {canMoveProject && <button className="btn btn-secondary btn-sm" onClick={() => setMoving(true)}>Move to project</button>}
+        {moving && canMoveProject && <MoveProjectDialog task={task} onClose={() => setMoving(false)} onMoved={onReplaced} />}
+        {!canMoveProject && <button
             className="btn btn-secondary btn-sm"
             {...decisionProps(actionDecision(task, "transfer"))}
             onClick={async () => {
@@ -29,8 +34,8 @@ export default function TicketDetailActions({ task, onEdit, onCancel, onReplaced
                     onError(writeError(error, "Failed to load teams"));
                 }
             }}
-        >Transfer to team</button>
-        {teams && <label>Destination team
+        >Transfer to team</button>}
+        {teams && !canMoveProject && <label>Destination team
             <select
                 aria-label="Destination team"
                 defaultValue=""
