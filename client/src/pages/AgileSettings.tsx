@@ -1,18 +1,7 @@
 import { AlertTriangle as GlyphAlertTriangle, Plus, Trash2, Save, Settings as SettingsIcon, Layers, Workflow as WorkflowIcon, Lock, ShieldCheck, Tag, ListChecks } from "../constants/icons";
-/**
- * AgileSettings — tenant-level Agile administration UI.
- *
- * Tabs:
- *   1. General  — estimation scale, story-point unit, feature flags, DoD
- *   2. Types    — manage Work Item Types (Story / Bug / Task / Epic / custom)
- *   3. Workflow — manage Workflow States (Kanban columns) — categories,
- *                 colours, WIP limits
- *   4. Access   — request edit access (any user) + super_admin grants/requests
- *
- * Edit actions are gated client-side on `permissions.canEdit`. The backend
- * also enforces this so any UI bypass attempt fails.
- */
+/** Tenant-level Agile settings; workflow state and transition editing is project-scoped. */
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import TaskLabelsTab from "./admin/TaskLabelsTab";
 import CustomFieldsTab from "./CustomFieldsTab";
@@ -77,8 +66,8 @@ export default function AgileSettings() {
         <div>
           <h1 className={s.title}>Agile Configuration</h1>
           <p className={s.subtitle}>
-            Customise your team's work item types, workflow states and
-            estimation rules.
+            Customise work item types and estimation rules. Workflows are
+            configured separately in each project.
           </p>
         </div>
         <div className={s.permsBadge}>
@@ -149,11 +138,14 @@ export default function AgileSettings() {
         />
       )}
       {tab === "workflow" && (
-        <WorkflowTab
-          canEdit={perms.canEdit}
-          onChanged={refreshConfig}
-          setError={setError}
-        />
+        <div className={s.card}>
+          <h2 className={s.sectionTitle}>Project workflows</h2>
+          <p className={s.helpText}>
+            Workflow states and transitions belong to a project. Open a project
+            to edit its workflow; changes will not affect other projects.
+          </p>
+          <Link className="btn btn-primary btn-sm" to="/projects">Open projects</Link>
+        </div>
       )}
       {tab === "labels" && (
         <div className={s.card}>

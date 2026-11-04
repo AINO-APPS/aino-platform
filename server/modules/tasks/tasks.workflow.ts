@@ -19,7 +19,8 @@ export async function assertLifecycleMove(
     decisionContext?: TicketDecisionContext,
 ): Promise<Conflict | null> {
     if (!target) return null;
-    const lifecycle = context ?? await loadLifecycleContext(db, orgId);
+    const projectLifecycle = decisionContext?.lifecyclesByProject?.get(Number(task.project_id));
+    const lifecycle = projectLifecycle ?? context ?? await loadLifecycleContext(db, orgId, task.project_id == null ? null : Number(task.project_id));
     const loaded = decisionContext ?? await loadTicketDecisionContext(db, actor, [task], { lifecycle });
     const decision = decideTicket(actor, task, loaded);
     const sameState = Number(task.workflow_state_id) === Number(target.id);

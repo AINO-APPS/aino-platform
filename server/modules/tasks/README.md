@@ -23,6 +23,8 @@ locking, permanent key reservations, stored ticket-key rewrites, published-key
 aliases and one project audit entry all share a transaction. Preview only reads.
 The projects route emits `project_updated` after commit; web project lists,
 boards and open ticket details refetch rather than deriving keys from the event.
+The tenant-wide frame carries only `project_id`; old/new keys and ticket counts
+remain in the authorized HTTP response, not the broadcast.
 Project creation also claims a unique reservation so competing creates/renames
 cannot reuse an earlier key. Run `npm run test:pg -- projectsKeyRename.integration --runInBand`
 from `server` for the PostgreSQL route coverage.
@@ -34,6 +36,8 @@ When `organizations.project_ownership` is enabled, project lists include only
 accessible projects (all for organization admins). Plan backlog, available
 sprints and sprint lists accept `project_id`; legacy `team_id` resolves only
 to the team's generated project, not all projects granted to the team.
+The web Plan project selection also scopes agile configuration, so board
+columns and ticket controls use that project's workflow after switching.
 `tasks.sprintProjects.ts` adapts project scopes and sprint management rules.
 Sprint lookup, lifecycle and placement locks use the project's organization;
 `team_id` is nullable compatibility data and team deletion preserves sprints.

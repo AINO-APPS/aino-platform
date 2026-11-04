@@ -64,6 +64,18 @@ export const deleteProject = (id: number | string, { force = false }: { force?: 
     API.delete(`/projects/${id}`, { params: force ? { force: 1 } : {} });
 export const getProjectTasks = (id: number | string, params?: Params) =>
     API.get(`/projects/${id}/tasks`, { params });
+export const getProjectWorkflow = (id: number | string) =>
+    API.get(`/projects/${id}/workflow-states`);
+export const createProjectWorkflowState = (id: number | string, data: AnyData) =>
+    API.post(`/projects/${id}/workflow-states`, data);
+export const updateProjectWorkflowState = (id: number | string, stateId: number | string, data: AnyData) =>
+    API.put(`/projects/${id}/workflow-states/${stateId}`, data);
+export const deleteProjectWorkflowState = (id: number | string, stateId: number | string) =>
+    API.delete(`/projects/${id}/workflow-states/${stateId}`);
+export const reorderProjectWorkflowStates = (id: number | string, order: Array<number | string>) =>
+    API.put(`/projects/${id}/workflow-states/reorder`, { order });
+export const updateProjectWorkflowTransitions = (id: number | string, transitions: AnyData[]) =>
+    API.put(`/projects/${id}/workflow-transitions`, { transitions });
 export const getProjectMembers = (id: number | string) => API.get(`/projects/${id}/members`);
 export const grantProjectMember = (id: number | string, data: AnyData) =>
     API.post(`/projects/${id}/members`, data);
@@ -203,7 +215,9 @@ export const setTaskParent = (id: number | string, parent_task_id: number | stri
     API.patch(`/tasks/${id}/parent`, { parent_task_id });
 
 // Agile (tenant-customisable Work Item Types, Workflow States, Story Points)
-export const getAgileConfig = () => API.get("/agile/config");
+export const getAgileConfig = (projectId?: number) => API.get("/agile/config", {
+    params: projectId == null ? undefined : { project_id: projectId },
+});
 export const getAgileSettings = () => API.get("/agile/settings");
 export const updateAgileSettings = (data: AnyData) => API.put("/agile/settings", data);
 export const getWorkItemTypes = () => API.get("/agile/work-item-types");

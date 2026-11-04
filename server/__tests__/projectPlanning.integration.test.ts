@@ -60,12 +60,12 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
     beforeEach(async () => {
         await pool.query("TRUNCATE tasks, sprints, projects, users, teams, organizations RESTART IDENTITY CASCADE");
         await pool.query("INSERT INTO organizations (id, name, slug, project_ownership) VALUES (1, 'Planning', 'planning', TRUE)");
+        await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Team'), (2, 1, 'Other')");
         await pool.query("INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES (1, 'planner', 'x', 'Planner', 1, 1)");
         await pool.query(`INSERT INTO projects (id, org_id, key, name, origin_team_id) VALUES
             (10, 1, 'ONE', 'One', 1), (20, 1, 'TWO', 'Two', NULL), (30, 1, 'HIDE', 'Hidden', 2)`);
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
-        await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
     });
 
     test("creates a sprint in the selected project, not the actor's generated team project", async () => {
@@ -93,6 +93,10 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         const board = await request(app).get("/api/sprints/200/board");
         expect(board.status).toBe(200);
         expect(board.body.tickets.map((task: any) => task.id)).toEqual([4]);
+        const projectStates = await pool.query("SELECT id FROM workflow_states WHERE project_id = 20 AND is_active = TRUE AND key <> 'cancelled'");
+        expect(projectStates.rows.length).toBeGreaterThan(0);
+        expect(board.body.columns.map((column: any) => column.stateId).sort())
+            .toEqual(projectStates.rows.map((state: any) => state.id).sort());
         const plan = await request(app).get("/api/sprints/200/tasks");
         expect(plan.status).toBe(200);
         expect(plan.body.tasks.map((task: any) => task.id)).toEqual([4]);

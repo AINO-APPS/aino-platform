@@ -714,7 +714,7 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
         // current workflow_state's category. We then walk task_history to
         // reconstruct the state on each day.
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.created_at, t.completed_at,
+            `SELECT t.id, t.project_id, t.created_at, t.completed_at,
                     ws.category AS current_category,
                     ws.key      AS current_key
                FROM tasks t
@@ -748,13 +748,13 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
             historyByTask.set(h.task_id, arr);
         }
 
-        // Map status keys → category for quick lookup. Org-specific.
+        // Historical status keys are project-scoped.
         const stateRows = (await req.db!.query(
-            "SELECT key, category FROM workflow_states WHERE org_id = $1",
+            "SELECT project_id, key, category FROM workflow_states WHERE org_id = $1",
             [req.userOrgId]
         )).rows;
         const keyToCategory: Record<string, string> = {};
-        for (const s of stateRows) keyToCategory[s.key] = s.category;
+        for (const s of stateRows) keyToCategory[`${s.project_id}:${s.key}`] = s.category;
         // Default mappings for legacy tenants without seeded states.
         const fallback: Record<string, string> = { pending: "open", in_progress: "in_progress", in_review: "in_review", done: "done" };
 
@@ -776,7 +776,7 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
             // historical accuracy degrades for tasks that moved before the
             // earliest history row).
             if (!key) key = task.current_key;
-            return keyToCategory[key] || fallback[key] || "open";
+            return keyToCategory[`${task.project_id}:${key}`] || fallback[key] || "open";
         };
 
         // Build day list from sprint.start_date → min(today, sprint.end_date).

@@ -14242,6 +14242,704 @@
         }
       }
     },
+    "/api/projects/{id}/workflow-states": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Read a project's workflow states and transitions",
+        "operationId": "get_api_projects_id_workflow_states",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectWorkflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create a project workflow state",
+        "operationId": "post_api_projects_id_workflow_states",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Workflow state created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid workflow state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project workflow access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Workflow state key already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowStateWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-states/{stateId}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete an unused project workflow state",
+        "operationId": "delete_api_projects_id_workflow_states_stateId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update a project workflow state",
+        "operationId": "put_api_projects_id_workflow_states_stateId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowStatePatch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-states/reorder": {
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Reorder project workflow states",
+        "operationId": "put_api_projects_id_workflow_states_reorder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowReorder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-transitions": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Read a project's allowed workflow transitions",
+        "operationId": "get_api_projects_id_workflow_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTransitions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Replace a project's allowed workflow transitions",
+        "operationId": "put_api_projects_id_workflow_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTransitions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowTransitionWrite"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/branding": {
       "get": {
         "tags": [
@@ -22359,12 +23057,16 @@
           },
           "canRenameKey": {
             "type": "boolean"
+          },
+          "canEditWorkflow": {
+            "type": "boolean"
           }
         },
         "required": [
           "canAdminister",
           "canManageMembers",
-          "canRenameKey"
+          "canRenameKey",
+          "canEditWorkflow"
         ],
         "additionalProperties": false
       },
@@ -22406,6 +23108,269 @@
           "old_key",
           "new_key",
           "affected_tickets"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowCategory": {
+        "type": "string",
+        "enum": [
+          "open",
+          "in_progress",
+          "in_review",
+          "done"
+        ]
+      },
+      "WorkflowState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowStateList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkflowState"
+        }
+      },
+      "WorkflowStateWrite": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "category"
+        ],
+        "additionalProperties": true
+      },
+      "WorkflowStatePatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "WorkflowReorder": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransition": {
+        "type": "object",
+        "properties": {
+          "from_state_id": {
+            "type": "integer"
+          },
+          "to_state_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_state_id",
+          "to_state_id"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransitions": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          }
+        },
+        "required": [
+          "transitions"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransitionWrite": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          }
+        },
+        "required": [
+          "transitions"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectWorkflow": {
+        "type": "object",
+        "properties": {
+          "workflowStates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowState"
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          },
+          "canEditWorkflow": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workflowStates",
+          "transitions",
+          "canEditWorkflow"
+        ],
+        "additionalProperties": false
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
         ],
         "additionalProperties": false
       },
@@ -23252,6 +24217,189 @@
         ],
         "additionalProperties": false
       },
+      "Sprint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."
+          },
+          "name": {
+            "type": "string"
+          },
+          "goal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "active",
+              "paused",
+              "completed"
+            ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "paused_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "velocity_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "auto_managed": {
+            "type": "boolean"
+          },
+          "sprint_number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "carried_from_sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "team_id",
+          "name",
+          "status",
+          "auto_managed"
+        ],
+        "additionalProperties": false
+      },
+      "CreateSprintRequest": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Selected project; omitted by legacy clients, which fall back to their team's generated project."
+          },
+          "team_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "additionalProperties": false
+      },
+      "SprintResponse": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "$ref": "#/components/schemas/Sprint"
+          }
+        },
+        "required": [
+          "sprint"
+        ],
+        "additionalProperties": false
+      },
+      "ActiveSprintResponse": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sprint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sprint"
+        ],
+        "additionalProperties": false
+      },
+      "SprintTasksResponse": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "additionalProperties": false
+      },
       "Task": {
         "type": "object",
         "properties": {
@@ -23478,188 +24626,40 @@
         ],
         "additionalProperties": false
       },
-      "Sprint": {
+      "TaskByKey": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer"
           },
-          "project_id": {
-            "type": "integer"
-          },
-          "team_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "description": "Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."
-          },
-          "name": {
+          "ticket_key": {
             "type": "string"
           },
-          "goal": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "issue_key": {
+            "type": "string"
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "planned",
-              "active",
-              "paused",
-              "completed"
-            ]
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "end_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "started_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "completed_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "paused_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "velocity_points": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "auto_managed": {
+          "key_alias": {
             "type": "boolean"
           },
-          "sprint_number": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "carried_from_sprint_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
+          "requested_key": {
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "project_id",
-          "team_id",
-          "name",
-          "status",
-          "auto_managed"
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "key_alias",
+          "requested_key"
         ],
-        "additionalProperties": false
-      },
-      "CreateSprintRequest": {
-        "type": "object",
-        "properties": {
-          "project_id": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Selected project; omitted by legacy clients, which fall back to their team's generated project."
-          },
-          "team_id": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 100
-          },
-          "start_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "end_date": {
-            "type": "string",
-            "format": "date"
-          },
-          "goal": {
-            "type": "string",
-            "maxLength": 1000
-          }
-        },
-        "required": [
-          "name",
-          "start_date",
-          "end_date"
-        ],
-        "additionalProperties": false
-      },
-      "SprintResponse": {
-        "type": "object",
-        "properties": {
-          "sprint": {
-            "$ref": "#/components/schemas/Sprint"
-          }
-        },
-        "required": [
-          "sprint"
-        ],
-        "additionalProperties": false
-      },
-      "ActiveSprintResponse": {
-        "type": "object",
-        "properties": {
-          "sprint": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Sprint"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "sprint"
-        ],
-        "additionalProperties": false
-      },
-      "SprintTasksResponse": {
-        "type": "object",
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Task"
-            }
-          }
-        },
-        "required": [
-          "tasks"
-        ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "SprintList": {
         "type": "object",
@@ -24387,41 +25387,6 @@
             "type": "boolean"
           }
         },
-        "additionalProperties": true
-      },
-      "TaskByKey": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "ticket_key": {
-            "type": "string"
-          },
-          "issue_key": {
-            "type": "string"
-          },
-          "key_aliases": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "key_alias": {
-            "type": "boolean"
-          },
-          "requested_key": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "ticket_key",
-          "issue_key",
-          "key_aliases",
-          "key_alias",
-          "requested_key"
-        ],
         "additionalProperties": true
       }
     }

@@ -1,5 +1,7 @@
 import { useTeamScope } from "./useTeamScope";
 import { useProjectScope } from "./useProjectScope";
+import { useEffect } from "react";
+import { useAgileConfig } from "../../../AgileConfigContext";
 
 const EMPTY: any[] = [];
 
@@ -19,6 +21,11 @@ export function usePlanningScope(options: {
         projects, projectsLoaded, enabled, agileEnabled,
         userKey: `${currentUser?.tenant_id}:${currentUser?.id}`, setSelectedSprintId,
     });
+    const { setProjectScope } = useAgileConfig();
+    useEffect(() => {
+        if (enabled) setProjectScope?.(project.selectedProjectId);
+        return () => { if (enabled) setProjectScope?.(null); };
+    }, [enabled, project.selectedProjectId, setProjectScope]);
     const scope = enabled ? {
         showTeamSwitcher: false,
         orgTeams: EMPTY,

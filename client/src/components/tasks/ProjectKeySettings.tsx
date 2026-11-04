@@ -29,7 +29,7 @@ export default function ProjectKeySettings({ project }: { project: any }) {
         setSavedKey(data.new_key);
         setPreview(null);
         setKey("");
-        window.dispatchEvent(new CustomEvent(REALTIME_EVENT, { detail: { type: "project_updated", data } }));
+        window.dispatchEvent(new CustomEvent(REALTIME_EVENT, { detail: { type: "project_updated", data: { project_id: data.project_id } } }));
         await Promise.all([
           client.invalidateQueries({ queryKey: ["admin", "projects"] }),
           client.invalidateQueries({ queryKey: ["admin", "project-tasks", project.id] }),

@@ -216,7 +216,7 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
 
     if (filters.status && STATUS_KEY_PATTERN.test(filters.status)) {
         push(
-            `t.workflow_state_id IN (SELECT id FROM workflow_states WHERE org_id = t.org_id AND key = $${pi})`,
+            `t.workflow_state_id IN (SELECT id FROM workflow_states WHERE org_id = t.org_id AND project_id = t.project_id AND key = $${pi})`,
             filters.status,
         );
     }

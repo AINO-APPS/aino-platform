@@ -141,7 +141,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
             if (edit.allowed || edit.reason === "SPRINT_FROZEN") visibleIds.add(Number(task.id));
             try {
                 if (action === "status") {
-                    const target = await resolveWorkflowState(value, req.userOrgId, req.db);
+                    const target = await resolveWorkflowState(value, req.userOrgId, req.db, task.project_id);
                     if (!target) {
                         results.push({ id: task.id, ok: false, error: "Invalid status" });
                         continue;
@@ -162,7 +162,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     await logHistory(task.id, req.userId, "status_change", "workflow_state", task.workflow_state_id, target.id, null, req.db);
                     await announceStatusMove(req, {
                         task,
-                        from: stateOf(lifecycle, task),
+                        from: stateOf(decisionContext.lifecyclesByProject?.get(Number(task.project_id)) ?? lifecycle, task),
                         to: target,
                         name,
                     });
@@ -189,7 +189,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     }
                     // Tickets are cancelled, never hard-deleted: the record and
                     // its history stay readable, and the move is reversible.
-                    const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
+                    const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db, task.project_id);
                     if (!cancelled) {
                         results.push({ id: task.id, ok: false, error: "No cancelled workflow state is available" });
                         continue;

@@ -99,7 +99,7 @@ postgresDescribe("project key rename HTTP routes (PostgreSQL)", () => {
         expect((await pool.query("SELECT * FROM task_history")).rows).toEqual([]);
         expect(broadcast).toHaveBeenCalledTimes(1);
         expect(broadcast).toHaveBeenCalledWith(1, "project_updated", {
-            project_id: 10, old_key: "OLD", new_key: "NEW", affected_tickets: 2,
+            project_id: 10,
         });
     });
 

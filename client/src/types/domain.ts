@@ -102,6 +102,7 @@ export interface Project {
         canAdminister: boolean;
         canManageMembers: boolean;
         canRenameKey: boolean;
+        canEditWorkflow: boolean;
     };
     [key: string]: unknown;
 }

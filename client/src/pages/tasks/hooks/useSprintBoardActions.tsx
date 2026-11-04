@@ -67,6 +67,10 @@ export function useSprintBoardActions({
             goToView("sprint", target.id, true);
             return;
         }
+        if (teamScopeParams.project_id != null) {
+            toast.info("No sprint yet in this project.", 6000);
+            return;
+        }
         const canManage = SPRINT_MANAGERS.includes(String(currentUser?.role));
         toast.info(
             <span>

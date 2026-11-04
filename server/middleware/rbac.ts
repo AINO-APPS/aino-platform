@@ -196,9 +196,27 @@ async function loadProjectOwnership(req: any): Promise<void> {
     req.projectOwnership = result.rows[0]?.project_ownership === true;
 }
 
+async function loadUserTeamIds(req: any): Promise<void> {
+    if (!req.userOrgId) {
+        req.userTeamIds = [];
+        return;
+    }
+    const result = await req.db.query(
+        `SELECT t.id AS team_id
+         FROM teams t
+         LEFT JOIN user_team_memberships utm
+           ON utm.team_id = t.id AND utm.user_id = $1
+         WHERE t.org_id = $2
+           AND (t.id = $3 OR utm.user_id IS NOT NULL)
+         ORDER BY t.id`,
+        [req.userId, req.userOrgId, req.userTeamId],
+    );
+    req.userTeamIds = result.rows.map((row: any) => Number(row.team_id));
+}
+
 /**
  * Middleware: populate req.userRole, req.userOrgId, req.userTeamId, req.userDeptId,
- * req.roleLevel.
+ * req.userTeamIds and req.roleLevel.
  *
  * Must be used AFTER auth middleware.
  */
@@ -209,6 +227,7 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
             req.userRole = "platform_admin";
             req.userOrgId = null;
             req.userTeamId = null;
+            req.userTeamIds = [];
             req.userDeptId = null;
             req.userManagerId = null;
             req.roleLevel = SYSTEM_ROLE_LEVEL.platform_admin;
@@ -220,6 +239,7 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
             req.userRole = "platform_admin";
             req.userOrgId = null;
             req.userTeamId = null;
+            req.userTeamIds = [];
             req.userDeptId = null;
             req.userManagerId = null;
             req.roleLevel = SYSTEM_ROLE_LEVEL.platform_admin;
@@ -239,6 +259,7 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
             req.roleLevel = await resolveRoleLevel(req);
 
             if (!cached.is_active) return res.status(403).json({ error: "Account has been deactivated. Contact your administrator." });
+            await loadUserTeamIds(req);
             await loadProjectOwnership(req);
             return next();
         }
@@ -263,6 +284,7 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
         req.userManagerId = user.manager_id || null;
         req.roleLevel = await resolveRoleLevel(req);
 
+        await loadUserTeamIds(req);
         await loadProjectOwnership(req);
         next();
     } catch (err) {

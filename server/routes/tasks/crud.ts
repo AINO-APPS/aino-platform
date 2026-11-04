@@ -186,9 +186,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
-        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
-        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
+        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
         const wsId = initialState ? initialState.id : null;
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
@@ -304,8 +304,8 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         // Resolve target workflow state. Accept either a numeric workflow_state_id
         // or a state key (the default keys are pending/in_progress/in_review/done).
-        let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
-        if (!target && status) target = await resolveWorkflowState(status, req.userOrgId, req.db);
+        let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, task.project_id);
+        if (!target && status) target = await resolveWorkflowState(status, req.userOrgId, req.db, task.project_id);
         // An unknown key is invalid: there is no status column to fall back to,
         // so a task must always point at a real workflow state.
         if (!target) return res.status(400).json({ error: 'Invalid status / workflow state' });
@@ -507,9 +507,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (workflow_state_id !== undefined) {
             if (workflow_state_id === null || workflow_state_id === '') {
                 // Reset to initial state for the org
-                newWsRow = await getInitialWorkflowState(req.userOrgId, req.db);
+                newWsRow = await getInitialWorkflowState(req.userOrgId, req.db, task.project_id);
             } else {
-                newWsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+                newWsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, task.project_id);
                 if (!newWsRow) return res.status(400).json({ error: 'Invalid workflow_state' });
             }
             newWsId = newWsRow ? newWsRow.id : null;

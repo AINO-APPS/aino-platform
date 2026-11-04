@@ -127,6 +127,7 @@ describe("task collection builder", () => {
         });
 
         expect(collection.whereSql).toContain("workflow_states");
+        expect(collection.whereSql).toContain("project_id = t.project_id");
         expect(collection.whereSql).not.toContain("t.status");
         expect(collection.params).toContain("in_review");
     });
