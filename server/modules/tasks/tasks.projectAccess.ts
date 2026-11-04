@@ -47,6 +47,7 @@ export interface ProjectCapabilities {
     canAdminister: boolean;
     canManageMembers: boolean;
     canRenameKey: boolean;
+    canEditWorkflow: boolean;
 }
 
 /** Create one access resolver per request; its memoized roles never cross requests. */
@@ -105,6 +106,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
             canAdminister,
             canManageMembers: projectRoleAllows(role, "manageMembers"),
             canRenameKey: projectRoleAllows(role, "renameKey"),
+            canEditWorkflow: canAdminister,
         };
     }
 
@@ -130,6 +132,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
                 canAdminister,
                 canManageMembers: projectRoleAllows(role, "manageMembers"),
                 canRenameKey: projectRoleAllows(role, "renameKey"),
+                canEditWorkflow: canAdminister,
             });
         }
         return capabilitiesByProject;

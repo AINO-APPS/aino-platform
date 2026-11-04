@@ -75,7 +75,8 @@ function setupAuth(role = "team_lead", extra: Record<string, any> = {}) {
                 manager_id: null, is_active: true, ...extra,
             }],
             rowCount: 1,
-        }); // loadUserContext
+        }) // loadUserContext
+        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // loadProjectOwnership
 }
 
 describe("API sprint routes", () => {
@@ -683,5 +684,48 @@ describe("one active sprint per team on every activation path", () => {
         expect(res.status).toBe(409);
         expect(res.body.code).toBe("SPRINT_ALREADY_ACTIVE");
         expect(mockQuery.mock.calls.map((c: any[]) => String(c[0])).some((q) => /SET status = 'active'/.test(q))).toBe(false);
+    });
+
+    test("cumulative flow resolves historical keys within each task's project", async () => {
+        setupAuth("team_lead");
+        const today = new Date().toISOString().slice(0, 10);
+        mockQuery.mockImplementation(async (query: string) => {
+            const sql = String(query);
+            if (/SELECT token_version FROM users/.test(sql)) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (/SELECT role, org_id, team_id, department_id, manager_id, is_active FROM users/.test(sql)) {
+                return { rows: [{
+                    role: "team_lead", org_id: 1, team_id: 1, department_id: null,
+                    manager_id: null, is_active: true,
+                }], rowCount: 1 };
+            }
+            if (/SELECT s\.\*, t\.org_id, t\.name AS team_name/.test(sql)) {
+                return { rows: [{
+                    id: 10, team_id: 1, org_id: 1, status: "active",
+                    start_date: today, end_date: today, completed_at: null,
+                }], rowCount: 1 };
+            }
+            if (/FROM tasks t/.test(sql) && /current_key/.test(sql)) {
+                return { rows: [{
+                    id: 201, project_id: 101, created_at: `${today}T00:00:00.000Z`,
+                    current_key: "shared",
+                }], rowCount: 1 };
+            }
+            if (/SELECT project_id, key, category FROM workflow_states/.test(sql)) {
+                return { rows: [
+                    { project_id: 101, key: "shared", category: "done" },
+                    { project_id: 102, key: "shared", category: "open" },
+                ], rowCount: 2 };
+            }
+            return { rows: [], rowCount: 0 };
+        });
+
+        const res = await request(app)
+            .get("/api/sprints/10/cumulative-flow")
+            .set("Cookie", authCookie());
+
+        expect(res.status).toBe(200);
+        expect(res.body.series).toEqual([
+            { date: today, open: 0, in_progress: 0, in_review: 0, done: 1 },
+        ]);
     });
 });

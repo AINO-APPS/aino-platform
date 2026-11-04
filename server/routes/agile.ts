@@ -1,36 +1,4 @@
-/**
- * Agile configuration & access-control routes.
- *
- * Endpoints (all require auth + tenant + loadUserContext):
- *
- *   ─── Public read (any authenticated org member can read) ───
- *   GET    /agile/config              full config bundle (settings + types + states)
- *   GET    /agile/settings
- *   GET    /agile/work-item-types
- *   GET    /agile/workflow-states
- *   GET    /agile/permissions/me      { canEdit, isSuperAdmin, requestStatus }
- *
- *   ─── Editor-gated (super_admin OR active grant in agile_editor_grants) ───
- *   PUT    /agile/settings
- *   POST   /agile/work-item-types
- *   PUT    /agile/work-item-types/:id
- *   DELETE /agile/work-item-types/:id   (block if in use)
- *   PUT    /agile/work-item-types/reorder
- *   POST   /agile/workflow-states
- *   PUT    /agile/workflow-states/:id
- *   DELETE /agile/workflow-states/:id   (block if in use; 4 categories must remain covered)
- *   PUT    /agile/workflow-states/reorder
- *
- *   ─── Access-request workflow ───
- *   POST   /agile/permissions/request          { reason }
- *   POST   /agile/permissions/cancel-request   (cancel my pending request)
- *
- *   ─── super_admin only ───
- *   GET    /agile/permissions/requests         pending requests
- *   PUT    /agile/permissions/requests/:id     { action: 'approve'|'reject', reject_reason? }
- *   GET    /agile/permissions/grants           active grants
- *   DELETE /agile/permissions/grants/:id       revoke grant
- */
+/** Agile configuration, read-only organization workflow, and editor access routes. */
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const auth = require("../middleware/auth");
@@ -51,6 +19,10 @@ const { logAction } = require("../utils/audit");
 const { notifyUser } = require("../utils/ws");
 const { AGILE_ACCESS_LINK } = require("../utils/notificationLinks");
 const { effectiveTransitionRows, loadLifecycleContext, seedOrgTransitions } = require("../modules/tasks/tasks.workflow");
+import {
+    resolveWorkflowProjectId as selectWorkflowProjectId,
+    WorkflowProjectSelectionError,
+} from "../modules/tasks/tasks.projectWorkflowRepository";
 
 const router = express.Router();
 router.use(requireTenant, requireFeature("agile"));
@@ -64,6 +36,20 @@ interface DbLike {
 
 const REQUIRED_CATEGORIES = ["open", "in_progress", "in_review", "done"];
 const ESTIMATION_TYPES = ["fibonacci", "linear", "tshirt", "hours", "none", "custom"];
+
+async function resolveWorkflowProjectId(req: Request): Promise<number | null> {
+    if (!req.userOrgId) return null;
+    const rawProjectId = req.query.project_id ?? req.query.projectId;
+    const request = req as any;
+    const teamIds = Array.isArray(request.userTeamIds)
+        ? request.userTeamIds.map(Number).filter(Number.isInteger)
+        : request.userTeamId == null ? [] : [Number(request.userTeamId)];
+    return selectWorkflowProjectId(req.db as any, req.userOrgId, rawProjectId, {
+        userId: Number(request.userId ?? req.userId) || null,
+        userRole: request.userRole ?? null,
+        teamIds,
+    });
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +84,7 @@ router.get("/config", async (req: Request, res: Response) => {
     try {
         if (!req.userOrgId) return res.status(400).json({ error: "Organization context required" });
         const settings = await ensureSettingsRow(req.db, req.userOrgId);
+        const projectId = await resolveWorkflowProjectId(req);
         const types = (await req.db!.query(
             `SELECT id, key, name, icon, color, description, is_default, is_epic, is_active, sort_order
                FROM work_item_types
@@ -108,15 +95,16 @@ router.get("/config", async (req: Request, res: Response) => {
         const states = (await req.db!.query(
             `SELECT id, key, name, category, color, icon, wip_limit, is_initial, is_terminal, is_active, sort_order
                FROM workflow_states
-              WHERE org_id = $1 AND is_active = TRUE
+              WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2 AND is_active = TRUE
               ORDER BY sort_order ASC, id ASC`,
-            [req.userOrgId]
+            [req.userOrgId, projectId]
         )).rows;
         // The board uses the same graph the server enforces, including derived edges.
-        const transitions = effectiveTransitionRows(await loadLifecycleContext(req.db, req.userOrgId));
+        const transitions = effectiveTransitionRows(await loadLifecycleContext(req.db, req.userOrgId, projectId));
         const canEdit = await isAgileEditor(req);
         res.json({ settings, workItemTypes: types, workflowStates: states, transitions, canEdit });
     } catch (err) {
+        if (err instanceof WorkflowProjectSelectionError) return res.status(err.status).json({ error: err.message });
         req.log.error({ err }, "GET /agile/config error");
         res.status(500).json({ error: "Failed to load Agile config" });
     }
@@ -371,18 +359,30 @@ router.put("/work-item-types/reorder", requireAgileEditor, async (req: Request, 
 router.get("/workflow-states", async (req: Request, res: Response) => {
     try {
         if (!req.userOrgId) return res.json([]);
+        const projectId = await resolveWorkflowProjectId(req);
         const r = await req.db!.query(
             `SELECT id, key, name, category, color, icon, wip_limit, is_initial, is_terminal, is_active, sort_order, created_at
                FROM workflow_states
-              WHERE org_id = $1
+              WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2
               ORDER BY sort_order ASC, id ASC`,
-            [req.userOrgId]
+            [req.userOrgId, projectId]
         );
         res.json(r.rows);
     } catch (err) {
+        if (err instanceof WorkflowProjectSelectionError) return res.status(err.status).json({ error: err.message });
         req.log.error({ err }, "GET /agile/workflow-states error");
         res.status(500).json({ error: "Failed to load workflow states" });
     }
+});
+
+router.use("/workflow-states", (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET") {
+        return res.status(405).json({
+            error: "Organization workflow is a read-only template. Edit a project's workflow instead.",
+            code: "PROJECT_WORKFLOW_REQUIRED",
+        });
+    }
+    next();
 });
 
 /**

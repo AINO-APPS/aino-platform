@@ -64,6 +64,18 @@ export const deleteProject = (id: number | string, { force = false }: { force?: 
     API.delete(`/projects/${id}`, { params: force ? { force: 1 } : {} });
 export const getProjectTasks = (id: number | string, params?: Params) =>
     API.get(`/projects/${id}/tasks`, { params });
+export const getProjectWorkflow = (id: number | string) =>
+    API.get(`/projects/${id}/workflow-states`);
+export const createProjectWorkflowState = (id: number | string, data: AnyData) =>
+    API.post(`/projects/${id}/workflow-states`, data);
+export const updateProjectWorkflowState = (id: number | string, stateId: number | string, data: AnyData) =>
+    API.put(`/projects/${id}/workflow-states/${stateId}`, data);
+export const deleteProjectWorkflowState = (id: number | string, stateId: number | string) =>
+    API.delete(`/projects/${id}/workflow-states/${stateId}`);
+export const reorderProjectWorkflowStates = (id: number | string, order: Array<number | string>) =>
+    API.put(`/projects/${id}/workflow-states/reorder`, { order });
+export const updateProjectWorkflowTransitions = (id: number | string, transitions: AnyData[]) =>
+    API.put(`/projects/${id}/workflow-transitions`, { transitions });
 export const getProjectMembers = (id: number | string) => API.get(`/projects/${id}/members`);
 export const grantProjectMember = (id: number | string, data: AnyData) =>
     API.post(`/projects/${id}/members`, data);

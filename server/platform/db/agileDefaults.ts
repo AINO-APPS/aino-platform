@@ -46,12 +46,13 @@ async function seedAgileDefaults(q: SchemaQuery): Promise<void> {
             { key: 'in_progress', name: 'In Progress', category: 'in_progress', color: '#f59e0b', sort_order: 2, is_initial: false, is_terminal: false },
             { key: 'in_review', name: 'In Review', category: 'in_review', color: '#3b82f6', sort_order: 3, is_initial: false, is_terminal: false },
             { key: 'done', name: 'Done', category: 'done', color: '#10b981', sort_order: 4, is_initial: false, is_terminal: true },
+            { key: 'cancelled', name: 'Cancelled', category: 'done', color: '#6b7280', sort_order: 5, is_initial: false, is_terminal: true },
         ];
         for (const st of defaultStates) {
             await q(
-                `INSERT INTO workflow_states (org_id, key, name, category, color, sort_order, is_initial, is_terminal)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                 ON CONFLICT (org_id, key) DO NOTHING`,
+                `INSERT INTO workflow_states (org_id, project_id, key, name, category, color, sort_order, is_initial, is_terminal)
+                 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8)
+                 ON CONFLICT (org_id, key) WHERE project_id IS NULL DO NOTHING`,
                 [orgId, st.key, st.name, st.category, st.color, st.sort_order, st.is_initial, st.is_terminal]
             );
         }

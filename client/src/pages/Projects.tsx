@@ -1,21 +1,4 @@
-// Projects admin page (Stage 3).
-//
-// What this page does
-// ───────────────────
-//   • Lists every project in the org (active by default, with a toggle to
-//     include archived ones).
-//   • Lets team lead+ users create a new project. The "key" is the Jira-style
-//     prefix — entirely user-defined; we validate 2–10 uppercase
-//     letters/digits/underscores starting with a letter, mirroring the DB
-//     CHECK constraint so the request fails client-side before hitting the
-//     API.
-//   • Lets project admins rename keys with a preview and permanent aliases.
-//   • Archive / unarchive in one click. Delete is allowed only when the
-//     project has zero tasks (server enforces this too).
-//
-// There's no client-side router for /projects/:id yet — once you click a
-// project we just list its tasks inline. A dedicated detail page can come
-// later when we wire the Tasks page to filter by project.
+// Project administration, task browsing, key management, and workflow settings.
 
 import { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,10 +7,12 @@ import { getProjects, createProject, updateProject, archiveProject, deleteProjec
 import { getOrgTeams } from "../api/organization";
 import ProjectTasksPanel from "../components/tasks/ProjectTasksPanel";
 import useRealtimeEvent from "../hooks/useRealtimeEvent";
+import ProjectWorkflowSettings from "./ProjectWorkflowSettings";
 import { useToast } from "../components/common/Toast";
 import Pagination from "../components/common/Pagination";
 import {
   Plus,
+  Workflow,
   Archive,
   ArchiveRestore,
   Trash2,
@@ -77,6 +62,7 @@ export default function Projects() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null); // project being edited
   const [selectedId, setSelectedId] = useState<any>(null);
+  const [workflowProject, setWorkflowProject] = useState<any>(null);
   // Pagination state for the projects grid. We use server-side pagination
   // so an org with hundreds of projects doesn't render them all at once.
   const [pageLimit, setPageLimit] = useState(12);
@@ -235,6 +221,7 @@ export default function Projects() {
                   setSelectedId(selectedId === p.id ? null : p.id)
                 }
                 onEdit={() => openEdit(p)}
+                onWorkflow={() => setWorkflowProject(p)}
                 onArchive={() => onArchive(p)}
                 onDelete={() => onDelete(p)}
               />
@@ -261,6 +248,8 @@ export default function Projects() {
         />
       )}
 
+      {workflowProject && <ProjectWorkflowSettings project={workflowProject} onClose={() => setWorkflowProject(null)} />}
+
       {showForm && (
         <ProjectForm
           project={editing}
@@ -286,6 +275,7 @@ interface ProjectCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onEdit: () => void;
+  onWorkflow: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }
@@ -297,6 +287,7 @@ function ProjectCard({
   isSelected,
   onSelect,
   onEdit,
+  onWorkflow,
   onArchive,
   onDelete,
 }: ProjectCardProps) {
@@ -335,8 +326,14 @@ function ProjectCard({
           </div>
         </div>
       </button>
-      {canEdit && (
+      {(canEdit || p.capabilities?.canEditWorkflow) && (
         <div style={styles.cardActions}>
+          {p.capabilities?.canEditWorkflow && (
+            <button title="Edit project workflow" aria-label={`Edit ${p.name} workflow`} style={styles.iconBtn} onClick={onWorkflow}>
+              <Workflow size={14} />
+            </button>
+          )}
+          {canEdit && <>
           <button title="Edit" style={styles.iconBtn} onClick={onEdit}>
             <Edit3 size={14} />
           </button>
@@ -360,6 +357,7 @@ function ProjectCard({
               <Trash2 size={14} />
             </button>
           )}
+          </>}
         </div>
       )}
     </div>
