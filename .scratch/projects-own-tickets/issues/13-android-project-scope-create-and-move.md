@@ -27,23 +27,21 @@ Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017, ADR-016.
   - move with its preview
   - archived and viewer actions hidden
   - alias search
-- [ ] **The Android endpoint and realtime parity checks**, and the tasks-parity matrix, are updated and pass (ticket 14 closeout).
+- [x] **The Android endpoint and realtime parity checks**, and the tasks-parity matrix, are updated and pass (ticket 14 closeout).
 
 ## Answer
 
 Implemented on `ticket/projects-own-tickets-13` and merged into Android
 `integration/projects-own-tickets` at `bbfc1108b2aa1a3676a1b2a0c2566d7d6094d3bc`.
-Plan project scope, project-aware create and move flows, capability-gated actions,
-and alias search are in place.
+The Android manual-worklogs integration was subsequently merged into that branch
+at `74c51fe687bad295a0ad9d0033a5f38df3736c6c`, closing the cross-branch parity
+gap without replacing project-scoped ticket behavior.
 
 Validation passed: 1,348 Play tests, 1,354 Direct tests, Play lint, both
-assemblies, and all five Android guardrails. Device tests were not run.
-Platform endpoint/realtime parity and tasks-parity closeout remain with ticket 14.
-
-Ticket14 closeout updates the shipped project matrix entries and proves all
-eight project-facing HTTP operations plus all 85 realtime event routes against
-Android `bbfc1108`. The checkbox remains open: unfiltered native parity still
-fails because this Android integration lacks the separate manual-worklogs
-integration (five endpoints and `TicketWorklogsTest` owners). See the
+assemblies, and all five Android guardrails on the project-only implementation.
+After the worklog merge, focused task tests passed (268 Play and 268 Direct),
+all five guardrails passed, and full native endpoint parity reported 276/532
+proven, 234 waived, 3 retired, 21 pending, and zero unmatched operations.
+The tasks-parity matrix passed for 55 features across four clients, and realtime
+parity passed for all 85 server event types. Device tests were not run. See the
 [exact validation results and remaining gaps](14-docs-glossary-and-parity-closeout.md).
-The focused green project gate is not being reported as full native parity.

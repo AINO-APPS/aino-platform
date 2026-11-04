@@ -35,14 +35,16 @@ Documentation now matches the Phase 2 implementation: see
 the glossary, ADR-013/017 and the tasks module README. The roadmap records shipped
 implementation, not automatic activation of every organization.
 
-Android proof uses integration `bbfc1108`, checked out with LF into a disposable
-`.validation/android` worktree. The dirty platform/Android mains and other
-feature worktrees were not edited. The native source calls the actual current
-APIs: accessible projects, `projects/mine`, project-scoped sprints/backlog,
-create with `project_id`, move preview/confirm with `project_id`, and by-key
-lookup returning the canonical ticket. The matrix names native behavioral
-owners for scope, create, move, archived/viewer actions, alias lookup and
-`project_updated` refetch. Administration remains deliberately web-only.
+The project-only Android proof initially used integration `bbfc1108`; final
+Android `integration/projects-own-tickets` now also includes manual worklogs at
+`74c51fe687bad295a0ad9d0033a5f38df3736c6c`. The dirty platform/Android mains
+and other feature worktrees were not edited. The native source calls the actual
+current APIs: accessible projects, `projects/mine`, project-scoped
+sprints/backlog, create with `project_id`, move preview/confirm with
+`project_id`, and by-key lookup returning the canonical ticket. The matrix names
+native behavioral owners for scope, create, move, archived/viewer actions, alias
+lookup and `project_updated` refetch. Administration remains deliberately
+web-only.
 
 ### Validation record
 
@@ -115,29 +117,28 @@ No application database or production configuration is changed. Slow-host
 retries use `--testTimeout=60000`; the earlier default 5-second hook failures
 were not treated as application assertion failures.
 
-### Cross-branch parity gap (pre-existing)
+### Cross-branch parity gap closed
 
-The Android projects integration does **not** contain the separate Android
-manual-worklogs integration. This is visible only when checking the actual
-selected native source rather than assuming a sibling checkout:
+The Android project integration initially lacked the separate manual-worklogs
+integration. It was merged into Android `integration/projects-own-tickets` at
+`74c51fe687bad295a0ad9d0033a5f38df3736c6c`; the merge preserves both project
+scope and worklog behavior. No manual-worklog waiver was added.
 
-- `$env:AINO_ANDROID_REPO = (Resolve-Path .validation/android).Path;
-  node scripts/validate-tasks-parity.mjs`: 12 violations, all in the pre-existing
-  `time-tracking-on-task/android` entry: missing `TicketWorklogsTest.kt` and its
-  11 named behavioral owners. No Phase 2 project owner is missing.
-- `node scripts/check-android-endpoint-parity.mjs .validation/android`:
-  fails on the five absent manual-worklog/estimate operations (`GET`/`POST`
-  worklogs, `PATCH`/`DELETE` worklog, `PATCH` estimates).
+Final parity checks against that merged Android worktree passed:
 
-No manual-worklog waiver was added and no native source/snapshot was rewritten
-to conceal this. Default single-repo `contracts:validate` validates the matrix
-shape and platform owners; its green result is not proof of those absent native
-worklogs. Merge that separate Android integration and rerun both unfiltered
-commands to close the cross-branch gap.
+- `node scripts/validate-tasks-parity.mjs` with `AINO_ANDROID_REPO` set to the
+  selected integration worktree: **55 features across four clients**, no
+  violations.
+- `node scripts/check-android-endpoint-parity.mjs <android-integration>`:
+  **276/532 proven, 234 waived, 3 client-retired, 21 pending, zero unmatched**.
+  The platform endpoint check also passed with zero unmatched.
+- `node scripts/check-realtime-parity.mjs <platform-integration>`:
+  **85 server event types / 85 Android routes**, no missing or dead listeners.
+- The merged Android source passed **268 Play + 268 Direct task tests**, all
+  five native guardrails, and both debug assemblies.
 
-The original native checkout's endpoint check also exposed Windows CRLF-only
-snapshot staleness. A clean LF checkout passes; no generated native files were
-changed in the existing integration worktree.
+These are parity and focused Android results, not a claim that the full Android
+endpoint baseline debt (waived and pending operations) has been eliminated.
 
 ### Integration defects closed through public regressions
 
@@ -242,10 +243,11 @@ npm run test:ci -- --runInBand --testTimeout=60000 --runTestsByPath `
 - Final `npm run contracts:validate`: **85 passed, zero skipped**.
   `npm run check:guardrails` passed after staging the new files, and staged
   `git diff --cached --check` passed.
-- Actual native checks were repeated before cleanup: project HTTP proof **8/8**,
-  realtime **85/85**, native endpoint baseline **274/532**, no unmatched.
-  The unfiltered worklog endpoint gate and actual native-owner validation still
-  fail for the separate integration gap described above.
+- Actual native checks were repeated against the merged Android branch: project
+  HTTP proof **8/8**, realtime **85/85**, native endpoint baseline **276/532**,
+  zero unmatched, and tasks-parity **55 features across four clients**.
+- The native endpoint baseline still records 234 waived and 21 pending
+  operations; project and manual-worklogs behavioral owners are present.
 
 The exact final web retry, from `client`:
 
@@ -256,15 +258,16 @@ npm test -- --maxWorkers=1 --testTimeout=60000 `
   src\pages\tasks\__tests__\Estimates.test.tsx
 ```
 
-**Ticket14 remains claimed, not resolved.** Documentation, project-specific native
-proof and no-skip PostgreSQL validation are complete, but the original full-green
-acceptance condition is not met: the 69 base server failures, absent Android
-manual-worklogs integration, and lack of a subsequent full web green run remain
-explicit. Ticket13's global parity checkbox also remains open; it is not checked
-on the strength of the focused project gate alone.
+**Ticket14 remains claimed, not resolved.** Documentation, native endpoint and
+realtime parity, tasks-parity, focused Android proof, and no-skip PostgreSQL
+validation are complete. The original full-green acceptance condition is not
+met: the 69 base server failures and lack of a subsequent full web green run
+remain explicit. Ticket13's global parity checkbox is now checked based on the
+merged Android branch and the unfiltered parity results above.
 
 The disposable baseline and LF Android validation worktrees and owned PostgreSQL
 containers were cleaned up. The pre-existing dirty main checkouts and other
 feature worktrees were not edited. Before committing,
 `git merge --no-edit integration/projects-own-tickets` reported **Already up to
-date**, with integration still at `200ec3915a4d5b0506189adbbc7983e23ff7d1eb`.
+date**, with integration at `1479e629e1f91d18b19663995a016df44db6e47b` before
+the subsequent review-fix commit.
