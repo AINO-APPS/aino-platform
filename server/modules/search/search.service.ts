@@ -51,7 +51,7 @@ export function createSearchService(deps: SearchDependencies) {
                     db,
                     actor.userId,
                     tsQuery,
-                    repository.searchVisibility(actor),
+                    await repository.searchVisibility(actor),
                 )
                 : [];
             const notes = searchNotes(await repository.getNotebookData(db, actor.userId), term);

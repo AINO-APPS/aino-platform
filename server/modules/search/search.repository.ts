@@ -2,7 +2,8 @@
 import type { SearchDb } from "./search.types";
 import {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
+    type TaskActor,
     type TaskVisibility,
 } from "../tasks/tasks.policy";
 
@@ -27,23 +28,13 @@ export async function searchTasks(
 }
 
 /** The visibility decision a search request runs under. */
-export function searchVisibility(actor: {
-    userId: number;
-    orgId: number | null;
-    teamId?: number | null;
-    role?: string | null;
-    teamVisibility?: boolean;
-}): TaskVisibility {
+export function searchVisibility(actor: TaskActor): Promise<TaskVisibility> {
     const teamVisibility = actor.teamVisibility ?? true;
     // Global search was personal before the flag; off restores that scope.
-    if (!teamVisibility) return { kind: "personal", userId: actor.userId };
-    return resolveTaskVisibility({
-        userId: actor.userId,
-        orgId: actor.orgId,
-        teamId: actor.teamId ?? null,
-        role: actor.role ?? null,
-        teamVisibility,
-    });
+    if (!teamVisibility && !actor.projectOwnership) {
+        return Promise.resolve({ kind: "personal", userId: actor.userId });
+    }
+    return resolveTaskVisibilityForRequest(actor);
 }
 
 export async function getNotebookData(db: SearchDb, userId: number): Promise<unknown> {

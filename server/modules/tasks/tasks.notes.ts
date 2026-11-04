@@ -10,7 +10,7 @@
 
 import {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     type TaskActor,
 } from "./tasks.policy";
 
@@ -42,7 +42,7 @@ export async function searchTasksForLinking(
     } else {
         conditions.push("t.org_id IS NULL");
     }
-    const visibility = buildVisibilityPredicate(resolveTaskVisibility(actor), params.length + 1);
+    const visibility = buildVisibilityPredicate(await resolveTaskVisibilityForRequest(actor), params.length + 1);
     if (visibility.sql) {
         conditions.push(visibility.sql);
         params.push(...visibility.params);

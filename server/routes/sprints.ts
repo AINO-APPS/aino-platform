@@ -9,14 +9,16 @@ const redis = require("../redis");
 const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
 const {
     canAccessSprint,
+    canReadProjectSprint,
     isOrgAdmin,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
 const {
     createSprintForTeam,
     findSprintsForOrg,
+    findSprintsForProjects,
     findSprintsForTeam,
     lockSprintForDeletion,
     findSprintMemberIds,
@@ -49,6 +51,23 @@ async function loadAccessibleSprint(req: Request, res: Response, id: number) {
 }
 router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            const requestedTeamId = req.query.team_id == null ? null : Number.parseInt(String(req.query.team_id), 10);
+            const requestedProjectId = req.query.project_id == null ? null : Number.parseInt(String(req.query.project_id), 10);
+            const visibility = await resolveTaskVisibilityForRequest(actor, {
+                teamId: Number.isNaN(requestedTeamId as number)
+                    ? (req.query.team_id != null ? -1 : null) : requestedTeamId,
+                projectId: Number.isNaN(requestedProjectId as number)
+                    ? (req.query.project_id != null ? -1 : null) : requestedProjectId,
+            });
+            const projectIds = visibility.kind === "projects" ? visibility.projectIds
+                : visibility.kind === "project" ? [visibility.projectId]
+                    : visibility.kind === "project-scope" && visibility.accessible ? [visibility.projectId] : [];
+            const sprints = await findSprintsForProjects(req.db!, req.userOrgId, projectIds);
+            return res.json(sprintListResponse(sprints, requestedTeamId != null || requestedProjectId != null));
+        }
+
         // Org admins see every team's sprints (and may filter with ?team_id=);
         // everyone else sees their own team only.
         if (isOrgAdmin(req.userRole)) {
@@ -70,6 +89,31 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
 });
 router.get("/active", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            const requestedTeamId = req.query.team_id == null ? null : Number.parseInt(String(req.query.team_id), 10);
+            const requestedProjectId = req.query.project_id == null ? null : Number.parseInt(String(req.query.project_id), 10);
+            const visibility = await resolveTaskVisibilityForRequest(actor, {
+                teamId: Number.isNaN(requestedTeamId as number)
+                    ? (req.query.team_id != null ? -1 : null) : requestedTeamId,
+                projectId: Number.isNaN(requestedProjectId as number)
+                    ? (req.query.project_id != null ? -1 : null) : requestedProjectId,
+            });
+            const projectIds = visibility.kind === "projects" ? visibility.projectIds
+                : visibility.kind === "project" ? [visibility.projectId]
+                    : visibility.kind === "project-scope" && visibility.accessible ? [visibility.projectId] : [];
+            if (projectIds.length === 0) return res.json({ sprint: null });
+            const sprint = (await req.db!.query(
+                `SELECT s.* FROM sprints s
+                   JOIN projects p ON p.id = s.project_id
+                  WHERE p.org_id IS NOT DISTINCT FROM $1 AND p.id = ANY($2::int[])
+                    AND s.status = 'active'
+                  ORDER BY s.start_date DESC LIMIT 1`,
+                [req.userOrgId ?? null, projectIds],
+            )).rows[0];
+            return res.json({ sprint: sprint || null });
+        }
+
         const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
         const teamId = isOrgAdmin(req.userRole) && requested != null && !Number.isNaN(requested)
             ? requested
@@ -228,10 +272,13 @@ router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Respon
         )).rows[0];
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         const actor = taskActorFromRequest(req);
-        if (!canAccessSprint(sprint, actor)) {
+        if (!await canReadProjectSprint(sprint, actor)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        const visibility = resolveTaskVisibility(actor, { teamId: sprint.team_id });
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            teamId: sprint.team_id,
+            projectId: sprint.project_id,
+        });
         return res.json({
             tasks: await listSprintTasks(req.db!, req.userOrgId || null, Number(id), visibility),
         });

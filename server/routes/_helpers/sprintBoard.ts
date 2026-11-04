@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 const { loadLifecycleContext } = require("../../modules/tasks/tasks.workflow");
 const { buildSprintBoardColumns } = require("../../modules/tasks/tasks.board");
 const { findSprintBoardCounts } = require("../../modules/tasks/tasks.sprintRepository");
-const { resolveTaskVisibility, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
+const { resolveTaskVisibilityForRequest, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { listSprintTasks } = require("../../modules/tasks/tasks.collection");
 const { enrichTasks } = require("../tasks/_helpers/enrich");
 
@@ -18,7 +18,10 @@ function getSprintBoard(loadAccessibleSprint: SprintAccess) {
 
             const actor = taskActorFromRequest(req);
             const lifecycle = await loadLifecycleContext(req.db!, actor.orgId);
-            const visibility = resolveTaskVisibility(actor, { teamId: sprint.team_id });
+            const visibility = await resolveTaskVisibilityForRequest(actor, {
+                teamId: sprint.team_id,
+                projectId: sprint.project_id,
+            });
             const [tickets, counts] = await Promise.all([
                 listSprintTasks(req.db!, actor.orgId, id, visibility),
                 findSprintBoardCounts(req.db!, actor.orgId),

@@ -83,6 +83,18 @@ export async function findAccessibleProjectIds(
     return result.rows.map((row) => Number(row.id));
 }
 
+export async function findGeneratedProjectIdForTeam(
+    db: ProjectAccessRepositoryDb,
+    teamId: number,
+    orgId: number,
+): Promise<number | null> {
+    const result = await db.query(
+        "SELECT id FROM projects WHERE org_id = $1 AND origin_team_id = $2",
+        [orgId, teamId],
+    );
+    return result.rows[0] == null ? null : Number(result.rows[0].id);
+}
+
 export async function findProjectRolesForProjects(
     db: ProjectAccessRepositoryDb,
     input: ActorProjectQuery & { projectIds: number[] },

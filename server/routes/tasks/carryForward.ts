@@ -16,7 +16,7 @@ const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow } = require('./_helpers/placement');
 const {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 
@@ -35,7 +35,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         // the policy for *personal* scope rather than the team list.
         const actor = taskActorFromRequest(req);
         const personal = buildVisibilityPredicate(
-            resolveTaskVisibility(actor, { scope: 'personal' }),
+            await resolveTaskVisibilityForRequest(actor, { scope: 'personal' }),
             1,
         );
 

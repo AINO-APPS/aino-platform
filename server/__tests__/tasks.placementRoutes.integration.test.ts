@@ -16,11 +16,19 @@ jest.mock("../middleware/auth", () => (req: any, _res: any, next: any) => {
     next();
 });
 jest.mock("../middleware/rbac", () => ({
-    loadUserContext: (req: any, _res: any, next: any) => {
+    loadUserContext: async (req: any, _res: any, next: any) => {
         req.userRole = req.get("x-test-role") || "employee";
-        req.userOrgId = 1;
-        req.userTeamId = 1;
+        const user = (await req.db.query(
+            "SELECT org_id, team_id FROM users WHERE id = $1",
+            [req.userId],
+        )).rows[0];
+        req.userOrgId = user?.org_id ?? 1;
+        req.userTeamId = user?.team_id ?? null;
         req.roleLevel = req.userRole === "manager" || req.userRole === "super_admin" ? 2 : 1;
+        req.projectOwnership = (await req.db.query(
+            "SELECT project_ownership FROM organizations WHERE id = $1",
+            [req.userOrgId],
+        )).rows[0]?.project_ownership === true;
         next();
     },
     requireRole: () => (_req: any, _res: any, next: any) => next(),
@@ -173,6 +181,97 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(explicitCreated.status).toBe(200);
         expect(explicitCreated.body.project_id).toBe(explicitProject);
         expect(explicitCreated.body.ticket_key).toBe("EXPLICIT-1");
+    });
+
+    test("project ownership filters real PostgreSQL ticket lists and direct reads by grants or authorship", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        await pool.query("UPDATE users SET team_id = 2 WHERE id = 2");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 1, 'Gamma')");
+        const projects = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'PERSONAL', 'Personal grant', 1, FALSE),
+                    (1, 'TEAM', 'Team grant', 2, FALSE),
+                    (1, 'PRIVATE', 'No grant', 3, FALSE)
+             RETURNING id, origin_team_id`,
+        )).rows;
+        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        const personalProject = projectByTeam.get(1)!;
+        const teamProject = projectByTeam.get(2)!;
+        const privateProject = projectByTeam.get(3)!;
+
+        await pool.query(
+            `INSERT INTO project_members (project_id, user_id, role)
+             VALUES ($1, 1, 'viewer')`,
+            [personalProject],
+        );
+        await pool.query(
+            `INSERT INTO project_members (project_id, team_id, role)
+             VALUES ($1, 1, 'project_admin'), ($2, 1, 'member')`,
+            [personalProject, teamProject],
+        );
+        const { createProjectAccess } = require("../modules/tasks/tasks.projectAccess");
+        const access = createProjectAccess(
+            { query: (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]) },
+            { userId: 1, orgId: 1, orgRole: "employee", teamIds: [1] },
+        );
+        expect(await access.roleForProject(personalProject)).toBe("project_admin");
+
+        const stateId = (await pool.query(
+            "SELECT id FROM workflow_states WHERE org_id = 1 AND is_initial = TRUE ORDER BY id LIMIT 1",
+        )).rows[0].id;
+        const tickets = (await pool.query(
+            `INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, project_id, task_number, ticket_key, workflow_state_id)
+             VALUES ('Personal project ticket', 1, NULL, 1, 1, $1, 1, 'PERSONAL-1', $4),
+                    ('Team project ticket', 2, NULL, 1, 1, $2, 1, 'TEAM-1', $4),
+                    ('Private reporter ticket', 1, NULL, 1, 1, $3, 1, 'PRIVATE-1', $4),
+                    ('Private assigned ticket', 2, 1, 1, 1, $3, 2, 'PRIVATE-2', $4)
+             RETURNING id, title`,
+            [personalProject, teamProject, privateProject, stateId],
+        )).rows;
+        const ticketId = (title: string) => tickets.find((ticket: any) => ticket.title === title).id;
+
+        const list = await request(app).get("/api/tasks/backlog");
+        expect(list.status).toBe(200);
+        expect(list.body.tasks.map((ticket: any) => ticket.title)).toEqual(expect.arrayContaining([
+            "Personal project ticket",
+            "Team project ticket",
+            "Private reporter ticket",
+            "Private assigned ticket",
+        ]));
+
+        const projectScope = await request(app).get(`/api/tasks/backlog?project_id=${teamProject}`);
+        expect(projectScope.status).toBe(200);
+        expect(projectScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
+
+        const legacyTeamScope = await request(app).get("/api/tasks/backlog?team_id=2");
+        expect(legacyTeamScope.status).toBe(200);
+        expect(legacyTeamScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
+
+        const unassigned = await request(app).get("/api/tasks/backlog?unassigned=1");
+        expect(unassigned.status).toBe(200);
+        expect(unassigned.body.tasks).toEqual([]);
+
+        expect((await request(app).get(`/api/tasks/${ticketId("Personal project ticket")}/detail`)).status).toBe(200);
+        expect((await request(app).get(`/api/tasks/${ticketId("Private reporter ticket")}/detail`)).status).toBe(200);
+        expect((await request(app).get(`/api/tasks/${ticketId("Private assigned ticket")}/detail`)).status).toBe(200);
+        const outsider = await request(app)
+            .get(`/api/tasks/${ticketId("Personal project ticket")}/detail`)
+            .set("x-test-user", "2");
+        expect(outsider.status).toBe(403);
+        const admin = await request(app)
+            .get(`/api/tasks/${ticketId("Private reporter ticket")}/detail`)
+            .set("x-test-role", "hr_admin");
+        expect(admin.status).toBe(200);
+
+        await pool.query("UPDATE organizations SET project_ownership = FALSE WHERE id = 1");
+        const flagOff = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
+        expect(flagOff.status).toBe(200);
+        expect(flagOff.body.tasks.map((ticket: any) => ticket.title)).toEqual(expect.arrayContaining([
+            "Personal project ticket",
+            "Team project ticket",
+            "Private reporter ticket",
+            "Private assigned ticket",
+        ]));
     });
 
     test("a team transfer changes the project and key while preserving the previous key as an alias", async () => {

@@ -5,6 +5,7 @@
 
 import type { Request, Response } from "express";
 import {
+    canReadProjectTask,
     taskActorFromRequest,
     type TaskActor,
 } from "../../../modules/tasks/tasks.policy";
@@ -19,6 +20,7 @@ const ACCESS_DENIED = "Access denied";
 async function canAccessTask(task: any, actor: TaskActor, db?: DbLike): Promise<boolean> {
     if (!task || !db) return false;
     if (actor.orgId != null && task.org_id != null && Number(task.org_id) !== Number(actor.orgId)) return false;
+    if (actor.projectOwnership) return canReadProjectTask(task, actor);
     const refusal = await ticketActionConflict(db, actor, task, "edit");
     return !refusal || refusal.body.code === "SPRINT_FROZEN";
 }

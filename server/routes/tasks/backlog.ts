@@ -29,7 +29,7 @@ const { ticketActionConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
@@ -82,17 +82,21 @@ const router = express.Router();
 // We push the label filter into SQL via EXISTS.
 router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { assignee, label, priority, status, search, include_completed, completed_since } = req.query as Record<string, string>;
+        const { assignee, label, priority, status, search, project_id, include_completed, completed_since } = req.query as Record<string, string>;
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
         const actor = taskActorFromRequest(req);
         const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const visibility = resolveTaskVisibility(actor, {
-            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            scope: req.query.scope === 'personal' ? 'personal' : undefined,
+            teamId: Number.isNaN(requestedTeamId as number)
+                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
+                : requestedTeamId,
+            projectId: project_id ? Number.parseInt(project_id, 10) : null,
             unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
 
@@ -114,7 +118,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         );
 
         const filters = {
-            assignee, label, priority, status, search,
+            assignee, label, priority, status, search, projectId: project_id,
             completed: completedOnly ? ('completed' as const) : includeCompleted ? ('all' as const) : ('incomplete' as const),
             completedSince,
         };
@@ -184,14 +188,18 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
 // leaves the backlog. Completed history is trimmed to 30 days.
 router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { assignee, label, priority, status, search } = req.query as Record<string, string>;
+        const { assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
         const actor = taskActorFromRequest(req);
         const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const visibility = resolveTaskVisibility(actor, {
-            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            scope: req.query.scope === 'personal' ? 'personal' : undefined,
+            teamId: Number.isNaN(requestedTeamId as number)
+                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
+                : requestedTeamId,
+            projectId: project_id ? Number.parseInt(project_id, 10) : null,
             unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
         const collection = buildTaskCollection({
@@ -199,7 +207,7 @@ router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Respon
             orgId: req.userOrgId || null,
             visibility,
             today: getLocalToday(req),
-            filters: { assignee, label, priority, status, search },
+            filters: { assignee, label, priority, status, search, projectId: project_id },
         });
         const tasks = await listScheduledTasks(req.db!, collection.whereSql, collection.params);
         res.json({ tasks: await enrichTasks(tasks, req.db, taskActorFromRequest(req)) });

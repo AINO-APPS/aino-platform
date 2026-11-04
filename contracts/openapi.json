@@ -14657,8 +14657,20 @@
             "name": "team_id",
             "in": "query",
             "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -14820,7 +14832,49 @@
         ],
         "summary": "GET /api/tasks",
         "operationId": "get_api_tasks",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -17819,7 +17873,49 @@
         ],
         "summary": "GET /api/tasks/backlog",
         "operationId": "get_api_tasks_backlog",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18742,7 +18838,18 @@
         ],
         "summary": "GET /api/tasks/lookup/quicksearch",
         "operationId": "get_api_tasks_lookup_quicksearch",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18902,7 +19009,49 @@
         ],
         "summary": "GET /api/tasks/backlog",
         "operationId": "get_api_tasks_scheduled",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18982,7 +19131,18 @@
         ],
         "summary": "GET /api/tasks/search",
         "operationId": "get_api_tasks_search",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []

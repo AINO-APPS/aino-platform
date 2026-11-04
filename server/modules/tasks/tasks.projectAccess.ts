@@ -1,5 +1,6 @@
 import {
     findAccessibleProjectIds,
+    findGeneratedProjectIdForTeam,
     findProjectRoles,
     findProjectRolesForProjects,
     type ProjectAccessRepositoryDb,
@@ -49,6 +50,8 @@ export interface ProjectCapabilities {
 /** Create one access resolver per request; its memoized roles never cross requests. */
 export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: ProjectAccessActor) {
     const roles = new Map<number, Promise<ProjectRole | null>>();
+    const teamProjects = new Map<number, Promise<number | null>>();
+    let accessibleProjects: Promise<number[]> | undefined;
 
     function roleForProject(projectId: number): Promise<ProjectRole | null> {
         let role = roles.get(projectId);
@@ -74,12 +77,23 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
 
     async function accessibleProjectIds(): Promise<number[]> {
         if (!actor.orgId) return [];
-        return findAccessibleProjectIds(db, {
+        accessibleProjects ??= findAccessibleProjectIds(db, {
             userId: actor.userId,
             orgId: actor.orgId,
             teamIds: actor.teamIds,
             orgRole: actor.orgRole,
         });
+        return accessibleProjects;
+    }
+
+    async function projectForTeam(teamId: number): Promise<number | null> {
+        if (!actor.orgId) return null;
+        let projectId = teamProjects.get(teamId);
+        if (!projectId) {
+            projectId = findGeneratedProjectIdForTeam(db, teamId, actor.orgId);
+            teamProjects.set(teamId, projectId);
+        }
+        return projectId;
     }
 
     async function capabilities(projectId: number): Promise<ProjectCapabilities> {
@@ -120,6 +134,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
     return {
         roleForProject,
         accessibleProjectIds,
+        projectForTeam,
         capabilities,
         capabilitiesForProjects,
         allows: async (projectId: number, action: ProjectAction) =>

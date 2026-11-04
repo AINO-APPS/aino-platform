@@ -12,6 +12,7 @@ const { enrichTasks, enrichTaskSummaries } = require('./_helpers/enrich');
 const {
     buildVisibilityPredicate,
     resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 
@@ -39,9 +40,14 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
         // the team's tickets, an admin the org, a no-team user their own.
         // With the flag off, search keeps its original personal scope.
         const actor = taskActorFromRequest(req);
+        const projectId = req.query.project_id != null
+            ? Number.parseInt(String(req.query.project_id), 10)
+            : null;
         const visibility = buildVisibilityPredicate(
-            actor.teamVisibility
-                ? resolveTaskVisibility(actor)
+            actor.projectOwnership
+                ? await resolveTaskVisibilityForRequest(actor, { projectId })
+                : actor.teamVisibility
+                    ? resolveTaskVisibility(actor)
                 : { kind: "personal", userId: actor.userId },
             pi,
         );
@@ -99,9 +105,14 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         // Flag off keeps the historical personal scope (it was org-wide, which
         // leaked — tightening it is the safer reading of "old behaviour").
         const actor = taskActorFromRequest(req);
+        const projectId = req.query.project_id != null
+            ? Number.parseInt(String(req.query.project_id), 10)
+            : null;
         const visibility = buildVisibilityPredicate(
-            actor.teamVisibility
-                ? resolveTaskVisibility(actor)
+            actor.projectOwnership
+                ? await resolveTaskVisibilityForRequest(actor, { projectId })
+                : actor.teamVisibility
+                    ? resolveTaskVisibility(actor)
                 : { kind: "personal", userId: actor.userId },
             4,
         );

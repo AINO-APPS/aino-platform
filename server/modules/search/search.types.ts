@@ -1,16 +1,14 @@
+import type { TaskActor } from "../tasks/tasks.policy";
+
 export interface SearchDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
 }
 
-export interface SearchActor {
+export interface SearchActor extends TaskActor {
     query?: string;
     tenantId?: number | null;
     userId: number;
     orgId: number | null;
-    /** Team/role context for the ticket visibility policy. */
-    teamId?: number | null;
-    role?: string | null;
-    teamVisibility?: boolean;
     canReadAuditLogs: boolean;
 }
 

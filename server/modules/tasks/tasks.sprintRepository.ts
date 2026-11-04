@@ -83,6 +83,20 @@ export async function findSprintsForTeam(db: SprintDb, teamId: unknown) {
     )).rows;
 }
 
+/** Every sprint whose project the actor can access. */
+export async function findSprintsForProjects(db: SprintDb, orgId: unknown, projectIds: number[]) {
+    if (projectIds.length === 0) return [];
+    return (await db.query(
+        `SELECT s.* FROM sprints s
+          JOIN projects p ON p.id = s.project_id
+         WHERE p.org_id IS NOT DISTINCT FROM $1 AND p.id = ANY($2::int[])
+         ORDER BY
+             CASE s.status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
+             s.start_date DESC`,
+        [orgId, projectIds],
+    )).rows;
+}
+
 /** One sprint joined with its team's org, for access checks. */
 export async function findSprintWithTeam(db: SprintDb, sprintId: unknown) {
     return (await db.query(
