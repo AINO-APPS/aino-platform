@@ -24,6 +24,16 @@ jest.mock("../middleware/rbac", () => ({
         )).rows[0];
         req.userOrgId = user?.org_id ?? 1;
         req.userTeamId = user?.team_id ?? null;
+        req.userTeamIds = user?.org_id == null ? [] : (await req.db.query(
+            `SELECT team_id FROM (
+                SELECT team_id FROM users WHERE id = $1 AND org_id = $2 AND team_id IS NOT NULL
+                UNION
+                SELECT utm.team_id FROM user_team_memberships utm
+                JOIN teams t ON t.id = utm.team_id
+                WHERE utm.user_id = $1 AND t.org_id = $2
+            ) memberships ORDER BY team_id`,
+            [req.userId, req.userOrgId],
+        )).rows.map((row: any) => Number(row.team_id));
         req.roleLevel = req.userRole === "manager" || req.userRole === "super_admin" ? 2 : 1;
         req.projectOwnership = (await req.db.query(
             "SELECT project_ownership FROM organizations WHERE id = $1",
@@ -62,8 +72,16 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
         await require("../platform/db/tenantSchema").initTenantSchema(query);
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (9, 'Legacy memberships', 'legacy-memberships')");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (9, 9, 'Legacy')");
+        await pool.query(
+            "INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES (9, 'legacy', 'x', 'Legacy', 9, 9)",
+        );
         const migrations = await require("../platform/db/migrations").runTenantMigrations(query, { label: "placement_routes" });
         expect(migrations.failed).toEqual([]);
+        expect((await pool.query(
+            "SELECT user_id, team_id FROM user_team_memberships WHERE user_id = 9",
+        )).rows).toEqual([{ user_id: 9, team_id: 9 }]);
         await require("../platform/db/agileDefaults").seedAgileDefaults(query);
 
         const { makePoolQuery, makePoolTransaction } = require("../platform/db/pool");
@@ -363,6 +381,50 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             "Private reporter ticket",
             "Private assigned ticket",
         ]));
+    });
+
+    test("project grants from every persisted team membership expose tickets across projects", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 1, 'Gamma'), (4, 1, 'Delta')");
+        await pool.query("UPDATE users SET team_id = 4 WHERE id = 2");
+        await pool.query(
+            "INSERT INTO user_team_memberships (user_id, team_id) VALUES (1, 2), (1, 3)",
+        );
+        const projects = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'ALPHA', 'Alpha project', 1, FALSE),
+                    (1, 'BETA', 'Beta project', 2, FALSE),
+                    (1, 'GAMMA', 'Gamma project', 3, FALSE)
+             RETURNING id, origin_team_id`,
+        )).rows;
+        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        await pool.query(
+            `INSERT INTO project_members (project_id, team_id, role)
+             VALUES ($1, 1, 'viewer'), ($2, 2, 'member'), ($3, 3, 'project_admin')`,
+            [projectByTeam.get(1), projectByTeam.get(2), projectByTeam.get(3)],
+        );
+        const stateId = (await pool.query(
+            "SELECT id FROM workflow_states WHERE org_id = 1 AND is_initial = TRUE ORDER BY id LIMIT 1",
+        )).rows[0].id;
+        await pool.query(
+            `INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, project_id, task_number, ticket_key, workflow_state_id)
+             VALUES ('Alpha grant ticket', 1, NULL, 1, 4, $1, 1, 'ALPHA-1', $4),
+                    ('Beta grant ticket', 1, NULL, 1, 4, $2, 1, 'BETA-1', $4),
+                    ('Gamma grant ticket', 1, NULL, 1, 4, $3, 1, 'GAMMA-1', $4)`,
+            [projectByTeam.get(1), projectByTeam.get(2), projectByTeam.get(3), stateId],
+        );
+
+        const memberList = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
+        expect(memberList.status).toBe(200);
+        expect(memberList.body.tasks.map((ticket: any) => ticket.title)).toEqual([
+            "Alpha grant ticket",
+            "Beta grant ticket",
+            "Gamma grant ticket",
+        ]);
+
+        const outsiderList = await request(app).get("/api/tasks/backlog").set("x-test-user", "2");
+        expect(outsiderList.status).toBe(200);
+        expect(outsiderList.body.tasks).toEqual([]);
     });
 
     test("a team transfer changes the project and key while preserving the previous key as an alias", async () => {
