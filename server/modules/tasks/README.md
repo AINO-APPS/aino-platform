@@ -32,6 +32,23 @@ Web settings are available at `/projects` (More → Projects); organization-role
 gates do not hide settings from project admins. The rename control itself uses
 the server-returned `canRenameKey` capability.
 
+When `organizations.project_ownership` is enabled, project lists include only
+accessible projects (all for organization admins). Plan backlog, available
+sprints and sprint lists accept `project_id`; legacy `team_id` resolves only
+to the team's generated project, not all projects granted to the team.
+The web Plan project selection also scopes agile configuration, so board
+columns and ticket controls use that project's workflow after switching.
+`tasks.sprintProjects.ts` adapts project scopes and sprint management rules.
+Sprint lookup, lifecycle and placement locks use the project's organization;
+`team_id` is nullable compatibility data and team deletion preserves sprints.
+Flag-off requests retain team-scoped behavior and the team-deletion work guard.
+
+The web Plan switcher remembers a project per tenant/user, hides Unassigned,
+and narrows both backlog requests and sprint/board selection. `/api/profile`
+exposes `project_ownership` to select this behavior independently of plan flags.
+Run `npm run test:pg -- projectPlanning --runInBand` from `server` for the
+project planning PostgreSQL route tests.
+
 ## Migration review and publication
 
 At `/projects`, **Review project migration** opens the super-admin review.

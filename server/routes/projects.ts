@@ -111,7 +111,12 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
         const limit = Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10) || 50));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
-        const baseWhere = `WHERE p.org_id = $1 ${includeArchived ? "" : "AND p.is_archived = FALSE"}`;
+        const accessibleIds = req.projectOwnership
+            ? await projectAccessForRequest(req).accessibleProjectIds() : null;
+        const listParams = [req.userOrgId, accessibleIds];
+        const baseWhere = `WHERE p.org_id = $1
+            AND ($2::int[] IS NULL OR p.id = ANY($2::int[]))
+            ${includeArchived ? "" : "AND p.is_archived = FALSE"}`;
         const orderBy = "ORDER BY p.is_archived ASC, LOWER(p.name) ASC";
 
         if (!paginate) {
@@ -123,7 +128,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
               LEFT JOIN users u ON u.id = p.lead_user_id
                    ${baseWhere}
                    ${orderBy}`,
-                [req.userOrgId]
+                listParams
             )).rows;
             return res.json(await addCapabilitiesToProjects(req, rows));
         }
@@ -136,10 +141,10 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
               LEFT JOIN users u ON u.id = p.lead_user_id
                    ${baseWhere}
                    ${orderBy}
-                   LIMIT $2 OFFSET $3`,
-                [req.userOrgId, limit, offset]
+                   LIMIT $3 OFFSET $4`,
+                [...listParams, limit, offset]
             ),
-            req.db!.query(`SELECT COUNT(*)::int AS total FROM projects p ${baseWhere}`, [req.userOrgId]),
+            req.db!.query(`SELECT COUNT(*)::int AS total FROM projects p ${baseWhere}`, listParams),
         ]);
         const projects = await addCapabilitiesToProjects(req, pageRes.rows);
         const total = countRes.rows[0]?.total ?? projects.length;

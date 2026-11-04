@@ -17,7 +17,7 @@ function getSprintBoard(loadAccessibleSprint: SprintAccess) {
             if (!sprint) return;
 
             const actor = taskActorFromRequest(req);
-            const lifecycle = await loadLifecycleContext(req.db!, actor.orgId);
+            const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, actor.projectOwnership ? sprint.project_id : undefined);
             const visibility = await resolveTaskVisibilityForRequest(actor, {
                 teamId: sprint.team_id,
                 projectId: sprint.project_id,

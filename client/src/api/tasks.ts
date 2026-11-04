@@ -214,7 +214,9 @@ export const setTaskParent = (id: number | string, parent_task_id: number | stri
     API.patch(`/tasks/${id}/parent`, { parent_task_id });
 
 // Agile (tenant-customisable Work Item Types, Workflow States, Story Points)
-export const getAgileConfig = () => API.get("/agile/config");
+export const getAgileConfig = (projectId?: number) => API.get("/agile/config", {
+    params: projectId == null ? undefined : { project_id: projectId },
+});
 export const getAgileSettings = () => API.get("/agile/settings");
 export const updateAgileSettings = (data: AnyData) => API.put("/agile/settings", data);
 export const getWorkItemTypes = () => API.get("/agile/work-item-types");

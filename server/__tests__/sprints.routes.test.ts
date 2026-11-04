@@ -76,6 +76,7 @@ function setupAuth(role = "team_lead", extra: Record<string, any> = {}) {
             }],
             rowCount: 1,
         }) // loadUserContext
+        .mockResolvedValueOnce({ rows: [{ team_id: 1 }], rowCount: 1 }) // loadUserTeamIds
         .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // loadProjectOwnership
 }
 
@@ -123,7 +124,7 @@ describe("API sprint routes", () => {
                         manager_id: null, is_active: true,
                     }], rowCount: 1 };
                 }
-                if (/SELECT s\.\*, t\.org_id, t\.name AS team_name/.test(sql)) {
+                if (/SELECT s\.\*, p\.org_id, t\.name AS team_name/.test(sql)) {
                     return { rows: options.sprint === undefined ? [sprint] : options.sprint ? [options.sprint] : [], rowCount: 1 };
                 }
                 if (/FROM workflow_states/.test(sql) && /ORDER BY sort_order/.test(sql)) {
@@ -382,7 +383,7 @@ describe("DELETE /api/sprints/:id", () => {
             if (normalized.startsWith("SELECT * FROM tasks WHERE id = ANY($1::int[])")) {
                 return { rows: [before], rowCount: 1 };
             }
-            if (normalized.startsWith("SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id")) {
+            if (normalized.startsWith("SELECT s.* FROM sprints s JOIN projects t ON t.id = s.project_id")) {
                 return { rows: [{ id: 1, team_id: 1, status: "active", name: "Sprint 1" }], rowCount: 1 };
             }
             if (normalized.startsWith("UPDATE tasks SET sprint_id = NULL")) {
@@ -698,7 +699,7 @@ describe("one active sprint per team on every activation path", () => {
                     manager_id: null, is_active: true,
                 }], rowCount: 1 };
             }
-            if (/SELECT s\.\*, t\.org_id, t\.name AS team_name/.test(sql)) {
+            if (/SELECT s\.\*, p\.org_id, t\.name AS team_name/.test(sql)) {
                 return { rows: [{
                     id: 10, team_id: 1, org_id: 1, status: "active",
                     start_date: today, end_date: today, completed_at: null,

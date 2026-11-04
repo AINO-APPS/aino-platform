@@ -117,7 +117,6 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
         );
-        // seedAgileDefaults keys workflow states by org; re-seed for org 1.
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
     });
 
@@ -594,7 +593,10 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     });
 
     test("ticket mutation responses carry fresh decisions after every placement and state change", async () => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "Mutation capability" });
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'MUT', 'Mutation workflow') RETURNING id",
+        )).rows[0];
+        const created = await request(app).post("/api/tasks/backlog").send({ title: "Mutation capability", project_id: project.id });
         expectTicketDecision(created.body);
 
         const edited = await request(app).put(`/api/tasks/${created.body.id}`).send({
@@ -607,8 +609,9 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const targetState = (await pool.query(
             `SELECT id FROM workflow_states
-             WHERE org_id = 1 AND category = 'in_progress' AND is_active = TRUE
+             WHERE org_id = 1 AND project_id = $1 AND category = 'in_progress' AND is_active = TRUE
              ORDER BY sort_order, id LIMIT 1`,
+            [created.body.project_id],
         )).rows[0].id;
         const status = await request(app).patch(`/api/tasks/${created.body.id}/status`)
             .send({ workflow_state_id: targetState });

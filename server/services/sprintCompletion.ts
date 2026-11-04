@@ -18,6 +18,7 @@ export interface CompleteSprintOptions {
     sprintId: number;
     targetSprintId: number | null;
     orgId?: number | null;
+    projectOwnership?: boolean;
     actor?: PlacementActor;
     effects: PlacementEffects;
 }
@@ -66,7 +67,8 @@ export async function completeSprint(
             if (Number(options.targetSprintId) === Number(options.sprintId)) {
                 throw new SprintCompletionError("TARGET_INVALID", "Cannot roll over to the sprint being completed");
             }
-            target = await repo.findRolloverTarget(client, options.targetSprintId, Number(claimed.team_id), orgId);
+            target = await repo.findRolloverTarget(client, options.targetSprintId, Number(claimed.team_id), orgId,
+                options.projectOwnership ? Number(claimed.project_id) : undefined);
             if (!target || target.status === "completed") {
                 throw new SprintCompletionError("TARGET_INVALID", "Target sprint not found or completed");
             }
@@ -82,7 +84,7 @@ export async function completeSprint(
             throw new Error("Cannot record automated sprint placement without a team actor");
         }
         const placement = await placeTickets(
-            { db: client, afterCommit, actor, effects: options.effects },
+            { db: client, afterCommit, actor, effects: options.effects, projectOwnership: options.projectOwnership },
             unfinished,
             target ? { sprint: Number(target.id) } : { sprint: null },
         );

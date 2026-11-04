@@ -4,7 +4,8 @@
     "sprints": [
       {
         "id": 31,
-        "team_id": 7,
+        "team_id": null,
+        "project_id": 7,
         "name": "Sprint 12",
         "status": "paused",
         "auto_managed": false
