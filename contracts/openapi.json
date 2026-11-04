@@ -15019,6 +15019,295 @@
         }
       }
     },
+    "/api/projects/migration/review": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Review generated projects, grants and migration moves (web organization admin)",
+        "operationId": "get_api_projects_migration_review",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMigrationReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/migration/switch": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Publish every project key and enable ownership atomically once (web super_admin only)",
+        "operationId": "post_api_projects_migration_switch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOwnershipState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/migration/switch-back": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Emergency restore team visibility; retain published keys (web platform_admin only)",
+        "operationId": "post_api_projects_migration_switch_back",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOwnershipState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/branding": {
       "get": {
         "tags": [
@@ -23508,6 +23797,212 @@
         },
         "required": [
           "role"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectOwnershipState": {
+        "type": "object",
+        "properties": {
+          "project_ownership": {
+            "type": "boolean"
+          },
+          "switched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "First publication timestamp; retained after emergency switch-back. Initial publication cannot be repeated."
+          }
+        },
+        "required": [
+          "project_ownership",
+          "switched_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationGrant": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "team_id",
+          "role",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "key_published": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "scrum",
+              "kanban",
+              "task_list"
+            ]
+          },
+          "origin_team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_general": {
+            "type": "boolean"
+          },
+          "ticket_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationGrant"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key",
+          "key_published",
+          "type",
+          "origin_team_id",
+          "is_general",
+          "ticket_count",
+          "grants"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationMove": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer"
+          },
+          "old_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "new_key": {
+            "type": "string",
+            "description": "Current key, including review-time renames."
+          },
+          "migration_key": {
+            "type": "string",
+            "description": "Original migration target key, preserved for audit."
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sprint_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "to_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "moved_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "task_id",
+          "old_key",
+          "new_key",
+          "migration_key",
+          "sprint_id",
+          "sprint_name",
+          "from_project_id",
+          "to_project_id",
+          "moved_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationReview": {
+        "type": "object",
+        "properties": {
+          "project_ownership": {
+            "type": "boolean"
+          },
+          "switched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationProject"
+            }
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationMove"
+            }
+          }
+        },
+        "required": [
+          "project_ownership",
+          "switched_at",
+          "projects",
+          "moves"
         ],
         "additionalProperties": false
       },

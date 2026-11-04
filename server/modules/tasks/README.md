@@ -50,6 +50,29 @@ Web settings are available at `/projects` (More → Projects); organization-role
 gates do not hide settings from project admins. The rename control itself uses
 the server-returned `canRenameKey` capability.
 
+## Migration review and publication
+
+At `/projects`, **Review project migration** opens the super-admin review.
+`GET /api/projects/migration/review` returns a consistent snapshot of generated
+team/General projects, publication state, types, ticket counts, named grants,
+and migration moves. `new_key` follows review renames; `migration_key` retains
+the original migration target. Inline rename reuses the project-key endpoint.
+
+`tasks.migration.ts` orchestrates review and switch-over; its repository owns SQL.
+`POST /api/projects/migration/switch` requires exactly `super_admin`, locks the
+organization, publishes every project key, enables `project_ownership`, stamps
+the first publication time and inserts an audit entry in one transaction.
+Concurrent/repeated switches return 409. A failed audit rolls everything back.
+`POST /api/projects/migration/switch-back` requires exactly `platform_admin`,
+disables project visibility and audits the emergency action without unpublishing
+keys or clearing the first-publication timestamp. Initial publication cannot
+be repeated after rollback. All three endpoints require web sessions and an
+organization context; HR/project admins cannot administer this switch.
+
+Migration `0023_project_ownership_switch.sql` adds the retained timestamp and
+stamps already-enabled organizations. Run
+`npm run test:pg -- projectsMigration --runInBand` for the HTTP/PostgreSQL seam.
+
 Project roles do not filter project or ticket lists until ticket 06 changes
 visibility. This boundary intentionally keeps the current visibility policy
 unchanged.

@@ -34,6 +34,7 @@ const router = express.Router();
 // and /api/sprints. Without this, a Standard-plan tenant could create
 // projects through the API even though the UI hides the section.
 router.use(requireTenant, requireFeature("agile"));
+router.use("/migration", require("./projectMigration"));
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
