@@ -5,8 +5,9 @@ import {
     type ProjectAccessRepositoryDb,
 } from "./tasks.projectAccessRepository";
 
-export type ProjectRole = "project_admin" | "member" | "viewer";
-export type ProjectAction = "administer" | "manageMembers";
+import type { ProjectRole } from "./tasks.projectTypes";
+export type { ProjectRole } from "./tasks.projectTypes";
+export type ProjectAction = "administer" | "manageMembers" | "renameKey";
 
 export interface ProjectRoleInput {
     orgRole: string | null | undefined;
@@ -30,7 +31,7 @@ export function resolveEffectiveProjectRole(input: ProjectRoleInput): ProjectRol
 }
 
 export function projectRoleAllows(role: ProjectRole | null, action: ProjectAction): boolean {
-    if (action === "administer" || action === "manageMembers") return role === "project_admin";
+    if (action === "administer" || action === "manageMembers" || action === "renameKey") return role === "project_admin";
     return false;
 }
 
@@ -44,6 +45,7 @@ export interface ProjectAccessActor {
 export interface ProjectCapabilities {
     canAdminister: boolean;
     canManageMembers: boolean;
+    canRenameKey: boolean;
 }
 
 /** Create one access resolver per request; its memoized roles never cross requests. */
@@ -88,6 +90,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
         return {
             canAdminister,
             canManageMembers: projectRoleAllows(role, "manageMembers"),
+            canRenameKey: projectRoleAllows(role, "renameKey"),
         };
     }
 
@@ -112,6 +115,7 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
             capabilitiesByProject.set(projectId, {
                 canAdminister,
                 canManageMembers: projectRoleAllows(role, "manageMembers"),
+                canRenameKey: projectRoleAllows(role, "renameKey"),
             });
         }
         return capabilitiesByProject;

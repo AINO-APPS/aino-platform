@@ -1,4 +1,4 @@
-import type { ProjectRole } from "./tasks.projectAccess";
+import type { ProjectRole } from "./tasks.projectTypes";
 
 export interface ProjectAccessRepositoryDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount?: number | null }>;
@@ -309,6 +309,10 @@ export async function createProjectWithGrants(
                 throw new ProjectAccessRepositoryError("One or more selected teams are not in this organization", "INVALID_MEMBER");
             }
         }
+        await client.query(
+            "INSERT INTO reserved_project_keys (org_id, key, reason) VALUES ($1, $2, 'project')",
+            [input.orgId, input.key],
+        );
         const inserted = await client.query(
             `INSERT INTO projects (org_id, key, name, description, color, lead_user_id, created_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7)

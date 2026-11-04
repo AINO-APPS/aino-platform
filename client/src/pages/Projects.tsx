@@ -9,9 +9,7 @@
 //     letters/digits/underscores starting with a letter, mirroring the DB
 //     CHECK constraint so the request fails client-side before hitting the
 //     API.
-//   • Lets the user edit name / description / colour / lead. The KEY is
-//     intentionally immutable post-creation (changing it would orphan every
-//     existing PROJ-N reference in branches, commits, history).
+//   • Lets project admins rename keys with a preview and permanent aliases.
 //   • Archive / unarchive in one click. Delete is allowed only when the
 //     project has zero tasks (server enforces this too).
 //
@@ -25,6 +23,7 @@ import { useAuth } from "../AuthContext";
 import { getProjects, createProject, updateProject, archiveProject, deleteProject, getAssignableUsers } from "../api/tasks";
 import { getOrgTeams } from "../api/organization";
 import ProjectTasksPanel from "../components/tasks/ProjectTasksPanel";
+import useRealtimeEvent from "../hooks/useRealtimeEvent";
 import { useToast } from "../components/common/Toast";
 import Pagination from "../components/common/Pagination";
 import {
@@ -65,6 +64,7 @@ export default function Projects() {
   const { user } = useAuth() as any;
   const toast = useToast() as any;
   const queryClient = useQueryClient();
+  useRealtimeEvent(["project_updated"], () => { void queryClient.invalidateQueries({ queryKey: ["admin", "projects"] }); });
   const canCreate = (ROLE_LEVELS[user?.role] || 1) >= 2; // team lead+
   const canEdit = (ROLE_LEVELS[user?.role] || 1) >= 3; // manager+
   // Delete is destructive — gated to super_admin and platform_admin

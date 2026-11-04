@@ -79,7 +79,7 @@ describe("project route characterization", () => {
         expect(res.body).toEqual([{
             id: 1,
             key: "APP",
-            capabilities: { canAdminister: false, canManageMembers: false },
+            capabilities: { canAdminister: false, canManageMembers: false, canRenameKey: false },
         }]);
         expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");
     });

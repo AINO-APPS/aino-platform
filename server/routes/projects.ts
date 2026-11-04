@@ -17,6 +17,8 @@ const { logAction } = require("../utils/audit");
 const { enrichTasks } = require("./tasks/_helpers/enrich");
 const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
 import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
+import { changeProjectKey, ProjectKeyError } from "../modules/tasks/tasks.projectKey";
+import { broadcast } from "../realtime/fanout";
 import {
     createProjectWithGrants,
     findProjectById,
@@ -64,7 +66,7 @@ async function addCapabilitiesToProjects(req: Request, projects: any[]): Promise
     const byProject = await access.capabilitiesForProjects(projects.map((project) => Number(project.id)));
     return projects.map((project) => ({
         ...project,
-        capabilities: byProject.get(Number(project.id)) ?? { canAdminister: false, canManageMembers: false },
+        capabilities: byProject.get(Number(project.id)) ?? { canAdminister: false, canManageMembers: false, canRenameKey: false },
     }));
 }
 
@@ -187,7 +189,7 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
         logAction(req, "create", "project", inserted.id, { key: upperKey, name: inserted.name });
         res.json({
             ...inserted,
-            capabilities: { canAdminister: true, canManageMembers: true },
+            capabilities: { canAdminister: true, canManageMembers: true, canRenameKey: true },
         });
     } catch (err) {
         if (sendProjectAccessError(res, err)) return;
@@ -219,6 +221,30 @@ router.get("/:id", auth, loadUserContext, async (req: Request, res: Response) =>
         res.status(500).json({ error: "Failed to fetch project" });
     }
 });
+
+async function renameProjectKey(req: Request, res: Response, preview: boolean) {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid project id" });
+        const request = req as any;
+        const result = await changeProjectKey(req.db as any, {
+            userId: Number(req.userId), orgId: req.userOrgId ?? null, orgRole: req.userRole ?? null,
+            teamIds: request.userTeamIds ?? (request.userTeamId == null ? undefined : [Number(request.userTeamId)]),
+        }, id, req.body?.key, preview);
+        if (!preview) {
+            try { broadcast(req.tenantId == null ? null : Number(req.tenantId), "project_updated", result); }
+            catch (err) { req.log.error({ err }, "Project key committed but realtime delivery failed"); }
+        }
+        return res.json(result);
+    } catch (err) {
+        if (err instanceof ProjectKeyError) return res.status(err.status).json({ error: err.message, code: err.code });
+        req.log.error({ err }, "Failed to rename project key");
+        return res.status(500).json({ error: "Failed to rename project key" });
+    }
+}
+
+router.post("/:id/key/preview", auth, loadUserContext, (req: Request, res: Response) => renameProjectKey(req, res, true));
+router.post("/:id/key", auth, loadUserContext, (req: Request, res: Response) => renameProjectKey(req, res, false));
 
 // ─── Project member grants ──────────────────────────────────────────────
 router.get("/:id/members", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -332,8 +358,7 @@ router.put("/:id", auth, loadUserContext, requireRole("manager"), async (req: Re
         if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
         const existing = (await req.db!.query("SELECT * FROM projects WHERE id = $1 AND org_id = $2", [id, req.userOrgId])).rows[0];
         if (!existing) return res.status(404).json({ error: "Project not found" });
-        // KEY is immutable post-creation — changing it would orphan every
-        // existing PROJ-123 reference (branches, commit messages, history).
+        // Key changes use the transactional key endpoint so old references survive.
         const { name, description, color, lead_user_id } = req.body || {};
         const newName = name?.trim() || existing.name;
         const newDesc = description !== undefined ? (description?.slice(0, 2000) || null) : existing.description;

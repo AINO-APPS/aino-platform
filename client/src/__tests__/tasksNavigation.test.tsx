@@ -123,6 +123,7 @@ vi.mock("../api/tasks", () => ({
     getSprintBaseline: vi.fn().mockResolvedValue({ data: {} }),
 }));
 vi.mock("../api/organization", () => ({
+    getOrgTeams: vi.fn().mockResolvedValue({ data: [] }),
     getTeamSprintConfig: vi.fn().mockResolvedValue({ data: {} }),
     getTaskPreferences: vi.fn().mockResolvedValue({ data: {} }),
     updateTaskPreferences: vi.fn().mockResolvedValue({ data: {} }),
@@ -148,6 +149,13 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
     afterEach(() => {
         vi.unstubAllGlobals();
         queryClient.clear();
+    });
+
+    test("project settings are reachable by project admins who have an employee org role", async () => {
+        window.history.replaceState({}, "", "/projects");
+        render(<App />);
+        expect(await screen.findByRole("heading", { name: "Projects" })).toBeVisible();
+        expect(window.location.pathname).toBe("/projects");
     });
 
     test.each([

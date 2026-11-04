@@ -17,6 +17,19 @@ creation. Member writes lock the project row and protect its final project
 admin. Project creation grants the creator project-admin and any selected
 teams member access in the same transaction.
 
+`tasks.projectKey.ts` validates project-admin `canRenameKey` access and orchestrates
+key preview/rename. `tasks.projectKeyRepository.ts` owns the SQL: project row
+locking, permanent key reservations, stored ticket-key rewrites, published-key
+aliases and one project audit entry all share a transaction. Preview only reads.
+The projects route emits `project_updated` after commit; web project lists,
+boards and open ticket details refetch rather than deriving keys from the event.
+Project creation also claims a unique reservation so competing creates/renames
+cannot reuse an earlier key. Run `npm run test:pg -- projectsKeyRename.integration --runInBand`
+from `server` for the PostgreSQL route coverage.
+Web settings are available at `/projects` (More → Projects); organization-role
+gates do not hide settings from project admins. The rename control itself uses
+the server-returned `canRenameKey` capability.
+
 Project roles do not filter project or ticket lists until ticket 06 changes
 visibility. This boundary intentionally keeps the current visibility policy
 unchanged.
