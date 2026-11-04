@@ -20,6 +20,9 @@ Object.assign(details,{
  "GET /api/agile/workflow-states":["Read the workflow for the default or selected project",0,"WorkflowStateList"],
  "GET /api/agile/config":["Read Agile settings and the default or selected project workflow",0,"FreeFormObject"],
  "GET /api/projects":["List projects",0,"ProjectList"],
+ "GET /api/projects/migration/review":["Review generated projects, grants and migration moves (web organization admin)",0,"ProjectMigrationReview"],
+ "POST /api/projects/migration/switch":["Publish every project key and enable ownership atomically once (web super_admin only)",0,"ProjectOwnershipState"],
+ "POST /api/projects/migration/switch-back":["Emergency restore team visibility; retain published keys (web platform_admin only)",0,"ProjectOwnershipState"],
  "POST /api/projects":["Create a project with optional team grants","CreateProjectRequest","Project"],
  "GET /api/projects/:id":["Get a project and its project capabilities",0,"Project"],
  "PUT /api/projects/:id":["Update a project",0,"Project"],
@@ -88,6 +91,12 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
  if(key==="GET /api/sprints/:id/board"){
   op.responses={"200":{description:"Sprint, active board columns, and enriched non-Cancelled tickets",content:content(R("SprintBoard"))},"400":err("Invalid sprint id"),"401":err("Authentication required or session invalid"),"403":err("Sprint is not accessible to the current actor"),"404":err("Sprint not found"),"429":err("Rate limit exceeded"),"500":err("Unexpected server error")};
  }
+ if(e.path.startsWith("/api/projects/migration/")){
+  op.security=[{cookieAuth:[]}];
+  op.responses["403"]=err("Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required");
+  op.responses["404"]=err("Organization context not found");
+  if(method==="post")op.responses["409"]=err("Initial publication already completed, or project ownership is not enabled for rollback");
+ }
  if(key==="GET /api/tasks/by-key/:key")op.responses["404"]=err("Ticket not found or not visible to the current actor");
  if(key==="POST /api/projects/:id/workflow-states"){
   op.responses={"201":{description:"Workflow state created",content:content(R("WorkflowState"))},"400":err("Invalid workflow state"),"401":err("Authentication required or session invalid"),"403":err("Project workflow access denied"),"404":err("Project not found"),"409":err("Workflow state key already exists"),"500":err("Unexpected server error")};
@@ -139,6 +148,11 @@ const schemas={
  ,CreateProjectRequest:{type:"object",properties:{key:{type:"string",pattern:"^[A-Z][A-Z0-9_]{1,9}$"},name:{type:"string",minLength:1},description:{type:["string","null"]},color:{type:"string",pattern:"^#[0-9a-fA-F]{6}$"},lead_user_id:{type:["integer","null"]},team_ids:{type:"array",uniqueItems:true,items:{type:"integer",minimum:1}}},required:["key","name"],additionalProperties:true}
  ,ProjectMemberWrite:obj({subject_type:{type:"string",enum:["user","team"]},subject_id:{type:"integer",minimum:1},role:R("ProjectRole")},["subject_type","subject_id","role"])
  ,ProjectRoleUpdate:obj({role:R("ProjectRole")},["role"])
+ ,ProjectOwnershipState:obj({project_ownership:{type:"boolean"},switched_at:{type:["string","null"],format:"date-time",description:"First publication timestamp; retained after emergency switch-back. Initial publication cannot be repeated."}},["project_ownership","switched_at"])
+ ,ProjectMigrationGrant:obj({user_id:{type:["integer","null"]},team_id:{type:["integer","null"]},role:R("ProjectRole"),name:{type:["string","null"]}},["user_id","team_id","role","name"])
+ ,ProjectMigrationProject:obj({id:{type:"integer"},name:{type:"string"},key:{type:"string"},key_published:{type:"boolean"},type:{type:"string",enum:["scrum","kanban","task_list"]},origin_team_id:{type:["integer","null"]},is_general:{type:"boolean"},ticket_count:{type:"integer",minimum:0},grants:{type:"array",items:R("ProjectMigrationGrant")}},["id","name","key","key_published","type","origin_team_id","is_general","ticket_count","grants"])
+ ,ProjectMigrationMove:obj({task_id:{type:"integer"},old_key:{type:["string","null"]},new_key:{type:"string",description:"Current key, including review-time renames."},migration_key:{type:"string",description:"Original migration target key, preserved for audit."},sprint_id:{type:["integer","null"]},sprint_name:{type:["string","null"]},from_project_id:{type:["integer","null"]},to_project_id:{type:["integer","null"]},moved_at:{type:"string",format:"date-time"}},["task_id","old_key","new_key","migration_key","sprint_id","sprint_name","from_project_id","to_project_id","moved_at"])
+ ,ProjectMigrationReview:obj({project_ownership:{type:"boolean"},switched_at:{type:["string","null"],format:"date-time"},projects:{type:"array",items:R("ProjectMigrationProject")},moves:{type:"array",items:R("ProjectMigrationMove")}},["project_ownership","switched_at","projects","moves"])
  ,SprintBoardColumn:obj({stateId:{type:"integer"},count:{type:"integer",minimum:0,description:"Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."},limit:{type:["integer","null"],minimum:0},accepting:{type:"boolean"}},["stateId","count","limit","accepting"])
  ,SprintBoard:obj({sprint:R("Sprint"),columns:{type:"array",items:R("SprintBoardColumn")},tickets:{type:"array",items:R("Task")}},["sprint","columns","tickets"])
  ,Notification:obj({id:{type:"integer"},user_id:{type:"integer"},type:{type:"string"},title:{type:"string"},body:{type:["string","null"]},link_task_id:{type:["integer","null"]},link:{type:["string","null"],pattern:"^/(?!/)",description:"Relative web path to open on tap (e.g. /tasks?task=1, /manager?tab=approvals&request=5, /attendance#leaves); null when there is no destination."},is_read:{type:"boolean"},created_at:{type:["string","null"],format:"date-time"},task_title:{type:["string","null"]}},["id","user_id","type","title","body","link_task_id","link","is_read","created_at","task_title"])

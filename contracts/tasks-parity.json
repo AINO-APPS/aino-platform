@@ -972,6 +972,16 @@
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web project switcher." }
     },
     {
+      "id": "project-migration-review",
+      "name": "ADR-017 generated-project review and one-time ownership publication with emergency rollback",
+      "decision": "D45",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
+      "android": { "status": "waived", "waiver": "Migration review and switch-over are web-only administration per ADR-017 and projects-own-tickets ticket 12." },
+      "ios": { "status": "waived", "waiver": "Administration uses the web app; native clients cannot call migration review or switch endpoints." }
+    },
+    {
       "id": "project-key-rename",
       "name": "Transactional project key rename preview and post-commit realtime key refresh",
       "decision": "D48",

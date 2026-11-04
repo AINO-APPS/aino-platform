@@ -31,8 +31,10 @@ Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 Implemented on `ticket/projects-own-tickets-08` (`2b266882` plus the integration merge).
 Project planning, sprint lifecycle/rollover, legacy team mapping, project grants,
 team deletion, persisted web project selection and project workflow switching are covered.
-Merged integration `63ed28c3`, including workflow and multi-team membership follow-ups.
+Merged integration `a63dd3d2`, including workflow, multi-team membership and ticket12 switch-over.
 Focused PostgreSQL, sprint/placement, workflow/membership, Plan UI and route snapshot
 tests pass after merged fixture updates; both typechecks, dependency checks and
-61 contract checks pass. Sprint route extraction satisfies its 959-line ceiling.
+62 contract checks pass. Final combined validation includes 14 PostgreSQL planning,
+workflow, membership and migration-review cases, plus 28 Plan/review UI cases.
+Sprint route extraction satisfies its 959-line ceiling.
 The unrelated integration `tasks/crud.ts` 685/682 size violation remains for ticket07.
