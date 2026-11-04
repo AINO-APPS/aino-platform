@@ -179,31 +179,38 @@ export const deleteTask = async (db: TasksDb, id: number) =>
  * Tenants that already define a state with key `cancelled` (or a terminal state
  * named "Cancelled") get theirs; otherwise one is inserted after the others.
  */
-export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | null | undefined) => {
+export const findOrCreateCancelledState = async (
+    db: TasksDb,
+    orgId: number | null | undefined,
+    projectId?: number | null,
+) => {
     if (!orgId) return null;
     const existing = (await db.query(
         `SELECT * FROM workflow_states
-          WHERE org_id = $1 AND is_active = TRUE
+          WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2 AND is_active = TRUE
             AND (key = 'cancelled' OR (is_terminal = TRUE AND LOWER(name) = 'cancelled'))
           -- The seeded key wins over a look-alike terminal state, so the
           -- transition rows and the lazy lookup always agree.
           ORDER BY (key = 'cancelled') DESC, sort_order ASC, id ASC
           LIMIT 1`,
-        [orgId],
+        [orgId, projectId ?? null],
     )).rows[0];
     if (existing) return existing;
 
     const nextOrder = (await db.query(
-        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE org_id = $1",
-        [orgId],
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2",
+        [orgId, projectId ?? null],
     )).rows[0]?.next ?? 1;
 
+    const conflictTarget = projectId == null
+        ? "ON CONFLICT (org_id, key) WHERE project_id IS NULL"
+        : "ON CONFLICT (project_id, key) WHERE project_id IS NOT NULL";
     return (await db.query(
-        `INSERT INTO workflow_states (org_id, key, name, category, color, sort_order, is_initial, is_terminal)
-         VALUES ($1, 'cancelled', 'Cancelled', 'done', '#6b7280', $2, FALSE, TRUE)
-         ON CONFLICT (org_id, key) DO UPDATE SET is_active = TRUE
-         RETURNING *`,
-        [orgId, nextOrder],
+        `INSERT INTO workflow_states (org_id, project_id, key, name, category, color, sort_order, is_initial, is_terminal)
+        VALUES ($1, $2, 'cancelled', 'Cancelled', 'done', '#6b7280', $3, FALSE, TRUE)
+        ${conflictTarget} DO UPDATE SET is_active = TRUE
+        RETURNING *`,
+        [orgId, projectId ?? null, nextOrder],
     )).rows[0] || null;
 };
 

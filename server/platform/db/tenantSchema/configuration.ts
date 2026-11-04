@@ -151,6 +151,7 @@ async function initializeConfigurationTenantSchema(q: SchemaQuery): Promise<void
         CREATE TABLE IF NOT EXISTS workflow_states (
             id            SERIAL PRIMARY KEY,
             org_id        INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            project_id    INTEGER,
             key           TEXT NOT NULL,
             name          TEXT NOT NULL,
             category      TEXT NOT NULL CHECK(category IN ('open','in_progress','in_review','done')),
@@ -165,6 +166,7 @@ async function initializeConfigurationTenantSchema(q: SchemaQuery): Promise<void
             UNIQUE(org_id, key)
         )
     `);
+    await q(`ALTER TABLE workflow_states ADD COLUMN IF NOT EXISTS project_id INTEGER`);
     await q(`CREATE INDEX IF NOT EXISTS idx_workflow_states_org ON workflow_states(org_id, is_active, sort_order)`);
 
     // Optional: which states apply to which work item types
@@ -181,12 +183,14 @@ async function initializeConfigurationTenantSchema(q: SchemaQuery): Promise<void
         CREATE TABLE IF NOT EXISTS workflow_transitions (
             id            SERIAL PRIMARY KEY,
             org_id        INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            project_id    INTEGER,
             from_state_id INTEGER NOT NULL REFERENCES workflow_states(id) ON DELETE CASCADE,
             to_state_id   INTEGER NOT NULL REFERENCES workflow_states(id) ON DELETE CASCADE,
             required_role TEXT,
             UNIQUE(from_state_id, to_state_id)
         )
     `);
+    await q(`ALTER TABLE workflow_transitions ADD COLUMN IF NOT EXISTS project_id INTEGER`);
     await q(`CREATE INDEX IF NOT EXISTS idx_workflow_transitions_org ON workflow_transitions(org_id)`);
 
     // Per-team agile overrides (optional, falls back to org)

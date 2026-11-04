@@ -64,6 +64,8 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             next();
         });
         app.use("/api/projects", require("../routes/projects"));
+        app.use("/api/projects", require("../routes/projectWorkflow"));
+        app.use("/api/agile", require("../routes/agile"));
     }, 120_000);
 
     afterAll(async () => {
@@ -79,6 +81,75 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             (1, 'lead', 'x', 'Lead', 1, 1, 'team_lead'),
             (2, 'member', 'x', 'Member', 1, 1, 'employee'),
             (3, 'other', 'x', 'Other', 1, 2, 'employee')`);
+        await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
+    });
+
+    test("project workflows are isolated and org workflow writes are read-only", async () => {
+        const create = (key: string) => request(app)
+            .post("/api/projects")
+            .set("x-test-role", "team_lead")
+            .send({ key, name: key });
+        const first = await create("FLOWA");
+        const second = await create("FLOWB");
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        const createdState = await request(app)
+            .post(`/api/projects/${first.body.id}/workflow-states`)
+            .set("x-test-role", "team_lead")
+            .send({ key: "blocked", name: "Blocked", category: "in_progress" });
+        expect(createdState.status).toBe(201);
+        const firstWorkflow = await request(app)
+            .get(`/api/projects/${first.body.id}/workflow-states`)
+            .set("x-test-role", "team_lead");
+        const secondWorkflow = await request(app)
+            .get(`/api/projects/${second.body.id}/workflow-states`)
+            .set("x-test-role", "team_lead");
+        expect(firstWorkflow.body.workflowStates.map((state: any) => state.key)).toContain("blocked");
+        expect(secondWorkflow.body.workflowStates.map((state: any) => state.key)).not.toContain("blocked");
+        expect(firstWorkflow.body.canEditWorkflow).toBe(true);
+
+        const firstPending = firstWorkflow.body.workflowStates.find((state: any) => state.key === "pending");
+        const secondPending = secondWorkflow.body.workflowStates.find((state: any) => state.key === "pending");
+        const secondInProgress = secondWorkflow.body.workflowStates.find((state: any) => state.key === "in_progress");
+        const saved = await request(app)
+            .put(`/api/projects/${first.body.id}/workflow-transitions`)
+            .set("x-test-role", "team_lead")
+            .send({ transitions: [{ from_state_id: firstPending.id, to_state_id: createdState.body.id }] });
+        expect(saved.status).toBe(200);
+
+        const { loadLifecycleContext, allowsTransition } = require("../modules/tasks/tasks.workflow");
+        const firstGraph = await loadLifecycleContext(pool, 1, first.body.id);
+        const secondGraph = await loadLifecycleContext(pool, 1, second.body.id);
+        expect(allowsTransition(firstGraph, firstPending.id, firstWorkflow.body.workflowStates.find((state: any) => state.key === "in_progress").id)).toBe(false);
+        expect(allowsTransition(secondGraph, secondPending.id, secondInProgress.id)).toBe(true);
+
+        const orgRead = await request(app)
+            .get(`/api/agile/workflow-states?project_id=${first.body.id}`)
+            .set("x-test-role", "team_lead");
+        expect(orgRead.status).toBe(200);
+        expect(orgRead.body.map((state: any) => state.key)).toContain("blocked");
+        const defaultOrgRead = await request(app)
+            .get("/api/agile/workflow-states")
+            .set("x-test-role", "team_lead");
+        expect(defaultOrgRead.status).toBe(200);
+        const generalProjectId = Number((await pool.query(
+            "SELECT id FROM projects WHERE org_id = 1 AND is_general = TRUE",
+        )).rows[0].id);
+        const generalStateIds = (await pool.query(
+            "SELECT id FROM workflow_states WHERE project_id = $1 ORDER BY sort_order, id",
+            [generalProjectId],
+        )).rows.map((state) => Number(state.id));
+        expect(defaultOrgRead.body.map((state: any) => state.id)).toEqual(generalStateIds);
+        const invalidOrgRead = await request(app)
+            .get("/api/agile/workflow-states?project_id=not-a-project")
+            .set("x-test-role", "team_lead");
+        expect(invalidOrgRead.status).toBe(400);
+        const orgWrite = await request(app)
+            .post("/api/agile/workflow-states")
+            .set("x-test-role", "team_lead")
+            .send({ name: "Forbidden", category: "open" });
+        expect(orgWrite.status).toBe(405);
     });
 
     test("team leads create projects with their own admin grant and independent team grants", async () => {
@@ -94,7 +165,12 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-role", "team_lead")
             .send({ key: "ALPHA", name: "Alpha Stream", team_ids: [1, 2] });
         expect(created.status).toBe(200);
-        expect(created.body.capabilities).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true });
+        expect(created.body.capabilities).toEqual({
+            canAdminister: true,
+            canManageMembers: true,
+            canRenameKey: true,
+            canEditWorkflow: true,
+        });
 
         const grants = (await pool.query(
             "SELECT user_id, team_id, role FROM project_members WHERE project_id = $1 ORDER BY user_id NULLS LAST, team_id",
@@ -111,7 +187,12 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-team", "1");
         expect(listed.status).toBe(200);
         expect(listed.body.find((project: any) => project.id === created.body.id).capabilities)
-            .toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true });
+            .toEqual({
+                canAdminister: true,
+                canManageMembers: true,
+                canRenameKey: true,
+                canEditWorkflow: true,
+            });
 
         const second = await request(app)
             .post("/api/projects")
@@ -136,10 +217,12 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
         expect(await access.roleForProject(10)).toBe("project_admin");
         expect(await access.roleForProject(11)).toBe("viewer");
         expect(await access.accessibleProjectIds()).toEqual(expect.arrayContaining([10, 11]));
-        expect(await access.capabilities(10)).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true });
+        expect(await access.capabilities(10)).toEqual({
+            canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true,
+        });
         expect(await access.capabilitiesForProjects([10, 11])).toEqual(new Map([
-            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true }],
-            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false }],
+            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true }],
+            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false, canEditWorkflow: false }],
         ]));
     });
 

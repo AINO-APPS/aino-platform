@@ -33,6 +33,8 @@ The seven notification operations are fully modeled from their handler and datab
 
 The global search operation is fully modeled across its seven result groups. Missing or short queries use the same stable empty-array envelope as successful searches, and contract validation rejects a regression to `FreeFormValue`.
 
+Project workflow operations are modeled for project-scoped state and transition management. The organization workflow-state read accepts an optional `project_id` and its writes return `405`, because organization states are now read-only templates.
+
 `GET /api/tracker/status` is modeled as `TrackerStatus`. Its `floorSeconds` / `breakSeconds` integers are the exact worked/break seconds at response time (`floorMinutes === floor(floorSeconds / 60)`); contract validation requires both fields because native and web live timers anchor on them.
 
 The server accepts either the `token` HttpOnly cookie or `Authorization: Bearer <jwt>` (cookie wins). Native clients use bearer authentication. Every mutating `/api` request except external webhooks must send `X-Requested-With: AINO` (the legacy `WorkPulse` value is also accepted). Tenant context is resolved from the verified JWT first, then from the request host/custom domain.

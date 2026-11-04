@@ -290,9 +290,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
-        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
-        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
+        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
         const wsId = initialState ? initialState.id : null;
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;

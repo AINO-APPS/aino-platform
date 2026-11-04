@@ -66,7 +66,12 @@ async function addCapabilitiesToProjects(req: Request, projects: any[]): Promise
     const byProject = await access.capabilitiesForProjects(projects.map((project) => Number(project.id)));
     return projects.map((project) => ({
         ...project,
-        capabilities: byProject.get(Number(project.id)) ?? { canAdminister: false, canManageMembers: false, canRenameKey: false },
+        capabilities: byProject.get(Number(project.id)) ?? {
+            canAdminister: false,
+            canManageMembers: false,
+            canRenameKey: false,
+            canEditWorkflow: false,
+        },
     }));
 }
 
@@ -189,7 +194,7 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
         logAction(req, "create", "project", inserted.id, { key: upperKey, name: inserted.name });
         res.json({
             ...inserted,
-            capabilities: { canAdminister: true, canManageMembers: true, canRenameKey: true },
+            capabilities: { canAdminister: true, canManageMembers: true, canRenameKey: true, canEditWorkflow: true },
         });
     } catch (err) {
         if (sendProjectAccessError(res, err)) return;
