@@ -10,6 +10,16 @@
   ],
   "features": [
     {
+      "id": "move-ticket-project",
+      "name": "Member project move with preview, key alias and workflow/sprint mapping",
+      "decision": "D54",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native project picker/move UI is ticket13. Older builds retain POST /tasks/:id/transfer and its response shape, now mapped to the generated team project." },
+      "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the project move dialog." }
+    },
+    {
       "id": "service-desk-project",
       "name": "Service Desk project settings, keyed copies, system status sync and cancel-on-delete",
       "decision": "D31",

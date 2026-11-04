@@ -67,6 +67,16 @@ export const updateTask = (id: number | string, data: AnyData) => API.put(`/task
 export const deleteTask = (id: number | string) => API.delete(`/tasks/${id}`);
 export const transferTask = (id: number | string, teamId: number | string) =>
     API.post(`/tasks/${id}/transfer`, { team_id: teamId });
+export interface ProjectMovePreview {
+    target_project_id: number;
+    key_format: string;
+    workflow_state: { id: number; key: string; name: string; category: string };
+    leaves_sprint: boolean;
+}
+export const previewTaskProjectMove = (id: number | string, projectId: number) =>
+    API.post<ProjectMovePreview>(`/tasks/${id}/move-project/preview`, { project_id: projectId });
+export const moveTaskProject = (id: number | string, projectId: number) =>
+    API.post(`/tasks/${id}/move-project`, { project_id: projectId });
 export const carryForwardTasks = () => API.post("/tasks/carry-forward");
 export const getAssignableUsers = () => API.get("/tasks/assignable-users");
 export const getTaskLabels = () => API.get("/tasks/labels");

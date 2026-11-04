@@ -124,6 +124,139 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         return (await pool.query("SELECT sprint_id, planned_date, due_date, pre_sprint_due_date FROM tasks WHERE id = $1", [id])).rows[0];
     }
 
+    test("ticket10 preview and project move agree, preserve the old key and leave the source sprint", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        await pool.query("UPDATE sprints SET project_id = $1 WHERE id = 10", [source.id]);
+        const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Queued', 'open', TRUE) RETURNING *", [source.id])).rows[0];
+        const to = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Destination queue', 'open', TRUE) RETURNING *", [target.id])).rows[0];
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date)
+            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
+        const before = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+        const { sendToUser } = require("../utils/ws");
+        sendToUser.mockClear();
+        const preview = await request(app).post(`/api/tasks/${ticket.id}/move-project/preview`).send({ project_id: target.id });
+        expect(preview.status).toBe(200);
+        expect(preview.body).toMatchObject({ target_project_id: target.id, key_format: "DEST-<number>", workflow_state: { id: to.id }, leaves_sprint: true });
+        expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(before);
+        expect(sendToUser).not.toHaveBeenCalled();
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-20", planned_date: "2026-11-10", team_id: 1 });
+        expect(sendToUser).toHaveBeenCalledWith(1, 1, "task_updated", { taskId: ticket.id, action: "updated" });
+        const alias = await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`);
+        expect(alias.status).toBe(200);
+        expect(alias.body).toMatchObject({ id: ticket.id, ticket_key: "DEST-1", key_alias: true });
+        expect((await request(app).get(`/api/tasks/${ticket.id}/history`)).body).toEqual(expect.arrayContaining([
+            expect.objectContaining({ field: "project", old_value: String(source.id), new_value: String(target.id) }),
+            expect.objectContaining({ field: "ticket_key", old_value: ticket.ticket_key, new_value: "DEST-1" }),
+        ]));
+    });
+
+    async function projectMoveFixture() {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const target = (await pool.query("INSERT INTO projects (org_id, key, name, origin_team_id) VALUES (1, 'DEST', 'Destination', 2) RETURNING *")).rows[0];
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category) VALUES (1, $1, 'source_review', 'Source review', 'in_review') RETURNING *", [source.id])).rows[0];
+        const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, team_id, project_id, workflow_state_id) VALUES ('Move fixture', 1, 1, 1, $1, $2) RETURNING *", [source.id, from.id])).rows[0];
+        return { source, target, ticket };
+    }
+
+    test.each(["category", "initial"])("ticket10 maps by %s when there is no matching active key", async (mapping) => {
+        const { target, ticket } = await projectMoveFixture();
+        await pool.query("DELETE FROM workflow_states WHERE project_id = $1", [target.id]);
+        const initial = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'waiting', 'Waiting', 'open', TRUE) RETURNING *", [target.id])).rows[0];
+        let expected = initial;
+        if (mapping === "category") {
+            const review = (await pool.query(`INSERT INTO workflow_states (org_id, project_id, key, name, category, sort_order) VALUES
+                (1, $1, 'later', 'Later review', 'in_review', 20), (1, $1, 'first', 'First review', 'in_review', 10) RETURNING *`, [target.id])).rows;
+            expected = review[1];
+        }
+        await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_active) VALUES (1, $1, 'source_review', 'Inactive match', 'in_review', FALSE)", [target.id]);
+        const preview = await request(app).post(`/api/tasks/${ticket.id}/move-project/preview`).send({ project_id: target.id });
+        expect(preview.status).toBe(200);
+        expect(preview.body).toMatchObject({ workflow_state: { id: expected.id }, leaves_sprint: false });
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task.workflow_state_id).toBe(expected.id);
+    });
+
+    test.each(["source viewer", "target viewer", "target missing grant", "source archived", "target archived", "foreign target", "same project"])(
+        "ticket10 preview and move both refuse %s without consuming a number", async (scenario) => {
+            const { source, target, ticket } = await projectMoveFixture();
+            if (scenario.endsWith("viewer")) {
+                await pool.query("DELETE FROM project_members WHERE project_id = $1", [scenario.startsWith("source") ? source.id : target.id]);
+                await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'viewer')", [scenario.startsWith("source") ? source.id : target.id]);
+            }
+            if (scenario === "target missing grant") await pool.query("DELETE FROM project_members WHERE project_id = $1", [target.id]);
+            if (scenario.endsWith("archived")) await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = $1", [scenario.startsWith("source") ? source.id : target.id]);
+            if (scenario === "foreign target") {
+                await pool.query("INSERT INTO organizations (id, name, slug) VALUES (3, 'Foreign', 'foreign')");
+                await pool.query("UPDATE projects SET org_id = 3 WHERE id = $1", [target.id]);
+            }
+            const counter = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+            const results = [];
+            for (const suffix of ["/preview", ""]) results.push(await request(app).post(`/api/tasks/${ticket.id}/move-project${suffix}`).send({ project_id: scenario === "same project" ? source.id : target.id }));
+            const code = scenario.includes("viewer") ? "READ_ONLY_ROLE" : scenario.includes("archived") ? "PROJECT_ARCHIVED"
+                : scenario === "foreign target" ? "PROJECT_NOT_FOUND" : scenario === "same project" ? "PROJECT_UNCHANGED" : "ACCESS_DENIED";
+            expect(results.map((result) => result.body.code)).toEqual([code, code]);
+            expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(counter);
+            expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).body.project_id).toBe(source.id);
+        },
+    );
+
+    test("ticket10 member capability and legacy transfer use the generated project without changing legacy team ownership after switch", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        const detail = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(detail.body.capabilities.can.canMoveProject).toEqual({ allowed: true });
+        const move = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 2 });
+        expect(move.status).toBe(200);
+        expect(move.body).toMatchObject({ transferred: true, from_team_id: 1, to_team_id: 2, cleared_sprint: null, task: { project_id: target.id, team_id: 1 } });
+        expect(move.body.task.workflow_state_id).not.toBe(ticket.workflow_state_id);
+        const back = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 1 });
+        expect(back.status).toBe(200);
+        expect(back.body.task.project_id).not.toBe(target.id);
+        expect(back.body.task.team_id).toBe(1);
+        await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        await pool.query("UPDATE project_members SET role = 'viewer' WHERE project_id = $1", [target.id]);
+        expect((await request(app).get(`/api/tasks/${ticket.id}/detail`)).body.capabilities.can.canMoveProject).toEqual({ allowed: false, reason: "READ_ONLY_ROLE" });
+    });
+
+    test("ticket10 a secondary-team member can move into its granted project", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        await pool.query("DELETE FROM project_members WHERE project_id = $1", [target.id]);
+        await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES ($1, 2, 'member')", [target.id]);
+        await pool.query("INSERT INTO user_team_memberships (user_id, team_id) VALUES (1, 2)");
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task.project_id).toBe(target.id);
+    });
+
+    test("ticket10 failure writing history rolls back the move, sequence, alias and broadcast", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        const counter = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+        await pool.query(`CREATE FUNCTION refuse_move_history() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'history unavailable'; END $$;
+            CREATE TRIGGER refuse_move_history BEFORE INSERT ON task_history FOR EACH ROW EXECUTE FUNCTION refuse_move_history()`);
+        const { sendToUser } = require("../utils/ws");
+        sendToUser.mockClear();
+        try {
+            const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+            expect(move.status).toBe(500);
+            expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).body).toMatchObject({
+                id: ticket.id, ticket_key: ticket.ticket_key, project_id: ticket.project_id, key_alias: false,
+            });
+            expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(counter);
+            expect(sendToUser).not.toHaveBeenCalled();
+        } finally {
+            await pool.query("DROP TRIGGER refuse_move_history ON task_history; DROP FUNCTION refuse_move_history()");
+        }
+    });
+
     test("ticket07 project viewers may comment but cannot edit or rank; archived tickets remain readable", async () => {
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
         const project = (await pool.query("SELECT id FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];

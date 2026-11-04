@@ -25,6 +25,9 @@ const STATUS: Record<PlacementRefusalCode, number> = {
     IN_SPRINT: 409,
     TEAM_NOT_FOUND: 400,
     TEAM_UNCHANGED: 400,
+    PROJECT_NOT_FOUND: 404,
+    PROJECT_UNCHANGED: 400,
+    WORKFLOW_NOT_FOUND: 409,
 };
 
 /**

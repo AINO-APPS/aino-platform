@@ -60,6 +60,10 @@
       },
       "canEditEstimate": {
         "allowed": true
+      },
+      "canMoveProject": {
+        "allowed": false,
+        "reason": "ACCESS_DENIED"
       }
     }
   },

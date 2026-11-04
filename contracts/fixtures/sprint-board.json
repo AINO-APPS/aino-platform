@@ -82,6 +82,9 @@
           },
           "canEditEstimate": {
             "allowed": true
+          },
+          "canMoveProject": {
+            "allowed": true
           }
         }
       },

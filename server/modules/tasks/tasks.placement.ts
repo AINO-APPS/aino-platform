@@ -25,7 +25,8 @@ import type { TransactionContext } from "../../types/domain";
 import { teamAfterSprintMove } from "./tasks.ownership";
 import * as repo from "./tasks.placementRepository";
 import type { HistoryRow, PlacementDb } from "./tasks.placementRepository";
-import type { TaskActor } from "./tasks.policy";
+import { isOrgAdmin, type TaskActor } from "./tasks.policy";
+import { createProjectAccess } from "./tasks.projectAccess";
 import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
 import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
 import { placementRefusal } from "./tasks.placementRules";
@@ -47,6 +48,7 @@ export interface PlacementChange {
     before: any;
     after: any;
     actor: PlacementActor;
+    projectOwnership?: boolean;
 }
 
 export interface PlacementEffects {
@@ -67,7 +69,6 @@ export type PlacementRefusalCode =
     | "ACCESS_DENIED"
     | "READ_ONLY_ROLE"
     | "PROJECT_ARCHIVED"
-    | "SPRINT_PROJECT_MISMATCH"
     | "NOT_FOUND"
     | "SPRINT_NOT_FOUND"
     | "SPRINT_FROZEN"
@@ -75,7 +76,10 @@ export type PlacementRefusalCode =
     | "SPRINT_PROJECT_MISMATCH"
     | "IN_SPRINT"
     | "TEAM_NOT_FOUND"
-    | "TEAM_UNCHANGED";
+    | "TEAM_UNCHANGED"
+    | "PROJECT_NOT_FOUND"
+    | "PROJECT_UNCHANGED"
+    | "WORKFLOW_NOT_FOUND";
 
 export type PlacementResult =
     | { id: number; ok: true; task: any }
@@ -97,6 +101,9 @@ const REFUSALS: Record<PlacementRefusalCode, string> = {
     SPRINT_NOT_FOUND: "Sprint not found.",
     TEAM_NOT_FOUND: "Team not found in this organization.",
     TEAM_UNCHANGED: "This ticket already belongs to that team.",
+    PROJECT_NOT_FOUND: "Project not found in this organization.",
+    PROJECT_UNCHANGED: "This ticket already belongs to that project.",
+    WORKFLOW_NOT_FOUND: "The target project has no active initial workflow state.",
 };
 
 function refused(id: number, code: PlacementRefusalCode): PlacementResult {
@@ -165,10 +172,8 @@ export async function placeTickets(
 }
 
 /**
- * Move a ticket to another team (the transfer capability is admin-only).
- * Leaving the team means leaving its sprint, which is an ordinary sprint exit:
- * the own due date comes back and a planned day it already had puts it in
- * Scheduled.
+ * Legacy team transfer delegates to the generated project's placement.
+ * Before switch-over it remains admin-only and also changes legacy team data.
  */
 export async function transferTicket(
     ctx: PlacementContext & { ticketActor: TaskActor },
@@ -185,53 +190,94 @@ export async function transferTicket(
 
     const team = await repo.findTeamInOrg(ctx.db, toTeamId, ctx.actor.orgId);
     if (!team) return refusedTransfer(id, "TEAM_NOT_FOUND");
-    if (same(before.team_id, team.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
+    if (!ctx.ticketActor.projectOwnership && same(before.team_id, team.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
     const project = await repo.ensureTeamProject(ctx.db, team.id, ctx.actor.orgId);
     if (!project) return refusedTransfer(id, "TEAM_NOT_FOUND");
-    if (ctx.ticketActor.projectOwnership) {
-        const destination = { ...before, project_id: project.id, sprint_id: null };
-        const destinationContext = await loadTicketDecisionContext(ctx.db, ctx.ticketActor, [destination]);
-        const destinationVerdict = decideTicket(ctx.ticketActor, destination, destinationContext).capabilities.can.edit;
-        if (!destinationVerdict.allowed) return refusedTransfer(id, destinationVerdict.reason as PlacementRefusalCode);
-    }
+    if (same(before.project_id, project.id)) return refusedTransfer(id, "TEAM_UNCHANGED");
+    return moveTicketProject(ctx, id, Number(project.id), { legacyTeamId: Number(team.id) });
+}
 
-    const sprints = await lockSprints(ctx, [before.sprint_id]);
-    const origin = before.sprint_id == null ? null : sprints.get(Number(before.sprint_id));
-    context.sprints = sprints;
-    const lockedVerdict = decideTicket(ctx.ticketActor, before, context).capabilities.can.transfer;
-    if (!lockedVerdict.allowed) return refusedTransfer(id, lockedVerdict.reason as PlacementRefusalCode);
+export interface ProjectMovePreview {
+    target_project_id: number;
+    key_format: string;
+    workflow_state: { id: number; key: string; name: string; category: string };
+    leaves_sprint: boolean;
+}
 
-    const clearedSprint = origin != null && !same(origin.team_id, team.id)
-        ? { id: Number(origin.id), name: origin.name }
-        : null;
-    const taskNumber = await repo.reserveProjectTicketNumber(ctx.db, Number(project.id));
-    const ticketKey = `${project.key}-${taskNumber}`;
-    if (before.ticket_key && before.ticket_key !== ticketKey && before.org_id != null) {
-        await repo.insertTicketKeyAlias(
-            ctx.db,
-            Number(before.org_id),
-            String(before.ticket_key),
-            id,
-            before.project_id == null ? null : Number(before.project_id),
-            "move",
-        );
+type MoveContext = PlacementContext & { ticketActor: TaskActor };
+
+/** Preview and write share the same validation and deterministic mapping. */
+async function prepareProjectMove(ctx: MoveContext, before: any, projectId: number, lock: boolean) {
+    const id = Number(before.id);
+    if (same(before.project_id, projectId)) return refusedTransfer(id, "PROJECT_UNCHANGED");
+    const projects = await repo.findMoveProjects(ctx.db, [Number(before.project_id), projectId], ctx.actor.orgId, lock);
+    const source = projects.find((project) => same(project.id, before.project_id));
+    const target = projects.find((project) => same(project.id, projectId));
+    if (!source || !target) return refusedTransfer(id, "PROJECT_NOT_FOUND");
+    const access = createProjectAccess(ctx.db, {
+        userId: ctx.actor.userId, orgId: ctx.actor.orgId, orgRole: ctx.ticketActor.role,
+        teamIds: isOrgAdmin(ctx.ticketActor.role) ? [] : await repo.findMoveActorTeams(ctx.db, ctx.actor.userId, ctx.actor.orgId),
+    });
+    for (const project of [source, target]) {
+        const role = isOrgAdmin(ctx.ticketActor.role) ? "project_admin"
+            : await access.roleForProject(Number(project.id));
+        if (role !== "member" && role !== "project_admin") return refusedTransfer(id, role ? "READ_ONLY_ROLE" : "ACCESS_DENIED");
+        if (project.is_archived) return refusedTransfer(id, "PROJECT_ARCHIVED");
     }
-    const after = await repo.setTeamAndProject(
-        ctx.db, id, team.id, Number(project.id), taskNumber, ticketKey, clearedSprint !== null,
-    );
-    await record(ctx, "transfer", before, after, [
-        { action: "transferred", field: "team", from: before.team_id == null ? null : String(before.team_id), to: String(team.id) },
-        { action: "transferred", field: "project", from: before.project_id == null ? null : String(before.project_id), to: String(project.id) },
-        { action: "transferred", field: "ticket_key", from: before.ticket_key ?? null, to: ticketKey },
-        ...historyFor(before, after, sprints),
-    ]);
-    return {
-        id,
-        ok: true,
-        task: after,
-        oldTeamId: before.team_id ?? null,
-        clearedSprint,
+    const { source: oldState, states } = await repo.findMoveStates(ctx.db, before.workflow_state_id, projectId, ctx.actor.orgId);
+    const state = states.find((candidate) => oldState && candidate.key === oldState.key)
+        ?? states.find((candidate) => oldState && candidate.category === oldState.category)
+        ?? states.find((candidate) => candidate.is_initial);
+    if (!state) return refusedTransfer(id, "WORKFLOW_NOT_FOUND");
+    const sprints = new Map((await repo.lockSprints(ctx.db,
+        before.sprint_id == null ? [] : [Number(before.sprint_id)], ctx.actor.orgId, lock))
+        .map((sprint) => [Number(sprint.id), sprint]));
+    const sprint = sprints.get(Number(before.sprint_id));
+    const clearedSprint = sprint && same(sprint.project_id, before.project_id) ? { id: Number(sprint.id), name: String(sprint.name) } : null;
+    const preview: ProjectMovePreview = {
+        target_project_id: projectId, key_format: `${target.key}-<number>`,
+        workflow_state: { id: Number(state.id), key: state.key, name: state.name, category: state.category },
+        leaves_sprint: clearedSprint !== null,
     };
+    return { ok: true as const, target, preview, clearedSprint, sprints };
+}
+
+export async function previewProjectMove(ctx: MoveContext, ticketId: number, projectId: number) {
+    if (!ctx.ticketActor.projectOwnership) return refusedTransfer(ticketId, "ACCESS_DENIED");
+    const before = await repo.findMoveTicket(ctx.db, ticketId, ctx.actor.orgId);
+    if (!before) return refusedTransfer(ticketId, "NOT_FOUND");
+    const prepared = await prepareProjectMove(ctx, before, projectId, false);
+    return prepared.ok ? { ok: true as const, preview: prepared.preview } : prepared;
+}
+
+/** Caller owns the transaction; project/key/state, placement and history commit together. */
+export async function moveTicketProject(
+    ctx: MoveContext, ticketId: number, projectId: number, options: { legacyTeamId?: number } = {},
+): Promise<TransferPlacementResult> {
+    if (!ctx.ticketActor.projectOwnership && options.legacyTeamId == null) return refusedTransfer(ticketId, "ACCESS_DENIED");
+    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
+    const [before] = await repo.lockTickets(ctx.db, [ticketId], ctx.actor.orgId);
+    if (!before) return refusedTransfer(ticketId, "NOT_FOUND");
+    const prepared = await prepareProjectMove(ctx, before, projectId, true);
+    if (!prepared.ok) return prepared;
+    const { target, preview, clearedSprint, sprints } = prepared;
+    const number = await repo.reserveProjectTicketNumber(ctx.db, projectId);
+    const key = `${target.key}-${number}`;
+    if (before.ticket_key && before.org_id != null) {
+        await repo.insertTicketKeyAlias(ctx.db, Number(before.org_id), before.ticket_key, ticketId, before.project_id, "move");
+    }
+    // Project moves deliberately leave legacy team ownership untouched.
+    const after = await repo.setProject(ctx.db, ticketId, projectId, number, key, preview.workflow_state.id,
+        clearedSprint !== null, ctx.ticketActor.projectOwnership ? undefined : options.legacyTeamId);
+    const history: HistoryRow[] = [
+        { action: "transferred", field: "project", from: String(before.project_id), to: String(projectId) },
+        { action: "transferred", field: "ticket_key", from: before.ticket_key, to: key },
+        ...historyFor(before, after, sprints),
+    ];
+    if (!same(before.workflow_state_id, after.workflow_state_id)) history.push({ action: "updated", field: "workflow_state", from: before.workflow_state_id == null ? null : String(before.workflow_state_id), to: String(after.workflow_state_id) });
+    if (!same(before.team_id, after.team_id)) history.push({ action: "transferred", field: "team", from: before.team_id == null ? null : String(before.team_id), to: String(after.team_id) });
+    await record(ctx, options.legacyTeamId == null ? "move_project" : "transfer", before, after, history);
+    return { id: ticketId, ok: true, task: after, oldTeamId: before.team_id ?? null, clearedSprint };
 }
 
 /**
@@ -295,13 +341,15 @@ async function record(ctx: PlacementContext, action: string, before: any, after:
         ip: ctx.actor.ip ?? null,
         userAgent: ctx.actor.userAgent ?? null,
     });
-    const change: PlacementChange = { before, after, actor: ctx.actor };
+    const change: PlacementChange = { before, after, actor: ctx.actor,
+        projectOwnership: ctx.projectOwnership ?? ctx.ticketActor?.projectOwnership ?? false };
     ctx.afterCommit(() => ctx.effects.changed(change));
 }
 
 function snapshot(task: any, action: string): Record<string, unknown> {
     const placement = { sprint_id: task.sprint_id ?? null, planned_date: task.planned_date ?? null, due_date: task.due_date ?? null };
-    return action === "transfer" ? { team_id: task.team_id ?? null, ...placement } : placement;
+    return action === "transfer" || action === "move_project"
+        ? { team_id: task.team_id ?? null, project_id: task.project_id, ticket_key: task.ticket_key, workflow_state_id: task.workflow_state_id, ...placement } : placement;
 }
 
 /** The history rows a move earns: only fields that actually changed. */
