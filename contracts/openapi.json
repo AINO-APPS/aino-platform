@@ -21559,12 +21559,13 @@
           "id": {
             "type": "integer"
           },
+          "ticket_key": {
+            "type": "string",
+            "description": "Stored, org-unique ticket key. Never recomputed from a project's current key."
+          },
           "issue_key": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Canonical PROJ-123 reference. Stable across sprint moves."
+            "type": "string",
+            "description": "Legacy field retained for older clients; equal to ticket_key."
           },
           "title": {
             "type": "string"
@@ -21674,10 +21675,7 @@
             ]
           },
           "project_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "work_item_type_id": {
             "type": [
@@ -21748,6 +21746,8 @@
         },
         "required": [
           "id",
+          "ticket_key",
+          "issue_key",
           "title",
           "priority",
           "workflow_state_id",
@@ -21758,6 +21758,7 @@
           "container",
           "capabilities",
           "team_id",
+          "project_id",
           "rank",
           "is_blocked"
         ],
@@ -21871,6 +21872,9 @@
           "id": {
             "type": "integer"
           },
+          "project_id": {
+            "type": "integer"
+          },
           "team_id": {
             "type": "integer"
           },
@@ -21951,6 +21955,7 @@
         },
         "required": [
           "id",
+          "project_id",
           "team_id",
           "name",
           "status",
@@ -22614,6 +22619,12 @@
           "title": {
             "type": "string"
           },
+          "ticket_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "issue_key": {
             "type": [
               "string",
@@ -22632,6 +22643,7 @@
         "required": [
           "task_id",
           "title",
+          "ticket_key",
           "issue_key",
           "date",
           "minutes"

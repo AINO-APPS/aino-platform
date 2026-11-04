@@ -409,6 +409,8 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             });
             expect(await history(id)).toEqual([
                 { action: "transferred", field: "team", old_value: String(ALPHA), new_value: String(BETA), user_id: ALICE },
+                { action: "transferred", field: "project", old_value: "1", new_value: "2", user_id: ALICE },
+                { action: "transferred", field: "ticket_key", old_value: "GEN-1", new_value: "BETA-1", user_id: ALICE },
                 { action: "updated", field: "sprint", old_value: "Alpha 1", new_value: "none", user_id: ALICE },
                 { action: "updated", field: "due_date", old_value: "2026-11-14", new_value: "2026-11-20", user_id: ALICE },
             ]);

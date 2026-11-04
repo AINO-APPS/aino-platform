@@ -51,8 +51,7 @@ async function enrichTasks(
     const assigneeIds = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
     const creatorIds = [...new Set(tasks.map(t => t.user_id))];
     const sprintIds = [...new Set(tasks.map(t => t.sprint_id).filter(Boolean))];
-    // Stage 3: collect project ids so we can surface `issue_key` (PROJ-123)
-    // and the lightweight project summary on every enriched task.
+    // Collect project ids for the lightweight project summary.
     const projectIds = [...new Set(tasks.map(t => t.project_id).filter(Boolean))];
     const allUserIds = [...new Set([...assigneeIds, ...creatorIds])];
     // The workflow state is the only status (D4), so every task carries its
@@ -80,10 +79,7 @@ async function enrichTasks(
 
     return tasks.map((t, index) => {
         const project = t.project_id ? (projectMap[t.project_id] || null) : null;
-        // Issue key is only set for tasks that have both a project and a
-        // task_number (legacy tasks remain key-less even if they get a
-        // project assigned, until a number is generated for them).
-        const issueKey = project && t.task_number ? `${project.key}-${t.task_number}` : null;
+        const ticketKey = t.ticket_key ?? null;
         const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
             ...t,
@@ -102,7 +98,8 @@ async function enrichTasks(
                 : null,
             sprint: t.sprint_id ? (sprintMap[t.sprint_id] || null) : null,
             project,
-            issue_key: issueKey,
+            ticket_key: ticketKey,
+            issue_key: ticketKey,
             ...decisions[index],
         };
     });

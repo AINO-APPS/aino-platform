@@ -40,9 +40,9 @@ async function initializeIntegrationTenantSchema(q: SchemaQuery): Promise<void> 
     // Stage 3 — Projects, human-readable task keys, and Git integration.
     //
     //   projects                — Jira-style projects with a unique KEY
-    //                             (e.g. PSSPMT). Tasks now optionally belong
-    //                             to a project and carry a per-project running
-    //                             `task_number`, surfaced as `PSSPMT-123`.
+    //                             (e.g. PSSPMT). Migration 0019 makes project
+    //                             ownership mandatory and stores every ticket
+    //                             key on the task row.
     //   org_integrations        — per-org provider config (GitHub for now).
     //   org_integration_secrets — webhook signing secret per integration.
     //   task_git_refs           — branches / PRs / commits linked to a task
@@ -59,12 +59,29 @@ async function initializeIntegrationTenantSchema(q: SchemaQuery): Promise<void> 
             color           TEXT    NOT NULL DEFAULT '#6366f1',
             lead_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
             next_task_number INTEGER NOT NULL DEFAULT 1,
+            type            TEXT NOT NULL DEFAULT 'task_list'
+                                CHECK(type IN ('scrum','kanban','task_list')),
+            origin_team_id  INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+            key_published   BOOLEAN NOT NULL DEFAULT TRUE,
+            is_general      BOOLEAN NOT NULL DEFAULT FALSE,
             is_archived     BOOLEAN NOT NULL DEFAULT FALSE,
             created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
             created_at      TIMESTAMPTZ DEFAULT NOW(),
             updated_at      TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE (org_id, key)
         )
+    `);
+    await q(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'task_list'`);
+    await q(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS origin_team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL`);
+    await q(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS key_published BOOLEAN NOT NULL DEFAULT TRUE`);
+    await q(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_general BOOLEAN NOT NULL DEFAULT FALSE`);
+    await q(`
+        DO $do$ BEGIN
+            ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_type_check;
+            ALTER TABLE projects ADD CONSTRAINT projects_type_check
+                CHECK (type IN ('scrum','kanban','task_list'));
+        EXCEPTION WHEN others THEN NULL;
+        END $do$
     `);
     // Project key must be ALL CAPS + alphanumeric + underscores so it forms
     // a clean prefix for human-readable IDs (PROJ-1, PSSPMT-42).
@@ -78,14 +95,81 @@ async function initializeIntegrationTenantSchema(q: SchemaQuery): Promise<void> 
     `);
     await q(`CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id, is_archived)`);
 
-    // Attach tasks to projects (optional; legacy tasks stay project-less).
-    await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL`);
-    // `task_number` is the per-project counter. Together with the project key
-    // it forms the human-readable issue id (e.g. PSSPMT-123). Indexed and
-    // unique within a project so we can look up "branch PSSPMT-123" quickly.
+    // Project ownership is expanded by migration 0019. Keep the transitional
+    // columns nullable here so initTenantSchema remains safe on old tenants;
+    // the migration backfills and then enforces the final constraints.
+    await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE RESTRICT`);
+    await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ticket_key TEXT`);
+    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE RESTRICT`);
+    // `task_number` is the per-project counter. It remains useful for key
+    // allocation and lookup; `ticket_key` is the canonical stored identifier.
     await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_number INTEGER`);
     await q(`CREATE UNIQUE INDEX IF NOT EXISTS uq_tasks_project_number ON tasks(project_id, task_number) WHERE project_id IS NOT NULL`);
     await q(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id) WHERE project_id IS NOT NULL`);
+    await q(`CREATE UNIQUE INDEX IF NOT EXISTS uq_projects_org_origin_team ON projects(org_id, origin_team_id) WHERE origin_team_id IS NOT NULL`);
+    await q(`CREATE UNIQUE INDEX IF NOT EXISTS uq_projects_org_general ON projects(org_id) WHERE is_general = TRUE`);
+
+    await q(`
+        CREATE TABLE IF NOT EXISTS project_members (
+            id          SERIAL PRIMARY KEY,
+            project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            team_id     INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+            role        TEXT NOT NULL CHECK (role IN ('project_admin','member','viewer')),
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CHECK ((user_id IS NULL) <> (team_id IS NULL)),
+            UNIQUE (project_id, user_id),
+            UNIQUE (project_id, team_id)
+        )
+    `);
+    await q(`
+        CREATE TABLE IF NOT EXISTS ticket_key_aliases (
+            id          SERIAL PRIMARY KEY,
+            org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            key         TEXT NOT NULL,
+            task_id     INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+            project_id  INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+            reason      TEXT NOT NULL CHECK (reason IN ('migration','move','rename')),
+            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (org_id, key)
+        )
+    `);
+    await q(`
+        CREATE TABLE IF NOT EXISTS reserved_project_keys (
+            org_id       INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            key          TEXT NOT NULL,
+            reason       TEXT NOT NULL DEFAULT 'project',
+            reserved_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (org_id, key)
+        )
+    `);
+    await q(`
+        CREATE TABLE IF NOT EXISTS project_migration_moves (
+            task_id           INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+            sprint_id         INTEGER REFERENCES sprints(id) ON DELETE SET NULL,
+            from_project_id   INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+            to_project_id     INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+            old_key           TEXT,
+            new_key           TEXT NOT NULL,
+            moved_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+    await q(`CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id) WHERE user_id IS NOT NULL`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_project_members_team ON project_members(team_id) WHERE team_id IS NOT NULL`);
+    await q(`CREATE INDEX IF NOT EXISTS idx_ticket_key_alias_task ON ticket_key_aliases(task_id) WHERE task_id IS NOT NULL`);
+
+    await q(`
+        DO $do$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                            WHERE conname = 'organizations_service_desk_project_id_fkey'
+                              AND conrelid = 'organizations'::regclass) THEN
+                ALTER TABLE organizations
+                    ADD CONSTRAINT organizations_service_desk_project_id_fkey
+                    FOREIGN KEY (service_desk_project_id) REFERENCES projects(id) ON DELETE SET NULL;
+            END IF;
+        END $do$
+    `);
+
 
     // Per-org integrations catalog. `provider` is constrained to known values
     // (currently 'github' / 'gitlab' / 'bitbucket') so we can route webhook

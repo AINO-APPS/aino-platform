@@ -9,6 +9,7 @@
 export interface TaskTimerRow {
     task_id: number;
     task_title?: string | null;
+    ticket_key?: string | null;
     issue_key?: string | null;
     started_at: string | Date;
     stopped_at?: string | Date | null;
@@ -18,6 +19,7 @@ export interface TaskTimerRow {
 export interface TaskTimeEntry {
     task_id: number;
     title: string;
+    ticket_key: string | null;
     issue_key: string | null;
     date: string;
     minutes: number;
@@ -67,6 +69,7 @@ export function summariseTaskTime(
             day.set(row.task_id, {
                 task_id: row.task_id,
                 title: row.task_title || `Task #${row.task_id}`,
+                ticket_key: row.ticket_key ?? row.issue_key ?? null,
                 issue_key: row.issue_key || null,
                 date,
                 minutes,

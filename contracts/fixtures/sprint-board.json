@@ -1,6 +1,7 @@
 {
   "sprint": {
     "id": 10,
+    "project_id": 3,
     "team_id": 1,
     "name": "Sprint 10",
     "status": "active",
@@ -25,6 +26,8 @@
   "tickets": [
     {
       "id": 201,
+      "ticket_key": "OPS-201",
+      "issue_key": "OPS-201",
       "title": "Review the release plan",
       "priority": "high",
       "workflow_state_id": 101,
@@ -70,6 +73,7 @@
         }
       },
       "team_id": 1,
+      "project_id": 3,
       "rank": null,
       "is_blocked": false
     }

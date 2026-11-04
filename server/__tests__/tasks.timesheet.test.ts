@@ -36,6 +36,7 @@ describe("task time in the timesheet", () => {
             {
                 task_id: 9,
                 title: "Sprint board",
+                ticket_key: null,
                 issue_key: null,
                 date: "2026-10-25",
                 minutes: 60,
@@ -43,6 +44,7 @@ describe("task time in the timesheet", () => {
             {
                 task_id: 7,
                 title: "Refund webhook",
+                ticket_key: "PAY-142",
                 issue_key: "PAY-142",
                 date: "2026-10-25",
                 minutes: 45,

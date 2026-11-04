@@ -18,7 +18,8 @@ export interface TicketCapabilities {
 
 export interface Task {
   id: number;
-  issue_key?: string | null;
+  ticket_key: string;
+  issue_key: string;
   title: string;
   description?: string | null;
   priority: string;
@@ -35,7 +36,7 @@ export interface Task {
   team_id: number | null;
   rank: string | null;
   parent_task_id?: number | null;
-  project_id?: number | null;
+  project_id: number;
   work_item_type_id?: number | null;
   story_points?: number | null;
   estimated_minutes?: number | null;
@@ -51,6 +52,7 @@ export interface Task {
 
 export interface Sprint {
   id: number;
+  project_id: number;
   team_id: number;
   name: string;
   goal?: string | null;

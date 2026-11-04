@@ -20,10 +20,11 @@ const {
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
+const { findDefaultTicketProject } = require('../../modules/tasks/tasks.repository');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
-const { validateCreatedFields } = require('./_helpers/validateCreate');
+const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
 const { ticketActionConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
@@ -218,22 +219,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        // Stage 3: optional project assignment. Mirrors the validation in
-        // routes/tasks/crud.js so a missing/invalid project returns 400
-        // before we open the transaction. The matching task_number is
-        // reserved atomically below inside the transaction.
-        let validProjectId = null;
-        if (project_id !== undefined && project_id !== null && project_id !== '') {
-            const projNum = parseInt(project_id, 10);
-            if (!isNaN(projNum) && req.userOrgId) {
-                const proj = (await req.db!.query(
-                    'SELECT id FROM projects WHERE id = $1 AND org_id = $2 AND is_archived = FALSE',
-                    [projNum, req.userOrgId]
-                )).rows[0];
-                if (!proj) return res.status(400).json({ error: 'Invalid project or project is archived' });
-                validProjectId = proj.id;
-            }
-        }
+        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null);
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        let validProjectId = project.projectId;
 
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
@@ -281,6 +269,15 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
+        if (!validProjectId) {
+            validProjectId = await findDefaultTicketProject(
+                req.db!,
+                req.userOrgId || null,
+                validSprintId,
+                owner.teamId ?? null,
+            );
+        }
+        if (!validProjectId) throw new Error("No default project exists for this organization");
 
         // Agile fields
         const sp = validateStoryPoints(story_points);
