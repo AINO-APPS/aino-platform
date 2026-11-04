@@ -3,25 +3,58 @@
 The vocabulary used across the Tasks/Plan area. Storage names are noted where
 they differ from user-facing terms. See `docs/adr/` for the decisions behind them.
 
+## Project
+
+The container that owns tickets: it gives them their ticket key, board, backlog,
+workflow and visibility. Every ticket belongs to exactly one project. See
+[ADR-017](docs/adr/ADR-017-projects-own-tickets.md).
+
+## Project type
+
+A stored project classification: `scrum`, `kanban` or `task_list`. Phase 2 records
+the type; type-specific planning behaviour is deferred to Phase 3.
+
+## Project role
+
+A project grant to a user or team: **project admin** (settings, workflow and
+members), **member** (create, edit, transition, plan, move and log work), or
+**viewer** (read and comment). The highest applicable grant wins.
+
 ## Ticket
 
-A unit of work shown in the Plan area. Also called a task or work item in the
-codebase; the database table is `tasks`. One ticket has one owner team, one
-workflow state, and either one sprint or no sprint.
+A unit of work owned by one project. Also called a task or work item in the
+codebase; the database table is `tasks`. One ticket has one stored ticket key,
+one workflow state, and either one sprint or no sprint.
 
 **Avoid:** using "issue" for anything other than an external tracker item.
 
+## Ticket key
+
+A ticket's stored human-readable identifier: a project key and a number, such
+as `PLT-123`. Unique within an org and never reused. `issue_key` remains a legacy
+API field with the same value.
+
+## Key alias
+
+A former ticket key retained permanently after a project rename or ticket move.
+It still resolves to the same ticket.
+
+## Archived project
+
+A read-only project hidden from create and move pickers. Its tickets and keys
+remain readable, searchable and open for comments.
+
+## Service Desk project
+
+The active project chosen in org settings for Service Desk copies. `General` is
+the fallback when no project is configured.
+
 ## Team
 
-An org unit that owns tickets and sprints. A user belongs to at most one team
-(`users.team_id`). Membership is the boundary for reading and writing a team's
-tickets.
-
-## Team ownership
-
-The rule that a ticket belongs to exactly one team (`tasks.team_id`), independent
-of who created or was assigned it. Cross-team movement is an explicit admin
-transfer. See [ADR-013](docs/adr/ADR-013-ticket-team-ownership.md).
+A group of people that can receive role grants on any number of projects.
+Teams are never tied to one project and do not own tickets or sprints. Legacy
+team ownership remains binding until an org enables `project_ownership`; see
+[ADR-013](docs/adr/ADR-013-ticket-team-ownership.md).
 
 ## Workflow state
 

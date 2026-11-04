@@ -1,6 +1,6 @@
 # ADR-013: Tickets are owned by exactly one team; team membership is the visibility boundary
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-017](ADR-017-projects-own-tickets.md) (2026-11-03); binding on existing code until ADR-017 ships
 - **Date:** 2026-10-27
 - **Related:** ADR-014 (workflow transition enforcement), `docs/TASKS_DESIGN_SPEC.md`, `.scratch/plan-jira-parity/spec.md`
 
