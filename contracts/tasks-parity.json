@@ -10,6 +10,16 @@
   ],
   "features": [
     {
+      "id": "service-desk-project",
+      "name": "Service Desk project settings, keyed copies, system status sync and cancel-on-delete",
+      "decision": "D31",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/organization/__tests__/OrgSettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/organization/__tests__/OrgSettings.test.tsx" },
+      "android": { "status": "waived", "waiver": "Org setting administration is web-only in ticket 11; server-side Service Desk copy lifecycle applies to every client." },
+      "ios": { "status": "waived", "waiver": "iOS uses the web bundle; server-side Service Desk copy lifecycle applies unchanged." }
+    },
+    {
       "id": "planned-date-semantics",
       "name": "planned_date is metadata, never a container",
       "decision": "D2",
@@ -1016,10 +1026,6 @@
     {
       "id": "board-bulk-actions",
       "rationale": "Bulk triage belongs in backlog; board bulk would double drag-and-drop complexity per D23."
-    },
-    {
-      "id": "service-desk-changes",
-      "rationale": "Unrelated to backlog, sprint and schedule; explicitly untouched per D31."
     }
   ]
 }

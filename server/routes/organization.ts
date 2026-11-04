@@ -9,6 +9,7 @@ const redis = require("../redis");
 const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
 const { removeTeam } = require("../modules/organization/teamOwnership");
 const { listTeamsForActor } = require("../modules/organization/teamListing");
+const { isActiveServiceDeskProject } = require("../modules/organization/serviceDeskProject");
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireTenant);
@@ -90,11 +91,19 @@ router.put("/settings", requireRole("hr_admin"), requireSameOrg, async (req: Req
         const {
             name, work_hours_per_day, work_days, timezone, fiscal_year_start, min_hours_present, office_start_time,
             attendance_verification_enabled, office_latitude, office_longitude, office_radius_m, office_address,
-            office_wifi_bssids, office_wifi_verification_enabled, biometric_login_enabled,
+            office_wifi_bssids, office_wifi_verification_enabled, biometric_login_enabled, service_desk_project_id,
         } = req.body;
         const updates: string[] = [];
         const params: unknown[] = [];
         let pi = 1;
+        if (service_desk_project_id !== undefined) {
+            if (service_desk_project_id !== null && (
+                !Number.isSafeInteger(service_desk_project_id) || service_desk_project_id <= 0 ||
+                !await isActiveServiceDeskProject(req.db!, service_desk_project_id, req.userOrgId)
+            )) return res.status(400).json({ error: "Service Desk project must be an active project in this organization" });
+            updates.push(`service_desk_project_id = $${pi++}`);
+            params.push(service_desk_project_id);
+        }
 
         // Only super_admin / platform_admin can change org name, work hours, and work days
         if (name && name.trim().length > 100) return res.status(400).json({ error: "Name must be 100 characters or less" });

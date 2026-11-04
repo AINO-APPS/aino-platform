@@ -20,7 +20,7 @@ const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { logger } = require("../utils/logger");
 const { getTenantPool } = require("../utils/tenantManager");
-const { createServiceDeskBacklogTask } = require("../modules/tasks/tasks.serviceDesk");
+const { createServiceDeskBacklogTask, syncServiceDeskStatus, cancelServiceDeskCopy } = require("../modules/tasks/tasks.serviceDesk");
 
 const router = express.Router();
 router.use(auth, loadUserContext);
@@ -246,6 +246,7 @@ router.post("/tickets", async (req: Request, res: Response) => {
         // Create a corresponding backlog task in the default tenant's DB
         try {
             const defaultTenant = await getDefaultTenantDb(req);
+            if (!defaultTenant) throw new Error("No platform tenant available for Service Desk copy");
             if (defaultTenant) {
                 const typeLabel = TICKET_TYPE_LABELS[ticket_type] || ticket_type;
                 const submittingTenantIsDefault = await isDefaultTenant(req);
@@ -330,7 +331,7 @@ router.post("/tickets", async (req: Request, res: Response) => {
                         priority: taskPriority,
                         ticketId: ticket.id,
                     });
-                }
+                } else throw new Error("No platform creator available for Service Desk copy");
             }
         } catch (backlogErr) {
             // Don't fail the ticket creation if backlog sync fails
@@ -442,6 +443,14 @@ router.patch("/tickets/:id", async (req: Request, res: Response) => {
             params
         );
 
+        if (isAdmin && status !== undefined && status !== ticket.status) {
+            try {
+                const defaultTenant = await getDefaultTenantDb(req);
+                if (defaultTenant) await syncServiceDeskStatus(defaultTenant.db, ticket.id, status);
+            } catch (syncErr) {
+                logger.error({ err: syncErr, ticketId: ticket.id }, "Failed to sync Service Desk status");
+            }
+        }
         res.json(result.rows[0]);
     } catch (err) {
         logger.error({ err }, "Update service desk ticket error");
@@ -453,7 +462,7 @@ router.patch("/tickets/:id", async (req: Request, res: Response) => {
 //   - Default-tenant admins can delete any ticket.
 //   - The ticket's submitter can delete/cancel their own ticket while it is
 //     still 'open' (i.e. before the platform team has acknowledged it).
-//   The corresponding mirrored backlog task (if any) is cleaned up best-effort.
+//   The mirrored copy is retained: cancel unfinished work, or annotate Done.
 router.delete("/tickets/:id", async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -475,17 +484,14 @@ router.delete("/tickets/:id", async (req: Request, res: Response) => {
             });
         }
 
-        // Best-effort: remove the mirrored backlog task in the default tenant DB
+        // Best-effort across the master/tenant database boundary.
         try {
             const defaultTenant = await getDefaultTenantDb(req);
             if (defaultTenant) {
-                await defaultTenant.db.query(
-                    "DELETE FROM tasks WHERE service_desk_ticket_id = $1",
-                    [ticket.id]
-                );
+                await cancelServiceDeskCopy(defaultTenant.db, ticket.id);
             }
         } catch (cleanupErr) {
-            logger.error({ err: cleanupErr, ticketId: ticket.id }, "Failed to clean up backlog task for deleted service desk ticket");
+            logger.error({ err: cleanupErr, ticketId: ticket.id }, "Failed to cancel backlog task for deleted service desk ticket");
         }
 
         await masterQuery("DELETE FROM service_desk_tickets WHERE id = $1", [ticket.id]);

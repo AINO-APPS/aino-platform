@@ -4,7 +4,9 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** claimed
+
+Claimed by `ticket/projects-own-tickets-11` on 2026-11-04 from integration base `fa8118cc45258e7dab78dc547ee9b497f55b660d`.
 
 Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 
