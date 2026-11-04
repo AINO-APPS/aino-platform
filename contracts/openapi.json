@@ -23370,7 +23370,7 @@
             }
           }
         },
-        "description": "Logs the viewer’s work, or a same-org author for org admins (HR admin and above); done tickets are allowed. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "Logs the viewer’s work, or a same-org author for this ticket project’s admin or an org admin (HR admin and above); done tickets are allowed. Project members and viewers cannot log for others. Archived projects refuse writes. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -23451,7 +23451,7 @@
             }
           },
           "403": {
-            "description": "ACCESS_DENIED: only the author or an org admin can delete a visible worklog.",
+            "description": "ACCESS_DENIED: only the author, this ticket project’s admin or an org admin can delete a writable worklog.",
             "content": {
               "application/json": {
                 "schema": {
@@ -23491,7 +23491,7 @@
             }
           }
         },
-        "description": "The author or an org admin can delete a visible worklog. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "The author, this ticket project’s admin or an org admin can delete a visible worklog; project-role and archive guards still apply. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": false,
           "content": {
@@ -23570,7 +23570,7 @@
             }
           },
           "403": {
-            "description": "ACCESS_DENIED or WORKLOG_FOR_OTHERS_DENIED: only the author or an org admin can correct a visible worklog; any supplied author requires the behalf capability.",
+            "description": "ACCESS_DENIED or WORKLOG_FOR_OTHERS_DENIED: only the author, this ticket project’s admin or an org admin can correct a writable worklog; any supplied author requires the behalf capability.",
             "content": {
               "application/json": {
                 "schema": {
@@ -23610,7 +23610,7 @@
             }
           }
         },
-        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author or an org admin may edit; changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author, this ticket project’s admin or an org admin may edit; project-role and archive guards still apply. Changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
         "requestBody": {
           "required": true,
           "content": {
@@ -27128,11 +27128,11 @@
           },
           "canEdit": {
             "type": "boolean",
-            "description": "Server-decided: the viewer is the worklog author or an org admin (HR admin and above)."
+            "description": "Server-decided: the viewer is the worklog author, this ticket project’s admin or an org admin (HR admin and above). Project roles and archival still gate writes."
           },
           "canDelete": {
             "type": "boolean",
-            "description": "Server-decided: the viewer is the worklog author or an org admin (HR admin and above)."
+            "description": "Server-decided: the viewer is the worklog author, this ticket project’s admin or an org admin (HR admin and above). Project roles and archival still gate writes."
           },
           "day_worked": {
             "type": "string",

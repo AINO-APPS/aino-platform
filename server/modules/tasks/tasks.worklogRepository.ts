@@ -26,8 +26,8 @@ export async function lockTicket(db: TasksDb, taskId: number, orgId: number | nu
     return (await db.query("SELECT id, original_estimate_minutes, original_estimate_minutes AS estimated_minutes, remaining_estimate_minutes FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE", [taskId, orgId])).rows[0];
 }
 
-export async function lockWorklogTicket(db: TasksDb, taskId: number, orgId: number | null) {
-    return (await db.query('SELECT * FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE', [taskId, orgId])).rows[0];
+export async function lockWorklogTicket(db: TasksDb, taskId: number, orgId: number | null, lock = true) {
+    return (await db.query(`SELECT * FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2${lock ? " FOR UPDATE" : ""}`, [taskId, orgId])).rows[0];
 }
 
 export async function worklogAuthorExists(db: TasksDb, authorId: number, orgId: number | null): Promise<boolean> {

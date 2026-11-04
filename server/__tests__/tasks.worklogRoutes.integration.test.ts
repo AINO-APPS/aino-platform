@@ -83,8 +83,8 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect((await asMember('patch', `/api/tasks/${id}/estimates`).send({ original_estimate: '2h' })).status).toBe(200);
         await pool.query("UPDATE project_members SET role='project_admin' WHERE project_id=$1 AND user_id=2", [projectId]);
         const behalf = await asMember('post', `/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 1 });
-        expect(behalf.status).toBe(403);
-        expect(behalf.body.code).toBe('WORKLOG_FOR_OTHERS_DENIED');
+        expect(behalf.status).toBe(201);
+        expect(behalf.body.worklog).toMatchObject({ author_id: 1, logged_by_id: 2, canEdit: true, canDelete: true });
         await pool.query("UPDATE project_members SET role='viewer' WHERE project_id=$1 AND user_id=2", [projectId]);
         expect((await asMember('patch', `/api/tasks/${id}/worklogs/${saved.body.worklog.id}`).send({ comment: 'No longer writable' })).status).toBe(403);
         expect((await asMember('post', `/api/tasks/${id}/timer/start`).send({})).status).toBe(403);
@@ -93,6 +93,111 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
             .set('x-test-role', 'super_admin').send({ day_worked: '2026-11-01', time_spent: '1h' });
         expect(archived.status).toBe(409);
         expect(archived.body.code).toBe('PROJECT_ARCHIVED');
+    });
+
+    test('ticket07 project admins edit and delete another author within their project, with auditable attribution', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Project administration' })).body.id;
+        const projectId = (await pool.query('SELECT project_id FROM tasks WHERE id=$1', [id])).rows[0].project_id;
+        await pool.query("INSERT INTO project_members (project_id,user_id,role) VALUES ($1,2,'project_admin')", [projectId]);
+        const asAdmin = (method: 'get' | 'post' | 'patch' | 'delete', endpoint: string) => request(app)[method](endpoint)
+            .set('x-test-project-mode', 'on').set('x-test-user', '2').set('x-test-team', '2');
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        const created = await asAdmin('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 1 });
+        expect(created.status).toBe(201);
+        const worklog = created.body.worklog;
+        expect(worklog).toMatchObject({ author_id: 1, logged_by_id: 2, minutes: 60, canEdit: true, canDelete: true });
+        expect((await asAdmin('get', endpoint)).body.worklogs).toEqual([worklog]);
+        const edited = await asAdmin('patch', `${endpoint}/${worklog.id}`).send({ time_spent: '90m', comment: 'Corrected by project admin' });
+        expect(edited.status).toBe(200);
+        expect(edited.body.worklog).toMatchObject({ author_id: 1, logged_by_id: 2, minutes: 90, canEdit: true, canDelete: true });
+        expect(edited.body.ticket.time_spent_minutes).toBe(90);
+        const deleted = await asAdmin('delete', `${endpoint}/${worklog.id}`).send({});
+        expect(deleted.status).toBe(200);
+        expect(deleted.body.ticket.time_spent_minutes).toBe(0);
+        expect((await asAdmin('get', endpoint)).body.worklogs).toEqual([]);
+        const history = (await asAdmin('get', `/api/tasks/${id}/history`)).body;
+        for (const action of ['worklog_added', 'worklog_updated', 'worklog_deleted']) {
+            expect(history).toEqual(expect.arrayContaining([expect.objectContaining({ action, user_id: 2 })]));
+        }
+    });
+
+    test.each(['member', 'viewer'])('ticket07 %s cannot create, edit or delete another person\'s worklog', async role => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Restricted effort' })).body.id;
+        const projectId = (await pool.query('SELECT project_id FROM tasks WHERE id=$1', [id])).rows[0].project_id;
+        await pool.query('INSERT INTO project_members (project_id,user_id,role) VALUES ($1,2,$2)', [projectId, role]);
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        const saved = await request(app).post(endpoint).send({ day_worked: '2026-11-01', time_spent: '30m' });
+        const asActor = (method: 'get' | 'post' | 'patch' | 'delete', path: string) => request(app)[method](path)
+            .set('x-test-project-mode', 'on').set('x-test-user', '2').set('x-test-team', '2');
+        expect((await asActor('get', endpoint)).body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        expect((await asActor('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 1 })).status).toBe(403);
+        expect((await asActor('patch', `${endpoint}/${saved.body.worklog.id}`).send({ time_spent: '1h' })).status).toBe(403);
+        expect((await asActor('delete', `${endpoint}/${saved.body.worklog.id}`).send({})).status).toBe(403);
+        expect((await request(app).get(endpoint)).body.time_spent_minutes).toBe(30);
+    });
+
+    test('ticket07 project admin privilege is limited to the ticket project and organization', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Scoped effort' })).body.id;
+        const projectId = (await pool.query('SELECT project_id FROM tasks WHERE id=$1', [id])).rows[0].project_id;
+        const otherProject = (await pool.query(
+            "INSERT INTO projects (org_id,key,name,created_by) VALUES (1,'OTHER','Other project',1) RETURNING id",
+        )).rows[0].id;
+        await pool.query("INSERT INTO project_members (project_id,user_id,role) VALUES ($1,2,'project_admin'),($2,2,'member')", [otherProject, projectId]);
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        const saved = (await request(app).post(endpoint).send({ day_worked: '2026-11-01', time_spent: '30m' })).body.worklog;
+        const asAdmin = (method: 'get' | 'post' | 'patch' | 'delete', path: string) => request(app)[method](path)
+            .set('x-test-project-mode', 'on').set('x-test-user', '2').set('x-test-team', '2');
+        expect((await asAdmin('get', endpoint)).body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        expect((await asAdmin('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 1 })).status).toBe(403);
+        expect((await asAdmin('patch', `${endpoint}/${saved.id}`).send({ time_spent: '1h' })).status).toBe(403);
+        expect((await asAdmin('delete', `${endpoint}/${saved.id}`).send({})).status).toBe(403);
+        const foreign = (method: 'post' | 'patch' | 'delete', path: string) => request(app)[method](path)
+            .set('x-test-project-mode', 'on').set('x-test-user', '3').set('x-test-org', '2').set('x-test-team', '3').set('x-test-role', 'super_admin');
+        expect((await foreign('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '1h', author_id: 3 })).status).toBe(404);
+        expect((await foreign('patch', `${endpoint}/${saved.id}`).send({ comment: 'Foreign' })).status).toBe(404);
+        expect((await foreign('delete', `${endpoint}/${saved.id}`).send({})).status).toBe(404);
+    });
+
+    test.each(['super_admin', 'hr_admin', 'platform_admin'])('ticket07 %s retains on-behalf CRUD in project mode without project grants', async role => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Org administration' })).body.id;
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        const admin = (method: 'get' | 'post' | 'patch' | 'delete', path: string) => request(app)[method](path)
+            .set('x-test-project-mode', 'on').set('x-test-user', '2').set('x-test-team', '2').set('x-test-role', role);
+        const saved = await admin('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '30m', author_id: 1 });
+        expect(saved.status).toBe(201);
+        expect(saved.body.worklog).toMatchObject({ author_id: 1, logged_by_id: 2, canEdit: true, canDelete: true });
+        expect((await admin('patch', `${endpoint}/${saved.body.worklog.id}`).send({ time_spent: '1h' })).status).toBe(200);
+        expect((await admin('delete', `${endpoint}/${saved.body.worklog.id}`).send({})).status).toBe(200);
+    });
+
+    test('ticket07 team-derived project admins can mutate others, but cannot after their grant is downgraded or project archived', async () => {
+        const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Team project administration' })).body.id;
+        const projectId = (await pool.query('SELECT project_id FROM tasks WHERE id=$1', [id])).rows[0].project_id;
+        await pool.query("INSERT INTO project_members (project_id,team_id,role) VALUES ($1,2,'project_admin')", [projectId]);
+        const endpoint = `/api/tasks/${id}/worklogs`;
+        const admin = (method: 'get' | 'post' | 'patch' | 'delete', path: string) => request(app)[method](path)
+            .set('x-test-project-mode', 'on').set('x-test-user', '2').set('x-test-team', '2');
+        const saved = await admin('post', endpoint).send({ day_worked: '2026-11-01', time_spent: '30m', author_id: 1 });
+        expect(saved.status).toBe(201);
+        const worklogPath = `${endpoint}/${saved.body.worklog.id}`;
+        expect((await admin('patch', worklogPath).send({ time_spent: '1h' })).status).toBe(200);
+        await pool.query("UPDATE project_members SET role='member' WHERE project_id=$1 AND team_id=2", [projectId]);
+        expect((await admin('get', endpoint)).body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        expect((await admin('patch', worklogPath).send({ comment: 'Downgraded' })).status).toBe(403);
+        expect((await admin('delete', worklogPath).send({})).status).toBe(403);
+        await pool.query("UPDATE project_members SET role='project_admin' WHERE project_id=$1 AND team_id=2", [projectId]);
+        await pool.query('UPDATE projects SET is_archived=TRUE WHERE id=$1', [projectId]);
+        expect((await admin('get', endpoint)).body.worklogs[0]).toMatchObject({ canEdit: false, canDelete: false });
+        for (const role of ['employee', 'super_admin']) {
+            for (const [method, target, body] of [
+                ['post', endpoint, { day_worked: '2026-11-01', time_spent: '1h', author_id: 1 }],
+                ['patch', worklogPath, { comment: 'Archived' }], ['delete', worklogPath, {}],
+            ] as const) {
+                const denied = await admin(method, target).set('x-test-role', role).send(body);
+                expect(denied.status).toBe(409);
+                expect(denied.body.code).toBe('PROJECT_ARCHIVED');
+            }
+        }
     });
 
     test('repository mutations cannot target a ticket, worklog or timer in another org', async () => {

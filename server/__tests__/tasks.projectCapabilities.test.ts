@@ -37,8 +37,8 @@ test("archived projects refuse changes even for org admins but keep comments", (
     expect(decision.capabilities.can.canEditEstimate).toEqual({ allowed: false, reason: "PROJECT_ARCHIVED" });
 });
 
-test("only org admins can log work for others, even with a project admin grant", () => {
-    expect(decideTicket(actor, ticket, context("project_admin")).capabilities.can.logWorkForOthers).toEqual({ allowed: false, reason: "WORKLOG_FOR_OTHERS_DENIED" });
+test("project admins and org admins can log work for others, but project members cannot", () => {
+    expect(decideTicket(actor, ticket, context("project_admin")).capabilities.can.logWorkForOthers).toEqual({ allowed: true });
     expect(decideTicket(actor, ticket, context("member")).capabilities.can.logWorkForOthers).toEqual({ allowed: false, reason: "WORKLOG_FOR_OTHERS_DENIED" });
     expect(decideTicket({ ...actor, role: "super_admin" }, ticket, context("project_admin")).capabilities.can.logWorkForOthers).toEqual({ allowed: true });
     expect(decideTicket(actor, ticket, context(null)).capabilities.can.comment).toEqual({ allowed: false, reason: "ACCESS_DENIED" });

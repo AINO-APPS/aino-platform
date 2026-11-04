@@ -510,7 +510,11 @@ Carry forward incomplete tasks from the previous day to today.
   same input and returns `{ worklog, ticket, warnings }`.
 - `DELETE /api/tasks/:id/worklogs/:worklogId` soft-deletes and returns `{ ticket }`.
 
-The author or an org admin (HR admin and above) can edit/delete visible worklogs.
+The author, the ticket project's admin or an org admin (HR admin and above) can
+edit/delete visible worklogs. Project admins may log for others only in their
+administered projects (including team-derived grants); members/viewers cannot.
+Archived projects refuse all worklog mutations. Per-worklog `canEdit`/`canDelete`
+reflect the same project-role and archive guards used by the mutation routes.
 Any supplied `author_id`, even self, requires the ticket's
 `capabilities.can.logWorkForOthers.allowed`; otherwise it returns
 `403 WORKLOG_FOR_OTHERS_DENIED`. Authorized authors must be integer user ids in

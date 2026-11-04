@@ -20,6 +20,8 @@ test('optional author on create and edit requires the behalf capability and docu
     for (const [endpoint, method] of [['/api/tasks/{id}/worklogs', 'post'], ['/api/tasks/{id}/worklogs/{worklogId}', 'patch']])
         assert.match(api.paths[endpoint][method].responses['403'].description, /WORKLOG_FOR_OTHERS_DENIED/);
     assert.match(api.components.schemas.TaskWorklog.properties.canEdit.description, /org admin/);
+    assert.match(api.components.schemas.TaskWorklog.properties.canEdit.description, /project.*admin/);
+    assert.match(api.components.schemas.TaskWorklog.properties.canDelete.description, /project.*admin/);
     assert.match(api.components.schemas.TaskWorklog.properties.logged_by_id.description, /original/);
 });
 

@@ -140,7 +140,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
                 edit,
                 logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 logWorkForOthers: actor.projectOwnership && !edit.allowed ? edit
-                    : !isOrgAdmin(actor.role) ? deny("WORKLOG_FOR_OTHERS_DENIED")
+                    : !(isOrgAdmin(actor.role) || actor.projectOwnership && project?.role === "project_admin") ? deny("WORKLOG_FOR_OTHERS_DENIED")
                     : !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
@@ -156,8 +156,15 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
     };
 }
 
-export function decideWorklog(actor: Pick<TaskActor, 'userId' | 'role'> | undefined, worklog: { author_id: number }) {
-    const allowed = actor != null && (Number(worklog.author_id) === actor.userId || isOrgAdmin(actor.role));
+export function decideWorklog(
+    actor: Pick<TaskActor, 'userId' | 'role' | 'projectOwnership'> | undefined,
+    worklog: { author_id: number },
+    project?: { role: string | null; archived: boolean },
+) {
+    const writable = !actor?.projectOwnership || project != null && !project.archived
+        && (project.role === "member" || project.role === "project_admin");
+    const allowed = actor != null && writable && (Number(worklog.author_id) === actor.userId
+        || isOrgAdmin(actor.role) || actor.projectOwnership && project?.role === "project_admin");
     return { canEdit: allowed, canDelete: allowed };
 }
 

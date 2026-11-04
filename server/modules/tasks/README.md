@@ -92,8 +92,11 @@ stamps already-enabled organizations. Run
 
 With project ownership enabled, ticket decisions use project roles rather than
 team membership. Viewers, reporters and assignees can comment; only members and
-project admins can write. Manual worklogs retain the Phase 1 org-admin-only
-on-behalf rule (HR admin and above); a project-admin grant alone does not grant it.
+project admins can write. Project admins can log, edit and delete other people's
+worklogs only within their administered project, including team-derived grants.
+Org admins retain on-behalf access throughout their organization. Worklog
+`canEdit`/`canDelete` responses use the same project-role and archive context as
+mutation guards; member/viewer grants never confer on-behalf administration.
 Logging work and editing estimates also respect project read-only/archive guards.
 An archived project refuses ticket writes with `PROJECT_ARCHIVED`, but reading,
 key lookup, search and comments remain available. Unarchiving requires an org
@@ -226,8 +229,8 @@ subset of those fields; null clears start time or comment. `deleteWorklog`
 summary. Both lock the org-scoped ticket and active worklog, check visibility and
 `decideWorklog` in the capabilities module, then write history/audit atomically
 before after-commit realtime. `canEdit` / `canDelete` on every worklog are true
-for its author or an org admin (HR admin and above), including after Done or
-Cancelled. Other members get 403. `getTicketWorklogs` takes the viewer's actor
+for its author, the ticket project's admin or an org admin (HR admin and above),
+including after Done or Cancelled. Other members get 403. `getTicketWorklogs` takes the viewer's actor
 so serialization and correction guards use the same decision. Missing, deleted
 or foreign-ticket worklogs return 404.
 Deleted entries leave lists and all computed totals but remain in history.

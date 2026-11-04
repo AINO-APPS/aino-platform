@@ -175,7 +175,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         const decision = decideTicket(projectActor, ticket, await loadTicketDecisionContext(pool, projectActor, [ticket]));
         expect(decision.capabilities.can.edit.allowed).toBe(write);
         expect(decision.capabilities.can.comment.allowed).toBe(comment);
-        expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && userId === 4);
+        expect(decision.capabilities.can.logWorkForOthers.allowed).toBe(write && (userId === 4 || role === "project_admin"));
         if (!write) expect(decision.capabilities.can.edit).toEqual(denied(archived ? "PROJECT_ARCHIVED" : comment ? "READ_ONLY_ROLE" : "ACCESS_DENIED"));
     });
 

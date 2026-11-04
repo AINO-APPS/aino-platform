@@ -10,7 +10,7 @@ A project admin can archive a finished project. Its tickets become read-only and
 
 **Blocked by:** 06
 
-**Status:** claimed
+**Status:** resolved
 
 Claimed on `ticket/projects-own-tickets-07`. Test seams: the public ticket decision,
 HTTP routes against PostgreSQL, web capability rendering, and generated API contracts.
@@ -38,7 +38,7 @@ Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017, ADR-016.
   - org admin
   - people with no access
   - the archived project
-- [ ] **Route test on real PostgreSQL:**
+- [x] **Route test on real PostgreSQL:**
   - A viewer's edit is refused with `READ_ONLY_ROLE`, but their comment succeeds.
   - Writes on an archived project are refused, while reads succeed.
   - Unarchive is refused for a project admin.
@@ -54,23 +54,35 @@ ticket-history tracking in migration `0025_project_ticket_history.sql`. The
 legacy actor matrix remains as flag-off regression coverage alongside the new
 project-role actor table.
 
-Merged integration `a63dd3d2`, including ticket04 workflows, ticket05's privacy
-follow-up, ticket06's persisted multi-team memberships and ticket12's migration
-review and publication. This ticket consumes
-ticket06's resolver; it does not own its earlier multi-team caveat.
+Merged integration `95efd02c`, including tickets04/05/06/08/11/12 and the complete
+Phase 1 manual-worklog API. This ticket consumes ticket06's resolver; it does not
+own its earlier multi-team caveat. The redundant minimal-worklog experiment was
+compared against Phase 1 and not reapplied; no duplicate endpoints or migration
+were added. History remains migration0025; Phase 1 owns0026/0027.
 
-Validation after that merge: 42 focused server tests, 14 real-PostgreSQL actor
-and route acceptance cases, 19 web tests (including ticket12's migration review),
-both TypeScript checks and 62 contract tests pass. Generated models and parity
-checks pass. The CRUD file-size overshoot is fixed by sharing creation-conflict
-handling. The aggregate guardrail remains blocked only by inherited
-`server/routes/sprints.ts` (1005 lines against 959); ticket08 owns its extraction.
-The history migration uses 0025, avoiding ticket12's 0023 and ticket08's 0024.
+Extended the existing worklog API and decision policy: project admins may create,
+edit and soft-delete other people's worklogs only in their administered project,
+including team-derived grants. Per-worklog `canEdit`/`canDelete` use the same
+project context as guards. Members/viewers cannot administer others' worklogs;
+grant downgrades and archival immediately remove permissions. Org-admin behavior,
+org/ticket isolation, original logged-by attribution and mutation history remain.
 
-**Completion gap:** the supplied integration does not contain Phase 1's
-manual-worklog API (it exists on the separate `integration/manual-worklogs`
-branch). Project-admin `logWorkForOthers` is implemented in decisions and exposed
-through ticket HTTP responses, but an actual log-for-others HTTP mutation cannot
-be exercised here without importing that separate feature. No replacement API
-was invented. This issue stays claimed until that acceptance case is integrated
-and verified.
+Final validation on that integration:
+- 86 worklog PostgreSQL HTTP tests pass, including the project-admin CRUD,
+  scoped-role, cross-org, downgrade, archival and org-admin cases.
+- 14 bounded PostgreSQL capability/archive/deletion acceptance cases pass.
+- 35 focused project-capability/access/duration Jest tests pass.
+- 43 web tests pass across worklog, capability rendering, project settings,
+  membership, migration review and selected-project workflow seams.
+- Server/client typechecks, server dependency boundaries, generated-model checks,
+  parity and 77 contract tests pass.
+- All repository guardrails pass, including server/client file sizes.
+
+An additional regression run found one unrelated pre-existing failure:
+`projects.routes.characterization` / “clamps paginated list limits and can include
+archived projects” expects SQL parameters `[3,200,0]`, while integration's current
+project list includes another nullable parameter. That test and project-list
+implementation were not changed here. The other70 tests in that run passed.
+
+All ticket07 acceptance cases, including real on-behalf worklog mutations, are
+covered; the prior manual-worklog API gap is closed.

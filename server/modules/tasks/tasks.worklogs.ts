@@ -9,7 +9,7 @@ import { ticketActionConflict } from "./tasks.writeGuards";
 import { findTeamMemberIds } from "./tasks.repository";
 import { emitTaskUpdated } from "../../utils/taskNotifications";
 import { computeWorklogWarnings } from './tasks.worklogWarnings';
-import { decideWorklog } from "./tasks.capabilities";
+import { decideWorklog, loadTicketDecisionContext } from "./tasks.capabilities";
 import { applyRemaining, estimateSummary, type RemainingInput } from './tasks.estimates';
 
 export interface LogWorkInput extends RemainingInput {
@@ -86,8 +86,9 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        if (!decideWorklog(actor, before).canEdit)
-            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can edit it.' } } };
+        const project = actor.projectOwnership ? await worklogProjectContext(tx, taskId, actor) : undefined;
+        if (!decideWorklog(actor, before, project).canEdit)
+            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author, this project\'s admin or an org admin can edit it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.keys(input).length)
             throw new InvalidWorklog('Enter changed worklog fields.');
         if (Object.prototype.hasOwnProperty.call(input, 'author_id')) {
@@ -124,8 +125,9 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        if (!decideWorklog(actor, before).canDelete)
-            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author or an org admin can delete it.' } } };
+        const project = actor.projectOwnership ? await worklogProjectContext(tx, taskId, actor) : undefined;
+        if (!decideWorklog(actor, before, project).canDelete)
+            return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author, this project\'s admin or an org admin can delete it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input)
             || Object.keys(input).some(key => !['remaining_mode', 'remaining_estimate'].includes(key)))
             throw new InvalidWorklog('Unsupported worklog field.');
@@ -146,9 +148,11 @@ export const getTimeSpent = repository.readTimeSpent;
 
 export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: number | null, actor?: TaskActor) {
     const rows = await repository.listWorklogs(db, taskId, orgId);
+    const project = actor?.projectOwnership
+        ? await worklogProjectContext(db, taskId, actor) : undefined;
     const worklogs = rows.map(({ username, full_name, avatar, logged_by_username, logged_by_name, logged_by_avatar, source_timer_id: _source, ...row }) => ({
         ...row,
-        ...decideWorklog(actor, row),
+        ...decideWorklog(actor, row, project),
         author: { id: row.author_id, username, full_name, avatar },
         logged_by: { id: row.logged_by_id, username: logged_by_username, full_name: logged_by_name, avatar: logged_by_avatar },
     }));
@@ -156,6 +160,12 @@ export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: numb
     return { worklogs, time_spent_minutes: worklogs.reduce((sum, row) => sum + row.minutes, 0),
         original_estimate_minutes: estimates?.original_estimate_minutes ?? null,
         remaining_estimate_minutes: estimates?.remaining_estimate_minutes ?? null };
+}
+
+async function worklogProjectContext(db: TasksDb, taskId: number, actor: TaskActor) {
+    const task = await repository.lockWorklogTicket(db, taskId, actor.orgId, false);
+    if (!task) return undefined;
+    return (await loadTicketDecisionContext(db, actor, [task])).projects?.get(Number(task.project_id));
 }
 
 /** One transaction owns stopping, recording and history, so repeated/concurrent stops cannot add time twice. */
