@@ -9,7 +9,7 @@ const redis = require("../redis");
 const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
 const { removeTeam } = require("../modules/organization/teamOwnership");
 const { listTeamsForActor } = require("../modules/organization/teamListing");
-const { isActiveServiceDeskProject } = require("../modules/organization/serviceDeskProject");
+const { isValidServiceDeskProjectSetting } = require("../modules/organization/serviceDeskProject");
 const router = express.Router();
 const { requireTenant } = require("../middleware/tenant");
 router.use(auth, loadUserContext, requireTenant);
@@ -97,10 +97,8 @@ router.put("/settings", requireRole("hr_admin"), requireSameOrg, async (req: Req
         const params: unknown[] = [];
         let pi = 1;
         if (service_desk_project_id !== undefined) {
-            if (service_desk_project_id !== null && (
-                !Number.isSafeInteger(service_desk_project_id) || service_desk_project_id <= 0 ||
-                !await isActiveServiceDeskProject(req.db!, service_desk_project_id, req.userOrgId)
-            )) return res.status(400).json({ error: "Service Desk project must be an active project in this organization" });
+            if (!await isValidServiceDeskProjectSetting(req.db!, service_desk_project_id, req.userOrgId))
+                return res.status(400).json({ error: "Service Desk project must be an active project in this organization" });
             updates.push(`service_desk_project_id = $${pi++}`);
             params.push(service_desk_project_id);
         }
