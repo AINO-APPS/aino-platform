@@ -15,9 +15,9 @@ export async function projectKeyInUse(db: ProjectAccessRepositoryDb, orgId: numb
     )).rows.length > 0;
 }
 
-export async function countProjectTickets(db: ProjectAccessRepositoryDb, projectId: number): Promise<number> {
+export async function countProjectTickets(db: ProjectAccessRepositoryDb, projectId: number, orgId: number): Promise<number> {
     return Number((await db.query(
-        "SELECT COUNT(*)::int AS count FROM tasks WHERE project_id = $1", [projectId],
+        "SELECT COUNT(*)::int AS count FROM tasks WHERE project_id = $1 AND org_id = $2", [projectId, orgId],
     )).rows[0].count);
 }
 
@@ -32,17 +32,17 @@ export async function rewriteProjectKey(
         "INSERT INTO reserved_project_keys (org_id, key, reason) VALUES ($1, $2, 'rename') ON CONFLICT DO NOTHING",
         [orgId, oldKey],
     );
-    await db.query("UPDATE projects SET key = $1, updated_at = NOW() WHERE id = $2", [newKey, projectId]);
+    await db.query("UPDATE projects SET key = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3", [newKey, projectId, orgId]);
     if (published) {
         await db.query(
             `INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason)
-             SELECT org_id, ticket_key, id, project_id, 'rename' FROM tasks WHERE project_id = $1`,
-            [projectId],
+             SELECT org_id, ticket_key, id, project_id, 'rename' FROM tasks WHERE project_id = $1 AND org_id = $2`,
+            [projectId, orgId],
         );
     }
     const rewritten = await db.query(
-        "UPDATE tasks SET ticket_key = $1 || '-' || task_number WHERE project_id = $2",
-        [newKey, projectId],
+        "UPDATE tasks SET ticket_key = $1 || '-' || task_number WHERE project_id = $2 AND org_id = $3",
+        [newKey, projectId, orgId],
     );
     await db.query(
         `INSERT INTO audit_logs (org_id, actor_id, action, entity_type, entity_id, details)

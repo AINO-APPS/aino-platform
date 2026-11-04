@@ -69,13 +69,14 @@ export const listProjectWorkflowStates = async (db: WorkflowDb, orgId: number, p
 
 export async function missingProjectWorkflowCategories(
     db: WorkflowDb,
+    orgId: number,
     projectId: number,
     stateId?: number,
     proposed?: { category?: string; is_active?: boolean },
 ): Promise<string[]> {
     const states = (await db.query(
-        "SELECT id, category, is_active FROM workflow_states WHERE project_id = $1",
-        [projectId],
+        "SELECT id, category, is_active FROM workflow_states WHERE project_id = $1 AND org_id = $2",
+        [projectId, orgId],
     )).rows;
     const active = states.filter((state) => {
         if (Number(state.id) !== stateId) return state.is_active;
@@ -84,10 +85,10 @@ export async function missingProjectWorkflowCategories(
     return ["open", "in_progress", "in_review", "done"].filter((category) => !active.includes(category));
 }
 
-export const findProjectWorkflowState = async (db: WorkflowDb, projectId: number, stateId: number) =>
+export const findProjectWorkflowState = async (db: WorkflowDb, orgId: number, projectId: number, stateId: number) =>
     (await db.query(
-        "SELECT * FROM workflow_states WHERE id = $1 AND project_id = $2",
-        [stateId, projectId],
+        "SELECT * FROM workflow_states WHERE id = $1 AND project_id = $2 AND org_id = $3",
+        [stateId, projectId, orgId],
     )).rows[0] ?? null;
 
 export async function createProjectWorkflowState(
@@ -107,11 +108,11 @@ export async function createProjectWorkflowState(
 ): Promise<any> {
     return db.transaction(async (client) => {
         const sortOrder = Number((await client.query(
-            "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE project_id = $1",
-            [input.projectId],
+            "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE project_id = $1 AND org_id = $2",
+            [input.projectId, input.orgId],
         )).rows[0]?.next ?? 1);
         if (input.isInitial) {
-            await client.query("UPDATE workflow_states SET is_initial = FALSE WHERE project_id = $1", [input.projectId]);
+            await client.query("UPDATE workflow_states SET is_initial = FALSE WHERE project_id = $1 AND org_id = $2", [input.projectId, input.orgId]);
         }
         return (await client.query(
             `INSERT INTO workflow_states
@@ -124,14 +125,14 @@ export async function createProjectWorkflowState(
     });
 }
 
-export async function reorderProjectWorkflowStates(db: WorkflowDb, projectId: number, order: unknown[]): Promise<void> {
+export async function reorderProjectWorkflowStates(db: WorkflowDb, orgId: number, projectId: number, order: unknown[]): Promise<void> {
     await db.transaction(async (client) => {
         for (let index = 0; index < order.length; index += 1) {
             const stateId = Number.parseInt(String(order[index]), 10);
             if (!Number.isInteger(stateId)) continue;
             await client.query(
-                "UPDATE workflow_states SET sort_order = $1 WHERE id = $2 AND project_id = $3",
-                [index + 1, stateId, projectId],
+                "UPDATE workflow_states SET sort_order = $1 WHERE id = $2 AND project_id = $3 AND org_id = $4",
+                [index + 1, stateId, projectId, orgId],
             );
         }
     });
@@ -139,6 +140,7 @@ export async function reorderProjectWorkflowStates(db: WorkflowDb, projectId: nu
 
 export async function updateProjectWorkflowState(
     db: WorkflowDb,
+    orgId: number,
     projectId: number,
     stateId: number,
     updates: Record<string, unknown>,
@@ -162,32 +164,32 @@ export async function updateProjectWorkflowState(
         sets.push(`${column} = $${params.length}`);
     }
     if (!sets.length) return;
-    params.push(stateId, projectId);
+    params.push(stateId, projectId, orgId);
     await db.query(
-        `UPDATE workflow_states SET ${sets.join(", ")} WHERE id = $${params.length - 1} AND project_id = $${params.length}`,
+        `UPDATE workflow_states SET ${sets.join(", ")} WHERE id = $${params.length - 2} AND project_id = $${params.length - 1} AND org_id = $${params.length}`,
         params,
     );
 }
 
-export const setOtherProjectWorkflowStatesNonInitial = (db: WorkflowDb, projectId: number, stateId: number) =>
+export const setOtherProjectWorkflowStatesNonInitial = (db: WorkflowDb, orgId: number, projectId: number, stateId: number) =>
     db.query(
-        "UPDATE workflow_states SET is_initial = FALSE WHERE project_id = $1 AND id <> $2",
-        [projectId, stateId],
+        "UPDATE workflow_states SET is_initial = FALSE WHERE project_id = $1 AND id <> $2 AND org_id = $3",
+        [projectId, stateId, orgId],
     );
 
-export const countTasksInWorkflowState = async (db: WorkflowDb, stateId: number): Promise<number> =>
+export const countTasksInWorkflowState = async (db: WorkflowDb, orgId: number, stateId: number): Promise<number> =>
     Number((await db.query(
-        "SELECT COUNT(*)::int AS count FROM tasks WHERE workflow_state_id = $1",
-        [stateId],
+        "SELECT COUNT(*)::int AS count FROM tasks WHERE workflow_state_id = $1 AND org_id = $2",
+        [stateId, orgId],
     )).rows[0]?.count ?? 0);
 
-export const deleteProjectWorkflowState = (db: WorkflowDb, projectId: number, stateId: number) =>
-    db.query("DELETE FROM workflow_states WHERE id = $1 AND project_id = $2", [stateId, projectId]);
+export const deleteProjectWorkflowState = (db: WorkflowDb, orgId: number, projectId: number, stateId: number) =>
+    db.query("DELETE FROM workflow_states WHERE id = $1 AND project_id = $2 AND org_id = $3", [stateId, projectId, orgId]);
 
-export const listActiveProjectWorkflowStates = async (db: WorkflowDb, projectId: number) =>
+export const listActiveProjectWorkflowStates = async (db: WorkflowDb, orgId: number, projectId: number) =>
     (await db.query(
-        "SELECT id, key, category, is_terminal FROM workflow_states WHERE project_id = $1 AND is_active = TRUE",
-        [projectId],
+        "SELECT id, key, category, is_terminal FROM workflow_states WHERE project_id = $1 AND org_id = $2 AND is_active = TRUE",
+        [projectId, orgId],
     )).rows;
 
 export async function replaceProjectWorkflowTransitions(
@@ -197,7 +199,7 @@ export async function replaceProjectWorkflowTransitions(
     edges: Array<{ from_state_id: number; to_state_id: number }>,
 ): Promise<void> {
     await db.transaction(async (client) => {
-        await client.query("DELETE FROM workflow_transitions WHERE project_id = $1", [projectId]);
+        await client.query("DELETE FROM workflow_transitions WHERE project_id = $1 AND org_id = $2", [projectId, orgId]);
         for (const edge of edges) {
             await client.query(
                 `INSERT INTO workflow_transitions (org_id, project_id, from_state_id, to_state_id)

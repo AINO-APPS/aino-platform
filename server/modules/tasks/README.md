@@ -24,6 +24,9 @@ are logged without rejecting the customer submission.
 initial, first in-progress, or first non-cancelled Done state, ordered by
 `sort_order, id`. Sync bypasses user transitions and never reopens Cancelled.
 Each atomic update/history statement records a null user and `actor_type=system`.
+Source-driven sync/cancel runs in the platform tenant database, not the submitting
+customer's org. Copy locks join the owning project and workflow through the same
+organization and project, and acquire multiple ticket locks in id order.
 Deleting the source cancels unfinished work, preserves Done, and records
 `service_desk_deleted`; it never deletes the platform copy or its work history.
 
@@ -47,6 +50,8 @@ teams member access in the same transaction.
 key preview/rename. `tasks.projectKeyRepository.ts` owns the SQL: project row
 locking, permanent key reservations, stored ticket-key rewrites, published-key
 aliases and one project audit entry all share a transaction. Preview only reads.
+Counts, aliases and rewrites also retain the actor's organization predicate;
+project workflow reads and writes carry that same request organization explicitly.
 The projects route emits `project_updated` after commit; web project lists,
 boards and open ticket details refetch rather than deriving keys from the event.
 The tenant-wide frame carries only `project_id`; old/new keys and ticket counts

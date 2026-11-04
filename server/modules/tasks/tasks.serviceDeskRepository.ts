@@ -23,8 +23,10 @@ export async function syncServiceDeskStatus(db: ServiceDeskTaskDb, ticketId: num
     await db.query(
         `WITH locked AS MATERIALIZED (
             SELECT t.id, t.org_id, t.project_id, w.key AS old_key
-              FROM tasks t JOIN workflow_states w ON w.id = t.workflow_state_id
-             WHERE t.service_desk_ticket_id = $1 FOR UPDATE OF t
+              FROM tasks t JOIN projects p ON p.id = t.project_id AND p.org_id = t.org_id
+              JOIN workflow_states w ON w.id = t.workflow_state_id
+               AND w.org_id = p.org_id AND w.project_id = p.id
+             WHERE t.service_desk_ticket_id = $1 ORDER BY t.id FOR UPDATE OF t
          ), targets AS (
             SELECT l.*, s.id AS state_id, s.key AS new_key
               FROM locked l JOIN LATERAL (
@@ -49,8 +51,10 @@ export async function cancelServiceDeskCopy(db: ServiceDeskTaskDb, ticketId: num
     await db.query(
         `WITH locked AS MATERIALIZED (
             SELECT t.id, t.org_id, t.project_id, t.workflow_state_id, w.key, w.category
-              FROM tasks t JOIN workflow_states w ON w.id = t.workflow_state_id
-             WHERE t.service_desk_ticket_id = $1 FOR UPDATE OF t
+              FROM tasks t JOIN projects p ON p.id = t.project_id AND p.org_id = t.org_id
+              JOIN workflow_states w ON w.id = t.workflow_state_id
+               AND w.org_id = p.org_id AND w.project_id = p.id
+             WHERE t.service_desk_ticket_id = $1 ORDER BY t.id FOR UPDATE OF t
          ), changed AS (
             UPDATE tasks t SET workflow_state_id =
                 CASE WHEN l.category = 'done' THEN l.workflow_state_id ELSE cancelled.id END

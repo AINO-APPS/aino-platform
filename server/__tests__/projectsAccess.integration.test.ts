@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
+import * as workflow from "../modules/tasks/tasks.projectWorkflowRepository";
 
 installPgTypeParsers();
 
@@ -82,6 +83,35 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             (2, 'member', 'x', 'Member', 1, 1, 'employee'),
             (3, 'other', 'x', 'Other', 1, 2, 'employee')`);
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
+    });
+
+    test("workflow repository reads and mutations ignore project and state ids from another org", async () => {
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (2, 'Other', 'other')");
+        const created = await request(app).post("/api/projects")
+            .set("x-test-role", "team_lead").send({ key: "SCOPED", name: "Scoped" });
+        expect(created.status).toBe(200);
+        const projectId = Number(created.body.id);
+        const states = await workflow.listProjectWorkflowStates(db, 1, projectId);
+        const initial = states.find((state) => state.is_initial)!;
+        const graph = await require("../modules/tasks/tasks.workflow").loadLifecycleContext(db, 1, projectId);
+        await pool.query(`INSERT INTO tasks (title, user_id, org_id, project_id, workflow_state_id)
+            VALUES ('Scoped ticket', 1, 1, $1, $2)`, [projectId, initial.id]);
+
+        expect(await workflow.findProjectWorkflowState(db, 2, projectId, initial.id)).toBeNull();
+        expect(await workflow.listActiveProjectWorkflowStates(db, 2, projectId)).toEqual([]);
+        expect(await workflow.missingProjectWorkflowCategories(db, 2, projectId))
+            .toEqual(["open", "in_progress", "in_review", "done"]);
+        expect(await workflow.countTasksInWorkflowState(db, 2, initial.id)).toBe(0);
+        expect(await workflow.countTasksInWorkflowState(db, 1, initial.id)).toBe(1);
+
+        await workflow.updateProjectWorkflowState(db, 2, projectId, initial.id, { name: "Foreign edit" });
+        await workflow.reorderProjectWorkflowStates(db, 2, projectId, states.map((state) => state.id).reverse());
+        await workflow.setOtherProjectWorkflowStatesNonInitial(db, 2, projectId, -1);
+        await workflow.replaceProjectWorkflowTransitions(db, 2, projectId, []);
+        await workflow.deleteProjectWorkflowState(db, 2, projectId, initial.id);
+
+        expect(await workflow.listProjectWorkflowStates(db, 1, projectId)).toEqual(states);
+        expect(await require("../modules/tasks/tasks.workflow").loadLifecycleContext(db, 1, projectId)).toEqual(graph);
     });
 
     test("project workflows are isolated and org workflow writes are read-only", async () => {

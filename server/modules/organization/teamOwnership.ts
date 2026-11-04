@@ -68,7 +68,11 @@ export async function removeTeam(
 
     const memberIds = await findTeamMemberIds(db, options.teamId);
     if (options.projectOwnership) {
-        await db.query("DELETE FROM project_members WHERE team_id = $1", [options.teamId]);
+        await db.query(
+            `DELETE FROM project_members pm USING projects p
+              WHERE pm.team_id = $1 AND pm.project_id = p.id AND p.org_id = $2`,
+            [options.teamId, team.org_id],
+        );
     }
     await db.query("UPDATE users SET team_id = NULL WHERE team_id = $1", [options.teamId]);
     await db.query("DELETE FROM teams WHERE id = $1", [options.teamId]);

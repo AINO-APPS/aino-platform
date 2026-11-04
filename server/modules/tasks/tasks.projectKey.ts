@@ -30,7 +30,7 @@ export async function changeProjectKey(
                 throw new ProjectKeyError(409, "PROJECT_KEY_CONFLICT", "Project key is already in use or reserved");
             }
             const affected = preview
-                ? await countProjectTickets(client, projectId)
+                ? await countProjectTickets(client, projectId, actor.orgId!)
                 : await rewriteProjectKey(client, {
                     projectId, orgId: actor.orgId!, actorId: actor.userId,
                     oldKey: project.key, newKey: key, published: project.key_published,

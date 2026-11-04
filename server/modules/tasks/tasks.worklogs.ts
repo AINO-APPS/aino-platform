@@ -45,6 +45,13 @@ async function validateAuthor(db: TasksDb, input: Partial<LogWorkInput>, orgId: 
         throw new InvalidWorklog('Choose a person in this organization.');
 }
 
+async function notifyWorklogChange(db: TasksDb, taskId: number,
+    task: { project_id?: number | null; team_id?: number | null; user_id?: number | null; assigned_to?: number | null },
+    actor: TaskActor, tenantId?: number | null) {
+    const members = await findEffortReaders(db, task, actor);
+    emitTaskUpdated(tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
+}
+
 /** Permission is rechecked under the ticket lock; all durable records precede realtime. */
 export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, taskId: number, actor: TaskActor,
     input: LogWorkInput, source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
@@ -66,10 +73,7 @@ export async function logWork(db: TasksDb & Pick<DbContext, 'transaction'>, task
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(tx, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
-        context.afterCommit(async () => {
-            const members = await findEffortReaders(db, task, actor);
-            emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
-        });
+        context.afterCommit(() => notifyWorklogChange(db, taskId, task, actor, source.tenantId));
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
@@ -105,10 +109,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         const list = await getTicketWorklogs(tx, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === worklogId)!;
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_updated', before, worklog, source.ip, source.userAgent);
-        context.afterCommit(async () => {
-            const members = await findEffortReaders(db as TasksDb, task, actor);
-            emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
-        });
+        context.afterCommit(() => notifyWorklogChange(db, taskId, task, actor, source.tenantId));
         return { worklog, ticket: estimateSummary(task, list.time_spent_minutes), warnings: [] };
     });
     if (!result.worklog) return result;
@@ -135,10 +136,7 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         const deleted = await repository.softDeleteWorklog(tx, worklogId, taskId, actor.orgId);
         await repository.recordWorklogChange(tx, taskId, actor.userId, actor.orgId, 'worklog_deleted', before, deleted, source.ip, source.userAgent);
         const total = (await getTimeSpent(tx, [taskId], actor.orgId))[taskId] ?? 0;
-        context.afterCommit(async () => {
-            const members = await findEffortReaders(db as TasksDb, task, actor);
-            emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
-        });
+        context.afterCommit(() => notifyWorklogChange(db, taskId, task, actor, source.tenantId));
         return { ticket: estimateSummary(task, total) };
     });
 }
@@ -185,10 +183,7 @@ export async function stopLegacyTimer(db: TasksDb & Pick<DbContext, "transaction
         const list = await getTicketWorklogs(client as TasksDb, taskId, actor.orgId, actor);
         const worklog = list.worklogs.find(row => row.id === id)!;
         await repository.recordWorklogAddition(client as TasksDb, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
-        context.afterCommit(async () => {
-            const members = await findEffortReaders(db, task, actor);
-            emitTaskUpdated(source.tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
-        });
+        context.afterCommit(() => notifyWorklogChange(db, taskId, task, actor, source.tenantId));
         const total = list.time_spent_minutes;
         return { minutes, time: summariseTime({ ...task, logged_minutes: total }) };
     });

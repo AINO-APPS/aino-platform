@@ -1,6 +1,18 @@
 import { createServiceDeskBacklogTask } from "../modules/tasks/tasks.serviceDesk";
+import { cancelServiceDeskCopy, syncServiceDeskStatus } from "../modules/tasks/tasks.serviceDeskRepository";
 
 describe("service-desk task workflow placement", () => {
+    test.each(["sync", "cancel"])("%s locks org-consistent copies in ticket id order", async (operation) => {
+        const query = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+        if (operation === "sync") await syncServiceDeskStatus({ query }, 99, "resolved");
+        else await cancelServiceDeskCopy({ query }, 99);
+
+        const sql = query.mock.calls[0][0].replace(/\s+/g, " ");
+        expect(sql).toContain("JOIN projects p ON p.id = t.project_id AND p.org_id = t.org_id");
+        expect(sql).toContain("w.org_id = p.org_id AND w.project_id = p.id");
+        expect(sql).toContain("WHERE t.service_desk_ticket_id = $1 ORDER BY t.id FOR UPDATE OF t");
+    });
+
     test("uses the selected project's initial workflow state", async () => {
         const query = jest.fn()
             .mockResolvedValueOnce({ rows: [{ team_id: 7 }], rowCount: 1 })

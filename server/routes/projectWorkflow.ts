@@ -136,7 +136,7 @@ router.put("/:id/workflow-states/reorder", async (req: Request, res: Response) =
     const order = req.body?.order;
     if (!Array.isArray(order)) return res.status(400).json({ error: "order must be an array of state ids" });
     try {
-        await reorderProjectWorkflowStates(req.db as unknown as WorkflowDb, projectId, order);
+        await reorderProjectWorkflowStates(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, order);
         return res.json({ message: "Order updated" });
     } catch (err) {
         req.log.error({ err }, "Failed to reorder project workflow");
@@ -151,7 +151,7 @@ router.put("/:id/workflow-states/:stateId", async (req: Request, res: Response) 
     const access = await loadProject(req, projectId, true);
     if (access !== "ok") return failAccess(res, access);
     try {
-        const existing = await findProjectWorkflowState(req.db as unknown as WorkflowDb, projectId, stateId);
+        const existing = await findProjectWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId);
         if (!existing) return res.status(404).json({ error: "Workflow state not found" });
         const body = req.body ?? {};
         const updates: Record<string, unknown> = {};
@@ -173,18 +173,18 @@ router.put("/:id/workflow-states/:stateId", async (req: Request, res: Response) 
              (body.is_active !== undefined && body.is_active !== true))) {
             return res.status(400).json({ error: "Cancelled must remain active and terminal in the Done category" });
         }
-        const missing = await missingProjectWorkflowCategories(req.db as unknown as WorkflowDb, projectId, stateId, {
+        const missing = await missingProjectWorkflowCategories(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId, {
             category: body.category,
             is_active: body.is_active,
         });
         if (missing.length) return res.status(409).json({ error: `Workflow must cover: ${missing.join(", ")}`, missing });
         if (body.is_initial === true) {
-            await setOtherProjectWorkflowStatesNonInitial(req.db as unknown as WorkflowDb, projectId, stateId);
+            await setOtherProjectWorkflowStatesNonInitial(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId);
         }
         if (Object.keys(updates).length) {
-            await updateProjectWorkflowState(req.db as unknown as WorkflowDb, projectId, stateId, updates);
+            await updateProjectWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId, updates);
         }
-        return res.json(await findProjectWorkflowState(req.db as unknown as WorkflowDb, projectId, stateId));
+        return res.json(await findProjectWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId));
     } catch (err) {
         req.log.error({ err }, "Failed to update project workflow state");
         return res.status(500).json({ error: "Failed to update workflow state" });
@@ -198,14 +198,14 @@ router.delete("/:id/workflow-states/:stateId", async (req: Request, res: Respons
     const access = await loadProject(req, projectId, true);
     if (access !== "ok") return failAccess(res, access);
     try {
-        const existing = await findProjectWorkflowState(req.db as unknown as WorkflowDb, projectId, stateId);
+        const existing = await findProjectWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId);
         if (!existing) return res.status(404).json({ error: "Workflow state not found" });
         if (existing.key === "cancelled") return res.status(409).json({ error: "Cancelled cannot be deleted" });
-        const taskCount = await countTasksInWorkflowState(req.db as unknown as WorkflowDb, stateId);
+        const taskCount = await countTasksInWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, stateId);
         if (taskCount > 0) return res.status(409).json({ error: "Workflow state is in use", taskCount });
-        const missing = await missingProjectWorkflowCategories(req.db as unknown as WorkflowDb, projectId, stateId, { is_active: false });
+        const missing = await missingProjectWorkflowCategories(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId, { is_active: false });
         if (missing.length) return res.status(409).json({ error: `Workflow must cover: ${missing.join(", ")}`, missing });
-        await deleteProjectWorkflowState(req.db as unknown as WorkflowDb, projectId, stateId);
+        await deleteProjectWorkflowState(req.db as unknown as WorkflowDb, req.userOrgId!, projectId, stateId);
         return res.json({ message: "Workflow state deleted" });
     } catch (err) {
         req.log.error({ err }, "Failed to delete project workflow state");
@@ -235,7 +235,7 @@ router.put("/:id/workflow-transitions", async (req: Request, res: Response) => {
     const transitions = req.body?.transitions;
     if (!Array.isArray(transitions)) return res.status(400).json({ error: "transitions must be an array" });
     try {
-        const states = await listActiveProjectWorkflowStates(req.db as unknown as WorkflowDb, projectId);
+        const states = await listActiveProjectWorkflowStates(req.db as unknown as WorkflowDb, req.userOrgId!, projectId);
         const byId = new Map(states.map((state) => [Number(state.id), state]));
         const edges = new Set<string>();
         for (const edge of transitions) {
