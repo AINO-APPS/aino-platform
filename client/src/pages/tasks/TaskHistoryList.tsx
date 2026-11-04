@@ -24,6 +24,8 @@ interface HistoryEntry {
 const ACTION_ICONS: Record<string, IconComponent> = {
     created: ActivityPlus,
     status_change: ActivitySwap,
+    service_desk_sync: ActivitySwap,
+    service_desk_deleted: ActivityDelete,
     updated: ActivityEdit,
     scheduled: ActivityCalendar,
     unscheduled: ActivityCalendar,
@@ -103,6 +105,10 @@ function describe(h: HistoryEntry, styles: Record<string, string>): React.ReactN
             return "deleted a comment";
         case "status_change":
             return <>changed status from {old} → {next}</>;
+        case "service_desk_sync":
+            return <>Service Desk sync: {old} → {next}</>;
+        case "service_desk_deleted":
+            return h.new_value || "Service Desk ticket deleted; platform copy retained";
         case "scheduled":
             return <>scheduled to {next}</>;
         case "unscheduled":

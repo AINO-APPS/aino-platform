@@ -4,11 +4,10 @@
  * The task starts in its project's initial workflow state and has no planner
  * day until someone schedules it.
  */
-import { findDefaultTicketProject } from "./tasks.repository";
-
-export interface ServiceDeskTaskDb {
-    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
-}
+import { findServiceDeskProject } from "./tasks.serviceDeskRepository";
+import type { ServiceDeskTaskDb } from "./tasks.serviceDeskRepository";
+export type { ServiceDeskTaskDb } from "./tasks.serviceDeskRepository";
+export { syncServiceDeskStatus, cancelServiceDeskCopy } from "./tasks.serviceDeskRepository";
 
 export interface ServiceDeskTaskInput {
     creatorId: number;
@@ -26,16 +25,15 @@ export async function createServiceDeskBacklogTask(
     // The mirrored ticket belongs to the creator's team, so the team that
     // triages the service desk sees it without the creator's help.
     const creator = (await db.query("SELECT team_id FROM users WHERE id = $1", [input.creatorId])).rows[0];
-    const projectId = await findDefaultTicketProject(db, input.orgId, null, creator?.team_id ?? null);
+    const project = await findServiceDeskProject(db, input.orgId);
+    if (!project?.workflow_state_id) throw new Error("No active Service Desk project with an initial workflow state");
     await db.query(
         `INSERT INTO tasks (user_id, title, description, priority, org_id, team_id, project_id,
                            workflow_state_id, service_desk_ticket_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7,
-                 (SELECT id FROM workflow_states
-                   WHERE org_id = $5 AND project_id IS NOT DISTINCT FROM $7 AND is_active = TRUE
-                   ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
-                 $8)`,
+                 $8,
+                 $9)`,
         [input.creatorId, input.title, input.description, input.priority, input.orgId,
-            creator?.team_id ?? null, projectId, input.ticketId],
+            creator?.team_id ?? null, project.id, project.workflow_state_id, input.ticketId],
     );
 }

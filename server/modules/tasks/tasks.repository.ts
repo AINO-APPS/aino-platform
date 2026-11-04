@@ -11,8 +11,9 @@ export const findComments = async (db: TasksDb, taskId: number) => (await db.que
 )).rows;
 
 export const findHistory = async (db: TasksDb, taskId: number | string) => (await db.query(
-    `SELECT th.*, u.username, u.full_name, u.avatar
-       FROM task_history th JOIN users u ON u.id = th.user_id
+    `SELECT th.*, COALESCE(u.username, 'system') AS username,
+            COALESCE(u.full_name, 'System') AS full_name, u.avatar
+       FROM task_history th LEFT JOIN users u ON u.id = th.user_id
       WHERE th.task_id = $1 ORDER BY th.created_at DESC LIMIT 200`, [taskId],
 )).rows;
 

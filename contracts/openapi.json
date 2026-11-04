@@ -65,6 +65,85 @@
     }
   ],
   "paths": {
+    "/api/org/current": {
+      "get": {
+        "tags": ["organization"],
+        "operationId": "get_api_org_current",
+        "summary": "Read current organization settings",
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Current organization, or null when unassigned", "content": { "application/json": { "schema": { "anyOf": [{ "$ref": "#/components/schemas/OrgSettings" }, { "type": "null" }] } } } }
+        }
+      }
+    },
+    "/api/org/settings": {
+      "put": {
+        "tags": ["organization"],
+        "operationId": "put_api_org_settings",
+        "summary": "Update organization settings (HR admin or above)",
+        "description": "service_desk_project_id must be an active project in this organization. Null clears the setting; omission preserves it.",
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/CsrfHeader" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrgSettingsUpdate" } } } },
+        "responses": {
+          "200": { "description": "Updated organization", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrgSettings" } } } },
+          "400": { "description": "Invalid, archived or foreign project" },
+          "403": { "description": "Organization admin permission required" }
+        }
+      }
+    },
+    "/api/service-desk/tickets": {
+      "post": {
+        "tags": ["service-desk"],
+        "operationId": "post_api_service_desk_tickets",
+        "summary": "Submit a customer ticket",
+        "description": "Creates a keyed copy in the platform organization's Service Desk project, or General, in its initial workflow state. Returns 201 even if creating the copy fails; the failure is logged.",
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/CsrfHeader" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceDeskTicketCreate" } } } },
+        "responses": {
+          "201": { "description": "Customer ticket submitted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceDeskTicket" } } } },
+          "400": { "description": "Invalid ticket input or missing tenant context" }
+        }
+      }
+    },
+    "/api/service-desk/tickets/{id}": {
+      "patch": {
+        "tags": ["service-desk"],
+        "operationId": "patch_api_service_desk_tickets_id",
+        "summary": "Update a Service Desk ticket",
+        "description": "Platform-tenant operators can update status. Open and acknowledged map to the initial state; in_progress maps to the first in_progress-category state; resolved and closed map to the first non-cancelled done-category state (sort_order then id). Sync is one way, bypasses transitions and records service_desk_sync history as a system actor. A cancelled copy is never synced again. Owners may only edit title, description and priority while open.",
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/CsrfHeader" },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceDeskTicketUpdate" } } } },
+        "responses": {
+          "200": { "description": "Updated ticket", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceDeskTicket" } } } },
+          "400": { "description": "Invalid update or owner ticket no longer open" },
+          "403": { "description": "Not platform tenant or ticket owner" },
+          "404": { "description": "Ticket not found" }
+        }
+      },
+      "delete": {
+        "tags": ["service-desk"],
+        "operationId": "delete_api_service_desk_tickets_id",
+        "summary": "Delete a Service Desk ticket, retaining its platform copy",
+        "description": "Platform-tenant operators may delete a ticket; an owner may cancel their own open ticket. The copy moves to Cancelled and receives a service_desk_deleted system history note. A Done copy stays Done and receives only the note. The copy and its time/history are never deleted.",
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/CsrfHeader" },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Ticket deleted; copy retained" },
+          "400": { "description": "Owner ticket no longer open" },
+          "403": { "description": "Not platform tenant or ticket owner" },
+          "404": { "description": "Ticket not found" }
+        }
+      }
+    },
     "/api/auth/activity": {
       "post": {
         "tags": [
@@ -18241,7 +18320,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/TaskHistoryEntry" }
                 }
               }
             }
@@ -22870,6 +22950,74 @@
       }
     },
     "schemas": {
+      "OrgSettingsUpdate": {
+        "type": "object",
+        "properties": {
+          "service_desk_project_id": { "type": ["integer", "null"], "minimum": 1, "description": "Active project in the same organization; null selects General fallback." }
+        },
+        "additionalProperties": true
+      },
+      "OrgSettings": {
+        "type": "object",
+        "required": ["id", "name", "service_desk_project_id"],
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "service_desk_project_id": { "type": ["integer", "null"] }
+        },
+        "additionalProperties": true
+      },
+      "ServiceDeskTicketCreate": {
+        "type": "object",
+        "required": ["ticket_type", "title"],
+        "properties": {
+          "ticket_type": { "type": "string", "enum": ["bug", "feature_request", "access_issue", "other"] },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"], "default": "medium" }
+        }
+      },
+      "ServiceDeskTicketUpdate": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["open", "acknowledged", "in_progress", "resolved", "closed"] },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 5000 },
+          "assigned_to": { "type": ["string", "null"] },
+          "admin_notes": { "type": ["string", "null"] }
+        }
+      },
+      "ServiceDeskTicket": {
+        "type": "object",
+        "required": ["id", "tenant_id", "title", "ticket_type", "priority", "status"],
+        "properties": {
+          "id": { "type": "integer" },
+          "tenant_id": { "type": "integer" },
+          "title": { "type": "string" },
+          "ticket_type": { "type": "string", "enum": ["bug", "feature_request", "access_issue", "other"] },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "status": { "type": "string", "enum": ["open", "acknowledged", "in_progress", "resolved", "closed"] }
+        },
+        "additionalProperties": true
+      },
+      "TaskHistoryEntry": {
+        "type": "object",
+        "required": ["id", "task_id", "user_id", "actor_type", "action"],
+        "properties": {
+          "id": { "type": "integer" },
+          "task_id": { "type": "integer" },
+          "user_id": { "type": ["integer", "null"] },
+          "actor_type": { "type": "string", "enum": ["user", "system"] },
+          "action": { "type": "string", "description": "Includes service_desk_sync and service_desk_deleted for system-authored Service Desk events." },
+          "field": { "type": ["string", "null"] },
+          "old_value": { "type": ["string", "null"] },
+          "new_value": { "type": ["string", "null"] },
+          "full_name": { "type": "string" },
+          "username": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
       "Error": {
         "type": "object",
         "required": [

@@ -9,7 +9,7 @@
   "totals": {
     "routerMounts": 34,
     "concreteEndpoints": 524,
-    "openApiOperations": 257
+    "openApiOperations": 262
   },
   "standaloneRoutes": [
     {
@@ -2051,7 +2051,7 @@
     {
       "method": "GET",
       "path": "/api/org/current",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2111,7 +2111,7 @@
     {
       "method": "PUT",
       "path": "/api/org/settings",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2381,12 +2381,12 @@
     {
       "method": "POST",
       "path": "/api/service-desk/tickets",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "DELETE",
       "path": "/api/service-desk/tickets/:id",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2396,7 +2396,7 @@
     {
       "method": "PATCH",
       "path": "/api/service-desk/tickets/:id",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",

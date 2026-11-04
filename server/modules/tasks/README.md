@@ -4,6 +4,24 @@ The service owns task-domain orchestration and the repository is the sole owner
 of its SQL. Legacy task route adapters retain authentication, request parsing,
 access checks, response serialization, and error compatibility.
 
+## Service Desk copies
+
+`tasks.serviceDesk.ts` creates copies in the platform organization's configured
+active Service Desk project, falling back only to General (not the creator's
+team). The database allocates the project number and stored key atomically;
+creation uses that project's active initial state. Cross-database copy failures
+are logged without rejecting the customer submission.
+
+`tasks.serviceDeskRepository.ts` maps source statuses directly to the project's
+initial, first in-progress, or first non-cancelled Done state, ordered by
+`sort_order, id`. Sync bypasses user transitions and never reopens Cancelled.
+Each atomic update/history statement records a null user and `actor_type=system`.
+Deleting the source cancels unfinished work, preserves Done, and records
+`service_desk_deleted`; it never deletes the platform copy or its work history.
+
+Run `npx jest serviceDeskProject serviceDesk.routes.characterization tasks.serviceDesk
+--runInBand` with `TASKS_SCHEMA_TEST_DATABASE_URL` set for route PostgreSQL coverage.
+
 ## Project access (ADR-017)
 
 `tasks.projectAccess.ts` resolves a request actor's effective project role,

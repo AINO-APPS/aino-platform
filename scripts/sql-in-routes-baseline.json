@@ -19,7 +19,7 @@
   "routes/profile.ts": 51,
   "routes/projects.ts": 16,
   "routes/public.ts": 5,
-  "routes/serviceDesk.ts": 13,
+  "routes/serviceDesk.ts": 12,
   "routes/sprints.ts": 12,
   "routes/tasks/backlog.ts": 11,
   "routes/tasks/carryForward.ts": 5,
