@@ -20,6 +20,9 @@ export interface Task {
   id: number;
   ticket_key: string;
   issue_key: string;
+  key_aliases?: string[];
+  key_alias?: boolean;
+  requested_key?: string;
   title: string;
   description?: string | null;
   priority: string;

@@ -37,10 +37,12 @@ function searchNotes(raw: unknown, term: string): any[] {
 
 export function createSearchService(deps: SearchDependencies) {
     return {
-        async search(db: SearchDb, actor: SearchActor): Promise<SearchResults> {
+        async search(db: SearchDb, actor: SearchActor, exactTaskIds: number[] = []): Promise<SearchResults> {
             if (!actor.query || actor.query.trim().length < 2) return { ...EMPTY_SEARCH_RESULTS };
             const term = actor.query.trim().slice(0, 100);
-            const cached = await deps.getCached(actor.tenantId, actor.userId, term);
+            const cached = exactTaskIds.length
+                ? null
+                : await deps.getCached(actor.tenantId, actor.userId, term);
             if (cached) return cached as SearchResults;
             const tsQuery = term.split(/\s+/).filter(Boolean)
                 .map((word) => `${word.replace(/[^a-zA-Z0-9]/g, "")}:*`)
@@ -52,6 +54,7 @@ export function createSearchService(deps: SearchDependencies) {
                     actor.userId,
                     tsQuery,
                     repository.searchVisibility(actor),
+                    exactTaskIds,
                 )
                 : [];
             const notes = searchNotes(await repository.getNotebookData(db, actor.userId), term);
@@ -63,7 +66,7 @@ export function createSearchService(deps: SearchDependencies) {
             const logs = actor.canReadAuditLogs && actor.orgId
                 ? await repository.searchAuditLogs(db, actor.orgId, pattern) : [];
             const results = { tasks, notes, users, events, leaves, sprints, logs };
-            await deps.setCached(actor.tenantId, actor.userId, term, results);
+            if (!exactTaskIds.length) await deps.setCached(actor.tenantId, actor.userId, term, results);
             return results;
         },
     };

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { getTaskByKey } from "../api/tasks";
 
 const auth = vi.hoisted(() => ({ isAuthenticated: true, mustChangePassword: false }));
 
@@ -163,6 +164,26 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
         await waitFor(() => {
             expect(window.location.pathname + window.location.search).toBe(path);
             expect(screen.getByTestId(tabId)).toBeVisible();
+        });
+    });
+
+    test("an alias ticket URL opens the ticket and replaces the path with its current key", async () => {
+        vi.mocked(getTaskByKey).mockResolvedValue({
+            data: {
+                id: 17,
+                ticket_key: "ALPHA-17",
+                issue_key: "ALPHA-17",
+                key_alias: true,
+                requested_key: "OLD-17",
+            },
+        } as any);
+        window.history.replaceState({}, "", "/tasks/key/OLD-17");
+
+        render(<App />);
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/tasks/key/ALPHA-17");
+            expect(getTaskByKey).toHaveBeenCalledWith("OLD-17");
         });
     });
 

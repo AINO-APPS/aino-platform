@@ -4,19 +4,19 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 
-- [ ] **The ticket key module** grows out of the existing issue-key helper:
+- [x] **The ticket key module** grows out of the existing issue-key helper:
   - **Pure functions:** parse keys from text (same pattern as today), format a key, and validate a project key.
   - **Resolving a key** looks at current ticket keys first, then aliases, and returns the ticket id and whether the key was an alias.
-- [ ] **A "fetch ticket by key" endpoint** returns the ticket, with a marker when the key was an alias. Visibility still follows the current policy. An unknown key, or a ticket the actor can't see, returns not found.
-- [ ] **Code-reference linking** resolves keys through the module, so an alias still links to the ticket.
-- [ ] **Search and the command palette** match a ticket's current key and its former keys.
-- [ ] **Ticket detail responses carry `key_aliases`.** The web ticket detail lists former keys.
-- [ ] **The web has a URL by ticket key** that opens the ticket. Opening an alias rewrites the URL to the current key.
-- [ ] **Unit tests:** the existing issue-key unit test is extended with formatting, project-key validation and parsing.
-- [ ] **Route test on real PostgreSQL:** fetching by current key and by alias, an unknown key, an invisible ticket, and a code reference that mentions an alias linking to the ticket.
-- [ ] **Web tests:** an alias URL redirects to the current key; former keys are shown; the command palette matches an alias.
-- [ ] **Contracts:** the route snapshot, route inventory and OpenAPI are updated, and parity checks pass.
+- [x] **A "fetch ticket by key" endpoint** returns the ticket, with a marker when the key was an alias. Visibility still follows the current policy. An unknown key, or a ticket the actor can't see, returns not found.
+- [x] **Code-reference linking** resolves keys through the module, so an alias still links to the ticket.
+- [x] **Search and the command palette** match a ticket's current key and its former keys.
+- [x] **Ticket detail responses carry `key_aliases`.** The web ticket detail lists former keys.
+- [x] **The web has a URL by ticket key** that opens the ticket. Opening an alias rewrites the URL to the current key.
+- [x] **Unit tests:** the existing issue-key unit test is extended with formatting, project-key validation and parsing.
+- [x] **Route test on real PostgreSQL:** fetching by current key and by alias, an unknown key, an invisible ticket, and a code reference that mentions an alias linking to the ticket.
+- [x] **Web tests:** an alias URL redirects to the current key; former keys are shown; the command palette matches an alias.
+- [x] **Contracts:** OpenAPI and contract tests cover the alias behavior, and parity checks pass. The route snapshot and inventory already include `/api/tasks/by-key/:key`, so no changes were needed there.

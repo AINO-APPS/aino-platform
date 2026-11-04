@@ -275,7 +275,7 @@ export default function Tasks() {
   });
 
   // Deep links to a specific task open its detail on arrival.
-  useTaskDeepLink(searchParams, detail.openTaskDetail);
+  useTaskDeepLink(searchParams, detail.openTaskDetail, location.pathname, navigate);
 
   // Expose the detail-opener globally so deep-linked components (e.g. Epic
   // child-ticket links inside the task detail modal) can swap the modal

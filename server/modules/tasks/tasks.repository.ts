@@ -104,9 +104,23 @@ export const findByIssueKey = async (db: TasksDb, orgId: number | null, projectK
             AND (t.ticket_key = $2 OR EXISTS (
                 SELECT 1 FROM ticket_key_aliases a
                  WHERE a.org_id = $1 AND a.key = $2 AND a.task_id = t.id
-            ))`,
+            ))
+          ORDER BY (t.ticket_key = $2) DESC
+          LIMIT 1`,
         [orgId, `${projectKey}-${taskNumber}`],
     )).rows[0];
+
+/** Former keys for a batch of tickets, ordered by when each key was retired. */
+export const findTicketKeyAliasesByTaskIds = async (db: TasksDb, taskIds: number[]) =>
+    taskIds.length
+        ? (await db.query(
+            `SELECT task_id, key
+               FROM ticket_key_aliases
+              WHERE task_id = ANY($1::int[])
+              ORDER BY id ASC`,
+            [taskIds],
+        )).rows
+        : [];
 
 /** The stored LexoRank of one task, scoped to the org. */
 export const findRank = async (db: TasksDb, id: number, orgId: number | null): Promise<string | null> =>
@@ -234,18 +248,22 @@ export const findTaskIdsByIssueKeys = async (
     taskNumbers: number[],
 ) => (await db.query(
     `WITH requested AS (
-        SELECT project_key || '-' || task_number::text AS key
+        SELECT DISTINCT project_key || '-' || task_number::text AS key
           FROM UNNEST($2::text[], $3::int[]) AS pair(project_key, task_number)
+     ), current_keys AS (
+        SELECT requested.key, t.id, FALSE AS is_alias
+          FROM requested
+          JOIN tasks t ON t.org_id = $1 AND t.ticket_key = requested.key
+     ), alias_keys AS (
+        SELECT requested.key, a.task_id AS id, TRUE AS is_alias
+          FROM requested
+          JOIN ticket_key_aliases a ON a.org_id = $1 AND a.key = requested.key
+         WHERE a.task_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM current_keys current_ticket WHERE current_ticket.key = requested.key)
      )
-     SELECT t.ticket_key AS key, t.id
-       FROM tasks t
-      WHERE t.org_id = $1 AND t.ticket_key IN (SELECT key FROM requested)
-     UNION
-     SELECT a.key, a.task_id AS id
-       FROM ticket_key_aliases a
-      WHERE a.org_id = $1
-        AND a.task_id IS NOT NULL
-        AND a.key IN (SELECT key FROM requested)`,
+     SELECT key, id, is_alias FROM current_keys
+     UNION ALL
+     SELECT key, id, is_alias FROM alias_keys`,
     [orgId, projectKeys, taskNumbers],
 )).rows;
 

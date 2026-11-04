@@ -14,7 +14,7 @@ import TaskDetailSheet from "../TaskDetailSheet";
 import TaskDetailView from "../TaskDetailView";
 import { ToastProvider } from "../../../components/common/Toast";
 
-const task = {
+const task: Record<string, any> = {
     id: 7,
     title: "Refund webhook retries",
     issue_key: "PAY-142",
@@ -29,12 +29,12 @@ const task = {
     created_at: "2026-10-20T09:00:00Z",
 };
 
-function renderView() {
+function renderView(value = task) {
     return render(
         <MemoryRouter>
             <ToastProvider>
                 <TaskDetailView
-                    task={task}
+                    task={value}
                     availableSprints={[]}
                     customFields={[]}
                     customValues={{}}
@@ -70,6 +70,11 @@ describe("fullscreen task layout", () => {
     test("discussion renders under the content", () => {
         renderView();
         expect(screen.getByText("Discussion")).toBeTruthy();
+    });
+
+    test("former ticket keys are listed in the detail", () => {
+        renderView({ ...task, key_aliases: ["OLD-142", "LEGACY-7"] });
+        expect(screen.getByText("Former keys: OLD-142, LEGACY-7")).toBeTruthy();
     });
 
     test("the sheet header does not repeat the full title", () => {

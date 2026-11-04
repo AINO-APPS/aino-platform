@@ -17678,11 +17678,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Ticket resolved from its current key or a former key. key_alias indicates an alias lookup.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TaskByKey"
                 }
               }
             }
@@ -17709,6 +17709,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket key is unknown or the ticket is not visible",
             "content": {
               "application/json": {
                 "schema": {
@@ -21487,6 +21497,18 @@
           "id": {
             "type": "integer"
           },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "title": {
             "type": "string"
           },
@@ -21541,6 +21563,9 @@
         },
         "required": [
           "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
           "title",
           "description",
           "priority",
@@ -21566,6 +21591,21 @@
           "issue_key": {
             "type": "string",
             "description": "Legacy field retained for older clients; equal to ticket_key."
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Former ticket keys that still resolve to this ticket."
+          },
+          "key_alias": {
+            "type": "boolean",
+            "description": "True when the requested ticket key was a former key."
+          },
+          "requested_key": {
+            "type": "string",
+            "description": "The key used to fetch the ticket, which may be an alias."
           },
           "title": {
             "type": "string"
@@ -21763,6 +21803,41 @@
           "is_blocked"
         ],
         "additionalProperties": false
+      },
+      "TaskByKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "key_alias": {
+            "type": "boolean"
+          },
+          "requested_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "key_alias",
+          "requested_key"
+        ],
+        "additionalProperties": true
       },
       "TicketCapability": {
         "type": "object",

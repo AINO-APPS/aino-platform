@@ -47,6 +47,7 @@ export default function TaskDetailView({
     activity,
 }: TaskDetailViewProps) {
     const labels: any[] = task.labels ?? [];
+    const formerKeys: string[] = Array.isArray(task.key_aliases) ? task.key_aliases : [];
 
     return (
         <div className={s["detail-layout"]}>
@@ -69,6 +70,11 @@ export default function TaskDetailView({
                             </span>
                         ) : (
                             <span className={s["backlog-ticket-id"]}>#{task.id}</span>
+                        )}
+                        {formerKeys.length > 0 && (
+                            <span className={s["detail-former-keys"]}>
+                                Former keys: {formerKeys.join(", ")}
+                            </span>
                         )}
                         <WorkItemTypeBadge value={task.work_item_type_id} />
                         <StoryPointBadge value={task.story_points} />
