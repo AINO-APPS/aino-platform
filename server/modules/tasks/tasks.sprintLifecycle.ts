@@ -115,9 +115,10 @@ export async function findOtherActiveSprint(
     db: SprintDbLike,
     teamId: unknown,
     exceptSprintId: unknown,
+    projectOwnership = false,
 ): Promise<RunningSprint | null> {
     const rows = (await db.query(
-        "SELECT id, name FROM sprints WHERE team_id = $1 AND status = 'active' AND id != $2 LIMIT 1",
+        `SELECT id, name FROM sprints WHERE ${projectOwnership ? "project_id" : "team_id"} = $1 AND status = 'active' AND id != $2 LIMIT 1`,
         [teamId, exceptSprintId],
     )).rows;
     return rows[0] ?? null;
@@ -173,6 +174,7 @@ export interface ActivationDeps {
     db: SprintDbLike;
     tenantId: unknown;
     orgId: number | null;
+    projectOwnership?: boolean;
     invalidateActiveSprint: (tenantId: unknown, teamId: unknown) => Promise<unknown>;
     snapshotBurndown: (db: SprintDbLike, sprintId: number) => Promise<unknown>;
     notifyStarted: (sprint: any) => Promise<unknown>;
@@ -196,13 +198,14 @@ export function activationRefusal(sprint: { status?: string | null }): { status:
  */
 export async function startSprint(
     deps: ActivationDeps,
-    sprint: { id: unknown; team_id: unknown; status?: string | null },
+    sprint: { id: unknown; team_id: unknown; project_id?: unknown; status?: string | null },
 ): Promise<{ sprint?: any; error?: { status: number; body: Record<string, unknown> } }> {
     const current = await findSprintStatusInOrg(deps.db as any, sprint.id, deps.orgId);
     if (!current) return { error: { status: 404, body: { error: "Sprint not found" } } };
     const refusal = activationRefusal(current);
     if (refusal) return { error: refusal };
-    const running = await findOtherActiveSprint(deps.db, sprint.team_id, sprint.id);
+    const running = await findOtherActiveSprint(deps.db,
+        deps.projectOwnership ? sprint.project_id : sprint.team_id, sprint.id, deps.projectOwnership);
     if (running) return { error: { status: 409, body: sprintAlreadyActiveBody(running) } };
     await activateSprint(deps.db, sprint.id, deps.commit);
     await deps.snapshotBurndown(deps.db, parseInt(String(sprint.id), 10));

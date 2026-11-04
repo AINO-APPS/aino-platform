@@ -41,7 +41,7 @@ export async function lockSprintMembersDueOn(
     return (await db.query(
         `SELECT t.* FROM tasks t
            JOIN sprints s ON s.id = t.sprint_id
-           JOIN teams tm ON tm.id = s.team_id
+           JOIN projects tm ON tm.id = s.project_id
           WHERE t.sprint_id = $1 AND t.due_date = $2 AND tm.org_id IS NOT DISTINCT FROM $3
           ORDER BY t.id
             FOR UPDATE OF t`,
@@ -56,7 +56,7 @@ export async function lockSprintMembersDueOn(
 export async function lockSprints(db: PlacementDb, ids: number[], orgId: number | null): Promise<any[]> {
     if (ids.length === 0) return [];
     return (await db.query(
-        `SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id
+        `SELECT s.* FROM sprints s JOIN projects t ON t.id = s.project_id
           WHERE s.id = ANY($1::int[]) AND t.org_id IS NOT DISTINCT FROM $2
           ORDER BY s.id
             FOR SHARE OF s`,

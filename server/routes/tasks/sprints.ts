@@ -15,6 +15,8 @@ const { enrichTasks } = require('./_helpers/enrich');
 const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { findTask } = require('../../modules/tasks/tasks.sprintRepository');
+const { findSprintsForProjects } = require('../../modules/tasks/tasks.sprintRepository');
+const { sprintProjectIds } = require('../../modules/tasks/tasks.sprintProjects');
 const { resolveSprintTarget } = require('../../modules/tasks/tasks.sprintAssignment');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
@@ -33,6 +35,13 @@ const requireAgile = requireFeature('agile');
 // ─── Get available sprints for user's team (current + future) ────────────
 router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            const ids = await sprintProjectIds(actor, req.query);
+            const sprints = await findSprintsForProjects(req.db!, actor.orgId, ids);
+            return res.json(sprints.filter((sprint: any) =>
+                ["active", "planned", "paused"].includes(sprint.status)));
+        }
         const callerIsOrgAdmin = !!req.userOrgId && isOrgAdmin(req.userRole);
 
         // Org admins see every active/planned sprint across all teams in their org

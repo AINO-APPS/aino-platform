@@ -23,6 +23,7 @@ const denialMessages: Record<CapabilityReason, string> = {
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
     IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
     SPRINT_TEAM_MISMATCH: "This ticket belongs to another team. An org admin must transfer it before it can join this sprint.",
+    SPRINT_PROJECT_MISMATCH: "A ticket may only join a sprint in its own project.",
 };
 const actors = [
     ["member in team", 1, 1, "employee", true],

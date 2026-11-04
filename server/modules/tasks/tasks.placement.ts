@@ -60,6 +60,7 @@ export interface PlacementContext {
     effects: PlacementEffects;
     /** Present for user writes; sprint lifecycle maintenance is a system operation. */
     ticketActor?: TaskActor;
+    projectOwnership?: boolean;
 }
 
 export type PlacementRefusalCode =
@@ -68,6 +69,7 @@ export type PlacementRefusalCode =
     | "SPRINT_NOT_FOUND"
     | "SPRINT_FROZEN"
     | "SPRINT_TEAM_MISMATCH"
+    | "SPRINT_PROJECT_MISMATCH"
     | "IN_SPRINT"
     | "TEAM_NOT_FOUND"
     | "TEAM_UNCHANGED";
@@ -115,6 +117,7 @@ export async function placeTickets(
 ): Promise<PlacementResult[]> {
     await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
     const ids = [...new Set(ticketIds.map(Number))];
+    const projectOwnership = ctx.projectOwnership ?? ctx.ticketActor?.projectOwnership ?? false;
     const tickets = new Map((await repo.lockTickets(ctx.db, ids, ctx.actor.orgId)).map((row) => [Number(row.id), row]));
 
     const targetSprintId = joinsSprint(target) ? Number(target.sprint) : null;
@@ -137,7 +140,7 @@ export async function placeTickets(
             ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
         const code = !before ? "NOT_FOUND" : verdict
             ? verdict.allowed ? null : verdict.reason
-            : placementRefusal(before, target, targetSprint, sprints);
+            : placementRefusal(before, target, targetSprint, sprints, projectOwnership);
         return { id, before, code };
     });
 
@@ -151,7 +154,7 @@ export async function placeTickets(
             results.push({ id, ok: true, task: before });
             continue;
         }
-        const after = await write(ctx.db, id, before, target, targetSprint);
+        const after = await write(ctx.db, id, before, target, targetSprint, projectOwnership);
         await record(ctx, "place", before, after, historyFor(before, after, sprints));
         results.push({ id, ok: true, task: after });
     }
@@ -264,10 +267,10 @@ function alreadyThere(ticket: any, target: PlacementTarget): boolean {
     return same(ticket.sprint_id, target.sprint);
 }
 
-async function write(db: PlacementDb, id: number, ticket: any, target: PlacementTarget, sprint: any): Promise<any> {
+async function write(db: PlacementDb, id: number, ticket: any, target: PlacementTarget, sprint: any, projectOwnership = false): Promise<any> {
     if (target === "backlog") return repo.returnToBacklog(db, id);
     if (plansDay(target)) return repo.setPlannedDay(db, id, target.day);
-    if (sprint) return repo.joinSprint(db, id, sprint, teamAfterSprintMove(ticket.team_id, sprint.team_id));
+    if (sprint) return repo.joinSprint(db, id, sprint, projectOwnership ? ticket.team_id : teamAfterSprintMove(ticket.team_id, sprint.team_id));
     return repo.leaveSprint(db, id);
 }
 

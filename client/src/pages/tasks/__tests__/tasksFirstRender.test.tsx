@@ -9,14 +9,15 @@
  */
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+const session = vi.hoisted(() => ({ project_ownership: false }));
 vi.mock("../../../AuthContext", () => ({
     AuthProvider: ({ children }: { children: ReactNode }) => children,
     useAuth: () => ({
         isAuthenticated: true,
-        user: { id: 1, tenant_id: 1, team_id: 1, role: "employee" },
+        user: { id: 1, tenant_id: 1, team_id: 1, role: "employee", ...session },
     }),
     hasTenantContext: () => true,
 }));
@@ -76,6 +77,7 @@ vi.mock("../../../api/tasks", () => ({
     getAssignableUsers: vi.fn().mockResolvedValue({ data: [] }),
     getTaskLabels: vi.fn().mockResolvedValue({ data: [] }),
     getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [], currentSprintId: null } }),
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     carryForwardTasks: vi.fn().mockResolvedValue({ data: { carried: 0 } }),
     getRecentVelocity: vi.fn().mockResolvedValue({ data: { sprints: [], average: 0 } }),
@@ -94,7 +96,7 @@ vi.mock("../../../api/organization", () => ({
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Tasks from "../../Tasks";
-import { getAvailableSprints, getBacklog, getSprintBoard, getTasks } from "../../../api/tasks";
+import { getAvailableSprints, getBacklog, getSprintBoard, getTasks, getProjects, getSprints } from "../../../api/tasks";
 
 function renderAt(path: string) {
     const queryClient = new QueryClient({
@@ -114,6 +116,28 @@ function renderAt(path: string) {
 describe("Tasks first render from the URL", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        session.project_ownership = false;
+        localStorage.clear();
+    });
+
+    test("the project switcher drives scoped backlog and board requests without Team or Unassigned", async () => {
+        session.project_ownership = true;
+        vi.mocked(getProjects).mockResolvedValueOnce({ data: [
+            { id: 10, key: "ONE", name: "One" }, { id: 20, key: "TWO", name: "Two" },
+        ] } as any);
+        vi.mocked(getSprints).mockImplementation(async (params: any) => ({
+            data: { sprints: [{
+                id: params.project_id * 10, project_id: params.project_id, name: "Sprint",
+                status: "active", start_date: "2026-10-20", end_date: "2026-11-02",
+            }], currentSprintId: params.project_id * 10 },
+        } as any));
+        renderAt("/tasks/backlog");
+        const picker = await screen.findByRole("combobox", { name: "Project" });
+        await waitFor(() => expect(getBacklog).toHaveBeenCalledWith(expect.objectContaining({ project_id: 10 })));
+        expect(screen.queryByRole("combobox", { name: "Team" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("option", { name: "Unassigned" })).not.toBeInTheDocument();
+        fireEvent.change(picker, { target: { value: "20" } });
+        await waitFor(() => expect(getSprintBoard).toHaveBeenCalledWith(200, expect.anything()));
     });
 
     // A server render runs no effects, so it observes the first commit exactly.

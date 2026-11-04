@@ -962,6 +962,16 @@
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },
     {
+      "id": "project-plan-scope",
+      "name": "Project-scoped backlog, sprint and board with persistent accessible-project switcher",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
+      "android": { "status": "waived", "waiver": "Native project switcher is tracked in projects-own-tickets ticket 13; legacy team scope maps to the generated project until then." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web project switcher." }
+    },
+    {
       "id": "project-key-rename",
       "name": "Transactional project key rename preview and post-commit realtime key refresh",
       "decision": "D48",

@@ -56,7 +56,7 @@ export interface Task {
 export interface Sprint {
   id: number;
   project_id: number;
-  team_id: number;
+  team_id: number | null;
   name: string;
   goal?: string | null;
   status: string;

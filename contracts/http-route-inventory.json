@@ -9,7 +9,7 @@
   "totals": {
     "routerMounts": 34,
     "concreteEndpoints": 514,
-    "openApiOperations": 244
+    "openApiOperations": 247
   },
   "standaloneRoutes": [
     {

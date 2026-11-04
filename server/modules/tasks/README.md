@@ -30,9 +30,20 @@ Web settings are available at `/projects` (More → Projects); organization-role
 gates do not hide settings from project admins. The rename control itself uses
 the server-returned `canRenameKey` capability.
 
-Project roles do not filter project or ticket lists until ticket 06 changes
-visibility. This boundary intentionally keeps the current visibility policy
-unchanged.
+When `organizations.project_ownership` is enabled, project lists include only
+accessible projects (all for organization admins). Plan backlog, available
+sprints and sprint lists accept `project_id`; legacy `team_id` resolves only
+to the team's generated project, not all projects granted to the team.
+`tasks.sprintProjects.ts` adapts project scopes and sprint management rules.
+Sprint lookup, lifecycle and placement locks use the project's organization;
+`team_id` is nullable compatibility data and team deletion preserves sprints.
+Flag-off requests retain team-scoped behavior and the team-deletion work guard.
+
+The web Plan switcher remembers a project per tenant/user, hides Unassigned,
+and narrows both backlog requests and sprint/board selection. `/api/profile`
+exposes `project_ownership` to select this behavior independently of plan flags.
+Run `npm run test:pg -- projectPlanning --runInBand` from `server` for the
+project planning PostgreSQL route tests.
 
 Placement — any change to a ticket's sprint, planned day, or the due date that
 follows sprint membership — goes through `tasks.placement.ts` (rules),

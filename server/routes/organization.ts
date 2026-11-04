@@ -616,6 +616,7 @@ router.delete("/teams/:id", requireRole("hr_admin"), requireSameOrg, async (req:
             teamId: id,
             orgId: req.userOrgId ?? null,
             isPlatformAdmin: req.userRole === "platform_admin",
+            projectOwnership: req.projectOwnership === true,
         });
         if (!outcome.team) return res.status(404).json({ error: "Team not found" });
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask, bulkTaskAction } from "../../../api/tasks";
 import { useBacklogInlineEdit } from "./useBacklogInlineEdit";
 import { getLocalToday } from "../../../api/client";
@@ -12,57 +12,7 @@ import { useTaskDeltas } from "./useTaskDeltas";
 import { writeError } from "../ticketCapabilities";
 import { useApplyBulkStatus } from "./useApplyBulkStatus";
 import type { Task } from "../../../types";
-
-/**
- * Put a bulk action back the way it was.
- *
- * The bulk endpoint reports each task's prior value, so undo replays those
- * values through the same endpoint rather than refetching and hoping. A
- * cancelled ticket cannot be reopened, so delete's undo only refetches.
- */
-async function reverseBulkAction(action: BulkAction, applied: BulkResult[], onResults: (results: BulkResult[]) => void): Promise<void> {
-    if (action === "delete" || applied.length === 0) return;
-
-    if (action === "move_to_sprint") {
-        // Group by the sprint each task came from so one request per sprint.
-        const bySprint = new Map<number | null, number[]>();
-        applied.forEach((result) => {
-            const sprintId = (result.previous?.sprint_id ?? null) as number | null;
-            bySprint.set(sprintId, [...(bySprint.get(sprintId) ?? []), result.id]);
-        });
-        for (const [sprintId, group] of bySprint) {
-            const { data } = await bulkTaskAction({ ids: group, action: "move_to_sprint", value: sprintId });
-            onResults(data.results || []);
-        }
-        return;
-    }
-
-    if (action === "status") {
-        const byState = new Map<number, number[]>();
-        applied.forEach((result) => {
-            const stateId = result.previous?.workflow_state_id as number | undefined;
-            if (stateId === undefined) return;
-            byState.set(stateId, [...(byState.get(stateId) ?? []), result.id]);
-        });
-        for (const [stateId, group] of byState) {
-            const { data } = await bulkTaskAction({ ids: group, action: "status", value: stateId });
-            onResults(data.results || []);
-        }
-        return;
-    }
-
-    if (action === "assign") {
-        const byAssignee = new Map<number | null, number[]>();
-        applied.forEach((result) => {
-            const assignee = (result.previous?.assigned_to ?? null) as number | null;
-            byAssignee.set(assignee, [...(byAssignee.get(assignee) ?? []), result.id]);
-        });
-        for (const [assignee, group] of byAssignee) {
-            const { data } = await bulkTaskAction({ ids: group, action: "assign", value: assignee });
-            onResults(data.results || []);
-        }
-    }
-}
+import { reverseBulkAction } from "./backlogUndo";
 
 interface BacklogSummary {
     total: number;
@@ -113,6 +63,9 @@ export function useBacklog({
     onMoved,
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
+    const scopeKey = JSON.stringify(scopeParams);
+    const scopeRef = useRef(scopeKey);
+    scopeRef.current = scopeKey;
     const replaceTicket = (fresh: Task) => setBacklogTasks((current) =>
         current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
     const replaceResults = (results: BulkResult[]) => {
@@ -164,6 +117,13 @@ export function useBacklog({
     const [completedOpen, setCompletedOpen] = useState(false);
     const [completedLoading, setCompletedLoading] = useState(false);
     const [completedShowingAll, setCompletedShowingAll] = useState(false);
+    useEffect(() => {
+        setBacklogTasks([]);
+        setCompletedTasks([]);
+        setCompletedOpen(false);
+        setCompletedCount(0);
+        setBacklogOffset(0);
+    }, [scopeKey]);
     // Manual ordering: the client sends neighbours, the server computes rank.
     const [reorderAnnouncement, setReorderAnnouncement] = useState("");
     const reorder = useBacklogReorder({
@@ -235,6 +195,7 @@ export function useBacklog({
      * filter/page change) shows the spinner.
      */
     const fetchBacklog = useCallback(async (quiet = false) => {
+        const requestScope = scopeRef.current;
         if (!quiet) setBacklogLoading(true);
         try {
             const res = await getBacklog({
@@ -243,6 +204,7 @@ export function useBacklog({
                 limit: backlogLimit,
                 offset: backlogOffset,
             });
+            if (requestScope !== scopeRef.current) return;
             const data = res.data as {
                 tasks: Task[];
                 summary?: BacklogSummary;
@@ -266,12 +228,13 @@ export function useBacklog({
             }
             setBacklogError("");
         } catch {
+            if (requestScope !== scopeRef.current) return;
             // A backlog failure belongs to the backlog section. Raising it
             // page-wide would also paint it inside the sprint pane, whose
             // retry reloads tasks rather than the backlog.
             setBacklogError("Failed to load backlog");
         } finally {
-            if (!quiet) setBacklogLoading(false);
+            if (!quiet && requestScope === scopeRef.current) setBacklogLoading(false);
         }
     }, [backlogFilters, scopeParams, backlogLimit, backlogOffset]);
 
@@ -487,6 +450,7 @@ export function useBacklog({
      * when that reaches further back. "View all" drops the window entirely.
      */
     const fetchCompleted = useCallback(async (showAll = false) => {
+        const requestScope = scopeRef.current;
         setCompletedLoading(true);
         try {
             const params: Record<string, unknown> = {
@@ -503,13 +467,14 @@ export function useBacklog({
                 params.completed_since = since.toISOString().slice(0, 10);
             }
             const res = await getBacklog(params);
+            if (requestScope !== scopeRef.current) return;
             const data = res.data as { tasks?: Task[] };
             setCompletedTasks((data.tasks || []).filter((task: Task) => task.container === "backlog"));
             setCompletedShowingAll(showAll);
         } catch {
-            setError("Failed to load completed work");
+            if (requestScope === scopeRef.current) setError("Failed to load completed work");
         } finally {
-            setCompletedLoading(false);
+            if (requestScope === scopeRef.current) setCompletedLoading(false);
         }
     }, [backlogFilters, scopeParams, setError]);
 

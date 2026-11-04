@@ -6,8 +6,9 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import { sprintManagementRole } from "./_helpers/sprintRole";
 const auth = require("../middleware/auth");
-const { loadUserContext, requireRole } = require("../middleware/rbac");
+const { loadUserContext } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const {
     captureBaseline,
@@ -19,7 +20,8 @@ const {
     insertBaseline,
     findSprintTaskPoints,
 } = require("../modules/tasks/tasks.sprintRepository");
-const { canAccessSprint, taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { canReadProjectSprint, taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { canManageSprint } = require("../modules/tasks/tasks.sprintProjects");
 
 const router = express.Router();
 // Same gate as /api/sprints: this is part of the Agile bundle, so a tenant
@@ -32,7 +34,7 @@ async function loadSprint(req: Request, res: Response) {
         res.status(404).json({ error: "Sprint not found" });
         return null;
     }
-    if (!canAccessSprint(sprint, taskActorFromRequest(req))) {
+    if (!await canReadProjectSprint(sprint, taskActorFromRequest(req))) {
         res.status(403).json({ error: "Access denied" });
         return null;
     }
@@ -61,12 +63,15 @@ router.get("/:id/baseline", auth, loadUserContext, async (req: Request, res: Res
     }
 });
 
-router.post("/:id/baseline", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/:id/baseline", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const sprint = await loadSprint(req, res);
         if (!sprint) return;
 
         // A completed sprint's record is immutable.
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) {
+            return res.status(403).json({ error: "Access denied" });
+        }
         if (sprint.status === "completed") {
             return res.status(409).json({
                 error: "A completed sprint's baseline cannot change.",

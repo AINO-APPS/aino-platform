@@ -11,7 +11,7 @@ import { placementRefusal } from "./tasks.placementRules";
 import { findDecisionOwners, findDecisionSprints } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
-    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "CANCELLED_TERMINAL";
+    | "IN_SPRINT" | "SPRINT_TEAM_MISMATCH" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule";
 export interface TicketDecision {
@@ -89,10 +89,11 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
             : deny("INVALID_TRANSITION");
     const schedulingRefusal = placementRefusal(ticket, { day: "" }, null, context.sprints);
     const sprintRefusal = context.targetSprint
-        ? placementRefusal(ticket, { sprint: Number(context.targetSprint.id) }, context.targetSprint, context.sprints)
+        ? placementRefusal(ticket, { sprint: Number(context.targetSprint.id) }, context.targetSprint, context.sprints, actor.projectOwnership)
         : null;
     const placeInSprint = !edit.allowed ? edit
-        : context.targetSprint !== undefined && !canAccessSprint(context.targetSprint, actor) ? deny("ACCESS_DENIED")
+        : context.targetSprint !== undefined && (actor.projectOwnership
+            ? !context.targetSprint : !canAccessSprint(context.targetSprint, actor)) ? deny("ACCESS_DENIED")
         : sprintRefusal ? deny(sprintRefusal) : allow;
     return {
         container: ticket.sprint_id != null ? "sprint" : ticket.planned_date != null ? "scheduled" : "backlog",

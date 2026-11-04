@@ -26,7 +26,7 @@ export async function resolveSprintTarget(
 ): Promise<{ sprint?: { id: number; team_id: number | null; end_date: string }; error?: { status: number; body: Record<string, unknown> } }> {
     if (request.sprintId === null || request.sprintId === "") return { sprint: undefined };
     const sprint = (await db.query(
-        "SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
+        "SELECT s.id, s.team_id, s.project_id, s.end_date FROM sprints s JOIN projects t ON t.id = s.project_id WHERE s.id = $1 AND t.org_id = $2",
         [request.sprintId, request.orgId],
     )).rows[0];
     if (request.ticket && request.actor) {

@@ -15,7 +15,7 @@ const {
     findSprintCarryoverTasks,
     findNextPlannedSprint,
 } = require("../modules/tasks/tasks.sprintRepository");
-const { canAccessSprint, taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+const { canReadProjectSprint, taskActorFromRequest } = require("../modules/tasks/tasks.policy");
 
 const router = express.Router();
 // Same gate as /api/sprints: this is part of the Agile bundle, so a tenant
@@ -27,14 +27,15 @@ router.get("/:id/completion-preview", auth, loadUserContext, async (req: Request
         const { id } = req.params;
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) {
+        if (!await canReadProjectSprint(sprint, taskActorFromRequest(req))) {
             return res.status(403).json({ error: "Access denied" });
         }
 
         const tasks = await findSprintCarryoverTasks(req.db!, id, req.userOrgId ?? null);
 
         // Default target: the next planned sprint for this team, else backlog.
-        const nextPlanned = await findNextPlannedSprint(req.db!, sprint.team_id, id, req.userOrgId ?? null);
+        const nextPlanned = await findNextPlannedSprint(req.db!, sprint.team_id, id, req.userOrgId ?? null,
+            req.projectOwnership ? sprint.project_id : undefined);
 
         const plan = planCarryover(tasks, nextPlanned?.id ?? null);
 

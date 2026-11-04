@@ -12,7 +12,7 @@
  * sprint's `sprint_number` (falling back to the trailing digits of its name).
  */
 import { describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TasksHeader from "../TasksHeader";
 import { TaskProvider } from "../TaskContext";
@@ -33,6 +33,7 @@ function renderHeader(
     currentUser: Record<string, unknown>,
     selectedSprintId: number | null = sprint.id,
     currentSprintId: number | null = sprint.id,
+    scopeProps: Record<string, any> = {},
 ) {
     return render(
         <MemoryRouter>
@@ -77,6 +78,7 @@ function renderHeader(
                         setSprintImportOpen={vi.fn()}
                         fetchBacklog={vi.fn()}
                         clearFilters={vi.fn()}
+                        {...scopeProps}
                     />
                 </TaskProvider>
             </ToastProvider>
@@ -85,6 +87,32 @@ function renderHeader(
 }
 
 describe("Sprint tab header", () => {
+    test("project ownership replaces Team and Unassigned with accessible projects", () => {
+        const change = vi.fn();
+        renderHeader({ id: 1 }, sprint.id, sprint.id, {
+            projectOwnership: true,
+            projects: [{ id: 10, key: "ONE", name: "One" }, { id: 20, key: "TWO", name: "Two" }],
+            selectedProjectId: 10,
+            onProjectChange: change,
+            showTeamSwitcher: true,
+        });
+        const picker = screen.getByRole("combobox", { name: "Project" });
+        expect(picker).toHaveTextContent("ONE — One");
+        expect(picker).toHaveTextContent("TWO — Two");
+        expect(screen.queryByRole("combobox", { name: "Team" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("option", { name: "Unassigned" })).not.toBeInTheDocument();
+        fireEvent.change(picker, { target: { value: "20" } });
+        expect(change).toHaveBeenCalledWith(20);
+        expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("One");
+    });
+
+    test("the team switcher stays available with project ownership off", () => {
+        renderHeader({ id: 1 }, sprint.id, sprint.id, {
+            teams: [{ id: 1, name: "Team One" }], selectedTeamId: 1, showTeamSwitcher: true,
+        });
+        expect(screen.getByRole("combobox", { name: "Team" })).toHaveTextContent("Team One");
+        expect(screen.queryByRole("combobox", { name: "Project" })).not.toBeInTheDocument();
+    });
     test("names the user's team and numbers the sprint", () => {
         renderHeader({ id: 1, role: "employee", team_id: 1, team_name: "Payments" });
 
