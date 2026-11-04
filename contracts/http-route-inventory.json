@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 34,
-    "concreteEndpoints": 508,
-    "openApiOperations": 238
+    "concreteEndpoints": 512,
+    "openApiOperations": 242
   },
   "standaloneRoutes": [
     {
@@ -85,14 +85,14 @@
       "mountPath": "/api/tasks",
       "source": "server/routes/tasks/index.ts",
       "coverage": "baseline",
-      "endpointCount": 47
+      "endpointCount": 48
     },
     {
       "id": "sprints",
       "mountPath": "/api/sprints",
       "source": "server/routes/sprints.ts",
       "coverage": "inventory-only",
-      "endpointCount": 21
+      "endpointCount": 22
     },
     {
       "id": "agile",
@@ -260,7 +260,7 @@
       "mountPath": "/api/projects",
       "source": "server/routes/projects.ts",
       "coverage": "baseline",
-      "endpointCount": 7
+      "endpointCount": 11
     },
     {
       "id": "integrations",
@@ -2260,6 +2260,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/projects/:id/members",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/members",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/:id/members/:memberId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id/members/:memberId",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
       "path": "/api/projects/:id/tasks",
       "coverage": "operation"
     },
@@ -2336,7 +2356,7 @@
     {
       "method": "GET",
       "path": "/api/sprints",
-      "coverage": "operation"
+      "coverage": "inventory-only"
     },
     {
       "method": "POST",
@@ -2366,7 +2386,7 @@
     {
       "method": "GET",
       "path": "/api/sprints/:id/board",
-      "coverage": "operation"
+      "coverage": "inventory-only"
     },
     {
       "method": "GET",

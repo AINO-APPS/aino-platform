@@ -1,0 +1,2 @@
+ALTER TABLE project_members
+    ADD COLUMN IF NOT EXISTS granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL;

@@ -1,7 +1,7 @@
 // Project CRUD — Stage 3.
 //
 //   GET    /api/projects             — list (active by default; `?include_archived=1`)
-//   POST   /api/projects             — create (manager+)
+//   POST   /api/projects             — create (team lead+)
 //   GET    /api/projects/:id         — single project
 //   PUT    /api/projects/:id         — update (manager+)
 //   PATCH  /api/projects/:id/archive — archive / unarchive (manager+)
@@ -16,6 +16,16 @@ const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logAction } = require("../utils/audit");
 const { enrichTasks } = require("./tasks/_helpers/enrich");
 const { taskActorFromRequest } = require("../modules/tasks/tasks.policy");
+import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
+import {
+    createProjectWithGrants,
+    findProjectById,
+    listProjectMembers,
+    ProjectAccessRepositoryError,
+    removeProjectMember,
+    updateProjectMemberRole,
+    upsertProjectMember,
+} from "../modules/tasks/tasks.projectAccessRepository";
 
 const router = express.Router();
 // Projects are part of the Agile feature bundle — same gate as /api/agile
@@ -29,6 +39,52 @@ interface DbLike {
 }
 
 const KEY_RE = /^[A-Z][A-Z0-9_]{1,9}$/;
+const PROJECT_ROLES = new Set(["project_admin", "member", "viewer"]);
+
+function projectAccessForRequest(req: Request) {
+    const request = req as any;
+    const teamIds = Array.isArray(request.userTeamIds)
+        ? request.userTeamIds.map(Number).filter(Number.isInteger)
+        : request.userTeamId == null ? undefined : [Number(request.userTeamId)];
+    return createProjectAccess(req.db as any, {
+        userId: Number(request.userId),
+        orgId: request.userOrgId ?? null,
+        orgRole: request.userRole ?? null,
+        teamIds,
+    });
+}
+
+async function addProjectCapabilities(req: Request, project: any): Promise<any> {
+    const capabilities = await projectAccessForRequest(req).capabilities(Number(project.id));
+    return { ...project, capabilities };
+}
+
+async function addCapabilitiesToProjects(req: Request, projects: any[]): Promise<any[]> {
+    const access = projectAccessForRequest(req);
+    const byProject = await access.capabilitiesForProjects(projects.map((project) => Number(project.id)));
+    return projects.map((project) => ({
+        ...project,
+        capabilities: byProject.get(Number(project.id)) ?? { canAdminister: false, canManageMembers: false },
+    }));
+}
+
+function memberRole(value: unknown): "project_admin" | "member" | "viewer" | null {
+    return typeof value === "string" && PROJECT_ROLES.has(value)
+        ? value as "project_admin" | "member" | "viewer"
+        : null;
+}
+
+function sendProjectAccessError(res: Response, err: unknown): boolean {
+    if (!(err instanceof ProjectAccessRepositoryError)) return false;
+    if (err.code === "PROJECT_NOT_FOUND") {
+        res.status(404).json({ error: err.message, code: err.code });
+    } else if (err.code === "LAST_PROJECT_ADMIN") {
+        res.status(409).json({ error: err.message, code: err.code });
+    } else {
+        res.status(400).json({ error: err.message, code: err.code });
+    }
+    return true;
+}
 
 // ─── List projects in the requester's org ─────────────────────────────────
 //
@@ -64,7 +120,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
                    ${orderBy}`,
                 [req.userOrgId]
             )).rows;
-            return res.json(rows);
+            return res.json(await addCapabilitiesToProjects(req, rows));
         }
 
         const [pageRes, countRes] = await Promise.all([
@@ -80,7 +136,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
             ),
             req.db!.query(`SELECT COUNT(*)::int AS total FROM projects p ${baseWhere}`, [req.userOrgId]),
         ]);
-        const projects = pageRes.rows;
+        const projects = await addCapabilitiesToProjects(req, pageRes.rows);
         const total = countRes.rows[0]?.total ?? projects.length;
         res.json({
             projects,
@@ -93,10 +149,10 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
 });
 
 // ─── Create project ──────────────────────────────────────────────────────
-router.post("/", auth, loadUserContext, requireRole("manager"), async (req: Request, res: Response) => {
+router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
     try {
         if (!req.userOrgId) return res.status(400).json({ error: "Organization required" });
-        const { key, name, description, color, lead_user_id } = req.body || {};
+        const { key, name, description, color, lead_user_id, team_ids } = req.body || {};
         if (!name || !name.trim()) return res.status(400).json({ error: "Project name is required" });
         if (!key || !KEY_RE.test(String(key))) {
             return res.status(400).json({
@@ -106,6 +162,9 @@ router.post("/", auth, loadUserContext, requireRole("manager"), async (req: Requ
         const upperKey = String(key).toUpperCase();
         const dup = await req.db!.query("SELECT id FROM projects WHERE org_id = $1 AND key = $2", [req.userOrgId, upperKey]);
         if (dup.rowCount > 0) return res.status(409).json({ error: "A project with this key already exists" });
+        if (team_ids !== undefined && (!Array.isArray(team_ids) || team_ids.some((id: unknown) => !/^\d+$/.test(String(id)) || Number(id) <= 0))) {
+            return res.status(400).json({ error: "team_ids must be an array of positive team IDs" });
+        }
         const validColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#6366f1";
         let validLead = null;
         if (lead_user_id) {
@@ -115,16 +174,26 @@ router.post("/", auth, loadUserContext, requireRole("manager"), async (req: Requ
                 if (lead) validLead = lead.id;
             }
         }
-        const inserted = (await req.db!.query(
-            `INSERT INTO projects (org_id, key, name, description, color, lead_user_id, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *`,
-            [req.userOrgId, upperKey, name.trim().slice(0, 200), description?.slice(0, 2000) || null,
-                validColor, validLead, req.userId]
-        )).rows[0];
+        const inserted = await createProjectWithGrants(req.db as any, {
+            orgId: Number(req.userOrgId),
+            creatorId: Number(req.userId),
+            key: upperKey,
+            name: name.trim().slice(0, 200),
+            description: typeof description === "string" ? description.slice(0, 2000) || null : null,
+            color: validColor,
+            leadUserId: validLead,
+            teamIds: (team_ids ?? []).map(Number),
+        });
         logAction(req, "create", "project", inserted.id, { key: upperKey, name: inserted.name });
-        res.json(inserted);
+        res.json({
+            ...inserted,
+            capabilities: { canAdminister: true, canManageMembers: true },
+        });
     } catch (err) {
+        if (sendProjectAccessError(res, err)) return;
+        if ((err as any)?.code === "23505") {
+            return res.status(409).json({ error: "A project with this key already exists" });
+        }
         req.log.error({ err }, "Failed to create project");
         res.status(500).json({ error: "Failed to create project" });
     }
@@ -144,10 +213,115 @@ router.get("/:id", auth, loadUserContext, async (req: Request, res: Response) =>
             [id, req.userOrgId]
         )).rows[0];
         if (!row) return res.status(404).json({ error: "Project not found" });
-        res.json(row);
+        res.json(await addProjectCapabilities(req, row));
     } catch (err) {
         req.log.error({ err }, "Failed to fetch project");
         res.status(500).json({ error: "Failed to fetch project" });
+    }
+});
+
+// ─── Project member grants ──────────────────────────────────────────────
+router.get("/:id/members", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(String(req.params.id), 10);
+        if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
+        if (!req.userOrgId) return res.status(404).json({ error: "Project not found" });
+        const project = await findProjectById(req.db as any, id, Number(req.userOrgId));
+        if (!project) return res.status(404).json({ error: "Project not found" });
+        res.json(await listProjectMembers(req.db as any, id, Number(req.userOrgId)));
+    } catch (err) {
+        req.log.error({ err }, "Failed to list project members");
+        res.status(500).json({ error: "Failed to list project members" });
+    }
+});
+
+router.post("/:id/members", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(String(req.params.id), 10);
+        const role = memberRole(req.body?.role);
+        const subjectType = req.body?.subject_type;
+        const subjectId = Number(req.body?.subject_id);
+        if (isNaN(id)) return res.status(400).json({ error: "Invalid project id" });
+        if (!req.userOrgId) return res.status(404).json({ error: "Project not found" });
+        if (!role || !["user", "team"].includes(subjectType) || !Number.isInteger(subjectId) || subjectId <= 0) {
+            return res.status(400).json({ error: "A valid subject_type, subject_id and project role are required" });
+        }
+        const access = projectAccessForRequest(req);
+        if (!await access.allows(id, "manageMembers")) {
+            const project = await findProjectById(req.db as any, id, Number(req.userOrgId));
+            return project
+                ? res.status(403).json({ error: "Only project admins can manage project members" })
+                : res.status(404).json({ error: "Project not found" });
+        }
+        const member = await upsertProjectMember(req.db as any, {
+            projectId: id,
+            orgId: Number(req.userOrgId),
+            grantedBy: Number(req.userId),
+            subjectType,
+            subjectId,
+            role,
+        });
+        res.status(200).json(member);
+    } catch (err) {
+        if (sendProjectAccessError(res, err)) return;
+        req.log.error({ err }, "Failed to grant project access");
+        res.status(500).json({ error: "Failed to grant project access" });
+    }
+});
+
+router.put("/:id/members/:memberId", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(String(req.params.id), 10);
+        const memberId = parseInt(String(req.params.memberId), 10);
+        const role = memberRole(req.body?.role);
+        if (isNaN(id) || isNaN(memberId)) return res.status(400).json({ error: "Invalid project or member id" });
+        if (!role) return res.status(400).json({ error: "A valid project role is required" });
+        if (!req.userOrgId) return res.status(404).json({ error: "Project not found" });
+        const access = projectAccessForRequest(req);
+        if (!await access.allows(id, "manageMembers")) {
+            const project = await findProjectById(req.db as any, id, Number(req.userOrgId));
+            return project
+                ? res.status(403).json({ error: "Only project admins can manage project members" })
+                : res.status(404).json({ error: "Project not found" });
+        }
+        const member = await updateProjectMemberRole(req.db as any, {
+            projectId: id,
+            orgId: Number(req.userOrgId),
+            memberId,
+            role,
+            grantedBy: Number(req.userId),
+        });
+        res.json(member);
+    } catch (err) {
+        if (sendProjectAccessError(res, err)) return;
+        req.log.error({ err }, "Failed to update project member");
+        res.status(500).json({ error: "Failed to update project member" });
+    }
+});
+
+router.delete("/:id/members/:memberId", auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        const id = parseInt(String(req.params.id), 10);
+        const memberId = parseInt(String(req.params.memberId), 10);
+        if (isNaN(id) || isNaN(memberId)) return res.status(400).json({ error: "Invalid project or member id" });
+        if (!req.userOrgId) return res.status(404).json({ error: "Project not found" });
+        const access = projectAccessForRequest(req);
+        if (!await access.allows(id, "manageMembers")) {
+            const project = await findProjectById(req.db as any, id, Number(req.userOrgId));
+            return project
+                ? res.status(403).json({ error: "Only project admins can manage project members" })
+                : res.status(404).json({ error: "Project not found" });
+        }
+        await removeProjectMember(req.db as any, {
+            projectId: id,
+            orgId: Number(req.userOrgId),
+            memberId,
+        });
+        res.json({ ok: true });
+    } catch (err) {
+        if (sendProjectAccessError(res, err)) return;
+        req.log.error({ err }, "Failed to remove project member");
+        res.status(500).json({ error: "Failed to remove project member" });
     }
 });
 
@@ -184,7 +358,7 @@ router.put("/:id", auth, loadUserContext, requireRole("manager"), async (req: Re
             [newName, newDesc, newColor, newLead, id]
         )).rows[0];
         logAction(req, "update", "project", id, { name: newName });
-        res.json(updated);
+        res.json(await addProjectCapabilities(req, updated));
     } catch (err) {
         req.log.error({ err }, "Failed to update project");
         res.status(500).json({ error: "Failed to update project" });
@@ -203,7 +377,7 @@ router.patch("/:id/archive", auth, loadUserContext, requireRole("manager"), asyn
         );
         if (r.rowCount === 0) return res.status(404).json({ error: "Project not found" });
         logAction(req, archived ? "archive" : "unarchive", "project", id, null);
-        res.json(r.rows[0]);
+        res.json(await addProjectCapabilities(req, r.rows[0]));
     } catch (err) {
         req.log.error({ err }, "Failed to archive project");
         res.status(500).json({ error: "Failed to archive project" });

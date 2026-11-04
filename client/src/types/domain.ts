@@ -98,6 +98,10 @@ export interface Project {
     name?: string;
     key?: string;
     description?: string | null;
+    capabilities?: {
+        canAdminister: boolean;
+        canManageMembers: boolean;
+    };
     [key: string]: unknown;
 }
 

@@ -54,6 +54,13 @@ export const deleteProject = (id: number | string, { force = false }: { force?: 
     API.delete(`/projects/${id}`, { params: force ? { force: 1 } : {} });
 export const getProjectTasks = (id: number | string, params?: Params) =>
     API.get(`/projects/${id}/tasks`, { params });
+export const getProjectMembers = (id: number | string) => API.get(`/projects/${id}/members`);
+export const grantProjectMember = (id: number | string, data: AnyData) =>
+    API.post(`/projects/${id}/members`, data);
+export const updateProjectMember = (id: number | string, memberId: number | string, role: string) =>
+    API.put(`/projects/${id}/members/${memberId}`, { role });
+export const removeProjectMember = (id: number | string, memberId: number | string) =>
+    API.delete(`/projects/${id}/members/${memberId}`);
 
 // GitHub integration â€” OAuth flow + repo selection.
 export const startGithubOAuth = () => API.post("/integrations/github/oauth/start");
