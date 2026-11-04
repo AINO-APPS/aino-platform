@@ -12984,7 +12984,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "GET /api/projects",
+        "summary": "List projects",
         "operationId": "get_api_projects",
         "parameters": [],
         "security": [
@@ -13001,7 +13001,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/ProjectList"
                 }
               }
             }
@@ -13062,7 +13062,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "POST /api/projects",
+        "summary": "Create a project with optional team grants",
         "operationId": "post_api_projects",
         "parameters": [
           {
@@ -13083,7 +13083,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13135,6 +13135,16 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
               }
             }
           }
@@ -13236,7 +13246,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "GET /api/projects/:id",
+        "summary": "Get a project and its project capabilities",
         "operationId": "get_api_projects_id",
         "parameters": [
           {
@@ -13262,7 +13272,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13323,7 +13333,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "PUT /api/projects/:id",
+        "summary": "Update a project",
         "operationId": "put_api_projects_id",
         "parameters": [
           {
@@ -13352,7 +13362,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13415,7 +13425,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "PATCH /api/projects/:id/archive",
+        "summary": "Archive or restore a project",
         "operationId": "patch_api_projects_id_archive",
         "parameters": [
           {
@@ -13444,7 +13454,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13496,6 +13506,403 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/members": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List project member grants",
+        "operationId": "get_api_projects_id_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Grant or update project access",
+        "operationId": "post_api_projects_id_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMemberWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/members/{memberId}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Remove project member access",
+        "operationId": "delete_api_projects_id_members_memberId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Change a project member role",
+        "operationId": "put_api_projects_id_members_memberId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRoleUpdate"
               }
             }
           }
@@ -14207,6 +14614,174 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sprints": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "List sprints for the current team",
+        "operationId": "get_api_sprints",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint list and the server-selected current sprint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden or Agile unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Sprint list could not be loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sprints/{id}/board": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Read a sprint board with column WIP status",
+        "operationId": "get_api_sprints_id_board",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sprint, active board columns, and enriched non-Cancelled tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintBoard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sprint id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sprint is not accessible to the current actor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sprint not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -17157,174 +17732,6 @@
         }
       }
     },
-    "/api/sprints/{id}/board": {
-      "get": {
-        "tags": [
-          "sprints"
-        ],
-        "summary": "Read a sprint board with column WIP status",
-        "operationId": "get_api_sprints_id_board",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Sprint, active board columns, and enriched non-Cancelled tickets",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SprintBoard"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid sprint id",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Sprint is not accessible to the current actor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Sprint not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sprints": {
-      "get": {
-        "tags": [
-          "sprints"
-        ],
-        "summary": "List sprints for the current team",
-        "operationId": "get_api_sprints",
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Sprint list and the server-selected current sprint",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SprintList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden or Agile unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Sprint list could not be loaded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/tasks/available-sprints": {
       "get": {
         "tags": [
@@ -18408,13 +18815,13 @@
         }
       }
     },
-      "/api/tasks/scheduled": {
-    "get": {
+    "/api/tasks/schedule-overlays": {
+      "get": {
         "tags": [
           "tasks"
         ],
-        "summary": "GET /api/tasks/backlog",
-        "operationId": "get_api_tasks_scheduled",
+        "summary": "GET /api/tasks/schedule-overlays",
+        "operationId": "get_api_tasks_schedule_overlays",
         "parameters": [],
         "security": [
           {
@@ -18487,14 +18894,14 @@
           }
         }
       }
-  },
-"/api/tasks/schedule-overlays": {
+    },
+    "/api/tasks/scheduled": {
       "get": {
         "tags": [
           "tasks"
         ],
-        "summary": "GET /api/tasks/schedule-overlays",
-        "operationId": "get_api_tasks_schedule_overlays",
+        "summary": "GET /api/tasks/backlog",
+        "operationId": "get_api_tasks_scheduled",
         "parameters": [],
         "security": [
           {
@@ -20770,6 +21177,108 @@
         },
         "additionalProperties": true
       },
+      "TicketCapability": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INVALID_TRANSITION",
+              "ACCESS_DENIED",
+              "SPRINT_FROZEN",
+              "IN_SPRINT",
+              "SPRINT_TEAM_MISMATCH",
+              "CANCELLED_TERMINAL"
+            ]
+          }
+        },
+        "required": [
+          "allowed"
+        ],
+        "additionalProperties": false
+      },
+      "TicketTransitionCapability": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "integer"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INVALID_TRANSITION",
+              "ACCESS_DENIED",
+              "SPRINT_FROZEN",
+              "IN_SPRINT",
+              "SPRINT_TEAM_MISMATCH",
+              "CANCELLED_TERMINAL"
+            ]
+          }
+        },
+        "required": [
+          "to",
+          "allowed"
+        ],
+        "additionalProperties": false
+      },
+      "TicketCapabilities": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TicketTransitionCapability"
+            }
+          },
+          "can": {
+            "type": "object",
+            "properties": {
+              "edit": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "changeState": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "cancel": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "transfer": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "delete": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "placeInSprint": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "schedule": {
+                "$ref": "#/components/schemas/TicketCapability"
+              }
+            },
+            "required": [
+              "edit",
+              "changeState",
+              "cancel",
+              "transfer",
+              "delete",
+              "placeInSprint",
+              "schedule"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "transitions",
+          "can"
+        ],
+        "additionalProperties": false
+      },
       "FreeFormObject": {
         "type": "object",
         "additionalProperties": true
@@ -21093,6 +21602,396 @@
         },
         "required": [
           "ok"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectRole": {
+        "type": "string",
+        "enum": [
+          "project_admin",
+          "member",
+          "viewer"
+        ]
+      },
+      "ProjectCapabilities": {
+        "type": "object",
+        "properties": {
+          "canAdminister": {
+            "type": "boolean"
+          },
+          "canManageMembers": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "canAdminister",
+          "canManageMembers"
+        ],
+        "additionalProperties": false
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "org_id": {
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "lead_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lead_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_count": {
+            "type": "integer"
+          },
+          "next_task_number": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "scrum",
+              "kanban",
+              "task_list"
+            ]
+          },
+          "origin_team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "key_published": {
+            "type": "boolean"
+          },
+          "is_general": {
+            "type": "boolean"
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ProjectCapabilities"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "capabilities"
+        ],
+        "additionalProperties": true
+      },
+      "ProjectMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          },
+          "granted_by": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "granted_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "team_id",
+          "role",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMemberList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectMember"
+        }
+      },
+      "ProjectPage": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "hasMore": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "limit",
+              "offset",
+              "total",
+              "hasMore"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "projects",
+          "pagination"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectList": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          {
+            "$ref": "#/components/schemas/ProjectPage"
+          }
+        ]
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,9}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "lead_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "ProjectMemberWrite": {
+        "type": "object",
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "team"
+            ]
+          },
+          "subject_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject_id",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectRoleUpdate": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "SprintBoardColumn": {
+        "type": "object",
+        "properties": {
+          "stateId": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "accepting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stateId",
+          "count",
+          "limit",
+          "accepting"
+        ],
+        "additionalProperties": false
+      },
+      "SprintBoard": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "$ref": "#/components/schemas/Sprint"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SprintBoardColumn"
+            }
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "sprint",
+          "columns",
+          "tickets"
         ],
         "additionalProperties": false
       },
@@ -21524,17 +22423,6 @@
               "null"
             ]
           },
-          "container": {
-            "type": "string",
-            "enum": [
-              "sprint",
-              "scheduled",
-              "backlog"
-            ]
-          },
-          "capabilities": {
-            "$ref": "#/components/schemas/TicketCapabilities"
-          },
           "snippet": {
             "type": "string"
           }
@@ -21547,8 +22435,6 @@
           "planned_date",
           "due_date",
           "sprint_id",
-          "container",
-          "capabilities",
           "snippet"
         ],
         "additionalProperties": false
@@ -21764,108 +22650,6 @@
         ],
         "additionalProperties": false
       },
-      "TicketCapability": {
-        "type": "object",
-        "properties": {
-          "allowed": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "INVALID_TRANSITION",
-              "ACCESS_DENIED",
-              "SPRINT_FROZEN",
-              "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
-            ]
-          }
-        },
-        "required": [
-          "allowed"
-        ],
-        "additionalProperties": false
-      },
-      "TicketTransitionCapability": {
-        "type": "object",
-        "properties": {
-          "to": {
-            "type": "integer"
-          },
-          "allowed": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "INVALID_TRANSITION",
-              "ACCESS_DENIED",
-              "SPRINT_FROZEN",
-              "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
-            ]
-          }
-        },
-        "required": [
-          "to",
-          "allowed"
-        ],
-        "additionalProperties": false
-      },
-      "TicketCapabilities": {
-        "type": "object",
-        "properties": {
-          "transitions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TicketTransitionCapability"
-            }
-          },
-          "can": {
-            "type": "object",
-            "properties": {
-              "edit": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "changeState": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "cancel": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "transfer": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "delete": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "placeInSprint": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "schedule": {
-                "$ref": "#/components/schemas/TicketCapability"
-              }
-            },
-            "required": [
-              "edit",
-              "changeState",
-              "cancel",
-              "transfer",
-              "delete",
-              "placeInSprint",
-              "schedule"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "transitions",
-          "can"
-        ],
-        "additionalProperties": false
-      },
       "Sprint": {
         "type": "object",
         "properties": {
@@ -21960,62 +22744,6 @@
           "name",
           "status",
           "auto_managed"
-        ],
-        "additionalProperties": false
-      },
-      "SprintBoardColumn": {
-        "type": "object",
-        "properties": {
-          "stateId": {
-            "type": "integer"
-          },
-          "count": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."
-          },
-          "limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
-          "accepting": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "stateId",
-          "count",
-          "limit",
-          "accepting"
-        ],
-        "additionalProperties": false
-      },
-      "SprintBoard": {
-        "type": "object",
-        "properties": {
-          "sprint": {
-            "$ref": "#/components/schemas/Sprint"
-          },
-          "columns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SprintBoardColumn"
-            }
-          },
-          "tickets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Task"
-            }
-          }
-        },
-        "required": [
-          "sprint",
-          "columns",
-          "tickets"
         ],
         "additionalProperties": false
       },
@@ -22619,12 +23347,6 @@
           "title": {
             "type": "string"
           },
-          "ticket_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "issue_key": {
             "type": [
               "string",
@@ -22643,7 +23365,6 @@
         "required": [
           "task_id",
           "title",
-          "ticket_key",
           "issue_key",
           "date",
           "minutes"

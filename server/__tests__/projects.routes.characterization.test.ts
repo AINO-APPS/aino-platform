@@ -76,14 +76,19 @@ describe("project route characterization", () => {
         const res = await request(makeApp()).get("/api/projects");
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual([{ id: 1, key: "APP" }]);
+        expect(res.body).toEqual([{
+            id: 1,
+            key: "APP",
+            capabilities: { canAdminister: false, canManageMembers: false },
+        }]);
         expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");
     });
 
     test("clamps paginated list limits and can include archived projects", async () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ total: 3 }], rowCount: 1 });
+            .mockResolvedValueOnce({ rows: [{ total: 3 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
         const res = await request(makeApp()).get("/api/projects?paginate=1&include_archived=1&limit=999&offset=-7");
 

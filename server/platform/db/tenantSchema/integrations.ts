@@ -116,6 +116,7 @@ async function initializeIntegrationTenantSchema(q: SchemaQuery): Promise<void> 
             user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
             team_id     INTEGER REFERENCES teams(id) ON DELETE CASCADE,
             role        TEXT NOT NULL CHECK (role IN ('project_admin','member','viewer')),
+            granted_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
             created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             CHECK ((user_id IS NULL) <> (team_id IS NULL)),
             UNIQUE (project_id, user_id),

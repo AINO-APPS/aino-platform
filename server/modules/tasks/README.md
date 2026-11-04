@@ -4,6 +4,23 @@ The service owns task-domain orchestration and the repository is the sole owner
 of its SQL. Legacy task route adapters retain authentication, request parsing,
 access checks, response serialization, and error compatibility.
 
+## Project access (ADR-017)
+
+`tasks.projectAccess.ts` resolves a request actor's effective project role,
+accessible project IDs and role capabilities. Create one resolver per request;
+its role memoization is request-local. Personal and team grants are combined
+with the most permissive role taking precedence. Organization admins are
+treated as project admins.
+
+`tasks.projectAccessRepository.ts` owns SQL for project grants and project
+creation. Member writes lock the project row and protect its final project
+admin. Project creation grants the creator project-admin and any selected
+teams member access in the same transaction.
+
+Project roles do not filter project or ticket lists until ticket 06 changes
+visibility. This boundary intentionally keeps the current visibility policy
+unchanged.
+
 Placement — any change to a ticket's sprint, planned day, or the due date that
 follows sprint membership — goes through `tasks.placement.ts` (rules),
 `tasks.placementRepository.ts` (SQL) and `tasks.placementEffects.ts` (realtime
