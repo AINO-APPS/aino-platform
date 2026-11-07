@@ -102,7 +102,7 @@ describe("project route characterization", () => {
         expect(res.status).toBe(200);
         expect(res.body.pagination).toEqual({ limit: 200, offset: 0, total: 3, hasMore: true });
         expect(mockQuery.mock.calls[0][0]).not.toContain("p.is_archived = FALSE");
-        expect(mockQuery.mock.calls[0][1]).toEqual([3, 200, 0]);
+        expect(mockQuery.mock.calls[0][1]).toEqual([3, null, 200, 0]);
     });
 
     test("returns the established empty shape when no organization is assigned", async () => {

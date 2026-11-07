@@ -28,6 +28,10 @@ jest.mock("../utils/audit", () => ({
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
 }));
 
+jest.mock("../middleware/maintenanceMode", () => ({
+    maintenanceModeMiddleware: (_req: any, _res: any, next: any) => next(),
+}));
+
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
@@ -166,22 +170,30 @@ describe("Tenant Isolation - Tasks", () => {
     });
 
     test("persists org_id when creating backlog task", async () => {
-        setupAuth();
         const taskId = 101;
-        // Stage 2 Bug #1: the INSERT + label-sync + history are now wrapped
-        // in a `req.db.transaction(...)` block, so the INSERT runs against
-        // the transaction client (`mockTxClient.query`) rather than the
-        // top-level pool (`mockQuery`). The post-insert SELECT + enrichment
-        // queries still go through `mockQuery`.
-        mockTxClient.query.mockResolvedValueOnce({ rows: [{ id: taskId }], rowCount: 1 }); // INSERT
-        mockTxClient.query.mockResolvedValue({ rows: [], rowCount: 0 }); // history + label work
-        mockQuery
-            .mockResolvedValueOnce({
-                rows: [{ id: taskId, title: "Org Task", status: "pending", user_id: 1, priority: "medium", assigned_to: null, date: null, org_id: 1 }],
-                rowCount: 1,
-            })
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        mockQuery.mockReset().mockImplementation(async (sql: string) => {
+            if (/maintenance_mode/.test(sql)) return { rows: [], rowCount: 0 };
+            if (/SELECT token_version FROM users/.test(sql)) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (/SELECT role, org_id, team_id/.test(sql)) {
+                return { rows: [{ role: "employee", org_id: 1, team_id: 1, is_active: true }], rowCount: 1 };
+            }
+            if (/SELECT t\.id AS team_id FROM teams/.test(sql)) return { rows: [{ team_id: 1 }], rowCount: 1 };
+            if (/SELECT project_ownership FROM organizations/.test(sql)) {
+                return { rows: [{ project_ownership: false }], rowCount: 1 };
+            }
+            if (/SELECT COALESCE\(/.test(sql) && /FROM projects WHERE org_id/.test(sql)) {
+                return { rows: [{ id: 3 }], rowCount: 1 };
+            }
+            if (/SELECT \* FROM tasks WHERE id = \$1/.test(sql)) {
+                return { rows: [{ id: taskId, title: "Org Task", status: "pending", user_id: 1, priority: "medium", assigned_to: null, date: null, org_id: 1, team_id: 1, project_id: 3 }], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+        });
+        mockTxClient.query.mockImplementation(async (sql: string) => {
+            if (/UPDATE projects/.test(sql)) return { rows: [{ task_number: 1 }], rowCount: 1 };
+            if (/INSERT INTO tasks/.test(sql)) return { rows: [{ id: taskId }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
 
         const res = await request(app)
             .post("/api/tasks/backlog")
@@ -189,24 +201,25 @@ describe("Tenant Isolation - Tasks", () => {
             .set("Cookie", authCookie())
             .send({ title: "Org Task" });
 
-        expect([200, 500]).toContain(res.status);
-        // Look on the transaction client now — that's where the INSERT lives
-        // post-Stage-2 (Bug #1 transactional fix).
+        expect(res.status).toBe(200);
         const insertCall = mockTxClient.query.mock.calls.find(([sql]: any[]) => typeof sql === "string" && sql.includes("INSERT INTO tasks") && sql.includes("org_id"));
         expect(insertCall).toBeTruthy();
-        // The INSERT carries every Pass-1 / Phase-3 column (story_points,
-        // work_item_type_id, workflow_state_id, parent_task_id,
-        // acceptance_criteria, is_blocked, blocked_reason, lead_started_at).
-        // Only assert that the org_id we passed in (1) is among the bound
-        // parameters — column order is enforced by the route's own SQL.
         expect(insertCall[1]).toContain(1);
+        expect(insertCall[0]).toContain("project_id");
     });
 
     test("denies status update when task org does not match requester org", async () => {
-        setupAuth();
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 77, user_id: 2, assigned_to: null, org_id: 2, status: "pending" }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ team_id: 1, org_id: 2 }], rowCount: 1 });
+        mockQuery.mockReset().mockImplementation(async (sql: string) => {
+            if (/maintenance_mode/.test(sql)) return { rows: [], rowCount: 0 };
+            if (/SELECT token_version FROM users/.test(sql)) return { rows: [{ token_version: 0 }], rowCount: 1 };
+            if (/SELECT role, org_id, team_id/.test(sql)) {
+                return { rows: [{ role: "employee", org_id: 1, team_id: 1, is_active: true }], rowCount: 1 };
+            }
+            if (/SELECT \* FROM tasks WHERE id = \$1/.test(sql)) {
+                return { rows: [{ id: 77, user_id: 2, assigned_to: null, org_id: 2, status: "pending" }], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+        });
 
         const res = await request(app)
             .patch("/api/tasks/77/status")

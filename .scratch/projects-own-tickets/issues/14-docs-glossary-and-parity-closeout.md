@@ -235,9 +235,9 @@ npm run test:ci -- --runInBand --testTimeout=60000 --runTestsByPath `
   the newly tested Projects lazy page; it now preloads both real pages before
   checking navigation, without changing application routing or permissions.
   The final focused command below passed **5 files / 77 tests, zero skipped**
-  (40.190s), with a CLI-only 60-second allowance for this host. The original full
-  1,032-test web run was **not rerun** after this fixture-only change; the recorded
-  full-run timing failures remain a validation gap, not a full-suite green claim.
+  (40.190s), with a CLI-only 60-second allowance for this host. At that point,
+  the original full 1,032-test web run had **not been rerun** after this
+  fixture-only change; see the current full-suite rerun below.
 - Final server and client typechecks passed. Final server `lint:deps` passed:
   **361 modules / 1,509 dependencies**, no violations. Server build passed again.
 - Final `npm run contracts:validate`: **85 passed, zero skipped**.
@@ -258,12 +258,46 @@ npm test -- --maxWorkers=1 --testTimeout=60000 `
   src\pages\tasks\__tests__\Estimates.test.tsx
 ```
 
+### Current rerun (2026-11-05)
+
+- `npm --prefix server run test:pg -- --runInBand --testTimeout=60000`:
+  **15/15 suites, 424/424 tests passed, zero skipped**.
+- `npm --prefix server run test:ci -- --runInBand --testTimeout=60000`:
+  **164 suites passed, 17 failed, 15 skipped; 1,941 tests passed, 69 failed,
+  424 skipped**. The 69 non-PG failures match the clean-base failures recorded
+  above; the dedicated PostgreSQL run covers the skipped integration tests.
+- `npm --prefix client test -- --maxWorkers=1 --testTimeout=60000`:
+  **146/146 files and 1,032/1,032 tests passed**.
+- Contracts passed (**85/85, zero skipped**); repository guardrails, server and
+  client typechecks, and server dependency layering passed.
+
 **Ticket14 remains claimed, not resolved.** Documentation, native endpoint and
-realtime parity, tasks-parity, focused Android proof, and no-skip PostgreSQL
-validation are complete. The original full-green acceptance condition is not
-met: the 69 base server failures and lack of a subsequent full web green run
-remain explicit. Ticket13's global parity checkbox is now checked based on the
-merged Android branch and the unfiltered parity results above.
+realtime parity, tasks-parity, focused Android proof, no-skip PostgreSQL
+validation, and the full web suite are green. The full server suite still has
+the 69 failures reproduced on the clean base, so the original all-green
+acceptance condition remains unmet. Ticket13's global parity checkbox is now
+checked based on the merged Android branch and the unfiltered parity results
+above.
+
+### Phase 2 follow-up (2026-11-07)
+
+- The four project/task HTTP route suites passed: **59 tests, zero failures**.
+  Their fixtures now cover the project list's accessible-project bind value,
+  project-role reads, project-backed sprint lookup, tenant-isolated task
+  status, and a create request that reaches the transactional insert.
+- Fresh `npm --prefix server run test:pg -- --runInBand --testTimeout=60000`:
+  **15/15 suites and 424/424 tests passed, zero skipped**.
+- Fresh full server suite:
+  **168 suites passed, 13 failed, 15 skipped; 1,943 tests passed, 67 failed,
+  424 skipped**. All 13 failing suites are outside Phase 2's project/ticket
+  work and belong to the same non-PostgreSQL baseline-failure set recorded
+  above; the full-server all-green acceptance item therefore remains open.
+- Contracts passed (**85/85, zero skipped**); all repository guardrails,
+  server/client typechecks, and server dependency layering passed.
+
+The roadmap marks Phase 2 shipped as an integrated capability, with activation
+and validation caveats linked here. This does not resolve the all-green
+closeout gate or authorize merging into the dirty `master` worktree.
 
 The disposable baseline and LF Android validation worktrees and owned PostgreSQL
 containers were cleaned up. The pre-existing dirty main checkouts and other

@@ -124,6 +124,11 @@ function fixtureQuery(sql: string, params: unknown[] = []): { rows: any[]; rowCo
     if (/SELECT DISTINCT p\.id/.test(text)) {
         return { rows: [301, 302].map((id) => ({ id })), rowCount: 2 };
     }
+    if (/SELECT id, is_archived FROM projects WHERE id = ANY\(\$1::int\[\]\)/.test(text)) {
+        const ids = params[0] as number[];
+        const rows = ids.map((id) => ({ id, is_archived: false }));
+        return { rows, rowCount: rows.length };
+    }
     if (/SELECT id FROM projects WHERE org_id = \$1 AND origin_team_id = \$2/.test(text)) {
         const projectId = Number(params[1]) === TEAM_A ? 301 : Number(params[1]) === TEAM_B ? 303 : null;
         return { rows: projectId == null ? [] : [{ id: projectId }], rowCount: projectId == null ? 0 : 1 };
