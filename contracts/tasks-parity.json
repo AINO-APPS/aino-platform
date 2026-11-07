@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-02",
+  "updated": "2026-11-04",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -9,6 +9,104 @@
     "ios"
   ],
   "features": [
+    {
+      "id": "project-key-realtime-refresh",
+      "name": "Post-commit project key invalidation refetches current project and ticket data",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/core/realtime/RealtimeEventRegistryTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/core/realtime/RealtimeEventRegistryTest.kt",
+          "name": "routesTheCrossDeviceSyncEvents"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits payload-free project invalidation and refetch." }
+    },
+    {
+      "id": "project-ticket-read-only-actions",
+      "name": "Archived and viewer ticket controls follow server capabilities while comments stay available",
+      "decision": "D51",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityRendering.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "archivedAndViewerTicketsExposeOnlyTheActionsAllowedByTheServer"
+        }, {
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "anArchivedTicketCanStillBeCommentedOnWhenTheServerAllowsIt"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits capability-driven project ticket controls." }
+    },
+    {
+      "id": "ticket-key-alias-lookup",
+      "name": "Current and historical ticket keys resolve to the canonical project-owned ticket",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/IssueKey.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "searchingAnOldKeyUsesServerResolutionAndShowsTheCurrentTicket"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits canonical ticket-key routing and aliases." }
+    },
+    {
+      "id": "ticket-create-project",
+      "name": "Required project picker, active member defaults, legacy create resolution and project-only sprints",
+      "decision": "D55",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/createProjectPicker.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "createDefaultsToCurrentProjectAndRefusesAnUnavailableProject"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the required project picker." }
+    },
+    {
+      "id": "move-ticket-project",
+      "name": "Member project move with preview, key alias and workflow/sprint mapping",
+      "decision": "D54",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/moveProject.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "moveShowsServerPreviewBeforeConfirmAndPublishesTheCanonicalTicket"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "iOS renders the shared web bundle and inherits the project move dialog." }
+    },
+    {
+      "id": "service-desk-project",
+      "name": "Service Desk project settings, keyed copies, system status sync and cancel-on-delete",
+      "decision": "D31",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/organization/__tests__/OrgSettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/organization/__tests__/OrgSettings.test.tsx" },
+      "android": { "status": "waived", "waiver": "Org setting administration is web-only in ticket 11; server-side Service Desk copy lifecycle applies to every client." },
+      "ios": { "status": "waived", "waiver": "iOS uses the web bundle; server-side Service Desk copy lifecycle applies unchanged." }
+    },
     {
       "id": "planned-date-semantics",
       "name": "planned_date is metadata, never a container",
@@ -671,20 +769,118 @@
     },
     {
       "id": "time-tracking-on-task",
-      "name": "logged vs estimated, timer from task, timesheet rollup",
+      "name": "manual worklogs, estimates, remaining choices, admin attribution and attendance warnings",
       "decision": "D13",
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.time.test.ts"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+        "owner_tests": [
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "remaining choices send auto/set/leave payloads for %s"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "inline estimates use only the server capability and immediately show the new forecast and overrun"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "person picker follows only the server capability (%j)"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "list shows logged-by attribution only when someone else logged the author’s time"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "shows both returned attendance warnings after the worklog saves and the dialog closes"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "changing the worked day and duration shows edit warnings after save, then clears them after a clean correction"
+          }
+        ]
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.time.test.ts"
+        "owner_test": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+        "owner_tests": [
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "remaining choices send auto/set/leave payloads for %s"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+            "name": "inline estimates use only the server capability and immediately show the new forecast and overrun"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "person picker follows only the server capability (%j)"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "list shows logged-by attribution only when someone else logged the author’s time"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "shows both returned attendance warnings after the worklog saves and the dialog closes"
+          },
+          {
+            "path": "client/src/pages/tasks/__tests__/LogWork.test.tsx",
+            "name": "changing the worked day and duration shows edit warnings after save, then clears them after a clean correction"
+          }
+        ]
       },
       "android": {
         "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+        "owner_tests": [
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "loggingWorkUpdatesListAndSharedTimeSpentWithTheEnteredFields"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "editingWorklogKeepsItsIdentityAndReplacesTimeSpentFromServer"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "deletingWorklogRemovesItAndUsesServerTotal"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "serverCapabilitiesHideLogEditAndDeleteWithoutInferringFromRoles"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "loggingWorkSendsEachRemainingChoiceAndUsesServerEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "editingWorkSendsEachRemainingChoiceAndRefreshesBothEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "deletingWorkSendsEachRemainingChoiceAndRefreshesBothEstimates"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "inlineEstimatesUseServerCapabilityAndPublishForecastAndOverrun"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "personPickerAndAuthorPayloadUseOnlyServerCapability"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "worklogsShowLoggedByOnlyWhenDifferentFromTheAuthor"
+          },
+          {
+            "path": "app/src/test/java/app/aino/mobile/feature/tasks/TicketWorklogsTest.kt",
+            "name": "attendanceWarningsPersistAfterCreateAndEditUntilACleanSave"
+          }
+        ]
       },
       "ios": {
         "status": "waived",
@@ -960,6 +1156,46 @@
       "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityFreshness.test.tsx" },
       "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskRepositoryTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
+    },
+    {
+      "id": "project-plan-scope",
+      "name": "Project-scoped backlog, sprint and board with persistent accessible-project switcher",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/tasksFirstRender.test.tsx" },
+      "android": {
+        "status": "shipped",
+        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+        "owner_tests": [{
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "changingProjectScopesBacklogAndTheCurrentSprintInsteadOfTheActorsTeam"
+        }, {
+          "path": "app/src/test/java/app/aino/mobile/feature/tasks/ProjectOwnershipViewModelTest.kt",
+          "name": "everyRoleCanSelectAnAccessibleProjectIncludingArchivedReadOnlyProjects"
+        }]
+      },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the web project switcher." }
+    },
+    {
+      "id": "project-migration-review",
+      "name": "ADR-017 generated-project review and one-time ownership publication with emergency rollback",
+      "decision": "D45",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
+      "android": { "status": "waived", "waiver": "Migration review and switch-over are web-only administration per ADR-017 and projects-own-tickets ticket 12." },
+      "ios": { "status": "waived", "waiver": "Administration uses the web app; native clients cannot call migration review or switch endpoints." }
+    },
+    {
+      "id": "project-key-rename",
+      "name": "Transactional project key rename preview and post-commit realtime key refresh",
+      "decision": "D48",
+      "phase": 2,
+      "web": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/tasks/__tests__/ProjectKeySettings.test.tsx" },
+      "android": { "status": "waived", "waiver": "Project settings and key rename remain web-only per ADR-017. Android routes project_updated to task refetch; native create, scope, moves and alias lookup shipped in ticket 13." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits project key settings and realtime refresh from the web bundle." }
     }
   ],
   "non_goals": [
@@ -1006,10 +1242,6 @@
     {
       "id": "board-bulk-actions",
       "rationale": "Bulk triage belongs in backlog; board bulk would double drag-and-drop complexity per D23."
-    },
-    {
-      "id": "service-desk-changes",
-      "rationale": "Unrelated to backlog, sprint and schedule; explicitly untouched per D31."
     }
   ]
 }

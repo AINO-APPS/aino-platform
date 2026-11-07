@@ -1,6 +1,57 @@
 import API, { type AnyData, type Params } from "./client";
 import type { SprintList } from "../types/generated/tasks";
 
+export interface TaskWorklog {
+    id: number;
+    task_id: number;
+    author_id: number;
+    logged_by_id: number;
+    author: { id: number; username: string; full_name: string; avatar: string | null };
+    logged_by: { id: number; username: string; full_name: string; avatar: string | null };
+    day_worked: string;
+    start_time: string | null;
+    minutes: number;
+    comment: string | null;
+    created_at: string;
+    updated_at: string;
+    deleted_at: null;
+    canEdit: boolean;
+    canDelete: boolean;
+}
+
+export interface TaskWorklogListResponse {
+    worklogs: TaskWorklog[]; time_spent_minutes: number;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null;
+}
+export const getTaskWorklogs = (id: number | string) =>
+    API.get<TaskWorklogListResponse>(`/tasks/${id}/worklogs`);
+
+export interface RemainingInput { remaining_mode?: 'auto' | 'set' | 'leave'; remaining_estimate?: string }
+export interface LogWorkInput extends RemainingInput {
+    day_worked: string;
+    time_spent: string;
+    start_time?: string | null;
+    comment?: string | null;
+    author_id?: number;
+}
+export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null;
+    original_estimate_minutes: number | null; remaining_estimate_minutes: number | null }
+export const setTaskEstimates = (id: number | string, input: { original_estimate?: string; remaining_estimate?: string }) =>
+    API.patch<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/estimates`, input);
+export interface LogWorkResponse {
+    worklog: TaskWorklog;
+    ticket: WorklogTicketSummary;
+    warnings: string[];
+}
+export const logTaskWork = (id: number | string, input: LogWorkInput) =>
+    API.post<LogWorkResponse>(`/tasks/${id}/worklogs`, input);
+
+export const editTaskWorklog = (id: number | string, worklogId: number, input: Partial<LogWorkInput>) =>
+    API.patch<LogWorkResponse>(`/tasks/${id}/worklogs/${worklogId}`, input);
+
+export const deleteTaskWorklog = (id: number | string, worklogId: number, input: RemainingInput = {}) =>
+    API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`, { data: input });
+
 // Tasks
 export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };
@@ -10,12 +61,23 @@ export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) 
     return API.get("/tasks", { params, signal });
 };
 export const addTask = (data: AnyData) => API.post("/tasks", data);
+export const getMyProjects = () => API.get("/projects/mine");
 export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);
 export const deleteTask = (id: number | string) => API.delete(`/tasks/${id}`);
 export const transferTask = (id: number | string, teamId: number | string) =>
     API.post(`/tasks/${id}/transfer`, { team_id: teamId });
+export interface ProjectMovePreview {
+    target_project_id: number;
+    key_format: string;
+    workflow_state: { id: number; key: string; name: string; category: string };
+    leaves_sprint: boolean;
+}
+export const previewTaskProjectMove = (id: number | string, projectId: number) =>
+    API.post<ProjectMovePreview>(`/tasks/${id}/move-project/preview`, { project_id: projectId });
+export const moveTaskProject = (id: number | string, projectId: number) =>
+    API.post(`/tasks/${id}/move-project`, { project_id: projectId });
 export const carryForwardTasks = () => API.post("/tasks/carry-forward");
 export const getAssignableUsers = () => API.get("/tasks/assignable-users");
 export const getTaskLabels = () => API.get("/tasks/labels");
@@ -45,15 +107,43 @@ export const getProjects = (
     return API.get("/projects", { params });
 };
 export const getProject = (id: number | string) => API.get(`/projects/${id}`);
+export interface ProjectKeyRenameResult {
+    project_id: number;
+    old_key: string;
+    new_key: string;
+    affected_tickets: number;
+}
+export const previewProjectKeyRename = (id: number | string, key: string) =>
+    API.post<ProjectKeyRenameResult>(`/projects/${id}/key/preview`, { key });
+export const renameProjectKey = (id: number | string, key: string) =>
+    API.post<ProjectKeyRenameResult>(`/projects/${id}/key`, { key });
 export const createProject = (data: AnyData) => API.post("/projects", data);
 export const updateProject = (id: number | string, data: AnyData) =>
     API.put(`/projects/${id}`, data);
 export const archiveProject = (id: number | string, isArchived: boolean) =>
     API.patch(`/projects/${id}/archive`, { is_archived: isArchived });
-export const deleteProject = (id: number | string, { force = false }: { force?: boolean } = {}) =>
-    API.delete(`/projects/${id}`, { params: force ? { force: 1 } : {} });
+export const deleteProject = (id: number | string) => API.delete(`/projects/${id}`);
 export const getProjectTasks = (id: number | string, params?: Params) =>
     API.get(`/projects/${id}/tasks`, { params });
+export const getProjectWorkflow = (id: number | string) =>
+    API.get(`/projects/${id}/workflow-states`);
+export const createProjectWorkflowState = (id: number | string, data: AnyData) =>
+    API.post(`/projects/${id}/workflow-states`, data);
+export const updateProjectWorkflowState = (id: number | string, stateId: number | string, data: AnyData) =>
+    API.put(`/projects/${id}/workflow-states/${stateId}`, data);
+export const deleteProjectWorkflowState = (id: number | string, stateId: number | string) =>
+    API.delete(`/projects/${id}/workflow-states/${stateId}`);
+export const reorderProjectWorkflowStates = (id: number | string, order: Array<number | string>) =>
+    API.put(`/projects/${id}/workflow-states/reorder`, { order });
+export const updateProjectWorkflowTransitions = (id: number | string, transitions: AnyData[]) =>
+    API.put(`/projects/${id}/workflow-transitions`, { transitions });
+export const getProjectMembers = (id: number | string) => API.get(`/projects/${id}/members`);
+export const grantProjectMember = (id: number | string, data: AnyData) =>
+    API.post(`/projects/${id}/members`, data);
+export const updateProjectMember = (id: number | string, memberId: number | string, role: string) =>
+    API.put(`/projects/${id}/members/${memberId}`, { role });
+export const removeProjectMember = (id: number | string, memberId: number | string) =>
+    API.delete(`/projects/${id}/members/${memberId}`);
 
 // GitHub integration â€” OAuth flow + repo selection.
 export const startGithubOAuth = () => API.post("/integrations/github/oauth/start");
@@ -186,7 +276,9 @@ export const setTaskParent = (id: number | string, parent_task_id: number | stri
     API.patch(`/tasks/${id}/parent`, { parent_task_id });
 
 // Agile (tenant-customisable Work Item Types, Workflow States, Story Points)
-export const getAgileConfig = () => API.get("/agile/config");
+export const getAgileConfig = (projectId?: number) => API.get("/agile/config", {
+    params: projectId == null ? undefined : { project_id: projectId },
+});
 export const getAgileSettings = () => API.get("/agile/settings");
 export const updateAgileSettings = (data: AnyData) => API.put("/agile/settings", data);
 export const getWorkItemTypes = () => API.get("/agile/work-item-types");

@@ -18,7 +18,8 @@ export interface TicketCapabilities {
 
 export interface Task {
   id: number;
-  issue_key?: string | null;
+  ticket_key: string;
+  issue_key: string;
   title: string;
   description?: string | null;
   priority: string;
@@ -35,7 +36,7 @@ export interface Task {
   team_id: number | null;
   rank: string | null;
   parent_task_id?: number | null;
-  project_id?: number | null;
+  project_id: number;
   work_item_type_id?: number | null;
   story_points?: number | null;
   estimated_minutes?: number | null;
@@ -47,11 +48,19 @@ export interface Task {
   blocked_reason?: string | null;
   acceptance_criteria?: Record<string, unknown>[] | null;
   created_at?: string | null;
+  key_aliases?: string[];
+  key_alias?: boolean;
+  requested_key?: string;
+  project?: TaskProject;
+  time_spent_minutes?: number;
+  original_estimate_minutes?: number | null;
+  remaining_estimate_minutes?: number | null;
 }
 
 export interface Sprint {
   id: number;
-  team_id: number;
+  project_id: number;
+  team_id: number | null;
   name: string;
   goal?: string | null;
   status: string;
@@ -100,6 +109,19 @@ export interface TicketCapabilitiesCan {
   delete: TicketCapability;
   placeInSprint: TicketCapability;
   schedule: TicketCapability;
+  comment: TicketCapability;
+  logWork: TicketCapability;
+  logWorkForOthers: TicketCapability;
+  canEditEstimate: TicketCapability;
+  canMoveProject: TicketCapability;
+}
+
+export interface TaskProject {
+  id: number;
+  key: string;
+  name: string;
+  color?: string;
+  is_archived: boolean;
 }
 
 export interface BacklogResponsePagination {

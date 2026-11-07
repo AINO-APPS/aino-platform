@@ -21,7 +21,90 @@ AINO_LEGACY_REPO=/path/to/legacy-clone node contracts/generate-mobile-route-map.
 
 The legacy commit is pinned to `d9d779c7520dbf052ba587ac2af649ec59920864` and is also asserted by `scripts/validate-contracts.mjs`, so the map always describes that immutable history. The generator fails with an explicit message when the clone or the commit is unavailable. After regenerating, review the classification diff.
 
-Validate with `npm run contracts:validate` from the repository root.
+Validate with `npm run contracts:validate` from the repository root. Model
+checks/generation in npm scripts use `--platform-only`: they never rewrite or
+require generated files in a native sibling checkout.
+Contract test files run serially: generator/validator negative tests temporarily
+mutate shared contract inputs and restore them. Parallel files could read the
+temporary missing-field schema and fail fixture validation nondeterministically.
+
+### Manual worklogs and estimates
+
+`GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,
+day worked, minutes, optional start/comment, timestamps, and computed
+`time_spent_minutes`. Entries are newest day worked first, then creation time/id.
+Ticket read responses carry `time_spent_minutes`; `logged_minutes` is the same
+computed sum for older apps. Timer routes are deprecated but their envelopes
+are unchanged; stopping atomically creates one worklog, rounded up to at least
+one minute. Ticket summaries expose original and remaining estimate minutes;
+`estimated_minutes` remains an alias of original for older apps.
+
+`POST /api/tasks/:id/worklogs` takes day worked, time spent in org-aware w/d/h/m
+format, optional start time, comment and an org-admin `author_id`. It returns 201
+with `{ worklog, ticket, warnings }`; approved leave and excess attendance produce
+advisory `ON_LEAVE` / `EXCEEDS_ATTENDANCE` warnings after saving. Invalid duration returns 400
+`INVALID_DURATION`; Cancelled returns 403 `WORKLOG_CANCELLED`, while Done allows
+logging. Server capabilities control the web/desktop and Android Log work,
+estimate and person controls, plus edit/delete on each worklog.
+`PATCH` / `DELETE /api/tasks/:id/worklogs/:worklogId` correct or soft-delete work.
+All three worklog writes accept `remaining_mode`: `auto` (default, duration delta),
+`set` (requires `remaining_estimate`), or `leave`. `PATCH /api/tasks/:id/estimates`
+sets or clears original/remaining estimates; original seeds null remaining when
+remaining is omitted. The native ticket timer is retired, not the server routes.
+History and audit commit atomically and realtime follows commit. Timer operations
+are marked deprecated in both OpenAPI and the route inventory and remain usable.
+
+`worklogs.mjs` defines the new field-level contract. `reviewed-task-baseline.json`
+preserves already-published precise task, project and Service Desk schemas/operations when regenerating
+with the historical baseline generator; unrelated contracts must not regress.
+
+Android is inspected read-only. The native checker validates its committed
+snapshot; the platform delta gate additionally checks **this checkout's** current
+inventory against native coverage and waivers. All five manual-worklog/estimate
+operations require actual native coverage, even if already in its snapshot;
+none can be excused by a waiver. The temporary manual-worklog waivers are removed.
+Unrelated existing pending/unmatched routes remain reported as baseline debt.
+The tasks-parity time-tracking entry ships on web/desktop and Android with RTL
+and public ticket-view-model behavioral owners:
+
+```powershell
+node scripts\check-android-endpoint-parity.mjs <Android-checkout>
+```
+
+No Android snapshots or source files are rewritten by this command.
+
+### Project ownership (Phase 2)
+
+Android ticket13 ships project-scoped Plan/create, move preview/confirm,
+server-capability actions and current/alias key lookup. The matrix names its
+`ProjectOwnershipViewModelTest` behavioral owners. Settings, member/workflow
+administration, key rename and migration publication remain web-only; their
+waivers are intentional, not pending native work.
+
+For split worktrees, explicitly select the **integrated** Android checkout,
+not a dirty main or an unrelated sibling branch:
+
+```powershell
+$env:AINO_ANDROID_REPO = '<Android-integration-checkout>'
+node scripts\validate-tasks-parity.mjs
+node scripts\check-android-endpoint-parity.mjs $env:AINO_ANDROID_REPO --projects-only
+node "$env:AINO_ANDROID_REPO\scripts\check-realtime-parity.mjs" .
+```
+
+The explicit owner-root fails if unavailable instead of silently skipping native
+tests. `--projects-only` proves eight required project-facing operations from
+the native scanner's committed source coverage and refuses rollout waivers.
+It is a **focused** check, not a substitute for the unfiltered endpoint gate
+above; that gate still requires the separate manual-worklogs rollout. Realtime
+includes the payload-free `project_updated` invalidation, routed by Android to
+Tasks refetch, and the existing `task_updated` invalidation after moves.
+The native realtime script may refresh its own snapshot when emitters change;
+run it on a clean disposable checkout and inspect the resulting diff.
+
+On Windows a native snapshot check can fail solely because `core.autocrlf`
+checked out generated JSON/Markdown as CRLF. Validate an LF checkout
+(`git -c core.autocrlf=false worktree add --detach ... <integration-ref>`) rather
+than rewriting another worktree. Record focused and unfiltered results separately.
 
 The mobile map covers backend calls made through the shared Axios `api` instance. Direct external `fetch` calls (for application updates, GitHub releases, and geocoding) are intentionally excluded because they are not AINO server routes. Validation fails if any wrapper call could not be resolved to a string or template-literal path.
 
@@ -32,6 +115,8 @@ The mobile map covers backend calls made through the shared Axios `api` instance
 The seven notification operations are fully modeled from their handler and database schema, including pagination, integer path IDs, bounded metric-event batches, delivery metrics, announcements, and mutation acknowledgements. Contract validation rejects any notification operation that regresses to `FreeFormValue`.
 
 The global search operation is fully modeled across its seven result groups. Missing or short queries use the same stable empty-array envelope as successful searches, and contract validation rejects a regression to `FreeFormValue`.
+
+Project workflow operations are modeled for project-scoped state and transition management. The organization workflow-state read accepts an optional `project_id` and its writes return `405`, because organization states are now read-only templates.
 
 `GET /api/tracker/status` is modeled as `TrackerStatus`. Its `floorSeconds` / `breakSeconds` integers are the exact worked/break seconds at response time (`floorMinutes === floor(floorSeconds / 60)`); contract validation requires both fields because native and web live timers anchor on them.
 

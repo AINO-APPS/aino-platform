@@ -6,6 +6,7 @@ import BacklogCard from "../BacklogCard";
 import BacklogBulkBar from "../BacklogBulkBar";
 import TicketDetailActions from "../TicketDetailActions";
 import TaskCard from "../TaskCard";
+import ArchivedProjectLabel from "../ArchivedProjectLabel";
 import { ToastProvider } from "../../../components/common/Toast";
 
 vi.mock("../../../AgileConfigContext", () => ({
@@ -20,6 +21,19 @@ vi.mock("../../../AgileConfigContext", () => ({
 }));
 
 describe("server capability rendering (web and desktop)", () => {
+    test("archived tickets are visibly labelled", () => {
+        render(<ArchivedProjectLabel task={{ project: { is_archived: true } }} />);
+        expect(screen.getByText("Archived project")).toBeVisible();
+    });
+    test.each(["READ_ONLY_ROLE", "PROJECT_ARCHIVED"])("%s hides ticket edit actions", (reason) => {
+        const readonly = { ...ticket, capabilities: { ...ticket.capabilities, can: Object.fromEntries(
+            Object.keys(ticket.capabilities.can).map((action) => [action, { allowed: false, reason }]),
+        ) } };
+        render(<TicketDetailActions task={readonly} onEdit={vi.fn()} onCancel={vi.fn()} onReplaced={vi.fn()} onError={vi.fn()} />);
+        expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Cancel ticket" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
+    });
     test("detail lists exactly the fixture transitions, including denied targets and their reason", () => {
         const onChange = vi.fn();
         render(<TaskStatusControl task={ticket} currentUser={null} onChange={onChange} />);
@@ -54,7 +68,7 @@ describe("server capability rendering (web and desktop)", () => {
         const { rerender } = render(<BacklogCard task={denied} {...props} />);
         expect(screen.getByRole("button", { name: "Schedule to a day" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Schedule to a day" })).toHaveAttribute("title", "This ticket is in a sprint. Move it out before scheduling a day.");
-        fireEvent.click(screen.getByRole("button", { name: "Actions for #42" }));
+        fireEvent.click(screen.getByRole("button", { name: `Actions for ${ticket.ticket_key}` }));
         expect(screen.getByRole("menuitem", { name: "Add to sprint" })).toBeDisabled();
         expect(screen.getByRole("menuitem", { name: "Edit title" })).toBeDisabled();
         rerender(<BacklogCard task={{ ...ticket, capabilities: undefined }} {...props} />);
@@ -96,7 +110,7 @@ describe("server capability rendering (web and desktop)", () => {
     test("the shared card menu renders the same fixture transitions as detail", () => {
         const change = vi.fn();
         render(<ToastProvider><TaskCard task={ticket} onOpenDetail={vi.fn()} onOpenComments={vi.fn()} onStatusChange={change} /></ToastProvider>);
-        fireEvent.click(screen.getByRole("button", { name: "Actions for #42" }));
+        fireEvent.click(screen.getByRole("button", { name: `Actions for ${ticket.ticket_key}` }));
         expect(screen.getByRole("menuitem", { name: "New" })).toBeDisabled();
         fireEvent.click(screen.getByRole("menuitem", { name: "Review" }));
         expect(change).toHaveBeenCalledWith(ticket, { id: "103", label: "Review" });

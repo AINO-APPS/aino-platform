@@ -14,11 +14,12 @@ import type { ReactNode } from "react";
 import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const getBacklog = vi.fn();
+const addBacklogTask = vi.fn();
 const setError = vi.fn();
 
 vi.mock("../../../api/tasks", () => ({
     getBacklog: (...args: unknown[]) => getBacklog(...args),
-    addBacklogTask: vi.fn(),
+    addBacklogTask: (...args: unknown[]) => addBacklogTask(...args),
     scheduleTask: vi.fn(),
     unscheduleTask: vi.fn(),
     assignTaskToSprint: vi.fn(),
@@ -49,7 +50,7 @@ function wrapper({ children }: { children: ReactNode }) {
     return <MemoryRouter initialEntries={["/tasks/backlog"]}>{children}</MemoryRouter>;
 }
 
-function renderBacklog() {
+function renderBacklog(options: Record<string, unknown> = {}) {
     return renderHook(
         () =>
             useBacklog({
@@ -62,6 +63,7 @@ function renderBacklog() {
                 closeConfirm: vi.fn(),
                 fetchTasks: vi.fn(),
                 setError,
+                ...options,
             }),
         { wrapper },
     );
@@ -76,16 +78,39 @@ const page = {
 describe("backlog background refresh", () => {
     beforeEach(() => {
         getBacklog.mockReset().mockResolvedValue({ data: page });
+        addBacklogTask.mockReset().mockResolvedValue({ data: {} });
         setError.mockReset();
+        localStorage.clear();
     });
 
     afterEach(() => {
         vi.useRealTimers();
     });
 
+    test("quick create sends the current project and remembers it for the required picker", async () => {
+        const { result } = renderBacklog({
+            projectOwnership: true, scopeParams: { project_id: 20 }, createProjectUserKey: "1.1",
+            createProjects: [{ id: 20, capabilities: { canCreateTickets: true } }],
+        });
+        await act(async () => { await result.current.quickAdd("Project ticket"); });
+        expect(addBacklogTask).toHaveBeenCalledWith({ title: "Project ticket", priority: "medium", project_id: 20 });
+        expect(localStorage.getItem("tasks.lastCreateProjectId.1.1")).toBe("20");
+    });
+
+    test("create submits the selected project and surfaces the stable sprint mismatch message", async () => {
+        const { result } = renderBacklog({
+            projectOwnership: true, scopeParams: { project_id: 20 },
+            createProjects: [{ id: 20, capabilities: { canCreateTickets: true } }],
+        });
+        act(() => result.current.setBacklogTitle("Project form ticket"));
+        addBacklogTask.mockRejectedValueOnce({ response: { data: { code: "SPRINT_PROJECT_MISMATCH" } } });
+        await act(async () => { await result.current.handleAddBacklog({ preventDefault: vi.fn() } as any); });
+        expect(addBacklogTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Project form ticket", project_id: "20" }));
+        expect(setError).toHaveBeenCalledWith("The sprint belongs to another project.");
+    });
+
     test("a user-initiated load shows the spinner", async () => {
         const { result } = renderBacklog();
-
         let pending: Promise<void>;
         act(() => {
             pending = result.current.fetchBacklog();

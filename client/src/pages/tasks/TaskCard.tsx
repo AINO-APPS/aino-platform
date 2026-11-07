@@ -6,7 +6,7 @@ import { useCardDensity, useTaskCtx } from "./TaskContext";
 import { useAgileConfig } from "../../AgileConfigContext";
 import { currentStatusOption, statusOptions } from "./taskStatus";
 import TaskCardMenu from "./TaskCardMenu";
-import { decisionProps, transitionOptions } from "./ticketCapabilities";
+import { actionDecision, decisionProps, isReadOnlyTicket, transitionOptions } from "./ticketCapabilities";
 import s from "./TaskCard.module.css";
 import type { Task } from "../../types";
 
@@ -116,8 +116,8 @@ export default function TaskCard({
             key={task.id}
             id={`task-${task.id}`}
             className={`${s["task-card"]} ${s.clickable} ${compact ? s["task-card-compact"] : ""} ${task.completed_at ? s["task-done"] : ""}`}
-            draggable={Boolean(onDragStart)}
-            onDragStart={onDragStart ? (e) => onDragStart(e, task.id) : undefined}
+            draggable={Boolean(onDragStart) && actionDecision(task, "edit").allowed}
+            onDragStart={onDragStart && actionDecision(task, "edit").allowed ? (e) => onDragStart(e, task.id) : undefined}
             onDragEnd={onDragEnd ? (e) => onDragEnd(e, task.id) : undefined}
             onClick={(e) => {
                 const target = e.target as HTMLElement;
@@ -162,7 +162,7 @@ export default function TaskCard({
                                 { label: "Open task", onSelect: () => onOpenDetail(task) },
                                 { label: `Copy ${issueKey}`, onSelect: () => void copyKey() },
                                 { label: "Comments", onSelect: () => onOpenComments(task.id) },
-                                ...transitionOptions(task, workflowStates).map((target) => ({
+                                ...(isReadOnlyTicket(task) ? [] : transitionOptions(task, workflowStates)).map((target) => ({
                                     label: target.label, ...decisionProps(target),
                                     onSelect: () => (onStatusChange || context?.onStatusChange)?.(task, { id: target.key, label: target.label }),
                                 })),

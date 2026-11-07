@@ -147,7 +147,7 @@ const MyWorkCard = memo(function MyWorkCard() {
     useWebSocket(useCallback((msg: any) => {
         if (msg.type === "task_updated" && msg.data?.taskId) {
             void getTaskDetail(msg.data.taskId).catch(() => null).then(loadCard);
-        } else if (msg.type === "task_assigned") loadCard();
+        } else if (msg.type === "task_assigned" || msg.type === "project_updated") loadCard();
     }, [loadCard]));
 
     const openAll = useCallback(() => {

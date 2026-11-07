@@ -19,6 +19,7 @@ import {
     useState,
     useCallback,
     useMemo,
+    useRef,
     type ReactNode,
 } from "react";
 import { getAgileConfig } from "./api/tasks";
@@ -88,6 +89,7 @@ interface AgileConfigContextValue extends AgileConfig {
     loading: boolean;
     error: unknown;
     refresh: () => Promise<void> | void;
+    setProjectScope: (projectId: number | null) => void;
     stateById: Record<string | number, WorkflowState>;
     stateByKey: Record<string, WorkflowState>;
     typeById: Record<string | number, WorkItemType>;
@@ -208,9 +210,9 @@ const FALLBACK_CONFIG: AgileConfig = {
     canEdit: false,
 };
 
-function loadCache(): AgileConfig | null {
+function loadCache(key = CACHE_KEY): AgileConfig | null {
     try {
-        const raw = localStorage.getItem(CACHE_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         if (
@@ -224,10 +226,10 @@ function loadCache(): AgileConfig | null {
     }
 }
 
-function saveCache(config: AgileConfig) {
+function saveCache(config: AgileConfig, key = CACHE_KEY) {
     try {
         localStorage.setItem(
-            CACHE_KEY,
+            key,
             JSON.stringify({ fetchedAt: Date.now(), config }),
         );
     } catch {
@@ -238,6 +240,10 @@ function saveCache(config: AgileConfig) {
 export function AgileConfigProvider({ children }: { children: ReactNode }) {
     const { isAuthenticated, user } = useAuth();
     const tenantReady = isAuthenticated && hasTenantContext(user);
+    const [projectId, setProjectScope] = useState<number | null>(null);
+    const projectRef = useRef(projectId);
+    projectRef.current = projectId;
+    const cacheKey = projectId == null ? CACHE_KEY : `${CACHE_KEY}.${user?.tenant_id}.project.${projectId}`;
     const [config, setConfig] = useState<AgileConfig>(
         () => loadCache() || FALLBACK_CONFIG,
     );
@@ -248,7 +254,8 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
         if (!tenantReady) return;
         setLoading(true);
         try {
-            const r = await getAgileConfig();
+            const r = await getAgileConfig(projectId ?? undefined);
+            if (projectRef.current !== projectId) return;
             const cfg = r.data;
             // Merge defaults so partial responses don't leave the UI broken
             const merged: AgileConfig = {
@@ -268,21 +275,23 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
                 canEdit: !!cfg.canEdit,
             };
             setConfig(merged);
-            saveCache(merged);
+            saveCache(merged, cacheKey);
             setError(null);
         } catch (e) {
+            if (projectRef.current !== projectId) return;
             const err = e as { response?: { data?: { error?: string } } };
             setError(
                 err?.response?.data?.error || "Failed to load Agile config",
             );
         } finally {
-            setLoading(false);
+            if (projectRef.current === projectId) setLoading(false);
         }
-    }, [tenantReady]);
+    }, [tenantReady, projectId, cacheKey]);
 
     useEffect(() => {
+        setConfig(loadCache(cacheKey) || FALLBACK_CONFIG);
         if (tenantReady) refresh();
-    }, [tenantReady, user?.id, refresh]);
+    }, [tenantReady, user?.id, cacheKey, refresh]);
 
     const value = useMemo<AgileConfigContextValue>(() => {
         // Derive convenient lookups
@@ -313,6 +322,7 @@ export function AgileConfigProvider({ children }: { children: ReactNode }) {
             loading,
             error,
             refresh,
+            setProjectScope,
             stateById,
             stateByKey,
             typeById,
@@ -355,6 +365,7 @@ export function useAgileConfig(): AgileConfigContextValue {
             loading: false,
             error: null,
             refresh: () => Promise.resolve(),
+            setProjectScope: () => {},
             stateById: {},
             stateByKey: {},
             typeById: {},

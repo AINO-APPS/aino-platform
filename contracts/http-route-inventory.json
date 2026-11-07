@@ -8,8 +8,8 @@
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
     "routerMounts": 34,
-    "concreteEndpoints": 508,
-    "openApiOperations": 238
+    "concreteEndpoints": 532,
+    "openApiOperations": 270
   },
   "standaloneRoutes": [
     {
@@ -85,14 +85,14 @@
       "mountPath": "/api/tasks",
       "source": "server/routes/tasks/index.ts",
       "coverage": "baseline",
-      "endpointCount": 47
+      "endpointCount": 55
     },
     {
       "id": "sprints",
       "mountPath": "/api/sprints",
       "source": "server/routes/sprints.ts",
       "coverage": "inventory-only",
-      "endpointCount": 21
+      "endpointCount": 22
     },
     {
       "id": "agile",
@@ -260,7 +260,7 @@
       "mountPath": "/api/projects",
       "source": "server/routes/projects.ts",
       "coverage": "baseline",
-      "endpointCount": 7
+      "endpointCount": 24
     },
     {
       "id": "integrations",
@@ -2051,7 +2051,7 @@
     {
       "method": "GET",
       "path": "/api/org/current",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2111,7 +2111,7 @@
     {
       "method": "PUT",
       "path": "/api/org/settings",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2259,8 +2259,93 @@
       "coverage": "operation"
     },
     {
+      "method": "POST",
+      "path": "/api/projects/:id/key",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/key/preview",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/members",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/members",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/:id/members/:memberId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id/members/:memberId",
+      "coverage": "operation"
+    },
+    {
       "method": "GET",
       "path": "/api/projects/:id/tasks",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/workflow-states",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/:id/workflow-states",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/:id/workflow-states/:stateId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id/workflow-states/:stateId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id/workflow-states/reorder",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/:id/workflow-transitions",
+      "coverage": "operation"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/:id/workflow-transitions",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/migration/review",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/migration/switch",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/migration/switch-back",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/mine",
       "coverage": "operation"
     },
     {
@@ -2301,12 +2386,12 @@
     {
       "method": "POST",
       "path": "/api/service-desk/tickets",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "DELETE",
       "path": "/api/service-desk/tickets/:id",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2316,7 +2401,7 @@
     {
       "method": "PATCH",
       "path": "/api/service-desk/tickets/:id",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2341,7 +2426,7 @@
     {
       "method": "POST",
       "path": "/api/sprints",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "DELETE",
@@ -2431,12 +2516,12 @@
     {
       "method": "GET",
       "path": "/api/sprints/:id/tasks",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
       "path": "/api/sprints/active",
-      "coverage": "inventory-only"
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -2529,6 +2614,11 @@
       "coverage": "operation"
     },
     {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/estimates",
+      "coverage": "operation"
+    },
+    {
       "method": "GET",
       "path": "/api/tasks/:id/git",
       "coverage": "operation"
@@ -2546,6 +2636,16 @@
     {
       "method": "GET",
       "path": "/api/tasks/:id/history",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/move-project",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/move-project/preview",
       "coverage": "operation"
     },
     {
@@ -2576,17 +2676,20 @@
     {
       "method": "GET",
       "path": "/api/tasks/:id/timer",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
       "path": "/api/tasks/:id/timer/start",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
       "path": "/api/tasks/:id/timer/stop",
-      "coverage": "operation"
+      "coverage": "operation",
+      "deprecated": true
     },
     {
       "method": "POST",
@@ -2596,6 +2699,26 @@
     {
       "method": "PATCH",
       "path": "/api/tasks/:id/unschedule",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/:id/worklogs",
+      "coverage": "operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/:id/worklogs",
+      "coverage": "operation"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id/worklogs/:worklogId",
+      "coverage": "operation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/tasks/:id/worklogs/:worklogId",
       "coverage": "operation"
     },
     {

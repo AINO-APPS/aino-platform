@@ -6,6 +6,7 @@ export interface PaletteTask {
     id: number | string;
     title: string;
     issue_key?: string | null;
+    key_aliases?: string[];
 }
 
 export interface PaletteView {
@@ -71,7 +72,11 @@ export function buildPaletteItems(input: {
     const matches = (text: string) => !needle || text.toLowerCase().includes(needle);
 
     const taskItems: PaletteItem[] = tasks
-        .filter((task) => matches(task.title) || matches(task.issue_key || ""))
+        .filter((task) =>
+            matches(task.title)
+            || matches(task.issue_key || "")
+            || (task.key_aliases || []).some(matches),
+        )
         .map((task) => ({
             id: `task-${task.id}`,
             group: "tasks" as const,

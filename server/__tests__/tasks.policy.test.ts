@@ -16,6 +16,7 @@ import {
     isOrgAdmin,
     rejectsForeignTeamRequest,
     resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     type TaskActor,
     type TaskVisibility,
 } from "../modules/tasks/tasks.policy";
@@ -31,6 +32,7 @@ function actor(overrides: Partial<TaskActor> = {}): TaskActor {
         teamId: TEAM_A,
         role: "employee",
         teamVisibility: true,
+        projectOwnership: false,
         ...overrides,
     };
 }
@@ -163,6 +165,60 @@ describe("list visibility resolution", () => {
         expect(resolveTaskVisibility(admin, { scope: "personal" })).toEqual({
             kind: "personal", userId: admin.userId,
         });
+    });
+});
+
+describe("project-owned list visibility", () => {
+    const projectAccess = {
+        accessibleProjectIds: jest.fn().mockResolvedValue([301, 302]),
+        roleForProject: jest.fn(async (projectId: number) => projectId === 301 ? "member" : null),
+        projectForTeam: jest.fn(async (teamId: number) => teamId === TEAM_A ? 301 : 399),
+    };
+    const projectActor = actor({ projectOwnership: true, projectAccess: projectAccess as any });
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        projectAccess.accessibleProjectIds.mockResolvedValue([301, 302]);
+        projectAccess.roleForProject.mockImplementation(async (projectId: number) => projectId === 301 ? "member" : null);
+        projectAccess.projectForTeam.mockImplementation(async (teamId: number) => teamId === TEAM_A ? 301 : 399);
+    });
+
+    test("the list includes accessible projects and reporter/assignee tickets", async () => {
+        const visibility = await resolveTaskVisibilityForRequest(projectActor);
+        expect(visibility).toEqual({ kind: "projects", projectIds: [301, 302], userId: projectActor.userId });
+        const predicate = buildVisibilityPredicate(visibility, 3);
+        expect(predicate.sql).toBe("(t.project_id = ANY($3::int[]) OR t.user_id = $4 OR t.assigned_to = $4)");
+        expect(predicate.params).toEqual([[301, 302], projectActor.userId]);
+        expect(predicate.nextIndex).toBe(5);
+    });
+
+    test("legacy team scope resolves only to a generated project the actor can access", async () => {
+        expect(await resolveTaskVisibilityForRequest(projectActor, { teamId: TEAM_A })).toEqual({
+            kind: "project", projectId: 301,
+        });
+        expect(await resolveTaskVisibilityForRequest(projectActor, { teamId: TEAM_B })).toEqual({
+            kind: "empty",
+        });
+    });
+
+    test("project scope only includes projects the actor can access", async () => {
+        expect(await resolveTaskVisibilityForRequest(projectActor, { projectId: 301 })).toEqual({
+            kind: "project-scope", projectId: 301, accessible: true, userId: projectActor.userId,
+        });
+        expect(await resolveTaskVisibilityForRequest(projectActor, { projectId: 302 })).toEqual({
+            kind: "project-scope", projectId: 302, accessible: false, userId: projectActor.userId,
+        });
+    });
+
+    test("the legacy Unassigned scope is empty when project ownership is enabled", async () => {
+        expect(await resolveTaskVisibilityForRequest(projectActor, { unassigned: true })).toEqual({ kind: "empty" });
+    });
+
+    test("personal scope remains reporter/assignee-only", async () => {
+        expect(await resolveTaskVisibilityForRequest(projectActor, { scope: "personal" })).toEqual({
+            kind: "personal", userId: projectActor.userId,
+        });
+        expect(projectAccess.accessibleProjectIds).not.toHaveBeenCalled();
     });
 });
 

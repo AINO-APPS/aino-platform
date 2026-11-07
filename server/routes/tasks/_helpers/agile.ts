@@ -34,15 +34,26 @@ async function resolveWorkItemType(value: unknown, orgId: number | null | undefi
 /**
  * Resolve workflow_state by id or key, scoped to the org.
  */
-async function resolveWorkflowState(value: unknown, orgId: number | null | undefined, db: DbLike): Promise<any | null> {
+async function resolveWorkflowState(
+    value: unknown,
+    orgId: number | null | undefined,
+    db: DbLike,
+    projectId?: number | null,
+): Promise<any | null> {
     if (value === null || value === undefined || value === '') return null;
     if (!orgId) return null;
     const num = Number(value);
     let row;
     if (Number.isFinite(num) && Number.isInteger(num)) {
-        row = (await db.query('SELECT * FROM workflow_states WHERE id = $1 AND org_id = $2 AND is_active = TRUE', [num, orgId])).rows[0];
+        row = (await db.query(
+            'SELECT * FROM workflow_states WHERE id = $1 AND org_id = $2 AND project_id IS NOT DISTINCT FROM $3 AND is_active = TRUE',
+            [num, orgId, projectId ?? null],
+        )).rows[0];
     } else {
-        row = (await db.query('SELECT * FROM workflow_states WHERE key = $1 AND org_id = $2 AND is_active = TRUE', [String(value), orgId])).rows[0];
+        row = (await db.query(
+            'SELECT * FROM workflow_states WHERE key = $1 AND org_id = $2 AND project_id IS NOT DISTINCT FROM $3 AND is_active = TRUE',
+            [String(value), orgId, projectId ?? null],
+        )).rows[0];
     }
     return row || null;
 }
@@ -51,16 +62,20 @@ async function resolveWorkflowState(value: unknown, orgId: number | null | undef
  * Get the org's initial workflow state (or first state by sort order). Used
  * when creating a task without an explicit workflow_state_id.
  */
-async function getInitialWorkflowState(orgId: number | null | undefined, db: DbLike): Promise<any | null> {
+async function getInitialWorkflowState(
+    orgId: number | null | undefined,
+    db: DbLike,
+    projectId?: number | null,
+): Promise<any | null> {
     if (!orgId) return null;
     let row = (await db.query(
-        'SELECT * FROM workflow_states WHERE org_id = $1 AND is_active = TRUE AND is_initial = TRUE LIMIT 1',
-        [orgId]
+        'SELECT * FROM workflow_states WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2 AND is_active = TRUE AND is_initial = TRUE LIMIT 1',
+        [orgId, projectId ?? null]
     )).rows[0];
     if (!row) {
         row = (await db.query(
-            "SELECT * FROM workflow_states WHERE org_id = $1 AND is_active = TRUE ORDER BY sort_order ASC, id ASC LIMIT 1",
-            [orgId]
+            "SELECT * FROM workflow_states WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2 AND is_active = TRUE ORDER BY sort_order ASC, id ASC LIMIT 1",
+            [orgId, projectId ?? null]
         )).rows[0];
     }
     return row || null;
@@ -128,8 +143,12 @@ function normalizeAcceptanceCriteria(value: unknown): any[] | null {
  * named "Cancelled") get theirs; otherwise one is inserted next to the other
  * terminal states.
  */
-async function getOrCreateCancelledState(orgId: number | null | undefined, db: DbLike): Promise<any | null> {
-    return findOrCreateCancelledState(db as any, orgId);
+async function getOrCreateCancelledState(
+    orgId: number | null | undefined,
+    db: DbLike,
+    projectId?: number | null,
+): Promise<any | null> {
+    return findOrCreateCancelledState(db as any, orgId, projectId);
 }
 
 export = {

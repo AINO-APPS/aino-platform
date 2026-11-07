@@ -1,20 +1,21 @@
 /**
  * The one ticket visibility and write policy.
  *
- * A ticket belongs to exactly one team (`tasks.team_id`). Membership of that
- * team — not authorship of the ticket — is the boundary for reading and
- * writing it. Org admins read and write everything in the org. Users without
- * a team keep a personal fallback (only tickets they created or are assigned).
+ * A ticket belongs to exactly one team while `project_ownership` is off, and
+ * exactly one project when it is on. This is the one visibility boundary for
+ * all ticket surfaces.
  *
  * Every list, detail, history, comment, attachment, dependency, timer, rank,
  * bulk, search, export, carry-over, notes-picker, service-desk and sprint
  * surface must come through this module. Per-endpoint visibility predicates
  * are a bug, not a shortcut.
  *
- * Rollout is gated by the per-org `team_visibility` flag. When it is off the
- * legacy creator-team predicate is used so the change is reversible without a
- * data migration.
+ * The per-org `project_ownership` flag switches between project roles and the
+ * existing team/legacy-team policy without changing flag-off behaviour.
  */
+
+import { createProjectAccess } from "./tasks.projectAccess";
+import type { ProjectRole } from "./tasks.projectAccess";
 
 export const ORG_ADMIN_ROLES = ["super_admin", "hr_admin", "platform_admin"] as const;
 
@@ -30,6 +31,13 @@ export interface TaskActor {
     role: string | null;
     /** Per-org `team_visibility` flag. Off restores the creator-team rule. */
     teamVisibility: boolean;
+    /** Per-org project switch, loaded from organizations.project_ownership. */
+    projectOwnership?: boolean;
+    projectAccess?: {
+        roleForProject(projectId: number): Promise<ProjectRole | null>;
+        accessibleProjectIds(): Promise<number[]>;
+        projectForTeam(teamId: number): Promise<number | null>;
+    };
 }
 
 /** What a list surface asked for. Admins may ask for another team or the
@@ -41,6 +49,8 @@ export interface VisibilityRequest {
     teamId?: number | null;
     /** Admin-only bucket for legacy rows with no owning team. */
     unassigned?: boolean;
+    /** New project scope; legacy team_id remains supported separately. */
+    projectId?: number | null;
 }
 
 export type TaskVisibility =
@@ -49,34 +59,105 @@ export type TaskVisibility =
     /** Pre-`team_visibility` behaviour: visibility via the creator's team. */
     | { kind: "legacy-team"; userId: number; teamId: number }
     | { kind: "personal"; userId: number }
-    | { kind: "unassigned" };
+    | { kind: "unassigned" }
+    | { kind: "projects"; projectIds: number[]; userId: number }
+    | { kind: "project"; projectId: number }
+    | { kind: "project-scope"; projectId: number; accessible: boolean; userId: number }
+    | { kind: "empty" };
 
 /** Build the actor from the request context populated by `loadUserContext`. */
 export function taskActorFromRequest(req: any): TaskActor {
+    if (req.__taskPolicyActor) return req.__taskPolicyActor;
     // `isFeatureEnabled(null)` is deliberately true: a request without tenant
     // context (single-tenant development, generic middleware tests) behaves
     // like the new model rather than silently regressing.
     const { isFeatureEnabled } = require("../../utils/planCatalog");
-    return {
-        userId: Number(req.userId),
-        orgId: req.userOrgId ?? null,
-        teamId: req.userTeamId ?? null,
+    const userId = Number(req.userId);
+    const orgId = req.userOrgId ?? null;
+    const teamId = req.userTeamId ?? null;
+    const projectOwnership = req.projectOwnership === true;
+    const actor: TaskActor = {
+        userId,
+        orgId,
+        teamId,
         role: req.userRole ?? null,
         teamVisibility: isFeatureEnabled(req.tenant ?? null, "team_visibility"),
+        projectOwnership,
+        projectAccess: projectOwnership && req.db
+            ? createProjectAccess(req.db, {
+                userId,
+                orgId,
+                orgRole: req.userRole ?? null,
+                teamIds: req.userTeamIds ?? (teamId == null ? [] : [Number(teamId)]),
+            })
+            : undefined,
     };
+    req.__taskPolicyActor = actor;
+    return actor;
 }
 
 /** Build the policy actor for another user row (mentions, notes pickers). */
 export function taskActorFromUser(
     row: { id?: unknown; org_id?: unknown; team_id?: unknown; role?: unknown } | null | undefined,
     teamVisibility: boolean,
+    db?: Parameters<typeof createProjectAccess>[0],
+    projectOwnership = false,
 ): TaskActor {
+    const userId = Number(row?.id);
+    const orgId = row?.org_id == null ? null : Number(row.org_id);
+    const teamId = row?.team_id == null ? null : Number(row.team_id);
+    const role = row?.role == null ? null : String(row.role);
     return {
-        userId: Number(row?.id),
-        orgId: row?.org_id == null ? null : Number(row.org_id),
-        teamId: row?.team_id == null ? null : Number(row.team_id),
-        role: row?.role == null ? null : String(row.role),
+        userId,
+        orgId,
+        teamId,
+        role,
         teamVisibility,
+        projectOwnership,
+        projectAccess: projectOwnership && db
+            ? createProjectAccess(db, {
+                userId,
+                orgId,
+                orgRole: role,
+                teamIds: teamId == null ? [] : [teamId],
+            })
+            : undefined,
+    };
+}
+
+/** Resolve the project-based list scope through the shared project access module. */
+export async function resolveTaskVisibilityForRequest(
+    actor: TaskActor,
+    request: VisibilityRequest = {},
+): Promise<TaskVisibility> {
+    if (!actor.projectOwnership) return resolveTaskVisibility(actor, request);
+    if (request.unassigned) return { kind: "empty" };
+    if (request.scope === "personal") return personal(actor);
+
+    const access = actor.projectAccess;
+    if (!access) return { kind: "empty" };
+
+    if (request.projectId != null) {
+        const projectId = Number(request.projectId);
+        if (!Number.isInteger(projectId) || projectId < 1) return { kind: "empty" };
+        return {
+            kind: "project-scope",
+            projectId,
+            accessible: (await access.roleForProject(projectId)) !== null,
+            userId: actor.userId,
+        };
+    }
+
+    if (request.teamId != null) {
+        const projectId = await access.projectForTeam(Number(request.teamId));
+        if (projectId == null || !await access.roleForProject(projectId)) return { kind: "empty" };
+        return { kind: "project", projectId };
+    }
+
+    return {
+        kind: "projects",
+        projectIds: await access.accessibleProjectIds(),
+        userId: actor.userId,
     };
 }
 
@@ -143,6 +224,8 @@ export function buildVisibilityPredicate(
     startIndex = 1,
 ): VisibilityPredicate {
     switch (visibility.kind) {
+        case "empty":
+            return { sql: "FALSE", params: [], nextIndex: startIndex };
         case "org-admin":
             // Organisations see every owned ticket; legacy unowned rows are
             // confined to the explicit Unassigned bucket (D3).
@@ -173,6 +256,39 @@ export function buildVisibilityPredicate(
                 nextIndex: p + 1,
             };
         }
+        case "projects": {
+            const projectIndex = startIndex;
+            const userIndex = startIndex + 1;
+            return {
+                sql: `(t.project_id = ANY($${projectIndex}::int[]) OR t.user_id = $${userIndex} OR t.assigned_to = $${userIndex})`,
+                params: [visibility.projectIds, visibility.userId],
+                nextIndex: userIndex + 1,
+            };
+        }
+        case "project": {
+            const p = startIndex;
+            return {
+                sql: `t.project_id = $${p}`,
+                params: [visibility.projectId],
+                nextIndex: p + 1,
+            };
+        }
+        case "project-scope": {
+            const projectIndex = startIndex;
+            if (visibility.accessible) {
+                return {
+                    sql: `t.project_id = $${projectIndex}`,
+                    params: [visibility.projectId],
+                    nextIndex: projectIndex + 1,
+                };
+            }
+            const userIndex = projectIndex + 1;
+            return {
+                sql: `(t.project_id = $${projectIndex} AND (t.user_id = $${userIndex} OR t.assigned_to = $${userIndex}))`,
+                params: [visibility.projectId, visibility.userId],
+                nextIndex: userIndex + 1,
+            };
+        }
     }
 }
 
@@ -182,6 +298,7 @@ export interface TaskRowLike {
     assigned_to?: unknown;
     org_id?: unknown;
     team_id?: unknown;
+    project_id?: unknown;
 }
 
 function isOwn(task: TaskRowLike, userId: number): boolean {
@@ -235,6 +352,20 @@ export function canReadTask(
     return Number(task.team_id) === Number(actor.teamId);
 }
 
+/** Project-role visibility for direct ticket surfaces; writes remain governed by capabilities. */
+export async function canReadProjectTask(
+    task: TaskRowLike | null | undefined,
+    actor: TaskActor,
+): Promise<boolean> {
+    if (!task) return false;
+    if (!actor.projectOwnership) return canReadTask(task, actor);
+    if (actor.orgId == null) return isOwn(task, actor.userId);
+    if (!sameOrg(task, actor)) return false;
+    if (isOrgAdmin(actor.role) || isOwn(task, actor.userId)) return true;
+    if (task.project_id == null || !actor.projectAccess) return false;
+    return (await actor.projectAccess.roleForProject(Number(task.project_id))) !== null;
+}
+
 /** Writing has the same boundary as reading in the team-owned model. */
 export const canWriteTask = canReadTask;
 
@@ -276,8 +407,21 @@ export function canAccessSprint(sprint: any, actor: TaskActor): boolean {
     if (actor.orgId != null && sprintOrgId != null && Number(sprintOrgId) !== Number(actor.orgId)) {
         return false;
     }
+
     if (isOrgAdmin(actor.role)) return true;
     return actor.teamId != null
         && sprint.team_id != null
         && Number(sprint.team_id) === Number(actor.teamId);
+}
+
+export async function canReadProjectSprint(sprint: any, actor: TaskActor): Promise<boolean> {
+    if (!actor.projectOwnership) return canAccessSprint(sprint, actor);
+    if (!sprint) return false;
+    const sprintOrgId = sprint.org_id ?? sprint.team_org_id ?? null;
+    if (actor.orgId != null && sprintOrgId != null && Number(sprintOrgId) !== Number(actor.orgId)) {
+        return false;
+    }
+    if (isOrgAdmin(actor.role)) return true;
+    if (sprint.project_id == null || !actor.projectAccess) return false;
+    return (await actor.projectAccess.roleForProject(Number(sprint.project_id))) !== null;
 }

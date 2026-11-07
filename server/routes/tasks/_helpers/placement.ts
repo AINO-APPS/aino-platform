@@ -15,13 +15,18 @@ const { taskActorFromRequest } = require("../../../modules/tasks/tasks.policy");
 
 const STATUS: Record<PlacementRefusalCode, number> = {
     ACCESS_DENIED: 403,
+    READ_ONLY_ROLE: 403,
+    PROJECT_ARCHIVED: 409,
+    SPRINT_PROJECT_MISMATCH: 409,
     NOT_FOUND: 404,
     SPRINT_NOT_FOUND: 400,
     SPRINT_FROZEN: 409,
-    SPRINT_TEAM_MISMATCH: 409,
     IN_SPRINT: 409,
     TEAM_NOT_FOUND: 400,
     TEAM_UNCHANGED: 400,
+    PROJECT_NOT_FOUND: 404,
+    PROJECT_UNCHANGED: 400,
+    WORKFLOW_NOT_FOUND: 409,
 };
 
 /**

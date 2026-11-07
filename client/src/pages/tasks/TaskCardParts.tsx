@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ArchivedProjectLabel from "./ArchivedProjectLabel";
 import { CalendarDays, MessageSquare, Ban, Clock, X, ChevronUp, ChevronDown, Minus } from "../../constants/icons";
 import { StoryPointBadge, WorkItemTypeBadge } from "../../components/agile/AgilePickers";
 import { PRIORITIES, type PriorityOption } from "./constants";
@@ -7,6 +8,7 @@ import { formatDate, formatDueDate, isDueOverdue, getAvatarUrl, stripHtml } from
 import { getLocalToday } from "../../api/client";
 import { addDays } from "./calendar";
 import s from "./TaskCard.module.css";
+import { formatMinutes } from './time';
 
 /**
  * The shared Plan card anatomy, used by the board, schedule and backlog cards:
@@ -153,6 +155,10 @@ export function CardBody({
     onOpenComments,
 }: CardBodyProps) {
     const description = compact ? "" : stripHtml(task.description || "").trim();
+    const spent = formatMinutes(task.time_spent_minutes ?? task.logged_minutes);
+    const originalValue = task.original_estimate_minutes !== undefined ? task.original_estimate_minutes : task.estimated_minutes;
+    const original = originalValue == null ? '—' : formatMinutes(originalValue);
+    const remaining = task.remaining_estimate_minutes == null ? '—' : formatMinutes(task.remaining_estimate_minutes);
     return (
         <>
             <div className={s["card-top"]}>
@@ -170,7 +176,11 @@ export function CardBody({
                 {actionsSlot}
             </div>
             <div className={s["task-title"]}>{titleSlot ?? task.title}</div>
+            <ArchivedProjectLabel task={task} />
             {description && <div className={s["card-desc"]}>{description}</div>}
+            <div className={s['card-effort']} aria-label={`Time spent ${spent}; original estimate ${original}; remaining estimate ${remaining}`}>
+                Spent {spent} · Original {original} · Remaining {remaining}
+            </div>
             <div className={s["card-foot"]}>
                 {showStatus && <StatusPill status={status} />}
                 <DueChip task={task} />

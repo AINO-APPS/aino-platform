@@ -129,4 +129,37 @@ describe("service desk route characterization", () => {
         expect(res.body.error).toMatch(/still open/i);
         expect(mockMasterQuery).toHaveBeenCalledTimes(2);
     });
+
+    test("platform status changes sync the copy without using the transition graph", async () => {
+        mockTenant = { id: 1, slug: "default" };
+        mockMasterQuery
+            .mockResolvedValueOnce({ rows: [{ id: 31, status: "open" }] })
+            .mockResolvedValueOnce({ rows: [{ id: 1, db_name: "platform", db_host: "db" }] })
+            .mockResolvedValueOnce({ rows: [{ id: 31, status: "resolved" }] });
+        mockDefaultTenantQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+
+        const res = await request(makeApp()).patch("/api/service-desk/tickets/31").send({ status: "resolved" });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe("resolved");
+        expect(mockDefaultTenantQuery).toHaveBeenCalledWith(
+            expect.stringContaining("'service_desk_sync'"), [31, "done"],
+        );
+        expect(mockLoggerError).not.toHaveBeenCalled();
+    });
+
+    test("deleting an own open ticket retains its copy with a system history note", async () => {
+        mockMasterQuery
+            .mockResolvedValueOnce({ rows: [{ id: 31, tenant_id: 7, submitted_by_user_id: 11, status: "open" }] })
+            .mockResolvedValueOnce({ rows: [{ id: 1, db_name: "platform", db_host: "db" }] })
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+        mockDefaultTenantQuery.mockResolvedValue({ rows: [], rowCount: 0 });
+
+        const res = await request(makeApp()).delete("/api/service-desk/tickets/31");
+        expect(res.status).toBe(200);
+        expect(mockDefaultTenantQuery).toHaveBeenCalledWith(
+            expect.stringContaining("'service_desk_deleted'"), [31],
+        );
+        expect(mockDefaultTenantQuery.mock.calls[0][0]).not.toMatch(/DELETE FROM tasks/);
+        expect(mockMasterQuery).toHaveBeenLastCalledWith("DELETE FROM service_desk_tickets WHERE id = $1", [31]);
+    });
 });

@@ -12,9 +12,10 @@ const ALICE = 1;
 const BOB = 2;
 const CAROL = 3;
 
-function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, { name: string; orgId?: number }>) {
+function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, { name: string; orgId?: number }>, projectMembers: number[] = []) {
     return {
         query: jest.fn(async (sql: string, params: unknown[]) => {
+            if (sql.includes("project_members")) return { rows: projectMembers.map((id) => ({ id })), rowCount: projectMembers.length };
             if (sql.includes("FROM users")) return { rows: (teamMembers[Number(params[0])] ?? []).map((id) => ({ id })), rowCount: 0 };
             if (sql.includes("FROM sprints")) {
                 const sprint = sprints[Number(params[0])];
@@ -112,5 +113,20 @@ describe("realtime effects of a placement", () => {
         const audience = mockEmitTaskUpdated.mock.calls[0][3];
         expect(audience).toEqual(expect.arrayContaining([CAROL, BOB]));
         expect(mockEmitTaskUpdated.mock.calls[0][4].fields).toEqual({ team_id: 20 });
+    });
+
+    test("a project move invalidates both projects without leaking the new key to source-only readers", async () => {
+        const effects = realtimeEffects({ db: fakeDb({ 10: [99] }, {}, [CAROL, 4]), tenantId: 42 });
+        await effects.changed({
+            before: { ...ticket, project_id: 1, ticket_key: "SRC-7", workflow_state_id: 10 },
+            after: { ...ticket, project_id: 2, ticket_key: "DEST-1", workflow_state_id: 20 },
+            actor,
+            projectOwnership: true,
+        });
+        expect(mockEmitTaskUpdated).toHaveBeenCalledWith(
+            42, 7, "updated", expect.arrayContaining([ALICE, BOB, CAROL, 4]),
+        );
+        expect(mockEmitTaskUpdated.mock.calls[0][3]).not.toContain(99);
+        expect(mockNotifyUser).not.toHaveBeenCalled();
     });
 });

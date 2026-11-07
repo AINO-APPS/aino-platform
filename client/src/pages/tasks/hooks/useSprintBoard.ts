@@ -23,10 +23,13 @@ export function useSprintBoard({
     const [serverColumns, setServerColumns] = useState<any[]>([]);
     const statesRef = useRef(workflowStates);
     statesRef.current = workflowStates;
+    const sprintRef = useRef(sprintId);
+    sprintRef.current = sprintId;
 
     const fetchBoard = useCallback(async (signal?: AbortSignal) => {
         if (sprintId == null) return;
         const { data: board } = await getSprintBoard(sprintId, signal);
+        if (signal?.aborted || sprintRef.current !== sprintId) return;
         const columns = Array.isArray((board as any).columns) ? (board as any).columns : [];
         setTasks(Array.isArray((board as any).tickets) ? (board as any).tickets : []);
         setServerColumns(columns);

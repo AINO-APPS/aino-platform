@@ -1,22 +1,27 @@
 import express from "express";
 import type { Request, Response } from "express";
+import { sprintManagementRole } from "./_helpers/sprintRole";
+import { canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
 import { completeSprint, SprintCompletionError } from "../services/sprintCompletion";
 const auth = require("../middleware/auth");
-const { loadUserContext, requireRole } = require("../middleware/rbac");
+const { loadUserContext } = require("../middleware/rbac");
 const { requireTenant, requireFeature } = require("../middleware/tenant");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
 const {
-    canAccessSprint,
+    canReadProjectSprint,
     isOrgAdmin,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require("../modules/tasks/tasks.policy");
 const { captureBaseline } = require("../modules/tasks/tasks.baseline");
 const {
+    createSprintForTeam,
     findSprintsForOrg,
+    findSprintsForProjects,
     findSprintsForTeam,
+    findSprintInOrg,
     lockSprintForDeletion,
     findSprintMemberIds,
     deleteSprint,
@@ -48,6 +53,13 @@ async function loadAccessibleSprint(req: Request, res: Response, id: number) {
 }
 router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            const projectIds = await sprintProjectIds(actor, req.query);
+            const sprints = await findSprintsForProjects(req.db!, req.userOrgId, projectIds);
+            return res.json(sprintListResponse(sprints, req.query.team_id != null || req.query.project_id != null));
+        }
+
         // Org admins see every team's sprints (and may filter with ?team_id=);
         // everyone else sees their own team only.
         if (isOrgAdmin(req.userRole)) {
@@ -69,6 +81,14 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
 });
 router.get("/active", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            const projectIds = await sprintProjectIds(actor, req.query);
+            if (projectIds.length === 0) return res.json({ sprint: null });
+            const sprint = await activeProjectSprint(req.db!, actor.orgId, projectIds);
+            return res.json({ sprint: sprint || null });
+        }
+
         const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
         const teamId = isOrgAdmin(req.userRole) && requested != null && !Number.isNaN(requested)
             ? requested
@@ -94,9 +114,10 @@ router.get("/active", auth, loadUserContext, async (req: Request, res: Response)
     }
 });
 
-router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
-        if (!req.userTeamId) return res.status(403).json({ error: "You must be assigned to a team to create sprints" });
+        const actor = taskActorFromRequest(req);
+        if (!actor.projectOwnership && !req.userTeamId) return res.status(403).json({ error: "You must be assigned to a team to create sprints" });
 
         const { name, start_date, end_date, goal } = req.body;
         if (!name || !start_date || !end_date) return res.status(400).json({ error: "Sprint name, start_date, and end_date are required" });
@@ -106,14 +127,17 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
             return res.status(400).json({ error: "Dates must be in YYYY-MM-DD format" });
         }
 
+        if (actor.projectOwnership) {
+            const outcome = await createProjectSprint(req.db!, actor, req.body);
+            if (outcome.error) return res.status(outcome.error.status).json(outcome.error.body);
+            return res.json({ sprint: outcome.sprint });
+        }
         const existing = (await req.db!.query("SELECT id FROM sprints WHERE team_id = $1 AND name = $2", [req.userTeamId, name])).rows[0];
         if (existing) return res.status(400).json({ error: "A sprint with this name already exists for your team" });
 
-        const result = await req.db!.query(
-            "INSERT INTO sprints (team_id, name, start_date, end_date, goal, status) VALUES ($1, $2, $3, $4, $5, 'planned') RETURNING id",
-            [req.userTeamId, name, start_date, end_date, goal || null]
-        );
-        const newSprint = (await req.db!.query("SELECT * FROM sprints WHERE id = $1", [result.rows[0].id])).rows[0];
+        const newSprint = await createSprintForTeam(req.db!, req.userOrgId ?? null, req.userTeamId, {
+            name, startDate: start_date, endDate: end_date, goal: goal || null,
+        });
         res.json({ sprint: newSprint });
     } catch (err) {
         req.log.error({ err }, "Error creating sprint:");
@@ -125,17 +149,14 @@ function sprintAlreadyActive(res: Response, running: RunningSprint): Response {
     return res.status(409).json(sprintAlreadyActiveBody(running));
 }
 
-router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.put("/:id", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, start_date, end_date, goal, status } = req.body;
 
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
         // A completed sprint is immutable (D11): it cannot be re-opened or
         // otherwise edited. The retrospective is the only writable artefact.
@@ -163,7 +184,7 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
         if (status !== undefined && ["planned", "active", "paused", "completed"].includes(status)) {
             // Activating through an edit must respect one-active-per-team too.
             if (status === "active" && sprint.status !== "active") {
-                const running = await findOtherActiveSprint(req.db!, sprint.team_id, sprint.id);
+                const running = await findOtherActiveSprint(req.db!, req.projectOwnership ? sprint.project_id : sprint.team_id, sprint.id, req.projectOwnership);
                 if (running) return sprintAlreadyActive(res, running);
             }
             updates.push(`status = $${pi++}`); params.push(status);
@@ -171,12 +192,12 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
 
         if (updates.length === 0) return res.status(400).json({ error: "No valid fields to update" });
         params.push(id, req.userOrgId ?? null);
-        const updateSql = `UPDATE sprints s SET ${updates.join(", ")} WHERE s.id = $${pi} AND s.status <> 'completed' AND EXISTS (SELECT 1 FROM teams tm WHERE tm.id = s.team_id AND tm.org_id IS NOT DISTINCT FROM $${pi + 1})`;
+        const updateSql = `UPDATE sprints s SET ${updates.join(", ")} WHERE s.id = $${pi} AND s.status <> 'completed' AND EXISTS (SELECT 1 FROM projects tm WHERE tm.id = s.project_id AND tm.org_id IS NOT DISTINCT FROM $${pi + 1})`;
         const updatedInOrg = await withSprintEndDateRetime(req, Number(id), sprint.end_date, end_date ?? sprint.end_date, (client: any) => client.query(updateSql, params));
         if (!updatedInOrg) return res.status(409).json({ error: "Sprint is no longer available for editing", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
+        const updated = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error updating sprint:");
@@ -184,13 +205,13 @@ router.put("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: 
     }
 });
 
-router.delete("/:id", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.delete("/:id", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        const sprint = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
         if (sprint.status === "completed") {
             return res.status(409).json({ error: "This sprint is completed and cannot be deleted", code: "SPRINT_FROZEN" });
@@ -223,16 +244,16 @@ router.get("/:id/board", auth, loadUserContext, require("./_helpers/sprintBoard"
 router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
-        if (!sprint) return res.status(404).json({ error: "Sprint not found" });
+        const sprint = await loadAccessibleSprint(req, res, Number(id));
+        if (!sprint) return;
         const actor = taskActorFromRequest(req);
-        if (!canAccessSprint(sprint, actor)) {
+        if (!await canReadProjectSprint(sprint, actor)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        const visibility = resolveTaskVisibility(actor, { teamId: sprint.team_id });
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            teamId: sprint.team_id,
+            projectId: sprint.project_id,
+        });
         return res.json({
             tasks: await listSprintTasks(req.db!, req.userOrgId || null, Number(id), visibility),
         });
@@ -258,17 +279,8 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
 
-        const isOrgAdmin = req.userRole === "super_admin" || req.userRole === "hr_admin" || req.userRole === "platform_admin";
-        const sprint = (await req.db!.query(
-            `SELECT s.*, t.org_id AS team_org_id
-               FROM sprints s
-               JOIN teams t ON t.id = s.team_id
-              WHERE s.id = $1`,
-            [id]
-        )).rows[0];
-        if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (sprint.team_org_id !== req.userOrgId) return res.status(404).json({ error: "Sprint not found" });
-        if (!isOrgAdmin && sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        const sprint = await loadAccessibleSprint(req, res, id);
+        if (!sprint) return;
 
         const tasks = (await req.db!.query(
             `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
@@ -378,6 +390,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
                 id: sprint.id, name: sprint.name, status: sprint.status,
                 start_date: sprint.start_date, end_date: sprint.end_date, goal: sprint.goal,
                 team_id: sprint.team_id,
+                project_id: sprint.project_id,
             },
             totals: {
                 tasks: totalTasks,
@@ -401,18 +414,15 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
 // Transitions a sprint from 'planned' → 'active'. Enforces:
 //   - Only one active sprint per team at a time (409 while another is active).
 //   - Captures the scope baseline and the day-0 burndown snapshot.
-router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/:id/start", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         // Starting owns the baseline, snapshot, cache update and team notification.
         const started = await withSprintLifecycleLock(req, (db: any, { afterCommit }: any) => startSprint({
-            db, tenantId: req.tenantId, orgId: req.userOrgId ?? null,
+            db, tenantId: req.tenantId, orgId: req.userOrgId ?? null, projectOwnership: req.projectOwnership,
             invalidateActiveSprint: async (tenantId: any, teamId: any) => {
                 afterCommit(() => redis.invalidateActiveSprint(tenantId, teamId).catch(() => undefined));
             },
@@ -421,7 +431,7 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
             commit: captureBaseline,
         }, sprint));
         if (started.error) return res.status(started.error.status).json(started.error.body);
-        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
+        const updated = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         return res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error starting sprint");
@@ -433,19 +443,14 @@ router.post("/:id/start", auth, loadUserContext, requireRole("team_lead"), async
 //   - "backlog" (default) — moves any incomplete tickets to the backlog
 //     (sprint_id = NULL) so they can be re-prioritised.
 //   - sprintId — bulk-assigns the incomplete tickets to that next sprint.
-// Records the velocity (= total story points completed) so the sprint
-// retrospective and trend chart can use it without recomputing.
-router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/:id/complete", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { rolloverTo } = req.body || {};
 
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "completed") return res.status(409).json({ error: "Sprint already completed" });
 
         let targetSprintId: number | null = null;
@@ -453,8 +458,8 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
             targetSprintId = parseInt(String(rolloverTo), 10);
             if (isNaN(targetSprintId)) return res.status(400).json({ error: "Invalid rolloverTo sprint id" });
             const target = (await req.db!.query(
-                "SELECT id, name, status FROM sprints WHERE id = $1 AND team_id = $2",
-                [targetSprintId, sprint.team_id]
+                `SELECT id, name, status FROM sprints WHERE id = $1 AND ${req.projectOwnership ? "project_id" : "team_id"} = $2`,
+                [targetSprintId, req.projectOwnership ? sprint.project_id : sprint.team_id]
             )).rows[0];
             if (!target) return res.status(400).json({ error: "Target sprint not found" });
             if (target.status === "completed") return res.status(400).json({ error: "Cannot roll over to a completed sprint" });
@@ -465,6 +470,7 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
         const completion = await completeSprint(req.db! as any, {
             sprintId: Number(id),
             targetSprintId,
+            projectOwnership: req.projectOwnership,
             actor: {
                 userId: actor.userId,
                 orgId: actor.orgId,
@@ -508,23 +514,20 @@ router.post("/:id/complete", auth, loadUserContext, requireRole("team_lead"), as
 // Pauses an active sprint. Sets status='paused' + paused_at and flags the team
 // as paused so the auto-scheduler skips it (the cadence clock effectively
 // freezes). Restricted to team_lead and above (manager / admins inherit).
-router.post("/:id/pause", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/:id/pause", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "active") return res.status(400).json({ error: "Only an active sprint can be paused" });
 
         const paused = await withSprintLifecycleLock(req, (client: any) =>
-            pauseSprintForOrg(client, id, sprint.team_id, req.userOrgId ?? null));
+            pauseSprintForOrg(client, id, req.projectOwnership ? null : sprint.team_id, req.userOrgId ?? null));
         if (!paused) return res.status(409).json({ error: "Sprint is no longer active", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
+        const updated = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error pausing sprint");
@@ -534,17 +537,14 @@ router.post("/:id/pause", auth, loadUserContext, requireRole("team_lead"), async
 
 // ─── Sprint lifecycle: RESUME ───────────────────────────────────────────────
 // Re-activates, shifts end_date by the pause duration, and restarts the team's auto-scheduler.
-router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), async (req: Request, res: Response) => {
+router.post("/:id/resume", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const sprint = (await req.db!.query(
-            "SELECT s.* FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id IS NOT DISTINCT FROM $2",
-            [id, req.userOrgId ?? null]
-        )).rows[0];
+        const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
-        if (!canAccessSprint(sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "paused") return res.status(400).json({ error: "Only a paused sprint can be resumed" });
-        const running = await findOtherActiveSprint(req.db!, sprint.team_id, sprint.id);
+        const running = await findOtherActiveSprint(req.db!, req.projectOwnership ? sprint.project_id : sprint.team_id, sprint.id, req.projectOwnership);
         if (running) return sprintAlreadyActive(res, running);
 
         const newEnd = resumedEndDate(sprint.end_date, sprint.paused_at);
@@ -553,18 +553,18 @@ router.post("/:id/resume", auth, loadUserContext, requireRole("team_lead"), asyn
                 `UPDATE sprints s
                     SET status = 'active', paused_at = NULL, end_date = $2
                   WHERE s.id = $1
-                    AND EXISTS (SELECT 1 FROM teams tm WHERE tm.id = s.team_id AND tm.org_id IS NOT DISTINCT FROM $3)`,
+                    AND EXISTS (SELECT 1 FROM projects tm WHERE tm.id = s.project_id AND tm.org_id IS NOT DISTINCT FROM $3)`,
                 [id, newEnd, req.userOrgId ?? null]
             );
             await client.query(
                 "UPDATE teams SET sprint_paused = FALSE WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
-                [sprint.team_id, req.userOrgId ?? null],
+                [req.projectOwnership ? null : sprint.team_id, req.userOrgId ?? null],
             );
         }, "paused");
         if (!resumed) return res.status(409).json({ error: "Sprint is no longer available for resume", code: "SPRINT_FROZEN" });
         await redis.invalidateActiveSprint(req.tenantId, sprint.team_id);
 
-        const updated = (await req.db!.query("SELECT s.* FROM sprints s JOIN teams tm ON tm.id = s.team_id WHERE s.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2", [id, req.userOrgId ?? null])).rows[0];
+        const updated = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         res.json({ sprint: updated });
     } catch (err) {
         req.log.error({ err }, "Error resuming sprint");
@@ -617,14 +617,8 @@ router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Res
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
 
-        const isOrgAdmin = ["super_admin", "hr_admin", "platform_admin"].includes(req.userRole as string);
-        const sprint = (await req.db!.query(
-            `SELECT s.*, t.org_id AS team_org_id
-               FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1`,
-            [id]
-        )).rows[0];
-        if (!sprint || sprint.team_org_id !== req.userOrgId) return res.status(404).json({ error: "Sprint not found" });
-        if (!isOrgAdmin && sprint.team_id !== req.userTeamId) return res.status(403).json({ error: "Access denied" });
+        const sprint = await loadAccessibleSprint(req, res, id);
+        if (!sprint) return;
 
         // Take a fresh snapshot for today if the sprint is active so the
         // chart is always up-to-date when an admin opens it.
@@ -668,6 +662,10 @@ router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Res
 // ─── Velocity (last N completed sprints for the team) ───────────────────────
 router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        const actor = taskActorFromRequest(req);
+        if (actor.projectOwnership) {
+            return res.json(await projectSprintVelocity(req.db!, actor, req.query));
+        }
         const requested = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
         const teamId = isOrgAdmin(req.userRole) && requested != null && !Number.isNaN(requested)
             ? requested
@@ -716,7 +714,7 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
         // current workflow_state's category. We then walk task_history to
         // reconstruct the state on each day.
         const tasks = (await req.db!.query(
-            `SELECT t.id, t.created_at, t.completed_at,
+            `SELECT t.id, t.project_id, t.created_at, t.completed_at,
                     ws.category AS current_category,
                     ws.key      AS current_key
                FROM tasks t
@@ -750,13 +748,13 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
             historyByTask.set(h.task_id, arr);
         }
 
-        // Map status keys → category for quick lookup. Org-specific.
+        // Historical status keys are project-scoped.
         const stateRows = (await req.db!.query(
-            "SELECT key, category FROM workflow_states WHERE org_id = $1",
+            "SELECT project_id, key, category FROM workflow_states WHERE org_id = $1",
             [req.userOrgId]
         )).rows;
         const keyToCategory: Record<string, string> = {};
-        for (const s of stateRows) keyToCategory[s.key] = s.category;
+        for (const s of stateRows) keyToCategory[`${s.project_id}:${s.key}`] = s.category;
         // Default mappings for legacy tenants without seeded states.
         const fallback: Record<string, string> = { pending: "open", in_progress: "in_progress", in_review: "in_review", done: "done" };
 
@@ -778,7 +776,7 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
             // historical accuracy degrades for tasks that moved before the
             // earliest history row).
             if (!key) key = task.current_key;
-            return keyToCategory[key] || fallback[key] || "open";
+            return keyToCategory[`${task.project_id}:${key}`] || fallback[key] || "open";
         };
 
         // Build day list from sprint.start_date → min(today, sprint.end_date).
@@ -915,6 +913,7 @@ router.put("/:id/retrospective", auth, loadUserContext, async (req: Request, res
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
         const sprint = await loadAccessibleSprint(req, res, id);
         if (!sprint) return;
+        if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
 
         const b = req.body || {};
         const wentWell = b.went_well ? String(b.went_well).slice(0, 5000) : null;

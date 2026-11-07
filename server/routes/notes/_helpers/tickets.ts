@@ -95,7 +95,12 @@ async function sprintEmbed(sprint: any, tasks: any[], req: Request): Promise<any
 }
 
 async function searchTasks(userRow: any, q: string | undefined, req: Request): Promise<any[]> {
-    const actor = taskActorFromUser(userRow, isFeatureEnabled((req as any).tenant ?? null, "team_visibility"));
+    const actor = taskActorFromUser(
+        userRow,
+        isFeatureEnabled((req as any).tenant ?? null, "team_visibility"),
+        req.db,
+        (req as any).projectOwnership === true,
+    );
     const rows = await searchTasksForLinking(req.db!, actor, q);
     const tasks = await enrichTaskSummaries(rows, req.db, actor);
     return tasks.map((task: any) => ({

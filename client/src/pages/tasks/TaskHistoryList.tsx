@@ -9,6 +9,7 @@ import {
     type IconComponent,
 } from "../../constants/icons";
 import s from "./TaskDetailModal.module.css";
+import { effortHistoryValue } from './effortHistory';
 
 interface HistoryEntry {
     id: number | string;
@@ -24,6 +25,8 @@ interface HistoryEntry {
 const ACTION_ICONS: Record<string, IconComponent> = {
     created: ActivityPlus,
     status_change: ActivitySwap,
+    service_desk_sync: ActivitySwap,
+    service_desk_deleted: ActivityDelete,
     updated: ActivityEdit,
     scheduled: ActivityCalendar,
     unscheduled: ActivityCalendar,
@@ -31,6 +34,10 @@ const ACTION_ICONS: Record<string, IconComponent> = {
     comment_edited: ActivityEdit,
     comment_deleted: ActivityDelete,
     deleted: ActivityDelete,
+    worklog_added: ActivityPlus,
+    worklog_updated: ActivityEdit,
+    worklog_deleted: ActivityDelete,
+    estimate_changed: ActivityEdit,
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -90,6 +97,13 @@ function describe(h: HistoryEntry, styles: Record<string, string>): React.ReactN
     const next = <span className={styles["history-new"]}>{h.new_value || "—"}</span>;
 
     switch (h.action) {
+        case 'worklog_added':
+            return <>added worklog: <span className={styles['history-new']}>{effortHistoryValue(h.new_value, false)}</span></>;
+        case 'worklog_updated':
+        case 'worklog_deleted':
+        case 'estimate_changed':
+            return <>{h.action === 'worklog_updated' ? 'updated worklog' : h.action === 'worklog_deleted' ? 'deleted worklog' : 'changed estimates'}: <span className={styles['history-old']}>{effortHistoryValue(h.old_value, h.action === 'estimate_changed')}</span>
+                {h.new_value != null && <> → <span className={styles['history-new']}>{effortHistoryValue(h.new_value, h.action === 'estimate_changed')}</span></>}</>;
         case "created":
             if (h.field === "date" && h.old_value) {
                 return <>carried forward from {old}</>;
@@ -103,6 +117,10 @@ function describe(h: HistoryEntry, styles: Record<string, string>): React.ReactN
             return "deleted a comment";
         case "status_change":
             return <>changed status from {old} → {next}</>;
+        case "service_desk_sync":
+            return <>Service Desk sync: {old} → {next}</>;
+        case "service_desk_deleted":
+            return h.new_value || "Service Desk ticket deleted; platform copy retained";
         case "scheduled":
             return <>scheduled to {next}</>;
         case "unscheduled":

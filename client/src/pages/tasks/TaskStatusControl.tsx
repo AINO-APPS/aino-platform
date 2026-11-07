@@ -1,5 +1,5 @@
 import { useAgileConfig } from "../../AgileConfigContext";
-import { decisionProps, transitionOptions } from "./ticketCapabilities";
+import { decisionProps, isReadOnlyTicket, transitionOptions } from "./ticketCapabilities";
 import s from "./TaskDetailModal.module.css";
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 export default function TaskStatusControl({ task, onChange }: Props) {
     const { workflowStates } = (useAgileConfig() as any) || {};
     const options = transitionOptions(task, workflowStates);
+    if (isReadOnlyTicket(task)) return <span>{task.workflow_state_name}</span>;
 
     return (
         <div className={s["detail-status-bar"]} data-testid="task-status-control">

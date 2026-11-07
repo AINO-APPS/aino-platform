@@ -1,0 +1,10 @@
+.content { display: grid; gap: 16px; }
+.content p { margin: 0; line-height: 1.5; }
+.picker { display: grid; gap: 8px; font-weight: 600; }
+.picker select { width: 100%; padding: 10px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--text-primary); }
+.preview { margin: 0; padding: 16px; border-left: 3px solid var(--primary); background: var(--bg-secondary); display: grid; gap: 14px; }
+.preview div { display: grid; gap: 4px; }
+.preview dt { color: var(--text-secondary); font-size: 12px; }
+.preview dd { margin: 0; font-weight: 600; }
+.key { font-family: var(--font-mono, monospace); }
+.error { color: var(--danger-ink); }

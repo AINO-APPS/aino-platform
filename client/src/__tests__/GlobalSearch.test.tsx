@@ -14,7 +14,7 @@ vi.mock("../AuthContext", () => ({
 }));
 
 const mockGlobalSearch = vi.fn();
-vi.mock("../api", () => ({
+vi.mock("../api/notes", () => ({
     globalSearch: (...args: any[]) => mockGlobalSearch(...args),
 }));
 
@@ -113,6 +113,30 @@ describe("GlobalSearch - nav items filtering", () => {
         await waitFor(() => {
             expect(screen.getByText("Tasks")).toBeInTheDocument();
         });
+    });
+
+    test("an alias match shows the current key and opens the canonical key URL", async () => {
+        mockGlobalSearch.mockResolvedValue({
+            data: {
+                tasks: [{
+                    id: 17,
+                    title: "Renamed ticket",
+                    ticket_key: "ALPHA-17",
+                    key_aliases: ["OLD-17"],
+                }],
+                notes: [], users: [], events: [], leaves: [], sprints: [],
+            },
+        });
+        const user = userEvent.setup();
+        const onClose = vi.fn();
+        renderGlobalSearch(onClose);
+
+        await user.type(screen.getByRole("textbox"), "OLD-17");
+        const formerKey = await screen.findByText("ALPHA-17 · Former keys: OLD-17");
+        await user.click(formerKey.closest("button")!);
+
+        expect(mockNavigate).toHaveBeenCalledWith("/tasks/key/ALPHA-17");
+        expect(onClose).toHaveBeenCalled();
     });
 });
 

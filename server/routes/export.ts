@@ -141,7 +141,7 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
         const { from, to, format } = req.query as { from?: string; to?: string; format?: string };
 
         // "My tasks" follows the same visibility policy as the Plan lists.
-        const scope = buildTaskExportScope(taskActorFromRequest(req), {
+        const scope = await buildTaskExportScope(taskActorFromRequest(req), {
             orgId: req.userOrgId || null, from, to,
         });
 

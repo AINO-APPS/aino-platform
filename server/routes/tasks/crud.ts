@@ -19,11 +19,11 @@ const { logAction } = require('../../utils/audit');
 
 const { logHistory } = require('./_helpers/logHistory');
 
-const { ticketActionConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
+const { ticketActionConflict, ticketCreationConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
@@ -33,9 +33,9 @@ const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.work
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
 const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
-const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
-const { validateCreatedFields, resolveCreateProject } = require('./_helpers/validateCreate');
+const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
@@ -58,19 +58,22 @@ const router = express.Router();
 // ─── Get tasks for a specific date or date range ─────────────────────────
 router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search } = req.query as Record<string, string>;
+        const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
 
         // One policy for every list surface. Admins may ask for a team (the
         // Plan team switcher) or the Unassigned bucket; a non-admin asking for
         // a foreign team is rejected rather than silently narrowed.
         const actor = taskActorFromRequest(req);
         const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
             return res.status(403).json({ error: ACCESS_DENIED });
         }
-        const visibility = resolveTaskVisibility(actor, {
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
             scope,
-            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+            teamId: Number.isNaN(requestedTeamId as number)
+                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
+                : requestedTeamId,
+            projectId: project_id ? Number.parseInt(project_id, 10) : null,
             unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
 
@@ -82,7 +85,7 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
             startDate: start_date,
             endDate: end_date,
             date: date || (sprint_id || (start_date && end_date) ? undefined : getLocalToday(req)),
-            filters: { assignee, label, priority, status, search, includeDue: include_due === '1' },
+            filters: { assignee, label, priority, status, search, projectId: project_id, includeDue: include_due === '1' },
         });
 
         const tasks = (await req.db!.query(`
@@ -113,13 +116,6 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
-
-        // Stage 3: optional project assignment + auto issue key. We validate
-        // the project here so a missing/invalid value returns 400 before we
-        // open the create transaction.
-        const project = await resolveCreateProject(req.db!, project_id, req.userOrgId || null);
-        if (project.error) return res.status(project.error.status).json(project.error.body);
-        let validProjectId = project.projectId;
 
         const targetDate = date || getLocalToday(req);
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
@@ -157,6 +153,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 orgId: req.userOrgId || null,
                 actorTeamId: req.userTeamId ?? null,
                 isAdmin: isOrgAdmin(req.userRole),
+                actor: taskActorFromRequest(req),
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             const sprint = target.sprint;
@@ -178,13 +175,20 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
+        const project = await resolveCreateProjectId(req.db!, {
+            actor: taskActorFromRequest(req), explicitProjectId: project_id,
+            sprintId: validSprintId, teamId: owner.teamId,
+        });
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        const validProjectId = project.projectId;
+        const creationRefusal = await ticketCreationConflict(req, validProjectId);
+        if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 
-        // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
-        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
-        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
+        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
         const wsId = initialState ? initialState.id : null;
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
@@ -203,15 +207,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         // a task with no history entry, or labels mapped to a half-written
         // task). Wrap them in a transaction so the entire create is atomic.
         //
-        // Stage 3: when a project is assigned, we also reserve the next
-        // `task_number` within the project. The UPDATE … RETURNING approach
-        // is concurrency-safe — the row-level lock around the project row
-        // serialises competing INSERTs so two requests can't both grab the
-        // same number.
-        //
-        // The ticket is inserted with no container and then placed in the same
-        // transaction: into the sprint (which wins, so no planned day is set),
-        // otherwise onto its planned day (ADR-015).
+        // Reserve the key and place the ticket in the same transaction.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             let taskNumber = null;
             if (validProjectId) {
@@ -300,8 +296,8 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
 
         // Resolve target workflow state. Accept either a numeric workflow_state_id
         // or a state key (the default keys are pending/in_progress/in_review/done).
-        let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
-        if (!target && status) target = await resolveWorkflowState(status, req.userOrgId, req.db);
+        let target = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, task.project_id);
+        if (!target && status) target = await resolveWorkflowState(status, req.userOrgId, req.db, task.project_id);
         // An unknown key is invalid: there is no status column to fall back to,
         // so a task must always point at a real workflow state.
         if (!target) return res.status(400).json({ error: 'Invalid status / workflow state' });
@@ -503,9 +499,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (workflow_state_id !== undefined) {
             if (workflow_state_id === null || workflow_state_id === '') {
                 // Reset to initial state for the org
-                newWsRow = await getInitialWorkflowState(req.userOrgId, req.db);
+                newWsRow = await getInitialWorkflowState(req.userOrgId, req.db, task.project_id);
             } else {
-                newWsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+                newWsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, task.project_id);
                 if (!newWsRow) return res.status(400).json({ error: 'Invalid workflow_state' });
             }
             newWsId = newWsRow ? newWsRow.id : null;

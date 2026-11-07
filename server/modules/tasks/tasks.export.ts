@@ -9,7 +9,7 @@
 
 import {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     type TaskActor,
 } from "./tasks.policy";
 
@@ -18,10 +18,10 @@ export interface TaskExportScope {
     params: unknown[];
 }
 
-export function buildTaskExportScope(
+export async function buildTaskExportScope(
     actor: TaskActor,
     options: { orgId: number | null; from?: string; to?: string },
-): TaskExportScope {
+): Promise<TaskExportScope> {
     const conditions: string[] = [];
     const params: unknown[] = [];
     let nextIndex = 1;
@@ -34,11 +34,11 @@ export function buildTaskExportScope(
     }
 
     // The export used to be creator-only. With the flag off it stays that way.
-    if (!actor.teamVisibility) {
+    if (!actor.teamVisibility && !actor.projectOwnership) {
         conditions.push(`t.user_id = $${nextIndex++}`);
         params.push(actor.userId);
     } else {
-        const visibility = buildVisibilityPredicate(resolveTaskVisibility(actor), nextIndex);
+        const visibility = buildVisibilityPredicate(await resolveTaskVisibilityForRequest(actor), nextIndex);
         if (visibility.sql) {
             conditions.push(visibility.sql);
             params.push(...visibility.params);

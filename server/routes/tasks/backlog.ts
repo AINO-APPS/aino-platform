@@ -19,16 +19,16 @@ const {
 } = require('../../modules/tasks/tasks.sprintRepository');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
-const { resolveCreateTeamId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
-const { ticketActionConflict, denyTaskAccess } = require('./_helpers/access');
+const { ticketActionConflict, ticketCreationConflict, denyTaskAccess } = require('./_helpers/access');
 const {
     isOrgAdmin,
     rejectsForeignTeamRequest,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
@@ -81,17 +81,21 @@ const router = express.Router();
 // We push the label filter into SQL via EXISTS.
 router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { assignee, label, priority, status, search, include_completed, completed_since } = req.query as Record<string, string>;
+        const { assignee, label, priority, status, search, project_id, include_completed, completed_since } = req.query as Record<string, string>;
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
         const actor = taskActorFromRequest(req);
         const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const visibility = resolveTaskVisibility(actor, {
-            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            scope: req.query.scope === 'personal' ? 'personal' : undefined,
+            teamId: Number.isNaN(requestedTeamId as number)
+                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
+                : requestedTeamId,
+            projectId: project_id ? Number.parseInt(project_id, 10) : null,
             unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
 
@@ -113,7 +117,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         );
 
         const filters = {
-            assignee, label, priority, status, search,
+            assignee, label, priority, status, search, projectId: project_id,
             completed: completedOnly ? ('completed' as const) : includeCompleted ? ('all' as const) : ('incomplete' as const),
             completedSince,
         };
@@ -183,14 +187,18 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
 // leaves the backlog. Completed history is trimmed to 30 days.
 router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
-        const { assignee, label, priority, status, search } = req.query as Record<string, string>;
+        const { assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
         const actor = taskActorFromRequest(req);
         const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (rejectsForeignTeamRequest(actor, requestedTeamId)) {
+        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-        const visibility = resolveTaskVisibility(actor, {
-            teamId: Number.isNaN(requestedTeamId as number) ? null : requestedTeamId,
+        const visibility = await resolveTaskVisibilityForRequest(actor, {
+            scope: req.query.scope === 'personal' ? 'personal' : undefined,
+            teamId: Number.isNaN(requestedTeamId as number)
+                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
+                : requestedTeamId,
+            projectId: project_id ? Number.parseInt(project_id, 10) : null,
             unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
         const collection = buildTaskCollection({
@@ -198,7 +206,7 @@ router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Respon
             orgId: req.userOrgId || null,
             visibility,
             today: getLocalToday(req),
-            filters: { assignee, label, priority, status, search },
+            filters: { assignee, label, priority, status, search, projectId: project_id },
         });
         const tasks = await listScheduledTasks(req.db!, collection.whereSql, collection.params);
         res.json({ tasks: await enrichTasks(tasks, req.db, taskActorFromRequest(req)) });
@@ -217,23 +225,6 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
-
-        // Stage 3: optional project assignment. Mirrors the validation in
-        // routes/tasks/crud.js so a missing/invalid project returns 400
-        // before we open the transaction. The matching task_number is
-        // reserved atomically below inside the transaction.
-        let validProjectId = null;
-        if (project_id !== undefined && project_id !== null && project_id !== '') {
-            const projNum = parseInt(project_id, 10);
-            if (!isNaN(projNum) && req.userOrgId) {
-                const proj = (await req.db!.query(
-                    'SELECT id FROM projects WHERE id = $1 AND org_id = $2 AND is_archived = FALSE',
-                    [projNum, req.userOrgId]
-                )).rows[0];
-                if (!proj) return res.status(400).json({ error: 'Invalid project or project is archived' });
-                validProjectId = proj.id;
-            }
-        }
 
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
@@ -259,14 +250,14 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const { isFeatureEnabled } = require('../../utils/planCatalog');
         const agileOn = isFeatureEnabled((req as any).tenant, 'agile');
         if (sprint_id && agileOn) {
-            const callerIsOrgAdmin = isOrgAdmin(req.userRole);
-            const sprint = callerIsOrgAdmin
-                ? (await req.db!.query(
-                    'SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2',
-                    [sprint_id, req.userOrgId]
-                )).rows[0]
-                : (await req.db!.query('SELECT id, team_id, end_date FROM sprints WHERE id = $1', [sprint_id])).rows[0];
-            if (sprint && (callerIsOrgAdmin || sprint.team_id === req.userTeamId)) {
+            const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
+            const target = await resolveSprintTarget(req.db!, {
+                sprintId: sprint_id, orgId: req.userOrgId || null, actorTeamId: req.userTeamId ?? null,
+                isAdmin: isOrgAdmin(req.userRole), actor: taskActorFromRequest(req),
+            });
+            if (target.error) return res.status(target.error.status).json(target.error.body);
+            const sprint = target.sprint;
+            if (sprint) {
                 validSprintId = sprint.id;
                 sprintRow = sprint;
             } else {
@@ -281,13 +272,21 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             sprint: sprintRow,
         });
         if (owner.error) return res.status(owner.error.status).json(owner.error.body);
+        const project = await resolveCreateProjectId(req.db!, {
+            actor: taskActorFromRequest(req), explicitProjectId: project_id,
+            sprintId: validSprintId, teamId: owner.teamId,
+        });
+        if (project.error) return res.status(project.error.status).json(project.error.body);
+        const validProjectId = project.projectId;
+        const creationRefusal = await ticketCreationConflict(req, validProjectId);
+        if (creationRefusal) return res.status(creationRefusal.status).json(creationRefusal.body);
 
         // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
-        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db);
+        const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
-        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db));
+        const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
         const wsId = initialState ? initialState.id : null;
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;

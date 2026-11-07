@@ -15,6 +15,7 @@ export type WorkflowCategory = "open" | "in_progress" | "in_review" | "done";
 
 export interface WorkflowState {
     id: number;
+    project_id?: number | null;
     key: string;
     name: string;
     category: WorkflowCategory;
@@ -279,24 +280,28 @@ export interface LifecycleDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 }
 
-/** Load the org's states, explicit rows and WIP setting in three queries. */
+/** Load the requested project's states, explicit rows and org WIP setting. */
 export async function loadLifecycleContext(
     db: LifecycleDb,
     orgId: number | null | undefined,
+    projectId?: number | null,
 ): Promise<LifecycleContext> {
     if (!orgId) return buildLifecycleContext([], [], false);
 
+    const projectFilter = projectId === undefined ? "" : " AND project_id IS NOT DISTINCT FROM $2";
+    const params = projectId === undefined ? [orgId] : [orgId, projectId];
     const states = (await db.query(
         `SELECT id, key, name, category, is_initial, is_terminal, is_active, sort_order, wip_limit
            FROM workflow_states
-          WHERE org_id = $1 AND is_active = TRUE
+          WHERE org_id = $1 AND is_active = TRUE${projectFilter}
           ORDER BY sort_order ASC, id ASC`,
-        [orgId],
+        params,
     )).rows as WorkflowState[];
 
     const transitions = (await db.query(
-        "SELECT from_state_id, to_state_id FROM workflow_transitions WHERE org_id = $1",
-        [orgId],
+        `SELECT from_state_id, to_state_id FROM workflow_transitions
+          WHERE org_id = $1${projectFilter}`,
+        params,
     )).rows.map((row: any) => ({
         from: Number(row.from_state_id),
         to: Number(row.to_state_id),
@@ -337,5 +342,34 @@ export async function seedOrgTransitions(
            FROM UNNEST($2::int[], $3::int[]) AS edge(from_state_id, to_state_id)
          ON CONFLICT (from_state_id, to_state_id) DO NOTHING`,
         [orgId, edges.map((edge) => edge.from), edges.map((edge) => edge.to)],
+    );
+}
+
+/** Persist the derived transition graph for one project. */
+export async function seedProjectTransitions(
+    db: LifecycleDb,
+    orgId: number | null | undefined,
+    projectId: number,
+    changedStateId?: number,
+): Promise<void> {
+    if (!orgId) return;
+    const states = (await db.query(
+        `SELECT id, key, name, category, is_initial, is_terminal, is_active, sort_order
+           FROM workflow_states
+          WHERE org_id = $1 AND project_id = $2 AND is_active = TRUE
+          ORDER BY sort_order ASC, id ASC`,
+        [orgId, projectId],
+    )).rows as WorkflowState[];
+    const derived = deriveTransitions(states);
+    const edges = changedStateId == null
+        ? derived
+        : derived.filter((edge) => edge.from === changedStateId || edge.to === changedStateId);
+    if (edges.length === 0) return;
+    await db.query(
+        `INSERT INTO workflow_transitions (org_id, project_id, from_state_id, to_state_id)
+         SELECT $1, $2, edge.from_state_id, edge.to_state_id
+           FROM UNNEST($3::int[], $4::int[]) AS edge(from_state_id, to_state_id)
+         ON CONFLICT (from_state_id, to_state_id) DO NOTHING`,
+        [orgId, projectId, edges.map((edge) => edge.from), edges.map((edge) => edge.to)],
     );
 }

@@ -37,9 +37,10 @@ export function useTeamScope(options: {
     availableSprints: any[];
     setSelectedSprintId: (id: any) => void;
     agileEnabled?: boolean;
+    enabled?: boolean;
 }) {
-    const { currentUser, availableSprints, setSelectedSprintId, agileEnabled = false } = options;
-    const showTeamSwitcher = TEAM_PICKER_ROLES.includes(String(currentUser?.role));
+    const { currentUser, availableSprints, setSelectedSprintId, agileEnabled = false, enabled = true } = options;
+    const showTeamSwitcher = enabled && TEAM_PICKER_ROLES.includes(String(currentUser?.role));
     const [selectedTeamId, setSelectedTeamId] = useState<TeamScope | null>(null);
 
     const { data: orgTeams = EMPTY } = useQuery({
@@ -93,7 +94,7 @@ export function useTeamScope(options: {
 
     const hasSelectedTeam = !showTeamSwitcher || selectedTeamId !== null;
     const hasTeamScope = !("unassigned" in teamScopeParams);
-    const currentSprintQueryEnabled = agileEnabled && hasSelectedTeam && hasTeamScope;
+    const currentSprintQueryEnabled = enabled && agileEnabled && hasSelectedTeam && hasTeamScope;
     const { data: sprintList, isFetched: currentSprintFetched } = useQuery({
         queryKey: ["tasks", "sprintList", teamScopeParams],
         enabled: currentSprintQueryEnabled,
@@ -120,6 +121,7 @@ export function useTeamScope(options: {
 
     // Keep a valid sprint selected — the server's current one — on team changes.
     useEffect(() => {
+        if (!enabled) return;
         if (!visibleSprints.length) {
             setSelectedSprintId(null);
             return;
@@ -133,7 +135,7 @@ export function useTeamScope(options: {
                     ? currentSprintId
                     : visibleSprints[0].id),
         );
-    }, [visibleSprints, currentSprintId, currentSprintLoaded, setSelectedSprintId]);
+    }, [enabled, visibleSprints, currentSprintId, currentSprintLoaded, setSelectedSprintId]);
 
     const changeTeam = useCallback((value: TeamScope) => {
         setSelectedTeamId(value);

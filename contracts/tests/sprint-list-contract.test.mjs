@@ -19,7 +19,8 @@ test("the current-sprint fixture matches the sprint-list contract", () => {
   assert.deepEqual(fixture.data, {
     sprints: [{
       id: 31,
-      team_id: 7,
+      team_id: null,
+      project_id: 7,
       name: "Sprint 12",
       status: "paused",
       auto_managed: false,
@@ -30,6 +31,8 @@ test("the current-sprint fixture matches the sprint-list contract", () => {
   assert.deepEqual(fixture.data.sprints[0], fixture.data.sprints.find(
     (sprint) => sprint.id === fixture.data.currentSprintId,
   ));
+  assert.ok(api.components.schemas.Sprint.properties.team_id.type.includes("null"));
+  assert.ok(api.components.schemas.Sprint.required.includes("project_id"));
 });
 
 test("the sprint-list contract preserves no current sprint alongside planned and completed sprints", () => {

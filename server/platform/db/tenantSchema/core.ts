@@ -12,11 +12,15 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             work_days           TEXT NOT NULL DEFAULT '1,2,3,4,5',
             timezone            TEXT NOT NULL DEFAULT 'UTC',
             fiscal_year_start   INTEGER NOT NULL DEFAULT 1,
+            project_ownership    BOOLEAN NOT NULL DEFAULT FALSE,
+            service_desk_project_id INTEGER,
             created_by          INTEGER,
             created_at          TIMESTAMPTZ DEFAULT NOW(),
             updated_at          TIMESTAMPTZ DEFAULT NOW()
         )
     `);
+    await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS project_ownership BOOLEAN NOT NULL DEFAULT FALSE`);
+    await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS service_desk_project_id INTEGER`);
 
     // Migration: minimum hours an employee must log on a working day to be
     // counted as "Present" by attendance reports/calendar. NULL = use
@@ -144,6 +148,16 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
     `);
 
     await q(`
+        CREATE TABLE IF NOT EXISTS user_team_memberships (
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            team_id    INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, team_id)
+        )
+    `);
+    await q(`CREATE INDEX IF NOT EXISTS idx_user_team_memberships_team_id ON user_team_memberships(team_id)`);
+
+    await q(`
         CREATE TABLE IF NOT EXISTS time_entries (
             id              SERIAL PRIMARY KEY,
             user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -250,7 +264,9 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             completed_at TIMESTAMPTZ,
             assigned_to  INTEGER REFERENCES users(id) ON DELETE SET NULL,
             due_date     DATE,
-            sprint_id    INTEGER
+            sprint_id    INTEGER,
+            original_estimate_minutes INTEGER CONSTRAINT tasks_original_estimate_nonnegative CHECK (original_estimate_minutes >= 0),
+            remaining_estimate_minutes INTEGER CONSTRAINT tasks_remaining_estimate_nonnegative CHECK (remaining_estimate_minutes >= 0)
         )
     `);
     // The planner-day indexes are created by migration 0015, after

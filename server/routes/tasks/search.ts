@@ -12,8 +12,10 @@ const { enrichTasks, enrichTaskSummaries } = require('./_helpers/enrich');
 const {
     buildVisibilityPredicate,
     resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
+const { parseIssueKey, resolveIssueKeys } = require("./_helpers/issueKey");
 
 const router = express.Router();
 
@@ -39,9 +41,14 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
         // the team's tickets, an admin the org, a no-team user their own.
         // With the flag off, search keeps its original personal scope.
         const actor = taskActorFromRequest(req);
+        const projectId = req.query.project_id != null
+            ? Number.parseInt(String(req.query.project_id), 10)
+            : null;
         const visibility = buildVisibilityPredicate(
-            actor.teamVisibility
-                ? resolveTaskVisibility(actor)
+            actor.projectOwnership
+                ? await resolveTaskVisibilityForRequest(actor, { projectId })
+                : actor.teamVisibility
+                    ? resolveTaskVisibility(actor)
                 : { kind: "personal", userId: actor.userId },
             pi,
         );
@@ -49,21 +56,22 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
         params.push(...visibility.params);
         pi = visibility.nextIndex;
 
-        // A key like PROJ-123 resolves to exactly one task and ranks first.
-        const keyMatch = q.trim().match(/^([A-Za-z][A-Za-z0-9_]{1,9})-(\d+)$/);
+        // Current keys and former keys resolve through the same key lookup
+        // used by direct navigation and GitHub code-reference linking.
+        const key = parseIssueKey(q.trim());
+        const matches = key ? await resolveIssueKeys([key], req.userOrgId, req.db) : [];
         let keyCondition = 'FALSE';
         let keyRank = '1';
-        if (keyMatch) {
-            keyCondition = `(p.key = $${pi} AND t.task_number = $${pi + 1})`;
+        if (matches.length) {
+            keyCondition = `t.id = $${pi}`;
             keyRank = `CASE WHEN ${keyCondition} THEN 0 ELSE 1 END`;
-            params.push(keyMatch[1].toUpperCase(), Number.parseInt(keyMatch[2], 10));
-            pi += 2;
+            params.push(matches[0].task_id);
+            pi += 1;
         }
         scope.push(`(t.title ILIKE $1 OR t.description ILIKE $1 OR ${keyCondition})`);
 
         const tasks = (await req.db!.query(`
             SELECT t.* FROM tasks t
-            LEFT JOIN projects p ON p.id = t.project_id
             WHERE ${scope.join(' AND ')}
             ORDER BY ${keyRank}, t.created_at DESC
             LIMIT 20
@@ -99,9 +107,14 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         // Flag off keeps the historical personal scope (it was org-wide, which
         // leaked — tightening it is the safer reading of "old behaviour").
         const actor = taskActorFromRequest(req);
+        const projectId = req.query.project_id != null
+            ? Number.parseInt(String(req.query.project_id), 10)
+            : null;
         const visibility = buildVisibilityPredicate(
-            actor.teamVisibility
-                ? resolveTaskVisibility(actor)
+            actor.projectOwnership
+                ? await resolveTaskVisibilityForRequest(actor, { projectId })
+                : actor.teamVisibility
+                    ? resolveTaskVisibility(actor)
                 : { kind: "personal", userId: actor.userId },
             4,
         );

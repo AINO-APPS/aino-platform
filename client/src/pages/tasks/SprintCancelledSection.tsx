@@ -68,7 +68,7 @@ export default function SprintCancelledSection({ sprintId, scopeParams, boardTas
         return () => { request.current++; };
     }, [load, boardTasks]);
 
-    useRealtimeEvent(["task_updated", "task_assigned"], () => { void load(); });
+    useRealtimeEvent(["task_updated", "task_assigned", "project_updated"], () => { void load(); });
 
     if (tasks.length === 0 && !error) return null;
     const Chevron = open ? ChevronDown : ChevronRight;

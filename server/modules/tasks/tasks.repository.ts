@@ -11,8 +11,9 @@ export const findComments = async (db: TasksDb, taskId: number) => (await db.que
 )).rows;
 
 export const findHistory = async (db: TasksDb, taskId: number | string) => (await db.query(
-    `SELECT th.*, u.username, u.full_name, u.avatar
-       FROM task_history th JOIN users u ON u.id = th.user_id
+    `SELECT th.*, COALESCE(u.username, 'system') AS username,
+            COALESCE(u.full_name, 'System') AS full_name, u.avatar
+       FROM task_history th LEFT JOIN users u ON u.id = th.user_id
       WHERE th.task_id = $1 ORDER BY th.created_at DESC LIMIT 200`, [taskId],
 )).rows;
 
@@ -96,14 +97,31 @@ export const findParentId = async (db: TasksDb, id: number) =>
 export const setParent = async (db: TasksDb, id: number, parentId: number | null) =>
     db.query("UPDATE tasks SET parent_task_id = $1 WHERE id = $2", [parentId, id]);
 
-/** Resolve a canonical issue key (PROJ-123) inside one org. */
+/** Resolve a stored ticket key or one of its permanent aliases inside an org. */
 export const findByIssueKey = async (db: TasksDb, orgId: number | null, projectKey: string, taskNumber: number) =>
     (await db.query(
         `SELECT t.* FROM tasks t
-           JOIN projects p ON p.id = t.project_id
-          WHERE p.org_id = $1 AND p.key = $2 AND t.task_number = $3`,
-        [orgId, projectKey, taskNumber],
+          WHERE t.org_id = $1
+            AND (t.ticket_key = $2 OR EXISTS (
+                SELECT 1 FROM ticket_key_aliases a
+                 WHERE a.org_id = $1 AND a.key = $2 AND a.task_id = t.id
+            ))
+          ORDER BY (t.ticket_key = $2) DESC
+          LIMIT 1`,
+        [orgId, `${projectKey}-${taskNumber}`],
     )).rows[0];
+
+/** Former keys for a batch of tickets, ordered by when each key was retired. */
+export const findTicketKeyAliasesByTaskIds = async (db: TasksDb, taskIds: number[]) =>
+    taskIds.length
+        ? (await db.query(
+            `SELECT task_id, key
+               FROM ticket_key_aliases
+              WHERE task_id = ANY($1::int[])
+              ORDER BY id ASC`,
+            [taskIds],
+        )).rows
+        : [];
 
 /** The stored LexoRank of one task, scoped to the org. */
 export const findRank = async (db: TasksDb, id: number, orgId: number | null): Promise<string | null> =>
@@ -145,6 +163,23 @@ export const findTeamMemberIds = async (
     )).rows.map((row: any) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0);
 };
 
+export async function findPlacementProjectAudience(db: TasksDb, projectIds: number[], orgId: number | null): Promise<number[]> {
+    if (orgId == null || projectIds.length === 0) return [];
+    return (await db.query(
+        `SELECT DISTINCT u.id FROM users u
+          WHERE u.org_id = $2 AND u.is_active = TRUE AND (
+            u.role IN ('super_admin', 'hr_admin', 'platform_admin') OR EXISTS (
+              SELECT 1 FROM project_members pm JOIN projects p ON p.id = pm.project_id
+               WHERE p.id = ANY($1::int[]) AND p.org_id = $2 AND (
+                 pm.user_id = u.id OR pm.team_id = u.team_id OR EXISTS (
+                   SELECT 1 FROM user_team_memberships m WHERE m.user_id = u.id AND m.team_id = pm.team_id
+                 )
+               )
+            )
+          )`, [projectIds, orgId],
+    )).rows.map((row: any) => Number(row.id));
+}
+
 export const setAssignee = async (db: TasksDb, id: number, assignee: number | null) =>
     db.query("UPDATE tasks SET assigned_to = $1 WHERE id = $2", [assignee, id]);
 
@@ -162,31 +197,38 @@ export const deleteTask = async (db: TasksDb, id: number) =>
  * Tenants that already define a state with key `cancelled` (or a terminal state
  * named "Cancelled") get theirs; otherwise one is inserted after the others.
  */
-export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | null | undefined) => {
+export const findOrCreateCancelledState = async (
+    db: TasksDb,
+    orgId: number | null | undefined,
+    projectId?: number | null,
+) => {
     if (!orgId) return null;
     const existing = (await db.query(
         `SELECT * FROM workflow_states
-          WHERE org_id = $1 AND is_active = TRUE
+          WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2 AND is_active = TRUE
             AND (key = 'cancelled' OR (is_terminal = TRUE AND LOWER(name) = 'cancelled'))
           -- The seeded key wins over a look-alike terminal state, so the
           -- transition rows and the lazy lookup always agree.
           ORDER BY (key = 'cancelled') DESC, sort_order ASC, id ASC
           LIMIT 1`,
-        [orgId],
+        [orgId, projectId ?? null],
     )).rows[0];
     if (existing) return existing;
 
     const nextOrder = (await db.query(
-        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE org_id = $1",
-        [orgId],
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM workflow_states WHERE org_id = $1 AND project_id IS NOT DISTINCT FROM $2",
+        [orgId, projectId ?? null],
     )).rows[0]?.next ?? 1;
 
+    const conflictTarget = projectId == null
+        ? "ON CONFLICT (org_id, key) WHERE project_id IS NULL"
+        : "ON CONFLICT (project_id, key) WHERE project_id IS NOT NULL";
     return (await db.query(
-        `INSERT INTO workflow_states (org_id, key, name, category, color, sort_order, is_initial, is_terminal)
-         VALUES ($1, 'cancelled', 'Cancelled', 'done', '#6b7280', $2, FALSE, TRUE)
-         ON CONFLICT (org_id, key) DO UPDATE SET is_active = TRUE
-         RETURNING *`,
-        [orgId, nextOrder],
+        `INSERT INTO workflow_states (org_id, project_id, key, name, category, color, sort_order, is_initial, is_terminal)
+        VALUES ($1, $2, 'cancelled', 'Cancelled', 'done', '#6b7280', $3, FALSE, TRUE)
+        ${conflictTarget} DO UPDATE SET is_active = TRUE
+        RETURNING *`,
+        [orgId, projectId ?? null, nextOrder],
     )).rows[0] || null;
 };
 
@@ -198,12 +240,10 @@ export const findOrCreateCancelledState = async (db: TasksDb, orgId: number | nu
  */
 export const findEpics = async (db: TasksDb, orgId: number | null) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.story_points, t.project_id,
-            CASE WHEN p.key IS NOT NULL AND t.task_number IS NOT NULL
-                 THEN p.key || '-' || t.task_number END AS issue_key,
+            t.ticket_key, t.ticket_key AS issue_key,
             wit.name AS type_name, wit.color AS type_color
        FROM tasks t
        JOIN work_item_types wit ON wit.id = t.work_item_type_id
-       LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.org_id = $1 AND wit.is_epic = TRUE
       ORDER BY t.created_at ASC`, [orgId],
 )).rows;
@@ -232,14 +272,40 @@ export const findTaskIdsByIssueKeys = async (
     projectKeys: string[],
     taskNumbers: number[],
 ) => (await db.query(
-    `SELECT p.key AS project_key, t.task_number, t.id
-       FROM tasks t
-       JOIN projects p ON p.id = t.project_id
-      WHERE p.org_id = $1
-        AND (p.key, t.task_number) IN (
-            SELECT UNNEST($2::text[]), UNNEST($3::int[])
-        )`, [orgId, projectKeys, taskNumbers],
+    `WITH requested AS (
+        SELECT DISTINCT project_key || '-' || task_number::text AS key
+          FROM UNNEST($2::text[], $3::int[]) AS pair(project_key, task_number)
+     ), current_keys AS (
+        SELECT requested.key, t.id, FALSE AS is_alias
+          FROM requested
+          JOIN tasks t ON t.org_id = $1 AND t.ticket_key = requested.key
+     ), alias_keys AS (
+        SELECT requested.key, a.task_id AS id, TRUE AS is_alias
+          FROM requested
+          JOIN ticket_key_aliases a ON a.org_id = $1 AND a.key = requested.key
+         WHERE a.task_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM current_keys current_ticket WHERE current_ticket.key = requested.key)
+     )
+     SELECT key, id, is_alias FROM current_keys
+     UNION ALL
+     SELECT key, id, is_alias FROM alias_keys`,
+    [orgId, projectKeys, taskNumbers],
 )).rows;
+
+/** Project fallback for a ticket create: sprint, team, then General. */
+export const findDefaultTicketProject = async (
+    db: { query(sql: string, params?: unknown[]): Promise<{ rows: any[] }> },
+    orgId: number | null,
+    sprintId: number | null,
+    teamId: number | null,
+) => (await db.query(
+    `SELECT COALESCE(
+        (SELECT s.project_id FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $2 AND p.org_id = $1),
+        (SELECT id FROM projects WHERE org_id = $1 AND origin_team_id = $3),
+        (SELECT id FROM projects WHERE org_id = $1 AND is_general ORDER BY id LIMIT 1)
+     ) AS id`,
+    [orgId, sprintId, teamId],
+)).rows[0]?.id ?? null;
 /** An active project in the caller's org, or none. */
 export const findActiveProject = async (db: TasksDb, projectId: number, orgId: number | null) =>
     (await db.query(

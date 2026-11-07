@@ -217,7 +217,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     test.each([
         ["into a completed sprint", { due_date: "2026-11-20" }, { sprint: ALPHA_DONE }, "SPRINT_FROZEN"],
         ["out of a completed sprint", { sprint_id: ALPHA_DONE, due_date: "2026-10-31" }, "backlog", "SPRINT_FROZEN"],
-        ["into another team's sprint", { due_date: "2026-11-20" }, { sprint: BETA_PLANNED }, "SPRINT_TEAM_MISMATCH"],
+        ["into another team's sprint", { due_date: "2026-11-20" }, { sprint: BETA_PLANNED }, "SPRINT_PROJECT_MISMATCH"],
     ] as const)("refuses a move %s and leaves the row untouched", async (_label, seed, target, code) => {
         const id = await ticket(seed);
         const before = (await pool.query("SELECT * FROM tasks WHERE id = $1", [id])).rows[0];
@@ -270,7 +270,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
         expect(results).toEqual([
             expect.objectContaining({ id: mine, ok: true }),
-            expect.objectContaining({ id: theirs, ok: false, code: "SPRINT_TEAM_MISMATCH" }),
+            expect.objectContaining({ id: theirs, ok: false, code: "SPRINT_PROJECT_MISMATCH" }),
         ]);
         expect((await pool.query("SELECT sprint_id FROM tasks WHERE id = $1", [mine])).rows[0].sprint_id).toBe(ALPHA_PLANNED);
     });
@@ -384,6 +384,9 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     });
 
     describe("team transfer", () => {
+        beforeEach(async () => {
+            await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
+        });
         async function transfer(id: number, toTeamId: number) {
             const changes: PlacementChange[] = [];
             const result = await transaction((client, { afterCommit }) =>
@@ -407,22 +410,25 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
                 clearedSprint: { id: ALPHA_PLANNED, name: "Alpha 1" },
                 task: { team_id: BETA, sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20", pre_sprint_due_date: null },
             });
-            expect(await history(id)).toEqual([
+            expect(await history(id)).toEqual(expect.arrayContaining([
                 { action: "transferred", field: "team", old_value: String(ALPHA), new_value: String(BETA), user_id: ALICE },
+                { action: "transferred", field: "project", old_value: "1", new_value: "2", user_id: ALICE },
+                { action: "transferred", field: "ticket_key", old_value: "GEN-1", new_value: "BETA-1", user_id: ALICE },
                 { action: "updated", field: "sprint", old_value: "Alpha 1", new_value: "none", user_id: ALICE },
                 { action: "updated", field: "due_date", old_value: "2026-11-14", new_value: "2026-11-20", user_id: ALICE },
-            ]);
+                expect.objectContaining({ action: "updated", field: "workflow_state" }),
+            ]));
             expect(changes).toEqual([expect.objectContaining({
                 before: expect.objectContaining({ team_id: ALPHA }),
                 after: expect.objectContaining({ team_id: BETA, sprint_id: null }),
             })]);
-            expect(await audit(id)).toEqual([expect.objectContaining({
+            expect(await audit(id)).toMatchObject([{
                 action: "transfer",
                 details: {
-                    from: { team_id: ALPHA, sprint_id: ALPHA_PLANNED, planned_date: "2026-11-05", due_date: "2026-11-14" },
-                    to: { team_id: BETA, sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20" },
+                    from: { team_id: ALPHA, project_id: 1, ticket_key: "GEN-1", sprint_id: ALPHA_PLANNED, planned_date: "2026-11-05", due_date: "2026-11-14" },
+                    to: { team_id: BETA, project_id: 2, ticket_key: "BETA-1", sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20" },
                 },
-            })]);
+            }]);
         });
 
         test.each([

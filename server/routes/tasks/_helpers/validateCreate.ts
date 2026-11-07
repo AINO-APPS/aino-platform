@@ -4,26 +4,6 @@
  * `POST /tasks` and `POST /tasks/backlog` accepted the same rules written out
  * twice; one copy here keeps a new limit from landing on only one of them.
  */
-import { findActiveProject } from "../../../modules/tasks/tasks.repository";
-
-/**
- * The optional project on `POST /tasks` and `POST /tasks/backlog`: resolved
- * inside the caller's org, archived projects refused, a missing id allowed.
- * The query lives in the tasks module (no SQL in route files).
- */
-export async function resolveCreateProject(
-    db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> },
-    projectId: unknown,
-    orgId: number | null,
-): Promise<{ projectId: number | null; error?: { status: number; body: { error: string } } }> {
-    if (projectId === undefined || projectId === null || projectId === "") return { projectId: null };
-    const numeric = parseInt(String(projectId), 10);
-    if (Number.isNaN(numeric) || !orgId) return { projectId: null };
-    const project = await findActiveProject(db as any, numeric, orgId);
-    if (!project) return { projectId: null, error: { status: 400, body: { error: "Invalid project or project is archived" } } };
-    return { projectId: project.id };
-}
-
 export function validateCreatedFields(input: {
     title?: unknown;
     description?: unknown;
