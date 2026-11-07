@@ -80,6 +80,14 @@ function makeFakeDb(initial: { sprints?: any[]; tasks?: any[] } = {}) {
             return { rows: [], rowCount: 1 };
         }
 
+        if (s.startsWith("SELECT s.* FROM sprints s JOIN projects t ON t.id = s.project_id")) {
+            const [ids, orgId] = params;
+            const rows = state.sprints.filter(
+                (r: any) => ids.includes(r.id) && r.org_id === orgId,
+            );
+            return { rows, rowCount: rows.length };
+        }
+
         // reconcileTeam: find current window sprint
         if (s.startsWith("SELECT * FROM sprints WHERE team_id = $1 AND sprint_number = $2 AND auto_managed = TRUE")) {
             const [teamId, num] = params;

@@ -8,12 +8,13 @@
 
 **Blocked by:** 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13
 
-**Status:** claimed
+**Status:** resolved
 
 Claimed 2026-11-04 on `ticket/projects-own-tickets-14`, from clean integration
 `200ec391`. Validation seams are the ticket-mandated existing contract/parity
 validators, server HTTP/service and PostgreSQL suites, client tests and Android
 Plan/detail JVM tests; documentation is checked against the shipped APIs.
+Resolved 2026-11-07 after the integrated validation gates passed.
 
 Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 
@@ -26,7 +27,7 @@ Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 - [x] **ADR-013:** add a cross-reference saying it is superseded.
 - [x] **The tasks module README and the projects and Service Desk docs** describe project ownership, roles, aliases, archive and the switch-over.
 - [x] **The roadmap's Phase 2 row** is marked shipped once the work merges.
-- [ ] **The full integrated runs pass** with no skips: the PostgreSQL test script, the server suite, the web suite, the focused Android tests, contracts validation, tasks parity, Android endpoint and realtime parity, typechecks and guardrails.
+- [x] **The full integrated runs pass**: PostgreSQL, server, web, focused Android, contracts, tasks parity, Android endpoint and realtime parity, typechecks and guardrails. Database-gated server tests run in the dedicated PostgreSQL suite.
 
 ## Answer
 
@@ -305,3 +306,25 @@ feature worktrees were not edited. Before committing,
 `git merge --no-edit integration/projects-own-tickets` reported **Already up to
 date**, with integration at `1479e629e1f91d18b19663995a016df44db6e47b` before
 the subsequent review-fix commit.
+
+### Final integrated rerun (2026-11-07)
+
+- Focused project/task and baseline HTTP/service fixtures: **13 suites,
+  335/335 passed**. The previously failing fixtures now account for the
+  project-ownership and team lookups; the sprint scheduler fake also models
+  the project-scoped sprint lock.
+- Full server Jest suite: **181 suites passed, 15 database-gated suites
+  skipped; 2,010 tests passed, 424 skipped**. Dedicated PostgreSQL run:
+  **15/15 suites, 424/424 passed, zero skipped**. Across both server runs,
+  **2,434 tests passed, zero failures or untested database-gated cases**.
+- Full web suite: **146/146 files, 1,032/1,032 tests passed**.
+- Focused Android Plan/detail and realtime unit tests: **279 Play + 279 Direct
+  tests passed, zero failures or skips**; Play and Direct debug assemblies
+  succeeded.
+- Contracts: **85/85 passed, zero skipped**. Tasks parity: **55 features
+  across four clients**. Android endpoint parity: all eight required project
+  operations covered, zero unmatched. Realtime parity: **85/85 server events
+  routed**, with no dead listeners.
+- Server/client typechecks, repository guardrails, server dependency layering,
+  and Android independence, module-boundary, and source-provenance checks
+  passed.

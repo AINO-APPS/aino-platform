@@ -92,6 +92,11 @@ function setupAuthMocks(overrides: Record<string, any> = {}) {
         .mockResolvedValueOnce({ rows: [{ token_version: user.token_version }], rowCount: 1 })
         // loadUserContext: SELECT role, org_id...
         .mockResolvedValueOnce({ rows: [user], rowCount: 1 });
+    if (user.org_id) {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
+            .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
+    }
 }
 
 // ── Android device-credential identity (fingerprint / screen-lock proof) ──
