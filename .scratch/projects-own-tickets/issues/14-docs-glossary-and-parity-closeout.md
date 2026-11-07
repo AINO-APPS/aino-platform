@@ -27,7 +27,7 @@ Spec: [projects-own-tickets](../spec.md). Decisions: ADR-017.
 - [x] **ADR-013:** add a cross-reference saying it is superseded.
 - [x] **The tasks module README and the projects and Service Desk docs** describe project ownership, roles, aliases, archive and the switch-over.
 - [x] **The roadmap's Phase 2 row** is marked shipped once the work merges.
-- [x] **The full integrated runs pass**: PostgreSQL, server, web, focused Android, contracts, tasks parity, Android endpoint and realtime parity, typechecks and guardrails. Database-gated server tests run in the dedicated PostgreSQL suite.
+- [x] **The full integrated runs pass with no skips**: the PostgreSQL test script, server suite, web suite, focused Android tests, contracts validation, tasks parity, Android endpoint and realtime parity, typechecks and guardrails.
 
 ## Answer
 
@@ -313,10 +313,10 @@ the subsequent review-fix commit.
   335/335 passed**. The previously failing fixtures now account for the
   project-ownership and team lookups; the sprint scheduler fake also models
   the project-scoped sprint lock.
-- Full server Jest suite: **181 suites passed, 15 database-gated suites
-  skipped; 2,010 tests passed, 424 skipped**. Dedicated PostgreSQL run:
-  **15/15 suites, 424/424 passed, zero skipped**. Across both server runs,
-  **2,434 tests passed, zero failures or untested database-gated cases**.
+- Full server Jest suite with `TASKS_SCHEMA_TEST_DATABASE_URL` pointed at the
+  disposable PostgreSQL 16 container: **196/196 suites and 2,434/2,434 tests
+  passed, zero skipped**. The dedicated PostgreSQL runner also passed
+  **15/15 suites, 424/424 tests, zero skipped**.
 - Full web suite: **146/146 files, 1,032/1,032 tests passed**.
 - Focused Android Plan/detail and realtime unit tests: **279 Play + 279 Direct
   tests passed, zero failures or skips**; Play and Direct debug assemblies
