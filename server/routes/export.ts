@@ -146,13 +146,13 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
         });
 
         const tasks = (await req.db!.query(`
-            SELECT t.planned_date AS date, t.title, ws.key AS status, t.priority, t.due_date,
+            SELECT t.start_date AS date, t.title, ws.key AS status, t.priority, t.due_date,
                    u.full_name AS assigned_to_name
             FROM tasks t
             LEFT JOIN users u ON u.id = t.assigned_to
             LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
             WHERE ${scope.whereSql}
-            ORDER BY t.planned_date DESC, t.id DESC
+            ORDER BY t.start_date DESC, t.id DESC
         `, scope.params)).rows;
 
         const fields = [
@@ -248,7 +248,7 @@ router.get("/team-analytics", requireRole("team_lead"), async (req: Request, res
             });
 
             const tasksDone = (await req.db!.query(
-                "SELECT COUNT(*) AS c FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND completed_at IS NOT NULL AND planned_date BETWEEN $2 AND $3",
+                "SELECT COUNT(*) AS c FROM tasks WHERE (user_id = $1 OR assigned_to = $1) AND completed_at IS NOT NULL AND start_date BETWEEN $2 AND $3",
                 [member.id, from, to]
             )).rows[0].c;
 

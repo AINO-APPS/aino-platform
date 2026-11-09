@@ -452,6 +452,21 @@ change type; leaving Scrum with planned/active/paused sprints returns 409
 Sprint requests outside Scrum return 409 `PROJECT_HAS_NO_SPRINTS`.
 See [Projects](docs/PROJECTS.md) and `contracts/openapi.json`.
 
+#### Start dates (project types Expand)
+
+Tickets expose nullable `start_date` (`YYYY-MM-DD`). Both create endpoints and
+`PUT /api/tasks/:id` accept it; `planned_date` remains a request/response alias.
+An explicit `start_date`, including null, wins over the alias. Legacy day-create
+`date` and its default of today remain; backlog creation defaults to no start.
+Start-date edits write `updated/start_date` history and never move placement.
+A due date before start returns `400` with
+`{"error":"Due date cannot be earlier than the start date"}`.
+`PATCH /api/tasks/:id/schedule` accepts `{date}` and sets start;
+`PATCH /api/tasks/:id/unschedule` clears start, preserving sprint and deadline.
+Search, export, Notes, manager/attendance reads and dashboard week windows use
+start date. Sprint-date bookkeeping and remaining legacy routes are retained
+until the separate planning/Contract tickets.
+
 ### GET `/api/tasks`
 List tasks with filtering and pagination.
 

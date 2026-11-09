@@ -9,6 +9,7 @@
   "workflow_state_name": "In Progress",
   "workflow_state_category": "in_progress",
   "planned_date": null,
+  "start_date": null,
   "due_date": null,
   "completed_at": null,
   "sprint_id": null,

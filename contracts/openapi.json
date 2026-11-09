@@ -24819,7 +24819,8 @@
               "string",
               "null"
             ],
-            "format": "date"
+            "format": "date",
+            "description": "Deprecated compatibility alias of start_date during Expand."
           },
           "due_date": {
             "type": [
@@ -24888,6 +24889,14 @@
               "is_archived"
             ],
             "additionalProperties": false
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected day work begins; independent of placement."
           }
         },
         "required": [
@@ -24912,6 +24921,7 @@
           "capabilities",
           "container",
           "capabilities",
+          "start_date",
           "container",
           "capabilities"
         ],
@@ -24985,7 +24995,7 @@
               "null"
             ],
             "format": "date",
-            "description": "Date-only planning metadata. Never affects backlog membership."
+            "description": "Deprecated compatibility alias of start_date during Expand."
           },
           "due_date": {
             "type": [
@@ -25152,6 +25162,14 @@
             ],
             "additionalProperties": false
           },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected day work begins; independent of placement."
+          },
           "time_spent_minutes": {
             "type": "integer",
             "minimum": 0,
@@ -25188,7 +25206,8 @@
           "team_id",
           "project_id",
           "rank",
-          "is_blocked"
+          "is_blocked",
+          "start_date"
         ],
         "additionalProperties": false
       },

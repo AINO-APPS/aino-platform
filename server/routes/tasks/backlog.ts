@@ -21,6 +21,9 @@ const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { getLocalToday } = require('../../utils/timezone');
+const { resolveTicketDates, setTicketStartDate, editTicketStartDate } = require('../../modules/tasks/tasks.dates');
+const { broadcastTaskUpdated } = require('./_helpers/statusEvents');
+const { diffTask } = require('../../modules/tasks/tasks.deltas');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
@@ -238,8 +241,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             assignedTo = assigned_to;
         }
 
-        let validDueDate = null;
-        if (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) validDueDate = due_date;
+        const dates = resolveTicketDates({}, req.body);
+        if (dates.error) return res.status(400).json({ error: dates.error });
+        const validDueDate = dates.dueDate;
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
@@ -336,6 +340,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            await setTicketStartDate(client, { id: newId }, dates.startDate, req.userId);
             if (validSprintId) {
                 placedOrThrow(await placeTickets(
                     placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
@@ -354,13 +359,14 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating backlog item:');
         res.status(500).json({ error: 'Failed to create backlog item' });
     }
 });
 
-// ─── Move backlog item to a specific date (schedule it) ───────────────────
+// ─── Legacy shim: set start date without placement ───────────────────────
 router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -372,22 +378,25 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
-        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "schedule");
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
         if (refusal) return res.status(refusal.status).json(refusal.body);
 
-        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
-            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], { day: date })));
-
-        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
+        const dates = resolveTicketDates(task, { start_date: date });
+        if (dates.error) return res.status(400).json({ error: dates.error });
+        const updated = await (req.db as DbLike).transaction(async (client) =>
+            editTicketStartDate(client, task.id, date, req.userId));
+        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
+        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error scheduling task:');
         res.status(500).json({ error: 'Failed to schedule task' });
     }
 });
 
-// ─── Move a dated task back to backlog (clears planned and due date) ─────
+// ─── Legacy shim: clear start date only ──────────────────────────────────
 router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -397,14 +406,13 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
         if (refusal) return res.status(refusal.status).json(refusal.body);
 
-        // The planned day is the container, so clearing it returns the ticket
-        // to the backlog; its own due date (a deadline) is left alone.
-        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
-            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], 'backlog')));
-
-        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
+        const updated = await (req.db as DbLike).transaction(async (client) =>
+            editTicketStartDate(client, task.id, null, req.userId));
+        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
+        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error unscheduling task:');
         res.status(500).json({ error: 'Failed to move task to backlog' });

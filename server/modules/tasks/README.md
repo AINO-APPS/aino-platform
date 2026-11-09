@@ -12,6 +12,32 @@ User-facing guides: [Projects](../../../docs/PROJECTS.md) and
 [Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
 flag-off compatibility policy.
 
+## Start date (project types, Expand)
+
+`tasks.start_date` is nullable date metadata, independent of sprint/backlog
+placement. `tasks.dateRepository.ts` owns locking, persistence and history SQL;
+`tasks.dates.ts` validates real ISO days and refuses a deadline before
+start with `Due date cannot be earlier than the start date`. Start-date writes
+and their `updated/start_date` history share a transaction. Both creates and the
+full edit accept `start_date`; legacy `planned_date` is an alias, with an explicit
+`start_date` (including null) winning if both are sent. The day-create route also
+accepts legacy `date` and retains its default of today; backlog create is undated
+unless a start date is supplied.
+
+The retained schedule/unschedule endpoints set/clear start date only. Search,
+export, Notes, manager/attendance day reads and My Work/dashboard windows read
+start date. Ticket/search/notes summaries and realtime date deltas retain
+`planned_date` equal to start date. The stored legacy placement column is not
+rewritten by date edits: the Scheduled container, carry-forward route and sprint
+due-date bookkeeping remain until their ticket 05/Contract changes.
+
+Migration `0029_tasks_start_date.sql` copies planned days once, preserving
+explicit start dates. Its transactional data marker also prevents direct SQL
+replay from resurrecting a cleared start date. New-tenant base schema includes
+the column. Run `npx jest tasks.startDates.integration tasksStartDateExpand.integration
+--runInBand` with the disposable test database variable for real PostgreSQL HTTP
+and migration coverage. No production database is required.
+
 ## Service Desk copies
 
 `tasks.serviceDesk.ts` creates copies in the platform organization's configured

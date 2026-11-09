@@ -121,6 +121,7 @@ export interface Task {
   key_alias?: boolean;
   requested_key?: string;
   project?: TaskProject;
+  start_date: string | null;
   time_spent_minutes?: number;
   original_estimate_minutes?: number | null;
   remaining_estimate_minutes?: number | null;

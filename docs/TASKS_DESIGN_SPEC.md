@@ -526,6 +526,14 @@ is absent. `/tasks` redirects to `/tasks/backlog` preserving the query string.
 
 ### 7.5 Task detail
 
+**Project-types Expand (ticket 02):** the date field is now **Start date**
+(`start_date`), separate from Due date, editable even within a sprint under the
+server's edit capability. Date edits write history without changing placement.
+`planned_date` remains a legacy alias. My Work's D53 week window and all
+date-driven readers use start date. ADR-018's remaining removal and sprint-date
+changes ship separately; the historical container decisions below are retained
+for that rollout, not new date-edit behavior.
+
 Kept as the deep surface. Changes: bottom sheet on narrow viewports (D39),
 `planned_date` and `due_date` shown as distinct fields with distinct labels, a
 `time spent / original estimate` row with remaining estimate, over-estimate state,

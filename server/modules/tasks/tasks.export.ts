@@ -47,7 +47,7 @@ export async function buildTaskExportScope(
     }
 
     if (options.from && options.to) {
-        conditions.push(`t.planned_date BETWEEN $${nextIndex} AND $${nextIndex + 1}`);
+        conditions.push(`t.start_date BETWEEN $${nextIndex} AND $${nextIndex + 1}`);
         params.push(options.from, options.to);
     }
 

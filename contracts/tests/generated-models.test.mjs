@@ -25,6 +25,7 @@ test("the task model carries the fields the Tasks spec depends on", () => {
         "project_id",
         "workflow_state_id",
         "planned_date",
+        "start_date",
         "due_date",
         "completed_at",
         "sprint_id",
