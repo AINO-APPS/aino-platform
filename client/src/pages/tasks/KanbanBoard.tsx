@@ -35,6 +35,7 @@ interface BoardPointerDrag {
 }
 
 interface KanbanBoardProps {
+    onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     tasks: any[];
     columns: BoardColumn[];
     sprintMode?: boolean;
@@ -121,6 +122,7 @@ function DroppableColumn({
 }
 
 export default function KanbanBoard({
+    onStatusChange,
     tasks,
     columns,
     sprintMode,
@@ -303,6 +305,7 @@ export default function KanbanBoard({
                                                     sprintMode={sprintMode}
                                                     onOpenDetail={onOpenDetail}
                                                     onOpenComments={onOpenComments}
+                                                    onStatusChange={onStatusChange}
                                                     attribution={attribution?.[String(task.id)] ?? null}
                                                 />
                                             </div>

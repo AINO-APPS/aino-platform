@@ -44,6 +44,7 @@ export interface Project {
   includeCancelled?: boolean;
   availableTypes: ProjectType[];
   changeableTypes: ProjectType[];
+  enable_wip_limits?: boolean;
 }
 
 export interface ProjectTypeOptions {
@@ -125,6 +126,7 @@ export interface Task {
   time_spent_minutes?: number;
   original_estimate_minutes?: number | null;
   remaining_estimate_minutes?: number | null;
+  sprint_end_date?: string | null;
 }
 
 export interface Sprint {

@@ -122,6 +122,35 @@ flag-off tenants retain their existing team-scoped placement rules.
 
 ## Project-type policy and lifecycle (ADR-018)
 
+### Project boards and capacity
+
+`GET /api/projects/:id/board` is the project-wide board read for every type.
+Kanban and Task list use continuous project populations; Scrum uses its selected
+or current active/paused sprint. All boards exclude Cancelled and retain Done
+for 14 days. The optional Kanban backlog is off by default; enabling it moves
+initial-state visibility to `GET /api/projects/:id/backlog` without changing
+ticket state or dates. Scrum backlog remains open, unsprinted work.
+
+Project admins change `kanban_backlog_enabled` and `enable_wip_limits` through
+`PATCH /api/projects/:id/board-settings`; existing project workflow settings own
+per-state limits. Migration `0030_project_board_settings.sql` copies the former
+organization WIP switch once, preserving subsequent project choices on replay.
+
+`tasks.boardRepository.ts` owns shared board-membership and occupancy SQL.
+`tasks.workflowWrite.ts` serializes lifecycle moves with project-before-ticket
+locks, then rechecks the fresh lifecycle and target capacity before the write.
+PATCH, full edits and bulk status moves cannot race to overfill the last slot.
+Counts are never reduced by client filters; off-board Scrum work, Kanban initial
+backlog and Cancelled never consume board capacity. Refusals include
+`WIP_EXCEEDED` and the current count/limit.
+
+The web ProjectBoard consumes these reads, capabilities and settings without
+exposing sprint actions in non-Scrum projects. It supports pointer/keyboard
+state moves, backlog pulling, quick creation and live invalidation; stale
+capacity refusals preserve the ticket and show the server's occupancy message.
+Run `npx jest projectBoard.integration tasks.board --runInBand` with
+`TASKS_SCHEMA_TEST_DATABASE_URL` set to a disposable PostgreSQL instance.
+
 `tasks.projectTypes.ts` is the pure policy seam: ordered Plan tabs, backlog,
 board scope, 14-day Done window, Cancelled exclusion and type-change refusal.
 `tasks.projectTypeLifecycle.ts` validates choices and coordinates locked changes;

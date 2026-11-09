@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 const { loadLifecycleContext } = require("../../modules/tasks/tasks.workflow");
 const { buildSprintBoardColumns } = require("../../modules/tasks/tasks.board");
+const { buildProjectBoardColumns, readProjectBoard } = require("../../modules/tasks/tasks.board");
 const { findSprintBoardCounts } = require("../../modules/tasks/tasks.sprintRepository");
 const { resolveTaskVisibilityForRequest, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { listSprintTasks } = require("../../modules/tasks/tasks.collection");
@@ -17,7 +18,20 @@ function getSprintBoard(loadAccessibleSprint: SprintAccess) {
             if (!sprint) return;
 
             const actor = taskActorFromRequest(req);
-            const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, actor.projectOwnership ? sprint.project_id : undefined);
+            if (actor.projectOwnership && sprint.project_id != null) {
+                const result = await readProjectBoard(req.db!, {
+                    userId: actor.userId, orgId: actor.orgId, orgRole: actor.role,
+                    teamIds: (req as any).userTeamIds ?? (actor.teamId == null ? [] : [actor.teamId]),
+                }, Number(sprint.project_id), id);
+                const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, sprint.project_id);
+                return res.json({
+                    sprint,
+                    columns: buildProjectBoardColumns(lifecycle, result.project, result.tickets),
+                    tickets: (await enrichTasks(result.tickets, req.db!, actor, lifecycle))
+                        .map((ticket: any) => ({ ...ticket, sprint_end_date: sprint.end_date })),
+                });
+            }
+            const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, sprint.project_id);
             const visibility = await resolveTaskVisibilityForRequest(actor, {
                 teamId: sprint.team_id,
                 projectId: sprint.project_id,
