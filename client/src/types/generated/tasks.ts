@@ -112,6 +112,7 @@ export interface Task {
   estimated_minutes?: number | null;
   logged_minutes?: number;
   assigned_to?: number | null;
+  assignee?: TaskAssignee;
   user_id?: number;
   org_id?: number | null;
   is_blocked: boolean;
@@ -166,6 +167,12 @@ export interface TaskListResponse {
   total: number;
 }
 
+export interface TaskCollectionResponse {
+  tasks: Task[];
+  stats: TaskCollectionResponseStats;
+  pagination?: TaskCollectionResponsePagination;
+}
+
 export interface BacklogResponse {
   tasks: Task[];
   completed_count: number;
@@ -189,12 +196,30 @@ export interface TicketCapabilitiesCan {
   canAddSubtask: TicketCapability;
 }
 
+export interface TaskAssignee {
+  username: string;
+  full_name: string | null;
+  avatar: string | null;
+}
+
 export interface TaskProject {
   id: number;
   key: string;
   name: string;
   color?: string;
   is_archived: boolean;
+}
+
+export interface TaskCollectionResponseStats {
+  total: number;
+  done: number;
+  inProgress: number;
+  percent: number;
+}
+
+export interface TaskCollectionResponsePagination {
+  offset: number;
+  hasMore: boolean;
 }
 
 export interface BacklogResponsePagination {
