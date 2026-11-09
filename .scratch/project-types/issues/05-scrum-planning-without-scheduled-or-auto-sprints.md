@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Project type controls and lifecycle; 02: Start dates without Scheduled placement.
 
-**Status:** ready-for-agent
+**Status:** resolved (platform + web); PostgreSQL integration verification blocked
 
 - [x] Scrum projects keep Backlog, Sprint and Reports tabs whether or not a sprint is active; the empty Sprint state points members to the backlog.
 - [x] Joining, leaving or changing a sprint's end date never changes a ticket's due date; the board shows the sprint end date beside the ticket due date.
