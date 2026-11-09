@@ -2,7 +2,7 @@
   "components/DailyNotes/components/NotesHome.tsx": 607,
   "components/DailyNotes/components/SlashMenu.tsx": 647,
   "components/DailyNotes/useNotesStore.ts": 1439,
-  "components/agile/AgileWorkflowPanels.tsx": 1127,
+  "components/agile/AgileWorkflowPanels.tsx": 1123,
   "components/calendar/EventFormModal.tsx": 658,
   "components/chat/CallOverlay.tsx": 997,
   "components/chat/call/index.tsx": 1721,
@@ -22,6 +22,6 @@
   "pages/chat/useMessageActions.ts": 750,
   "pages/integrations/GitHubIntegration.tsx": 704,
   "pages/meeting/useMeetingState.ts": 2971,
-  "pages/tasks/TaskDetailModal.tsx": 613,
+  "pages/tasks/TaskDetailModal.tsx": 552,
   "pages/tenants/TenantDetail.tsx": 572
 }

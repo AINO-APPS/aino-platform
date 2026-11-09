@@ -8,13 +8,26 @@ import type { Request, Response } from "express";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 
-const { logHistory } = require('./_helpers/logHistory');
 const { loadAccessibleTask } = require('./_helpers/access');
-const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
+const { taskActorFromRequest, canReadProjectTask } = require('../../modules/tasks/tasks.policy');
 const { enrichTaskSummaries } = require('./_helpers/enrich');
 import * as taskService from "../../modules/tasks/tasks.service";
+import { createBacklogTicket } from "./backlog";
+import { sendHierarchyRefusal } from "./_helpers/hierarchy";
+import { setTicketParent } from "../../modules/tasks/tasks.hierarchy";
 
 const router = express.Router();
+
+router.post('/:id/subtasks', auth, loadUserContext, async (req: Request, res: Response) => {
+    try {
+        req.body = { ...req.body, work_item_type_id: "subtask", parent_task_id: req.params.id };
+        return await createBacklogTicket(req, res);
+    } catch (error) {
+        if (sendHierarchyRefusal(res, error)) return;
+        req.log.error({ err: error }, "Error creating subtask");
+        res.status(500).json({ error: "Failed to create subtask" });
+    }
+});
 
 // GET /tasks/:id/children — list direct children of this task (any tickets
 // whose parent_task_id matches). Used by the Epic detail panel.
@@ -24,7 +37,7 @@ router.get('/:id/children', auth, loadUserContext, async (req: Request, res: Res
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task id' });
         const task = await loadAccessibleTask(req, res, id);
         if (!task) return;
-        const result = await taskService.getChildren(req.db!, id);
+        const result = await taskService.getChildren(req.db!, id, taskActorFromRequest(req));
         res.json({
             ...result,
             children: await enrichTaskSummaries(result.children, req.db, taskActorFromRequest(req)),
@@ -45,7 +58,7 @@ router.get('/:id/parent', auth, loadUserContext, async (req: Request, res: Respo
         if (!task) return;
         if (!task.parent_task_id) return res.json({ parent: null });
         const parent = await taskService.getParent(req.db!, task.parent_task_id);
-        const enrichedParent = parent
+        const enrichedParent = parent && await canReadProjectTask(parent, taskActorFromRequest(req))
             ? (await enrichTaskSummaries([parent], req.db, taskActorFromRequest(req)))[0]
             : null;
         res.json({ parent: enrichedParent });
@@ -65,15 +78,11 @@ router.patch('/:id/parent', auth, loadUserContext, async (req: Request, res: Res
         const task = await loadAccessibleTask(req, res, id);
         if (!task) return;
         const raw = req.body?.parent_task_id;
-        let newParentId;
-        try {
-            newParentId = await taskService.validateAndSetParent(req.db!, id, req.userOrgId || null, raw);
-        } catch (error) {
-            return res.status(400).json({ error: (error as Error).message });
-        }
-        await logHistory(id, req.userId, 'updated', 'parent', task.parent_task_id || 'none', newParentId || 'none', null, req.db);
+        const newParentId = await req.db!.transaction!((client: any) =>
+            setTicketParent(client, id, req.userOrgId ?? null, raw, req.userId!, taskActorFromRequest(req)));
         res.json({ id, parent_task_id: newParentId });
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         req.log.error({ err }, 'Error setting parent');
         res.status(500).json({ error: 'Failed to set parent' });
     }

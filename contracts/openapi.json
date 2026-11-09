@@ -14454,7 +14454,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14662,6 +14662,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14933,6 +14943,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15832,7 +15852,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TaskDetail"
                 }
               }
             }
@@ -16409,6 +16429,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17842,7 +17872,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -23793,7 +23823,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -23897,7 +23927,110 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/subtasks": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "post_api_tasks_id_subtasks",
+        "summary": "Add a Subtask in its parent's project and sprint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubtaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created Subtask with server capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Parent is not writable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25568,7 +25701,9 @@
               "SPRINT_PROJECT_MISMATCH",
               "WORKLOG_CANCELLED",
               "WORKLOG_FOR_OTHERS_DENIED",
-              "PROJECT_HAS_NO_SPRINTS"
+              "PROJECT_HAS_NO_SPRINTS",
+              "INVALID_HIERARCHY",
+              "SUBTASK_FOLLOWS_PARENT"
             ]
           }
         },
@@ -25654,6 +25789,9 @@
               },
               "canMoveProject": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "canAddSubtask": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -25668,7 +25806,8 @@
               "logWork",
               "logWorkForOthers",
               "canEditEstimate",
-              "canMoveProject"
+              "canMoveProject",
+              "canAddSubtask"
             ],
             "additionalProperties": false
           }
@@ -28694,6 +28833,138 @@
           }
         },
         "additionalProperties": false
+      },
+      "TicketSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "ticket_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "work_item_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workflow_state_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_subtask": {
+            "type": "boolean"
+          },
+          "state_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "project_id",
+          "ticket_key"
+        ],
+        "additionalProperties": true
+      },
+      "TaskDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Task"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "parent": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TicketSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Null when absent or inaccessible to the caller."
+              },
+              "subtasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TicketSummary"
+                },
+                "description": "Visible direct Subtasks only; no new rollups."
+              },
+              "comments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FreeFormObject"
+                }
+              }
+            },
+            "required": [
+              "parent",
+              "subtasks",
+              "comments"
+            ]
+          }
+        ]
+      },
+      "CreateSubtaskRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": true,
+        "description": "The path fixes the parent and Subtask type. Project and sprint are inherited atomically; supplied container/type/parent fields never override them."
       }
     }
   }

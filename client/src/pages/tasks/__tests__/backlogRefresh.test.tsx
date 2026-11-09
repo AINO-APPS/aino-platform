@@ -55,8 +55,6 @@ function renderBacklog(options: Record<string, unknown> = {}) {
         () =>
             useBacklog({
                 activeTab: "backlog",
-                backlogOpen: false,
-                date: "2026-10-25",
                 backlogFilters: null,
                 selectedSprintId: null,
                 showConfirm: vi.fn(),

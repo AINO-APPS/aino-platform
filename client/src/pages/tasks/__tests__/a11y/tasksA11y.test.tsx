@@ -1,8 +1,8 @@
 /**
  * WCAG 2.1 AA audit for every Tasks surface.
  *
- * The four surfaces the design spec names as release gates — Backlog, Board,
- * Plan and Schedule — are rendered and run through axe, plus the overlays that
+ * The current Backlog, Board and Plan surfaces are rendered and run through axe,
+ * plus the overlays that
  * sit on top of them. A violation fails the build, so accessibility is enforced
  * rather than promised.
  *
@@ -16,7 +16,6 @@ import BacklogCard from "../../BacklogCard";
 import TaskCard from "../../TaskCard";
 import KanbanBoard from "../../KanbanBoard";
 import SprintPlan from "../../SprintPlan";
-import ScheduleCalendar from "../../ScheduleCalendar";
 import CompletedSection from "../../CompletedSection";
 import BulkActionBar from "../../BulkActionBar";
 import CommandPalette from "../../CommandPalette";
@@ -80,12 +79,7 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
             <BacklogCard
                 task={task}
                 workflowStates={columns}
-                scheduleTaskId={null}
-                scheduleDate=""
-                setScheduleTaskId={vi.fn()}
-                setScheduleDate={vi.fn()}
                 onOpenDetail={vi.fn()}
-                onScheduleTask={vi.fn()}
             />,
         );
         await audit(container);
@@ -130,22 +124,6 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
                 onMoveToBacklog={vi.fn()}
                 onSaveGoal={vi.fn()}
                 onOpenDetail={vi.fn()}
-            />,
-        );
-        await audit(container);
-    });
-
-    test("schedule calendar", async () => {
-        const { container } = wrap(
-            <ScheduleCalendar
-                tasks={[{ id: 1, title: "Refund webhook", planned_date: "2026-10-25", story_points: 5 }]}
-                backlogTasks={[{ id: 9, title: "Unscheduled work", story_points: 8 }]}
-                mode="month"
-                onModeChange={vi.fn()}
-                onPlan={vi.fn()}
-                onUnschedule={vi.fn()}
-                onOpenDetail={vi.fn()}
-                today="2026-10-25"
             />,
         );
         await audit(container);

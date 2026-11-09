@@ -62,7 +62,8 @@ const txClient = { query: jest.fn() };
 
 function respond(sql: string, params: unknown[] = []) {
     const text = sql.replace(/\s+/g, " ");
-    if (/SELECT \* FROM tasks WHERE id = \$1/.test(text)) {
+    if (/SELECT \* FROM tasks WHERE id = \$1/.test(text)
+        || /FROM tasks t LEFT JOIN work_item_types/.test(text) && /WHERE t.id = \$1/.test(text)) {
         const row = rows[Number(params[0])];
         return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
     }

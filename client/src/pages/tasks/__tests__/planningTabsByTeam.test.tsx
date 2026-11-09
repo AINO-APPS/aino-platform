@@ -1,10 +1,4 @@
-/**
- * The tab row follows the selected team's sprint state.
- *
- * A started sprint leads with the Sprint board; Backlog and Scheduled sit beside
- * it. No active sprint hides Sprint — a planned sprint alone is not a board.
- * Service Desk belongs to every team.
- */
+/** The legacy team tab row is stable while sprint availability changes. */
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
@@ -29,21 +23,21 @@ function renderTabs(
     return { onTab, onSprint };
 }
 
-describe("planning tabs follow the team's sprint state", () => {
+describe("legacy team planning tabs", () => {
     test("an active sprint offers Sprint, Backlog and Service Desk — never Scheduled", () => {
         renderTabs(7);
-        // Sprint and Scheduled are alternatives (ADR-015).
         for (const name of [/^Sprint$/, /Backlog/, /Service Desk/]) {
             expect(screen.getByRole("tab", { name })).toBeTruthy();
         }
         expect(screen.queryByRole("tab", { name: /Scheduled/ })).toBeNull();
     });
 
-    test("only a planned sprint hides the Sprint tab", () => {
+    test("Sprint remains available even when there is no current sprint", () => {
         renderTabs(null);
-        expect(screen.queryByRole("tab", { name: /^Sprint$/ })).toBeNull();
+        expect(screen.getByRole("tab", { name: /^Sprint$/ })).toBeTruthy();
         expect(screen.getByRole("tab", { name: /Backlog/ })).toBeTruthy();
-        expect(screen.getByRole("tab", { name: /Scheduled/ })).toBeTruthy();
+        expect(screen.getByRole("tab", { name: /Service Desk/ })).toBeTruthy();
+        expect(screen.queryByRole("tab", { name: /Scheduled/ })).toBeNull();
     });
 
     test("agile off hides Sprint even with an active sprint", () => {

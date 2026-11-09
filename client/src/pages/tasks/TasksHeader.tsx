@@ -15,9 +15,6 @@ import s from "./TasksHeader.module.css";
 interface TasksHeaderProps {
     activeTab: string;
     setActiveTab: (tab: string) => void;
-    date?: string;
-    setDate?: (d: string) => void;
-    isToday?: boolean;
     selectedSprintId: number | null;
     setSelectedSprintId: (id: number | null) => void;
     backlogTasks: any[];
@@ -65,9 +62,6 @@ interface TasksHeaderProps {
 export default function TasksHeader({
     activeTab,
     setActiveTab,
-    date,
-    setDate,
-    isToday,
     selectedSprintId,
     setSelectedSprintId,
     backlogTasks,
@@ -201,24 +195,38 @@ export default function TasksHeader({
                                 <span className="page-icon">
                                     {activeTab === "service-desk" ? (
                                         <Headset size={18} style={{ verticalAlign: "middle" }} />
-                                    ) : activeTab === "scheduled" || activeTab === "calendar" ? (
+                                    ) : activeTab === "calendar" ? (
                                         <CalendarDays size={18} style={{ verticalAlign: "middle" }} />
+                                    ) : activeTab === "reports" ? (
+                                        <BarChart3 size={18} style={{ verticalAlign: "middle" }} />
                                     ) : (
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "list" ? "List" : activeTab === "calendar" ? "Calendar" : activeTab === "board" ? "Board" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
+                                {activeTab === "service-desk"
+                                    ? "Service Desk"
+                                    : activeTab === "list"
+                                      ? "List"
+                                    : activeTab === "calendar"
+                                      ? "Calendar"
+                                    : activeTab === "reports"
+                                      ? "Reports"
+                                      : activeTab === "board"
+                                        ? "Board"
+                                        : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
                                     : datedProjectView
                                       ? `${teamName} — ${activeTab === "list" ? "every ticket, sorted your way" : "plan open work by start and due dates"}`
-                                    : projectBoard
-                                      ? activeTab === "board" ? "Project-wide workflow, without sprint boundaries" : "Initial-state tickets waiting to join the board"
-                                    : activeTab === "scheduled"
-                                      ? "Tickets planned onto a day, with no sprint — overdue first"
-                                      : "Tickets with no sprint and no day planned, waiting to be picked up"}
+                                    : activeTab === "reports"
+                                      ? "Sprint insights and project delivery reports"
+                                      : projectBoard
+                                        ? activeTab === "board"
+                                            ? "Project-wide workflow, without sprint boundaries"
+                                            : "Initial-state tickets waiting to join the board"
+                                        : "Tickets not assigned to a sprint yet, waiting to be picked up"}
                             </p>
                         </>
                     )}
@@ -250,7 +258,7 @@ export default function TasksHeader({
                             }}
                             className={s["date-input"]}
                             aria-label="Team"
-                            title="Show another team's sprint, backlog and scheduled tickets"
+                            title="Show another team's planning views"
                         >
                             {selectedTeamId == null && <option value="" disabled>Select a team</option>}
                             {teams.map((team: any) => (
@@ -462,7 +470,7 @@ export default function TasksHeader({
                                                 >
                                                     {pri.icon} {pri.label}
                                                 </span>
-                                                {task.planned_date ? (
+                                                {task.due_date ? (
                                                     <span className={s["global-search-date"]}>
                                                         <CalendarDays
                                                             size={11}
@@ -471,7 +479,7 @@ export default function TasksHeader({
                                                                 verticalAlign: "middle",
                                                             }}
                                                         />
-                                                        {task.planned_date}
+                                                        Due {formatDate(task.due_date)}
                                                     </span>
                                                 ) : (
                                                     <span className={s["global-search-date"]}>
@@ -559,7 +567,7 @@ export default function TasksHeader({
                                 ))}
                             </select>
                         </div>
-                        {(activeTab === "sprint" || activeTab === "scheduled") && (
+                        {activeTab === "sprint" && (
                             <div className={s["filter-group"]}>
                                 <label>Status</label>
                                 <select

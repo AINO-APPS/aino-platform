@@ -17,3 +17,14 @@
 Web is complete; the combined Web/Android checkbox remains open for Android.
 See [platform evidence](../evidence-03-platform.md). Ticket05 owns the shared
 Scrum card sprint-end chip; ticket11 compatibility removal is untouched.
+
+## Answer
+
+The platform/web slice is integrated as `5cb690ad`. Post-merge validation
+passed: 104 focused server tests, 17 client tests, 87 contract tests, and root
+guardrails, including real-PostgreSQL migration replay and WIP enforcement.
+
+The 10 non-board legacy sprint-suite failures documented in the platform
+evidence remain known; this does not claim that broader legacy sprint suite is
+clean. Android remains pending, so only platform/web acceptance is resolved;
+the combined Web/Android acceptance remains open.

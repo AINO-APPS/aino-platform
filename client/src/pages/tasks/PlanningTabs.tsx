@@ -1,6 +1,6 @@
 /** Render the selected project's server-decided tabs without deriving type rules. */
 import React from "react";
-import { CalendarDays, Package, Headset } from "../../constants/icons";
+import { Package, Headset } from "../../constants/icons";
 import { planningTabs, type PlanningSurface } from "./hooks/usePlanningSurface";
 import type { TasksView } from "./hooks/useTasksRoute";
 import s from "./TasksHeader.module.css";
@@ -22,15 +22,13 @@ const LABELS: Record<TasksView, string> = {
     reports: "Reports",
     sprint: "Sprint",
     backlog: "Backlog",
-    scheduled: "Scheduled",
     "service-desk": "Service Desk",
 };
 
-/** The icon each tab shows; Sprint has none, the label says enough. */
+/** The icon each tab shows; Sprint and Reports need no additional icon. */
 function TabIcon({ tab }: { tab: TasksView }) {
     const style = { verticalAlign: "middle" as const, marginRight: 4 };
     if (tab === "backlog") return <Package size={14} style={style} />;
-    if (tab === "scheduled") return <CalendarDays size={14} style={style} />;
     if (tab === "service-desk") return <Headset size={14} style={style} />;
     return null;
 }
@@ -53,7 +51,6 @@ export default function PlanningTabs({
                     role="tab"
                     aria-selected={activeTab === tab}
                     className={`${s["tab-btn"]} ${activeTab === tab ? s["tab-active"] : ""}`}
-                    title={tab === "scheduled" ? "Unsprinted tickets with a planned day" : undefined}
                     onClick={() => {
                         if (tab === "sprint") setSelectedSprintId(sprintId as number);
                         setActiveTab(tab);

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { currentStatusOption, statusOptions } from "./taskStatus";
-import { getLocalToday } from "../../api/client";
-import { CardBody, ScheduleControl } from "./TaskCardParts";
+import { CardBody } from "./TaskCardParts";
 import { useAgileConfig } from "../../AgileConfigContext";
 import IssueKey from "./IssueKey";
 import TaskCardMenu from "./TaskCardMenu";
@@ -13,12 +12,7 @@ import c from "./TaskCard.module.css";
 interface BacklogCardProps {
     task: any;
     workflowStates: any;
-    scheduleTaskId: number | string | null;
-    scheduleDate: string;
-    setScheduleTaskId: (v: number | string | null) => void;
-    setScheduleDate: (v: string) => void;
     onOpenDetail: (task: any) => void;
-    onScheduleTask: (id: number | string, title: string) => void;
     /** Manual ordering: drag, keyboard and touch all route through here. */
     reorder?: {
         draggingId: number | string | null;
@@ -48,16 +42,11 @@ interface BacklogCardProps {
     attribution?: { name: string } | null;
 }
 
-/** One backlog row: the shared Plan card plus selection, reorder, inline title edit and scheduling. */
+/** One backlog row: the shared Plan card plus selection, reorder and inline title edit. */
 export default function BacklogCard({
     task,
     workflowStates,
-    scheduleTaskId,
-    scheduleDate,
-    setScheduleTaskId,
-    setScheduleDate,
     onOpenDetail,
-    onScheduleTask,
     reorder,
     onInlineEdit,
     onAddToSprint,
@@ -74,11 +63,6 @@ export default function BacklogCard({
     const issueKey = task.issue_key || `#${task.id}`;
     const selected = selection?.isSelected(task.id) ?? false;
     const canReorder = Boolean(reorder) && actionDecision(task, "edit").allowed;
-    const openSchedule = () => {
-        setScheduleTaskId(task.id);
-        setScheduleDate(getLocalToday());
-    };
-
     const titleSlot = editingTitle && actionDecision(task, "edit").allowed ? (
         <input
             className={s["backlog-inline-input"]}
@@ -177,15 +161,6 @@ export default function BacklogCard({
                     titleSlot={titleSlot}
                     actionsSlot={
                         <span className={s["backlog-actions"]}>
-                            {!isReadOnlyTicket(task) && <ScheduleControl
-                                {...decisionProps(actionDecision(task, "schedule"))}
-                                open={scheduleTaskId === task.id}
-                                date={scheduleDate}
-                                onOpen={openSchedule}
-                                onClose={() => setScheduleTaskId(null)}
-                                onDateChange={setScheduleDate}
-                                onConfirm={() => onScheduleTask(task.id, task.title)}
-                            />}
                             <TaskCardMenu
                                 label={`Actions for ${issueKey}`}
                                 items={[
@@ -193,7 +168,6 @@ export default function BacklogCard({
                                     ...(onAddToSprint && !isReadOnlyTicket(task)
                                         ? [{ label: "Add to sprint", ...decisionProps(actionDecision(task, "placeInSprint")), onSelect: () => onAddToSprint(task) }]
                                         : []),
-                                    ...(!isReadOnlyTicket(task) ? [{ label: "Schedule to a day", ...decisionProps(actionDecision(task, "schedule")), onSelect: openSchedule }] : []),
                                     ...(onInlineEdit && !isReadOnlyTicket(task) ? [{
                                         label: "Edit title", ...decisionProps(actionDecision(task, "edit")),
                                         onSelect: () => setEditingTitle(true),

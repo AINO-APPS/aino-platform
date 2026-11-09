@@ -1,18 +1,17 @@
 /**
- * Ticket placement: the one module that moves tickets between the three
- * planning containers (sprint, Scheduled, backlog) — ADR-015.
+ * Ticket placement: the one module that moves tickets between planning
+ * containers. Current project types use sprint/backlog/board placement; the
+ * legacy Scheduled target remains for compatibility until ticket 11.
  *
- * Every write to `sprint_id`, `planned_date`, and the due-date bookkeeping
- * that goes with sprint membership (`due_date` ↔ `pre_sprint_due_date`) goes
- * through here, so the rules live in one place instead of in every route
- * (architecture review 2026-11-01; `.scratch/ticket-placement/spec.md`).
- * SQL lives in `tasks.placementRepository.ts`.
+ * Every write to `sprint_id`, `planned_date`, and legacy
+ * `pre_sprint_due_date` cleanup goes through here, so placement rules live in
+ * one place instead of in every route. Ticket due dates are independent of
+ * sprint membership. SQL lives in `tasks.placementRepository.ts`.
  *
  * Targets: "leave the sprint" and "back to the backlog" are two targets, not
  * one. Leaving a sprint (unassign, sprint completion or deletion, transfer)
- * keeps a planned day the ticket already had, so it lands in Scheduled — the
- * sprint only outranked the day. "Back to the backlog" is the user's explicit
- * request to clear both.
+ * keeps legacy planned-date metadata when leaving a sprint. "Back to the
+ * backlog" is the user's explicit request to clear it too.
  *
  * Callers pass an open transaction. History and audit are written inside it;
  * realtime and notifications are handed to `effects` only after COMMIT, so a
@@ -31,6 +30,8 @@ import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
 import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
 import { placementRefusal } from "./tasks.placementRules";
 import type { PlacementTarget } from "./tasks.placementRules";
+import { assertTicketHierarchy, getHierarchyTicket } from "./tasks.hierarchy";
+import { findDecisionSubtasks } from "./tasks.capabilitiesRepository";
 export { placementRefusal, type PlacementTarget } from "./tasks.placementRules";
 
 export type { PlacementDb } from "./tasks.placementRepository";
@@ -63,6 +64,8 @@ export interface PlacementContext {
     /** Present for user writes; sprint lifecycle maintenance is a system operation. */
     ticketActor?: TaskActor;
     projectOwnership?: boolean;
+    /** Only the atomic create path may place a newly created subtask. */
+    creatingSubtaskOf?: number;
 }
 
 export type PlacementRefusalCode =
@@ -78,7 +81,8 @@ export type PlacementRefusalCode =
     | "TEAM_UNCHANGED"
     | "PROJECT_NOT_FOUND"
     | "PROJECT_UNCHANGED"
-    | "WORKFLOW_NOT_FOUND";
+    | "WORKFLOW_NOT_FOUND"
+    | "SUBTASK_FOLLOWS_PARENT";
 
 export type PlacementResult =
     | { id: number; ok: true; task: any }
@@ -141,14 +145,17 @@ export async function placeTickets(
         context.sprints = sprints;
         if (targetSprintId != null) context.targetSprint = targetSprint;
     }
+    const subtaskIds = context?.subtaskIds ?? new Set((await findDecisionSubtasks(ctx.db, ids, ctx.actor.orgId)).map((row) => Number(row.id)));
 
     const decisions = ids.map((id) => {
         const before = tickets.get(id);
         const action = plansDay(target) ? "schedule" : joinsSprint(target) ? "placeInSprint" : "edit";
+        const creatingSubtask = ctx.creatingSubtaskOf != null && Number(before?.parent_task_id) === ctx.creatingSubtaskOf;
+        if (creatingSubtask) context?.subtaskIds?.delete(id);
         const verdict = before && context && ctx.ticketActor
             ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
-        const code = !before ? "NOT_FOUND" : verdict
-            ? verdict.allowed ? null : verdict.reason
+        const code = !before ? "NOT_FOUND" : verdict && !verdict.allowed ? verdict.reason
+            : subtaskIds.has(id) && !creatingSubtask ? "SUBTASK_FOLLOWS_PARENT" : verdict ? null
             : placementRefusal(before, target, targetSprint, sprints, projectOwnership);
         return { id, before, code };
     });
@@ -223,6 +230,9 @@ async function prepareProjectMove(ctx: MoveContext, before: any, projectId: numb
         if (role !== "member" && role !== "project_admin") return refusedTransfer(id, role ? "READ_ONLY_ROLE" : "ACCESS_DENIED");
         if (project.is_archived) return refusedTransfer(id, "PROJECT_ARCHIVED");
     }
+    const hierarchyTicket = await getHierarchyTicket(ctx.db, id, ctx.actor.orgId);
+    if (hierarchyTicket?.is_subtask) return refusedTransfer(id, "SUBTASK_FOLLOWS_PARENT");
+    await assertTicketHierarchy(ctx.db, { id, org_id: ctx.actor.orgId, project_id: projectId });
     const { source: oldState, states } = await repo.findMoveStates(ctx.db, before.workflow_state_id, projectId, ctx.actor.orgId);
     const state = states.find((candidate) => oldState && candidate.key === oldState.key)
         ?? states.find((candidate) => oldState && candidate.category === oldState.category)
@@ -279,26 +289,14 @@ export async function moveTicketProject(
     return { id: ticketId, ok: true, task: after, oldTeamId: before.team_id ?? null, clearedSprint };
 }
 
-/**
- * A sprint's end date moved: members whose due date is still the old end take
- * the new one (ADR-015, amended 2026-11-01). A due date someone edited by hand
- * inside the sprint is theirs and stays. Returns how many tickets moved; a
- * sprint outside the actor's org moves nothing.
- */
+/** A sprint end date is not a ticket due date. Kept as a legacy no-op seam. */
 export async function retimeSprintDueDates(
-    ctx: PlacementContext,
-    sprintId: number,
-    oldEnd: string,
-    newEnd: string,
+    _ctx: PlacementContext,
+    _sprintId: number,
+    _oldEnd: string,
+    _newEnd: string,
 ): Promise<number> {
-    if (oldEnd === newEnd) return 0;
-    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
-    const members = await repo.lockSprintMembersDueOn(ctx.db, sprintId, oldEnd, ctx.actor.orgId);
-    for (const before of members) {
-        const after = await repo.setDueDate(ctx.db, Number(before.id), newEnd);
-        await record(ctx, "place", before, after, historyFor(before, after, new Map()));
-    }
-    return members.length;
+    return 0;
 }
 
 function joinsSprint(target: PlacementTarget): target is { sprint: number } {

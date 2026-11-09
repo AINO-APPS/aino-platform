@@ -47,12 +47,7 @@ const backlogCard = (
     <BacklogCard
         task={baseTask}
         workflowStates={[]}
-        scheduleTaskId={null}
-        scheduleDate=""
-        setScheduleTaskId={vi.fn()}
-        setScheduleDate={vi.fn()}
         onOpenDetail={vi.fn()}
-        onScheduleTask={vi.fn()}
     />
 );
 

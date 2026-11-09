@@ -12,6 +12,35 @@ User-facing guides: [Projects](../../../docs/PROJECTS.md) and
 [Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
 flag-off compatibility policy.
 
+## Ticket hierarchy (project types, Expand)
+
+`tasks.hierarchy.ts` owns Epic → Story/Task/Bug → Subtask validation; its
+repository owns hierarchy reads and transactional history. Custom non-epic,
+non-subtask types occupy the Story/Task/Bug level. Create, parent/type edits and
+project moves validate both the changed ticket and its children under the same
+organization placement lock. Epics retain cross-project children. Subtasks
+require an ordinary parent in the same project and sprint and cannot move on
+their own (`SUBTASK_FOLLOWS_PARENT`); other violations return `INVALID_HIERARCHY`
+with the violated rule.
+
+`POST /api/tasks/:id/subtasks` reuses backlog creation, fixes the parent/type,
+and inherits project/sprint. Both older create routes also inherit those fields
+when the selected type is Subtask. Creation and parent/type history are atomic.
+Detail returns visible `parent` and `subtasks` summaries; `canAddSubtask` is a
+server decision, including viewer, archived and frozen-sprint refusals.
+
+Migration `0031_ticket_hierarchy.sql` seeds/protects the unique Subtask type,
+including future organizations. It detaches invalid ordinary/epic links;
+invalid legacy Subtasks become ordinary Tasks without moving their project or
+key, while valid Subtasks' sprint mismatches are aligned. Full before/after
+snapshots and reasons remain in `task_hierarchy_repairs`, with system history.
+The data marker makes SQL replay safe. No cascading moves, nesting, new rollups
+or point-metric changes are implemented here (ticket 07); parent project moves
+that would strand Subtasks are refused until cascading is available.
+
+Real PostgreSQL coverage: `npx jest tasks.hierarchy.integration
+tasksHierarchyExpand.integration --runInBand`.
+
 ## Start date (project types, Expand)
 
 ### Task list reads and calendar

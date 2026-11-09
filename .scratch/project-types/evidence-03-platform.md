@@ -66,8 +66,16 @@ returned; the final PG run passed and cleaned its disposable database.
 
 `0c3333e8` was merged with `--no-ff` into `integration/project-types` as
 `5cb690ad`, with no conflicts. The focused server/client tests, contracts and
-guardrails above were already run on the ticket commit; they were not repeated
-after this conflict-free merge.
+guardrails were rerun after the conflict-free merge:
+
+- Server: **104 focused tests passed** across the 64-test board/workflow run,
+  35-test web/snapshot run, and 5 relevant sprint-board route tests. The
+  PostgreSQL board integration tests, including migration replay and the
+  concurrent WIP-slot check, passed against the existing disposable test
+  service; the suite cleaned up its database.
+- Client: **17 focused tests passed** across four files.
+- Contracts: **87 tests passed**; `npm run contracts:validate` passed.
+- Root `npm run check:guardrails`: passed.
 
 Ticket03's platform/web slice is resolved, but the combined Web/Android
 checkbox remains open for Android. Migration0031 is reserved by ticket06.

@@ -467,6 +467,32 @@ Search, export, Notes, manager/attendance reads and dashboard week windows use
 start date. Sprint-date bookkeeping and remaining legacy routes are retained
 until the separate planning/Contract tickets.
 
+### Ticket hierarchy (Expand)
+
+The fixed levels are Epic → Story/Task/Bug → Subtask. Custom ordinary work-item
+types occupy the middle level. Epics have no parent; middle-level tickets have
+an optional epic parent (including another project); a Subtask requires an
+ordinary parent in the same project and sprint and has no children.
+
+- `POST /api/tasks/:id/subtasks` takes at least `{title}`. The path fixes parent
+  and Subtask type; project/sprint come from that parent, never from supplied
+  container fields. Both legacy create routes apply the same inheritance when
+  `work_item_type_id` selects Subtask.
+- `PATCH /api/tasks/:id/parent` and full edits validate both the parent and
+  children. Successful parent/type changes have transactional history.
+- Invalid relationships return `409 INVALID_HIERARCHY` with the violated rule.
+  Independent Subtask sprint/project writes return `409 SUBTASK_FOLLOWS_PARENT`,
+  including full edits, bulk placement and project-move previews.
+- Detail adds `parent` (nullable) and `subtasks` summary arrays with keys.
+  Inaccessible cross-project relationships are omitted. Render the
+  `capabilities.can.canAddSubtask` decision rather than deriving permissions.
+- Work-item-type responses include `is_subtask`. Exactly one seeded Subtask
+  type per organization stays active and cannot be deleted or made default.
+
+Migration repair snapshots and reasons are recorded in `task_hierarchy_repairs`
+and system ticket history. Cascading moves, nesting and new rollups/point rules
+belong to ticket 07 and are not provided by this endpoint expansion.
+
 ### GET `/api/tasks`
 Read legacy day/sprint tasks, or opt into project List/Calendar views.
 

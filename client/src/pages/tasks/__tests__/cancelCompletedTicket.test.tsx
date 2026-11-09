@@ -74,8 +74,6 @@ function renderModal(task: Record<string, unknown>) {
                     onAddComment={vi.fn()}
                     onEditComment={vi.fn()}
                     onDeleteComment={vi.fn()}
-                    onSchedule={vi.fn()}
-                    onUnschedule={vi.fn()}
                     onStatusChange={vi.fn()}
                 />
             </ToastProvider>

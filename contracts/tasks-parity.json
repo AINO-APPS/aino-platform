@@ -37,6 +37,16 @@
       }
     },
     {
+      "id": "ticket-subtask-hierarchy",
+      "name": "Fixed ticket hierarchy and server-decided add/open subtasks in detail",
+      "decision": "D58",
+      "phase": 3,
+      "web": { "status": "shipped", "owner_test": "client/src/components/agile/__tests__/SubtasksPanel.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/components/agile/__tests__/SubtasksPanel.test.tsx" },
+      "android": { "status": "waived", "waiver": "Server and shared web detail expansion ships first; native subtask detail is implemented by the corresponding Android ticket before version enforcement." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits the shared ticket detail add/open controls." }
+    },
+    {
       "id": "project-type-controls",
       "name": "Server-decided project type controls, lifecycle permissions and stable planning tabs",
       "decision": "D56",
@@ -56,6 +66,28 @@
       "ios": {
         "status": "waived",
         "waiver": "The scoped webview inherits the web project-type controls and server-decided tabs."
+      }
+    },
+    {
+      "id": "scrum-planning-without-scheduled",
+      "name": "Stable Scrum tabs, due-date-safe sprint placement and manual-only planning",
+      "decision": "D57",
+      "phase": 3,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/sprintTabAsync.test.tsx"
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/sprintTabAsync.test.tsx"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "The native Tasks app is maintained in a separate repository and is outside this platform/web ticket; align its planning UI in the native rollout."
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "The scoped webview inherits the web Scrum planning surfaces."
       }
     },
     {
@@ -668,16 +700,16 @@
       "decision": "D22",
       "phase": 2,
       "web": {
-        "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/ScheduleCalendar.test.tsx"
+        "status": "waived",
+        "waiver": "Ticket 05 retires Scheduled as a planning container; task-list date views remain separate."
       },
       "desktop": {
-        "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/ScheduleCalendar.test.tsx"
+        "status": "waived",
+        "waiver": "Desktop uses the web bundle; ticket 05 retires Scheduled as a planning container."
       },
       "android": {
-        "status": "shipped",
-        "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskLogicTest.kt"
+        "status": "waived",
+        "waiver": "The native Tasks app is maintained separately; its Scheduled planning UI is outside this platform/web ticket."
       },
       "ios": {
         "status": "waived",
@@ -1178,11 +1210,11 @@
     },
     {
       "id": "server-ticket-list-membership",
-      "name": "Scheduled and backlog membership render the server container",
+      "name": "Sprint and backlog membership render the server container",
       "decision": "D51",
       "phase": 1,
-      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
-      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/capabilityLists.test.tsx" },
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintMembershipExclusive.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/sprintMembershipExclusive.test.tsx" },
       "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/PlanAlignmentTest.kt" },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the web bundle." }
     },

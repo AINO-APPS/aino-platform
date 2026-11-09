@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDownCircle, ClipboardList } from "../../constants/icons";
+import { ClipboardList } from "../../constants/icons";
 import SprintProgressCard from "./SprintProgressCard";
 import SprintImportPanel from "./SprintImportPanel";
 import KanbanBoard from "./KanbanBoard";
@@ -18,7 +18,6 @@ interface SprintTabProps {
     currentUser: any;
     getColTasks: (colId: string) => any[];
     onSprintChanged: () => void;
-    carriedCount: number;
     error: string;
     sprintImportOpen: boolean;
     backlog: any;
@@ -41,7 +40,7 @@ interface SprintTabProps {
     epics: any[];
     selectedEpicId: number | string | null;
     onSelectEpic: (id: number | string | null) => void;
-    teamMode?: "sprints" | "continuous";
+    onOpenBacklog?: () => void;
     /** Reload the sprint's tasks after a failed load. */
     onRetry: () => void;
     /** The board's team scope, for the cancelled list. */
@@ -63,7 +62,6 @@ export default function SprintTab({
     currentUser,
     getColTasks,
     onSprintChanged,
-    carriedCount,
     error,
     sprintImportOpen,
     backlog,
@@ -85,18 +83,12 @@ export default function SprintTab({
     epics,
     selectedEpicId,
     onSelectEpic,
-    teamMode = "sprints",
+    onOpenBacklog,
     onRetry,
     scopeParams,
 }: SprintTabProps) {
     return (
         <>
-            {teamMode === "continuous" && (
-                <div className={s["carry-banner"]} role="status">
-                    Continuous mode: this sprint rolls forward automatically. The backlog still
-                    means work that is not in a sprint.
-                </div>
-            )}
             <SprintProgressCard
                 stats={stats}
                 sprintStats={sprintStats}
@@ -109,13 +101,6 @@ export default function SprintTab({
                 onSprintChanged={onSprintChanged}
             />
 
-            {carriedCount > 0 && (
-                <div className={s["carry-banner"]}>
-                    <ArrowDownCircle size={14} style={{ marginRight: 5, verticalAlign: "middle" }} />
-                    {carriedCount} incomplete item{carriedCount > 1 ? "s" : ""} from yesterday
-                    carried forward automatically.
-                </div>
-            )}
             {sprintImportOpen && (
                 <SprintImportPanel
                     backlogTasks={backlog.backlogTasks}
@@ -176,6 +161,7 @@ export default function SprintTab({
                         boardDrag={boardDrag}
                         announcement={boardAnnouncement}
                         attribution={attribution}
+                        sprintEndDate={availableSprints.find((sp: any) => sp.id === selectedSprintId)?.end_date}
                     />
                 </AsyncSection>
             )}
@@ -190,6 +176,11 @@ export default function SprintTab({
                     </div>
                     <p>No items in this sprint</p>
                     <span>Assign tickets from the Backlog to this sprint.</span>
+                    {onOpenBacklog && (
+                        <button className="btn btn-secondary" onClick={onOpenBacklog}>
+                            Go to Backlog
+                        </button>
+                    )}
                 </div>
             )}
         </>

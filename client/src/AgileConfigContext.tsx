@@ -53,6 +53,7 @@ interface WorkItemType {
     icon?: string;
     is_default?: boolean;
     is_epic?: boolean;
+    is_subtask?: boolean;
     sort_order?: number;
     [key: string]: unknown;
 }

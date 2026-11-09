@@ -1,5 +1,5 @@
 import { startDateOf } from "./dates";
-import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, X, Package, CalendarDays, Save, Pencil, MessageSquare, Clock, Trash2, Folder } from "../../constants/icons";
+import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, X, Save, Pencil, MessageSquare, Clock, Trash2, Folder, Package } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
@@ -17,6 +17,7 @@ import {
     WorkItemTypePicker,
 } from "../../components/agile/AgilePickers";
 import AcceptanceCriteria from "../../components/agile/AcceptanceCriteria";
+import SubtasksPanel from "../../components/agile/SubtasksPanel";
 import {
     BlockerControl,
     DependenciesPanel,
@@ -47,17 +48,6 @@ interface TaskDetailModalProps {
     onAddComment: (...args: any[]) => void;
     onEditComment: (...args: any[]) => void;
     onDeleteComment: (...args: any[]) => void;
-    onSchedule: (
-        id: number | string,
-        title: string,
-        onClose: () => void,
-        startDate: string,
-    ) => void;
-    onUnschedule: (
-        id: number | string,
-        title: string,
-        onClose: () => void,
-    ) => void;
     onStatusChange: (task: any, col: any) => void;
     showConfirm?: (...args: any[]) => void;
     closeConfirm?: (...args: any[]) => void;
@@ -84,8 +74,6 @@ export default function TaskDetailModal({
     onAddComment,
     onEditComment,
     onDeleteComment,
-    onSchedule,
-    onUnschedule,
     onStatusChange,
     showConfirm,
     closeConfirm,
@@ -393,17 +381,7 @@ export default function TaskDetailModal({
                                     {...decisionProps(actionDecision(detailTask, "placeInSprint"))}
                                     sprints={availableSprints}
                                     selected={editSprintId as any}
-                                    onChange={(id: any) => {
-                                        setEditSprintId(id as any);
-                                        if (!id) {
-                                            setEditDueDate("");
-                                        } else {
-                                            const sp = availableSprints.find(
-                                                (sp: any) => sp.id === id,
-                                            );
-                                            if (sp) setEditDueDate(sp.end_date);
-                                        }
-                                    }}
+                                    onChange={(id: any) => setEditSprintId(id as any)}
                                 />
                                 <LabelSelector
                                     labels={orgLabels}
@@ -486,43 +464,6 @@ export default function TaskDetailModal({
                                     onChange={setEditStoryPoints}
                                 />
                             </div>
-                            <div className={s["detail-edit-buttons"]}>
-                                {detailTask.container !== "scheduled" ? (
-                                    <button
-                                        {...decisionProps(actionDecision(detailTask, "edit"))}
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() =>
-                                            onSchedule(
-                                                detailTask.id,
-                                                detailTask.title,
-                                                onClose,
-                                                editStartDate,
-                                            )
-                                        }
-                                    >
-                                        <CalendarDays
-                                            size={13}
-                                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                                        />
-                                        Schedule to Day
-                                    </button>
-                                ) : (
-                                    <button
-                                        {...decisionProps(actionDecision(detailTask, "edit"))}
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() =>
-                                            onUnschedule(detailTask.id, detailTask.title, onClose)
-                                        }
-                                    >
-                                        <Package
-                                            size={13}
-                                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                                        />
-                                        Move to Backlog
-                                    </button>
-                                )}
-                            </div>
-
                             {/* Pass 2 editors — only available while editing the ticket so
                   the read-only view stays clean and changes are clustered with
                   other edits. Clicking Save Changes closes edit mode (parent
@@ -532,14 +473,12 @@ export default function TaskDetailModal({
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
                             <AcceptanceCriteria taskId={detailTask.id} />
-                            {/* Epics show their child tickets; everything else shows its
-                  parent + dependencies. The panel decides what to render
-                  based on the work item type's is_epic flag. */}
-                            <ParentChildPanel
+                           <ParentChildPanel
                                 task={detailTask}
                                 onOpenTask={swapToTask}
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
+                            <SubtasksPanel task={detailTask} onOpenTask={swapToTask} onChanged={() => fetchTasks?.()} />
                             {!isEpic && <DependenciesPanel task={detailTask} />}
                             <CustomFieldsEditor
                                 taskId={detailTask.id}

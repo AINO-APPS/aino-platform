@@ -1,30 +1,23 @@
 import SprintInsights from "./SprintInsights";
-import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as GlyphBan, ArrowDownCircle, ClipboardList } from "../constants/icons";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, assignTaskToSprint } from "../api/tasks";
-import { getLocalToday } from "../api/client";
+import { getTasks, updateTaskStatus, deleteTask, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, assignTaskToSprint } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
-import { SprintLifecycleControls } from "../components/agile/AgileWorkflowPanels";
 import ConfirmDialog from "../components/common/ConfirmDialog";
 import { useAuth } from "../AuthContext";
 import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import "highlight.js/styles/github-dark.css";
 
 import { COLUMNS } from "./tasks/constants";
-import SprintImportPanel from "./tasks/SprintImportPanel";
 import BacklogTab from "./tasks/BacklogTab";
 import TasksHeader from "./tasks/TasksHeader";
 import TaskDetailModal from "./tasks/TaskDetailModal";
 import InlineCommentPanel from "./tasks/InlineCommentPanel";
 import ServiceDeskTab from "./tasks/ServiceDeskTab";
-import ScheduledTab from "./tasks/ScheduledTab";
-import SprintProgressCard from "./tasks/SprintProgressCard";
 import BulkActionBar from "./tasks/BulkActionBar";
 import BacklogBulkBar from "./tasks/BacklogBulkBar";
-import SprintPlan from "./tasks/SprintPlan";
 import SprintTab from "./tasks/SprintTab";
 import ProjectBoard from "./tasks/ProjectBoard";
 import TaskListView from "./tasks/TaskListView";
@@ -47,7 +40,6 @@ import { useSprintBoardDrag } from "./tasks/hooks/useSprintBoardDrag";
 import { useSprintStats } from "./tasks/hooks/useSprintStats";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
-import { useTeamMode } from "./tasks/hooks/useTeamMode";
 import { usePlanningScope } from "./tasks/hooks/usePlanningScope";
 import { useTeamSwitchNavigation } from "./tasks/hooks/useTeamSwitchNavigation";
 import { useSprintBoardActions } from "./tasks/hooks/useSprintBoardActions";
@@ -78,16 +70,13 @@ export default function Tasks() {
     percent: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(() => getLocalToday());
   const [error, setError] = useAutoDismiss("") as [string, (v: string) => void];
   const [taskToDelete, setTaskToDelete] = useState<any>(null);
-  const [carriedCount, setCarriedCount] = useState(0);
   // Tabs are real routes: the URL decides the view before the first render.
   const tasksRoute = useTasksRoute();
   const [activeTab, setActiveTab] = useState<string>(tasksRoute.route.view);
   const [selectedSprintId, setSelectedSprintId] = useState<any>(() => sprintIdFrom(tasksRoute.route.sprintId));
   const [sprintImportOpen, setSprintImportOpen] = useState(false);
-  const [scheduledFocus, setScheduledFocus] = useState<string | null>(null);
   const toast = useToast() as any;
   const { data: assignableUsers = EMPTY } = useQuery({
     queryKey: ["tasks", "assignableUsers"],
@@ -117,12 +106,11 @@ export default function Tasks() {
 
   const team = usePlanningScope({ currentUser, projects: availableProjects, projectsLoaded: projectsFetched, availableSprints, setSelectedSprintId, agileEnabled: hasFeature("agile") });
   const sprintsLoaded = projectOwnership ? team.currentSprintLoaded : !hasFeature("agile") || sprintsFetched;
-  const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, effectiveTeamId, visibleSprints, teamScopeParams } = team;
+  const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
   const teamVisibility = hasFeature("team_visibility");
 
   const { sprintStats, refreshSprintStats } = useSprintStats(activeTab, selectedSprintId, tasks.length, stats.done);
   const { unitLabel, features, initialState, terminalStates, workflowStates } = useAgileConfig() as any;
-  const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
 
   const { confirmDialog, showConfirm, closeConfirm, cancelConfirm } = useConfirmDialog() as any;
   const filters = useFilters({ activeTab }) as any;
@@ -176,13 +164,11 @@ export default function Tasks() {
         setLoading(false);
       }
     },
-    [date, activeTab, selectedSprintId, filters.plannerFilters, tasksRoute.route.plan, fetchBoard, clearBoardColumns],
+    [activeTab, selectedSprintId, filters.plannerFilters, tasksRoute.route.plan, fetchBoard, clearBoardColumns],
   );
 
   const backlog = useBacklog({
     activeTab,
-    backlogOpen: false,
-    date,
     backlogFilters: filters.backlogFilters,
     /** Team scope from the admin switcher (team_id or unassigned). */
     scopeParams: teamScopeParams,
@@ -193,8 +179,7 @@ export default function Tasks() {
     closeConfirm,
     fetchTasks,
     setError,
-    onMoved: (to: "scheduled" | "sprint") => toast.info(to === "sprint" ? "Moved to the sprint" : "Dated tickets live in Scheduled — moved there", 4000),
-    onScheduled: (_id: any, day: string) => toast.success(<span>Scheduled for {day} <button className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={() => { setScheduledFocus(day); setActiveTab("scheduled"); }}>View</button></span>, 6000),
+    onMoved: () => toast.info("Moved to the sprint", 4000),
   }) as any;
   const detail = useTaskDetail({
     activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
@@ -233,8 +218,6 @@ export default function Tasks() {
 
   // Epics: the rollup list and the URL-backed epic filter.
   const epics = useEpics(tasksRoute.filters.epic);
-  // Mode follows the team on screen (an admin's picker), not the admin's own.
-  const teamMode = useTeamMode(effectiveTeamId);
 
   // Landing on the bare /tasks entry point opens the server-selected current sprint.
   useSprintLanding({
@@ -295,21 +278,6 @@ export default function Tasks() {
   }, [fetchTasks, activeTab]);
 
   useEffect(() => {
-    const today = getLocalToday();
-    if (date !== today || autoCarriedRef.current === today) return;
-    autoCarriedRef.current = today;
-    carryForwardTasks()
-      .then((res) => {
-        if ((res.data as any).carried > 0) {
-          setCarriedCount((res.data as any).carried);
-          fetchTasks();
-          setTimeout(() => setCarriedCount(0), 4000);
-        }
-      })
-      .catch(() => setError("Failed to carry forward tasks"));
-  }, [date, fetchTasks]);
-
-  useEffect(() => {
     if (showsBacklog(activeTab, tasksRoute.route.plan)) backlog.fetchBacklog();
   }, [activeTab, tasksRoute.route.plan, backlog.fetchBacklog]);
 
@@ -336,7 +304,6 @@ export default function Tasks() {
   const { showTotal: handleSummaryTotal, showPriority: handleSummaryPriority } = useSummaryFilters(filters);
   const toggleLabel = toggleLabelId;
   const getColTasks = (colId: string) => tasks.filter((t) => t.workflow_state_key === colId);
-  const isToday = date === getLocalToday();
   const sprintMode = activeTab === "sprint";
   const summaryAllActive = !filters.filterPriority;
 
@@ -391,9 +358,6 @@ export default function Tasks() {
         <TasksHeader
           activeTab={activeTab}
           setActiveTab={changeTab}
-          date={date}
-          setDate={setDate}
-          isToday={isToday}
           selectedSprintId={selectedSprintId}
           setSelectedSprintId={setSelectedSprintId}
           backlogTasks={backlog.backlogTasks}
@@ -454,7 +418,6 @@ export default function Tasks() {
               fetchTasks();
               refreshSprintStats();
             }}
-            carriedCount={carriedCount}
             error={error}
             sprintImportOpen={sprintImportOpen}
             backlog={backlog}
@@ -479,7 +442,7 @@ export default function Tasks() {
             epics={epics.epics}
             selectedEpicId={epics.selectedEpicId}
             onSelectEpic={(id) => tasksRoute.setFilters({ epic: id ? String(id) : "" })}
-            teamMode={teamMode.mode} scopeParams={teamScopeParams}
+            onOpenBacklog={() => changeTab("backlog")} scopeParams={teamScopeParams}
             onRetry={() => { setLoading(true); fetchTasks().finally(() => setLoading(false)); }}
           />
         )}
@@ -522,7 +485,6 @@ export default function Tasks() {
           <TaskCalendar key={team.selectedProject.id} project={team.selectedProject} updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail} />
         )}
         {activeTab === "reports" && <SprintInsights projectId={team.selectedProjectId} />}
-        {activeTab === "scheduled" && (<ScheduledTab updatedTicket={detail.detailTask} filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}
 
         <InlineCommentPanel
@@ -558,8 +520,6 @@ export default function Tasks() {
           onAddComment={detail.handleAddDetailComment}
           onEditComment={detail.handleEditDetailComment}
           onDeleteComment={detail.handleDetailDeleteComment}
-          onSchedule={backlog.handleScheduleTask}
-          onUnschedule={backlog.handleUnscheduleTask}
           onStatusChange={detail.handleDetailStatusChange} onReplaced={detail.replaceTicket}
           showConfirm={showConfirm}
           closeConfirm={closeConfirm}

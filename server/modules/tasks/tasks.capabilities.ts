@@ -9,14 +9,14 @@ import {
 } from "./tasks.workflowRules";
 import { isSprintFrozen, type SprintLike } from "./tasks.sprintLifecycle";
 import { placementRefusal } from "./tasks.placementRules";
-import { findDecisionOwners, findDecisionProjects, findDecisionSprints } from "./tasks.capabilitiesRepository";
+import { findDecisionOwners, findDecisionProjects, findDecisionSprints, findDecisionHierarchy } from "./tasks.capabilitiesRepository";
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
     | "IN_SPRINT" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED"
-    | "PROJECT_HAS_NO_SPRINTS" | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
+    | "PROJECT_HAS_NO_SPRINTS" | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED" | "SUBTASK_FOLLOWS_PARENT" | "INVALID_HIERARCHY";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"
-    | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate" | "canMoveProject";
+    | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate" | "canMoveProject" | "canAddSubtask";
 export interface TicketDecision {
     container: "sprint" | "scheduled" | "backlog";
     capabilities: {
@@ -41,6 +41,8 @@ export interface TicketDecisionContext {
     projects?: Map<number, { role: string | null; archived: boolean; type?: ProjectType }>;
     /** Undefined is a general action; null is a requested but unavailable destination. */
     targetSprint?: SprintLike | null;
+    subtaskIds?: Set<number>;
+    epicIds?: Set<number>;
 }
 
 export async function loadTicketDecisionContext(
@@ -73,7 +75,10 @@ export async function loadTicketDecisionContext(
             }));
         }
     }
+    const hierarchy = await findDecisionHierarchy(db, tickets.map((ticket) => Number(ticket.id)), actor.orgId);
     return {
+        subtaskIds: new Set(hierarchy.filter((row) => row.is_subtask).map((row) => Number(row.id))),
+        epicIds: new Set(hierarchy.filter((row) => row.is_epic).map((row) => Number(row.id))),
         lifecycle: options.lifecycle ?? (lifecyclesByProject.length === 1
             && (actor.projectOwnership || tickets.every((ticket) => ticket.workflow_state_id == null
                 || lifecyclesByProject[0][1].stateById.has(Number(ticket.workflow_state_id))))
@@ -98,6 +103,7 @@ export function lifecycleForTicket(actor: TaskActor, ticket: DecisionTicket, con
 }
 
 export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: TicketDecisionContext): TicketDecision {
+    const followsParent = context.subtaskIds?.has(Number(ticket.id)) === true;
     const lifecycle = lifecycleForTicket(actor, ticket, context);
     const frozen = ticket.sprint_id != null && isSprintFrozen(context.sprints.get(Number(ticket.sprint_id)));
     const current = stateOf(lifecycle, ticket);
@@ -139,6 +145,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
         ? placementRefusal(ticket, { sprint: Number(context.targetSprint.id) }, context.targetSprint, context.sprints, actor.projectOwnership)
         : null;
     const placeInSprint = !edit.allowed ? edit
+        : followsParent ? deny("SUBTASK_FOLLOWS_PARENT")
         : project && !projectTypePolicy(project).hasSprints ? deny("PROJECT_HAS_NO_SPRINTS")
         : context.targetSprint !== undefined && !(actor.projectOwnership
             ? context.targetSprint !== null
@@ -150,6 +157,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
             transitions,
             can: {
                 edit,
+                canAddSubtask: !edit.allowed ? edit : followsParent || context.epicIds?.has(Number(ticket.id)) ? deny("INVALID_HIERARCHY") : allow,
                 logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 logWorkForOthers: actor.projectOwnership && !edit.allowed ? edit
                     : !(isOrgAdmin(actor.role) || actor.projectOwnership && project?.role === "project_admin") ? deny("WORKLOG_FOR_OTHERS_DENIED")
@@ -157,8 +165,10 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
                 canEditEstimate: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 changeState,
                 cancel: cancel.allowed ? allow : deny(cancel.reason),
-                canMoveProject: actor.projectOwnership ? permission : deny("ACCESS_DENIED"),
-                transfer: actor.projectOwnership ? permission : !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,
+                canMoveProject: !permission.allowed ? permission : followsParent ? deny("SUBTASK_FOLLOWS_PARENT")
+                    : actor.projectOwnership ? permission : deny("ACCESS_DENIED"),
+                transfer: !permission.allowed ? permission : followsParent ? deny("SUBTASK_FOLLOWS_PARENT")
+                    : actor.projectOwnership ? permission : !isOrgAdmin(actor.role) ? deny("ACCESS_DENIED") : edit,
                 delete: cancel.allowed ? allow : deny(cancel.reason),
                 placeInSprint,
                 schedule: !edit.allowed ? edit : schedulingRefusal ? deny(schedulingRefusal) : allow,
