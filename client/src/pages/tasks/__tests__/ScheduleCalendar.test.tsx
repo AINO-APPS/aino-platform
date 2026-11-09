@@ -4,9 +4,9 @@ import ScheduleCalendar from "../ScheduleCalendar";
 import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const tasks = [
-    { ...ticket, container: "scheduled", id: 1, title: "Refund webhook", planned_date: "2026-10-25", story_points: 5 },
-    { ...ticket, container: "scheduled", id: 2, title: "Ledger fix", planned_date: "2026-10-25", story_points: 3 },
-    { ...ticket, container: "scheduled", id: 3, title: "Overdue item", planned_date: "2026-10-20", story_points: 2 },
+    { ...ticket, container: "scheduled", id: 1, title: "Refund webhook", start_date: "2026-10-25", planned_date: "2026-10-25", story_points: 5 },
+    { ...ticket, container: "scheduled", id: 2, title: "Ledger fix", start_date: "2026-10-25", planned_date: "2026-10-25", story_points: 3 },
+    { ...ticket, container: "scheduled", id: 3, title: "Overdue item", start_date: "2026-10-20", planned_date: "2026-10-20", story_points: 2 },
 ];
 
 const backlogTasks = [
