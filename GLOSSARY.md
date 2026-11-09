@@ -2,7 +2,7 @@
 
 The vocabulary used across the Tasks/Plan area. Storage names are noted where
 they differ from user-facing terms. See `docs/adr/` for the decisions behind them.
-Terms follow ADR-017 to ADR-020; until those ship, the code still follows ADR-013 and ADR-015.
+Current terminology follows ADR-017 to ADR-020.
 
 ## Project
 
@@ -127,14 +127,9 @@ a sprint.
 
 ## Placement
 
-Moving a ticket between the three planning containers (sprint, Scheduled,
-backlog), together with the due-date bookkeeping that goes with it. A team
-transfer that takes a ticket out of its sprint is also a placement.
-
-**Avoid:** "assign" for sprint membership; assignment means the assignee.
-
-## SprintScrum ticket between a sprint and the backlog, or between sprints. A
-project move that takes a ticket out of its sprint is also a placement.
+Moving a ticket between a sprint and the backlog, or between sprints. A project
+move that takes a ticket out of its sprint is also a placement. Placement never
+changes start or due dates.
 
 **Avoid:** "assign" for sprint membership; assignment means the assignee.
 
@@ -154,10 +149,9 @@ worked out when it is read; moving a ticket does not record a new baseline.
 
 ## Board
 
-The Kanban view of one sprint, with one column per active workflow state.
-A project's column view of its open work: the current sprint in a Scrum project,
-everything open in a Kanban or Task list project. One column per active workflow
-state. 
+A project's column view of its open work: the selected sprint in a Scrum project,
+or the project's open work in Kanban and Task list projects. One column per active
+workflow state.
 ## Column
 
 A board lane representing exactly one workflow state. Columns do not mix states.

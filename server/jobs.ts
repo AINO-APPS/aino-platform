@@ -32,7 +32,6 @@ let tokenCleanupQueue: any = null;
 let inspectorPruneQueue: any = null;
 let retentionCleanupQueue: any = null;
 let staleCallQueue: any = null;
-let sprintLifecycleQueue: any = null;
 let dueDateQueue: any = null;
 let chatMediaQueue: any = null;
 let workers: any[] = [];
@@ -63,10 +62,6 @@ const JOB_RETENTION = {
 // This sweep force-ends answered calls older than the max plausible call
 // duration so an abandoned call can never pin a user as busy indefinitely.
 const STALE_ANSWERED_TTL_SECS = 12 * 60 * 60; // 12h
-// How often the sprint lifecycle scheduler runs. Hourly is plenty — sprint
-// windows turn over on day boundaries, so an hourly sweep guarantees a new
-// sprint auto-starts within an hour of the previous one ending.
-const SPRINT_LIFECYCLE_SWEEP_MS = 60 * 60 * 1000;
 
 interface InitJobsOpts {
   autoClockOut: () => void | Promise<void>;
@@ -451,44 +446,6 @@ async function expireStaleRingingCalls(): Promise<number> {
 }
 
 /**
- * Sprint lifecycle sweep. For every tenant, drives the auto-managed sprint
- * cadence: auto-creates the current sprint window, auto-starts it, and
- * auto-completes + rolls over the previous one when its window ends. Teams in
- * manual mode or paused are skipped by the scheduler itself. Invalidates the
- * active-sprint Redis cache for any team that transitioned so the board's
- * "Active" label refreshes immediately.
- */
-async function runSprintLifecycleSweep(): Promise<number> {
-  const { runSprintLifecycle } = require("./services/sprintScheduler");
-  const { isFeatureEnabled } = require("./utils/planCatalog");
-  const redis = require("./redis");
-  let totalTransitions = 0;
-  await forEachTenant(
-    async (db: TenantDb, tenant) => {
-      // Skip tenants whose "Agile & Sprints" feature is disabled (plan
-      // default or per-tenant override) — otherwise the scheduler keeps
-      // creating/rotating auto sprints for tenants that turned the feature
-      // off from the platform console. The legacy single-tenant master
-      // context (tenant.id === null) has no plan gating and is never skipped.
-      if (tenant.id != null && !isFeatureEnabled(tenant, "agile")) return;
-      const { transitions } = await runSprintLifecycle(
-        { db, tenantId: tenant.id },
-        redis,
-      );
-      totalTransitions += transitions || 0;
-    },
-    { label: "sprintLifecycle" },
-  );
-  if (totalTransitions > 0) {
-    logger.info(
-      { transitions: totalTransitions },
-      "Sprint lifecycle transitions applied",
-    );
-  }
-  return totalTransitions;
-}
-
-/**
  * Due-date reminder sweep.
  *
  * Notifies the assignee of every open task whose due date is today or
@@ -603,19 +560,6 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
         STALE_CALL_SWEEP_MS,
       ),
     );
-    // Sprint lifecycle: run once on boot then hourly.
-    runSprintLifecycleSweep().catch((err) =>
-      logger.error({ err }, "Sprint lifecycle (startup) failed"),
-    );
-    fallbackIntervals.push(
-      setInterval(
-        () =>
-          runSprintLifecycleSweep().catch((err) =>
-            logger.error({ err }, "Sprint lifecycle (interval) failed"),
-          ),
-        SPRINT_LIFECYCLE_SWEEP_MS,
-      ),
-    );
     jobsReady = true;
     return;
   }
@@ -666,8 +610,6 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
   retentionCleanupQueue = schedule("retention-cleanup", 24 * 60 * 60 * 1000, runRetentionCleanup, "Retention cleanup");
   // Force-end calls left ringing past the TTL so an abandoned call can never ring forever.
   staleCallQueue = schedule("stale-call-sweep", STALE_CALL_SWEEP_MS, expireStaleRingingCalls, "Stale-call sweep");
-  // Hourly sprint auto-create / start / complete + rollover (services/sprintScheduler).
-  sprintLifecycleQueue = schedule("sprint-lifecycle", SPRINT_LIFECYCLE_SWEEP_MS, runSprintLifecycleSweep, "Sprint lifecycle");
   // Daily due-date reminders for open tasks due today or tomorrow.
   dueDateQueue = schedule("due-date-reminders", 24 * 60 * 60 * 1000, runDueDateReminderSweep, "Due-date reminders");
 
@@ -687,14 +629,8 @@ async function initJobs({ autoClockOut, cleanupTokens }: InitJobsOpts): Promise<
 
   // Run auto clock-out immediately on startup
   autoClockOut();
-  // Run a sprint lifecycle pass immediately so a fresh boot picks up any
-  // window that turned over while the server was down.
-  runSprintLifecycleSweep().catch((err) =>
-    logger.error({ err }, "Sprint lifecycle (startup) failed"),
-  );
-
   logger.info(
-    "BullMQ job queues initialized (auto-clock-out: 5m, token-cleanup: 1h, inspector-prune: 24h, retention-cleanup: 24h, stale-call-sweep: 5s, sprint-lifecycle: 1h)",
+    "BullMQ job queues initialized (auto-clock-out: 5m, token-cleanup: 1h, inspector-prune: 24h, retention-cleanup: 24h, stale-call-sweep: 5s)",
   );
   jobsReady = true;
 }
@@ -744,13 +680,6 @@ async function shutdownJobs(): Promise<void> {
   if (staleCallQueue) {
     try {
       await staleCallQueue.close();
-    } catch {
-      /* ignore */
-    }
-  }
-  if (sprintLifecycleQueue) {
-    try {
-      await sprintLifecycleQueue.close();
     } catch {
       /* ignore */
     }

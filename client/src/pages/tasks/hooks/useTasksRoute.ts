@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-export type TasksView = "backlog" | "sprint" | "scheduled" | "service-desk" | "board" | "list" | "calendar" | "reports";
+export type TasksView = "backlog" | "sprint" | "service-desk" | "board" | "list" | "calendar" | "reports";
 
 export interface TasksRoute {
     view: TasksView;
@@ -17,12 +17,11 @@ const VIEW_PATHS: Record<TasksView, string> = {
     reports: "/tasks/reports",
     backlog: "/tasks/backlog",
     sprint: "/tasks/sprint",
-    scheduled: "/tasks/schedule",
     "service-desk": "/tasks/desk",
 };
 
 /** Legacy `?tab=` values, redirected to their route by the page. */
-export const LEGACY_TABS: TasksView[] = ["backlog", "sprint", "scheduled", "service-desk"];
+export const LEGACY_TABS: TasksView[] = ["backlog", "sprint", "service-desk"];
 
 const PATH_VIEWS: Array<[RegExp, TasksView]> = [
     [/^\/tasks\/board\/?$/, "board"],
@@ -31,7 +30,6 @@ const PATH_VIEWS: Array<[RegExp, TasksView]> = [
     [/^\/tasks\/reports\/?$/, "reports"],
     [/^\/tasks\/backlog\/?$/, "backlog"],
     [/^\/tasks\/sprint(\/|$)/, "sprint"],
-    [/^\/tasks\/schedule\/?$/, "scheduled"],
     [/^\/tasks\/desk\/?$/, "service-desk"],
 ];
 
@@ -77,7 +75,8 @@ export function landingTasksPath(pathname: string, currentSprintId: number | str
  * Read the view from the URL.
  *
  * An unknown or stale path degrades to the backlog rather than erroring, so a
- * bookmarked link from an older build still lands somewhere useful.
+ * bookmarked link from an older build (including `/tasks/schedule`) still
+ * lands somewhere useful.
  */
 export function parseTasksRoute(pathname: string, search: URLSearchParams): TasksRoute {
     const match = PATH_VIEWS.find(([pattern]) => pattern.test(pathname));

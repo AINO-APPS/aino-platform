@@ -471,7 +471,7 @@ describe("PUT /api/sprints/:id", () => {
     });
 });
 
-describe("sprint end-date retiming", () => {
+describe("sprint end-date edits", () => {
     const sprint = {
         id: 1,
         team_id: 1,
@@ -543,7 +543,7 @@ describe("sprint end-date retiming", () => {
         return { rows, history, updatedSprint: { ...updatedSprint, end_date: newEnd } };
     }
 
-    test("editing the end date retimes only matching ticket deadlines in the same commit", async () => {
+    test("editing the end date does not change ticket due dates", async () => {
         setupAuth();
         setupCommittedTransaction();
         const { rows, history, updatedSprint } = setupRetimeQueries(sprint, "2026-11-12");
@@ -563,28 +563,19 @@ describe("sprint end-date retiming", () => {
         const txSql = mockTxClient.query.mock.calls.map(([sql]) => String(sql).replace(/\s+/g, " ").trim());
         const gate = txSql.findIndex((sql) => sql.includes("pg_advisory_xact_lock"));
         const sprintRead = txSql.findIndex((sql) => sql.startsWith("SELECT s.status FROM sprints s"));
-        const memberLock = txSql.findIndex((sql) => sql.startsWith("SELECT t.* FROM tasks t"));
         const sprintUpdateIndex = txSql.findIndex((sql) => sql.startsWith("UPDATE sprints s SET"));
         expect(gate).toBeGreaterThanOrEqual(0);
         expect(gate).toBeLessThan(sprintRead);
-        expect(sprintRead).toBeLessThan(memberLock);
-        expect(memberLock).toBeLessThan(sprintUpdateIndex);
+        expect(sprintRead).toBeLessThan(sprintUpdateIndex);
         const sprintUpdate = ([sql]: unknown[]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET");
         expect(mockTxClient.query.mock.calls.some(sprintUpdate)).toBe(true);
         expect(mockQuery.mock.calls.some(sprintUpdate)).toBe(false);
-        expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-12", "2026-11-08"]);
-        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-12"]);
-        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
-        expect(emitTaskUpdated).toHaveBeenCalledWith(
-            null,
-            41,
-            "updated",
-            expect.any(Array),
-            expect.objectContaining({ fields: { due_date: "2026-11-12" } }),
-        );
+        expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-10", "2026-11-08"]);
+        expect(history).toEqual([]);
+        expect(emitTaskUpdated).not.toHaveBeenCalled();
     });
 
-    test("resuming a sprint retimes due dates with the end-date update", async () => {
+    test("resuming a sprint shifts its end without changing ticket due dates", async () => {
         setupAuth();
         setupCommittedTransaction();
         const resumedSprint = {
@@ -607,10 +598,10 @@ describe("sprint end-date retiming", () => {
         expect(res.status).toBe(200);
         expect(mockTransaction).toHaveBeenCalledTimes(1);
         expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET status = 'active'"))).toBe(true);
-        expect(rows[0].due_date).toBe("2026-11-13");
+        expect(rows[0].due_date).toBe("2026-11-10");
         expect(rows[1].due_date).toBe("2026-11-08");
-        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-13"]);
-        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
+        expect(history).toEqual([]);
+        expect(emitTaskUpdated).not.toHaveBeenCalled();
     });
 });
 describe("POST /api/sprints/:id/start", () => {

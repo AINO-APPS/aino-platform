@@ -117,4 +117,24 @@ describe("SprintTab async states", () => {
         fireEvent.click(screen.getByRole("button", { name: "Retry" }));
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
+
+    test("an empty sprint offers a direct path back to the backlog", () => {
+        const onOpenBacklog = vi.fn();
+        renderTab({ plan: false, onOpenBacklog });
+
+        fireEvent.click(screen.getByRole("button", { name: "Go to Backlog" }));
+        expect(onOpenBacklog).toHaveBeenCalledTimes(1);
+    });
+
+    test("the sprint board shows its end date beside ticket due dates", () => {
+        renderTab({
+            plan: false,
+            selectedSprintId: 7,
+            availableSprints: [{ id: 7, end_date: "2099-11-14" }],
+            tasks: [{ id: 3, title: "Ticket with its own deadline", due_date: "2099-11-08", workflow_state_id: 2 }],
+        });
+
+        expect(screen.getByText("Nov 8")).toBeTruthy();
+        expect(screen.getByText("Sprint ends Nov 14, 2099")).toBeTruthy();
+    });
 });

@@ -1,17 +1,15 @@
 import React, { useState } from "react";
 import ArchivedProjectLabel from "./ArchivedProjectLabel";
-import { CalendarDays, MessageSquare, Ban, Clock, X, ChevronUp, ChevronDown, Minus } from "../../constants/icons";
+import { CalendarDays, MessageSquare, Ban, Clock, ChevronUp, ChevronDown, Minus } from "../../constants/icons";
 import { StoryPointBadge, WorkItemTypeBadge } from "../../components/agile/AgilePickers";
 import { PRIORITIES, type PriorityOption } from "./constants";
 import type { StatusOption } from "./taskStatus";
 import { formatDate, formatDueDate, isDueOverdue, getAvatarUrl, stripHtml } from "./utils";
-import { getLocalToday } from "../../api/client";
-import { addDays } from "./calendar";
 import s from "./TaskCard.module.css";
 import { formatMinutes } from './time';
 
 /**
- * The shared Plan card anatomy, used by the board, schedule and backlog cards:
+ * The shared Plan card anatomy, used by the board and backlog cards:
  *
  *   top     type · KEY · (points)              priority
  *   title   up to two lines
@@ -129,6 +127,7 @@ export function BlockedFlag({ task, enabled }: { task: any; enabled: boolean }) 
 
 interface CardBodyProps {
     task: any;
+    sprintEndDate?: string | null;
     status: StatusOption | undefined;
     compact: boolean;
     showStatus?: boolean;
@@ -142,9 +141,10 @@ interface CardBodyProps {
     onOpenComments?: () => void;
 }
 
-/** The card interior shared by every Plan surface. */
+/** The card interior shared by the planning surfaces. */
 export function CardBody({
     task,
+    sprintEndDate,
     status,
     compact,
     showStatus = true,
@@ -184,6 +184,11 @@ export function CardBody({
             <div className={s["card-foot"]}>
                 {showStatus && <StatusPill status={status} />}
                 <DueChip task={task} />
+                {sprintEndDate && (
+                    <span className={s["due-chip"]} title={`Sprint ends ${formatDate(sprintEndDate)}`}>
+                        Sprint ends {formatDate(sprintEndDate)}
+                    </span>
+                )}
                 <CardLabels labels={task.labels} />
                 <span className={s.grow} />
                 {!compact && onOpenComments && (
@@ -209,85 +214,5 @@ export function CardBody({
                 <AssigneeAvatar assignee={task.assignee} />
             </div>
         </>
-    );
-}
-
-function nextMonday(base: string): string {
-    const [y, m, d] = base.split("-").map(Number);
-    const day = new Date(y, m - 1, d).getDay();
-    return addDays(base, ((8 - day) % 7) || 7);
-}
-
-interface ScheduleControlProps {
-    disabled?: boolean;
-    title?: string;
-    open: boolean;
-    date: string;
-    onOpen: () => void;
-    onClose: () => void;
-    onDateChange: (value: string) => void;
-    onConfirm: () => void;
-}
-
-/** "Schedule to a day": an org-themed button with quick picks and a date input. */
-export function ScheduleControl({ open, date, onOpen, onClose, onDateChange, onConfirm, disabled = false, title }: ScheduleControlProps) {
-    const today = getLocalToday();
-    const quick = [
-        { label: "Today", value: today },
-        { label: "Tomorrow", value: addDays(today, 1) },
-        { label: "Next Mon", value: nextMonday(today) },
-    ];
-    return (
-        <span className={s["schedule-wrap"]} onClick={(event) => event.stopPropagation()}>
-            <button
-                type="button"
-                className={s["schedule-btn"]}
-                aria-label="Schedule to a day"
-                aria-expanded={open}
-                title={title || "Schedule to a day"}
-                disabled={disabled}
-                onClick={open ? onClose : onOpen}
-            >
-                <CalendarDays size={13} aria-hidden="true" />
-                <span className={s["schedule-btn-text"]}>Schedule</span>
-            </button>
-            {open && !disabled && (
-                <div className={s["schedule-pop"]} role="dialog" aria-label="Schedule to a day">
-                    <div className={s["schedule-pop-head"]}>
-                        <span>Schedule to a day</span>
-                        <button type="button" className={s["schedule-close"]} aria-label="Close" onClick={onClose}>
-                            <X size={14} />
-                        </button>
-                    </div>
-                    <div className={s["schedule-quick"]}>
-                        {quick.map((q) => (
-                            <button
-                                key={q.label}
-                                type="button"
-                                className={date === q.value ? s["quick-on"] : undefined}
-                                onClick={() => onDateChange(q.value)}
-                            >
-                                {q.label}
-                            </button>
-                        ))}
-                    </div>
-                    <input
-                        type="date"
-                        value={date}
-                        aria-label="Schedule date"
-                        onChange={(event) => onDateChange(event.target.value)}
-                        className={s["schedule-date"]}
-                    />
-                    <div className={s["schedule-actions"]}>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
-                            Cancel
-                        </button>
-                        <button type="button" className="btn btn-primary btn-sm" onClick={onConfirm} disabled={!date}>
-                            Schedule
-                        </button>
-                    </div>
-                </div>
-            )}
-        </span>
     );
 }

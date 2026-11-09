@@ -31,24 +31,6 @@ export async function lockTickets(db: PlacementDb, ids: number[], orgId: number 
     )).rows;
 }
 
-/** Lock and read the members of one org's sprint whose due date equals `dueDate`. */
-export async function lockSprintMembersDueOn(
-    db: PlacementDb,
-    sprintId: number,
-    dueDate: string,
-    orgId: number | null,
-): Promise<any[]> {
-    return (await db.query(
-        `SELECT t.* FROM tasks t
-           JOIN sprints s ON s.id = t.sprint_id
-           JOIN projects tm ON tm.id = s.project_id
-          WHERE t.sprint_id = $1 AND t.due_date = $2 AND tm.org_id IS NOT DISTINCT FROM $3
-          ORDER BY t.id
-            FOR UPDATE OF t`,
-        [sprintId, dueDate, orgId],
-    )).rows;
-}
-
 /**
  * Read one org's sprints with a share lock, so sprint completion cannot flip a
  * sprint to completed between the freeze check and the ticket write.
@@ -231,36 +213,31 @@ export async function setProject(
     )).rows[0];
 }
 
-// Postgres evaluates every SET expression against the pre-update row, so these
-// read the old `sprint_id` / `due_date`. The own due date is remembered only on
-// first entry (sprint → sprint keeps the original) and given back only when
-// the ticket was actually in a sprint.
-const REMEMBER_OWN_DUE_DATE = "pre_sprint_due_date = CASE WHEN sprint_id IS NULL THEN due_date ELSE pre_sprint_due_date END";
+// Leaving a sprint clears legacy bookkeeping only; ticket dates are independent.
 const LEAVE_SPRINT = `
     sprint_id = NULL,
-    due_date = CASE WHEN sprint_id IS NULL THEN due_date ELSE pre_sprint_due_date END,
     pre_sprint_due_date = NULL`;
 
-/** Join a sprint: its end becomes the due date; the owner team is set explicitly. */
+/** Join a sprint without changing the ticket's own due date. */
 export async function joinSprint(
     db: PlacementDb,
     id: number,
-    sprint: { id: number; end_date: string },
+    sprint: { id: number },
     teamId: number | null,
 ): Promise<any> {
     return (await db.query(
-        `UPDATE tasks SET ${REMEMBER_OWN_DUE_DATE}, sprint_id = $1, due_date = $2, team_id = $3
-          WHERE id = $4 RETURNING *`,
-        [sprint.id, sprint.end_date, teamId, id],
+        `UPDATE tasks SET sprint_id = $1, team_id = $2
+          WHERE id = $3 RETURNING *`,
+        [sprint.id, teamId, id],
     )).rows[0];
 }
 
-/** Leave any sprint; a planned day the ticket already had is kept. */
+/** Leave any sprint; legacy planned-date metadata is kept. */
 export async function leaveSprint(db: PlacementDb, id: number): Promise<any> {
     return (await db.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE id = $1 RETURNING *`, [id])).rows[0];
 }
 
-/** Back to the backlog: out of any sprint and off any planned day. */
+/** Back to the backlog: out of any sprint and clear legacy planned-date metadata. */
 export async function returnToBacklog(db: PlacementDb, id: number): Promise<any> {
     return (await db.query(
         `UPDATE tasks SET ${LEAVE_SPRINT}, planned_date = NULL WHERE id = $1 RETURNING *`,
@@ -270,10 +247,6 @@ export async function returnToBacklog(db: PlacementDb, id: number): Promise<any>
 
 export async function setPlannedDay(db: PlacementDb, id: number, day: string): Promise<any> {
     return (await db.query("UPDATE tasks SET planned_date = $1 WHERE id = $2 RETURNING *", [day, id])).rows[0];
-}
-
-export async function setDueDate(db: PlacementDb, id: number, dueDate: string): Promise<any> {
-    return (await db.query("UPDATE tasks SET due_date = $1 WHERE id = $2 RETURNING *", [dueDate, id])).rows[0];
 }
 
 /** Change the owner team, leaving the sprint too when `leaveSprint` is set. */

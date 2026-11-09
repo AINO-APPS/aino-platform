@@ -37,7 +37,7 @@ export function useTeamSwitchNavigation({
             if (activeTab !== "service-desk") goToView(planTabs[0]);
             return;
         }
-        if (!["sprint", "backlog", "scheduled"].includes(activeTab)) return;
+        if (!["sprint", "backlog"].includes(activeTab)) return;
         if (currentSprintId != null) goToView("sprint", currentSprintId);
         else if (activeTab === "sprint") goToView("backlog");
         // eslint-disable-next-line react-hooks/exhaustive-deps

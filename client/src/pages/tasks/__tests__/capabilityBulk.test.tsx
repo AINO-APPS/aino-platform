@@ -38,7 +38,7 @@ test("bulk writes replace backlog rows from the API result.ticket before list re
         .mockReturnValue(new Promise(() => {}));
     vi.mocked(bulkTaskAction).mockResolvedValue({ data: { changed: 1, results: [{ id: 42, ok: true, ticket: fresh }] } } as any);
     const { result } = renderHook(() => useBacklog({
-        activeTab: "backlog", backlogOpen: false, date: "2026-11-02", backlogFilters: null,
+        activeTab: "backlog", backlogFilters: null,
         selectedSprintId: null, showConfirm: vi.fn(), closeConfirm: vi.fn(), fetchTasks: vi.fn(), setError: vi.fn(),
     }), { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
     await act(async () => { await result.current.fetchBacklog(); });

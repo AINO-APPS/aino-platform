@@ -715,29 +715,16 @@ router.put("/teams/:id/sprint-config", requireRole("team_lead"), requireSameOrg,
         if (sprint_start_date !== undefined && sprint_start_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(sprint_start_date)) {
             return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
         }
-        if (sprint_mode !== undefined && !["manual", "auto"].includes(sprint_mode)) {
-            return res.status(400).json({ error: "sprint_mode must be 'manual' or 'auto'" });
+        if (sprint_mode !== undefined && sprint_mode !== "manual") {
+            return res.status(400).json({ error: "Automatic sprints are no longer supported" });
         }
 
-        await req.db!.query("UPDATE teams SET sprint_duration_weeks = $1, sprint_start_date = $2, sprint_mode = $3 WHERE id = $4",
+        await req.db!.query("UPDATE teams SET sprint_duration_weeks = $1, sprint_start_date = $2, sprint_mode = 'manual', sprint_paused = FALSE WHERE id = $3",
             [sprint_duration_weeks !== undefined ? sprint_duration_weeks : team.sprint_duration_weeks,
             sprint_start_date !== undefined ? sprint_start_date : team.sprint_start_date,
-            sprint_mode !== undefined ? sprint_mode : (team.sprint_mode || "manual"),
                 id]);
         logAction(req, "update", "team", Number(id), { sprint_duration_weeks, sprint_start_date, sprint_mode });
 
-        // When switching to (or reconfiguring) auto mode, run the lifecycle
-        // engine immediately so the active sprint snaps to the configured
-        // cadence instead of waiting up to an hour for the next sweep.
-        const effectiveMode = sprint_mode !== undefined ? sprint_mode : (team.sprint_mode || "manual");
-        if (effectiveMode === "auto") {
-            try {
-                const { runSprintLifecycle } = require("../services/sprintScheduler");
-                await runSprintLifecycle({ db: req.db, tenantId: req.tenantId }, redis);
-            } catch (e: any) {
-                req.log.warn({ err: e?.message, teamId: id }, "Immediate sprint lifecycle reconcile failed (will retry on next sweep)");
-            }
-        }
         res.json({ message: "Sprint configuration updated" });
     } catch (err) {
         req.log.error({ err }, "PUT /teams/:id/sprint-config error");

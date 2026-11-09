@@ -1,4 +1,4 @@
-/** Server project tabs are authoritative; legacy team surfaces retain their compatibility rule. */
+/** Server project tabs are authoritative; legacy team surfaces keep stable planning tabs. */
 import type { TasksView } from "./useTasksRoute";
 
 export interface PlanningSurface {
@@ -7,17 +7,9 @@ export interface PlanningSurface {
 }
 
 /**
- * The tabs in the order they are shown. `PlanningTabs` renders exactly this
- * list, so a surface added to the rule cannot silently miss the row (or appear
- * in it without the rule agreeing).
+ * The legacy team tabs in the order they are shown.
  */
 export const TAB_ORDER: TasksView[] = ["sprint", "backlog", "service-desk"];
-
-/** Shown instead of the Sprint board when there is no current sprint. */
-export const DATED_TAB: TasksView = "scheduled";
-
-/** With no current sprint the dated list takes the board's place. */
-const DATED_ORDER: TasksView[] = ["backlog", "scheduled", "service-desk"];
 
 export function planningTabs({
     agileEnabled,
@@ -28,10 +20,7 @@ export function planningTabs({
     currentSprintId: number | string | null;
     planTabs?: TasksView[];
 }): PlanningSurface {
-    if (planTabs) return { tabs: [...planTabs, "service-desk"], currentSprintId };
-    const current = agileEnabled ? currentSprintId : null;
-    // `TAB_ORDER` holds the sprint-led set; the dated surface replaces the
-    // board when there is no current sprint, so the two can never both be offered.
-    const tabs: TasksView[] = current ? [...TAB_ORDER] : [...DATED_ORDER];
-    return { tabs, currentSprintId: current };
+    if (planTabs) return { tabs: [...planTabs], currentSprintId };
+    const tabs: TasksView[] = agileEnabled ? [...TAB_ORDER] : ["backlog", "service-desk"];
+    return { tabs, currentSprintId: agileEnabled ? currentSprintId : null };
 }

@@ -2,9 +2,7 @@
  * The Tasks page must hand every handler the Backlog tab renders.
  *
  * `Tasks.tsx` spreads the `useBacklog` result into `<BacklogTab>` and adds a
- * few handlers by hand. The hook returns `handleScheduleTask`,
- * `toggleCompleted`, `showAllCompleted` and `handleAddBacklog`, while the tab
- * expects `onScheduleTask`, `onToggleCompleted`, `onShowAllCompleted` and
+ * few handlers by hand. The tab expects `onToggleCompleted`, `onShowAllCompleted` and
  * `onHandleAddBacklog`. When those names drift apart the tab still renders —
  * the handlers are simply `undefined` — and every click throws
  * "… is not a function".
@@ -30,7 +28,6 @@ vi.mock("../TasksHeader", () => ({ default: () => <div /> }));
 vi.mock("../TaskDetailModal", () => ({ default: () => null }));
 vi.mock("../InlineCommentPanel", () => ({ default: () => null }));
 vi.mock("../TasksOverlays", () => ({ default: () => null }));
-vi.mock("../ScheduledTab", () => ({ default: () => null }));
 vi.mock("../ServiceDeskTab", () => ({ default: () => null }));
 vi.mock("../SprintTab", () => ({ default: () => null }));
 vi.mock("../../components/common/ConfirmDialog", () => ({ default: () => null }));
@@ -139,7 +136,7 @@ describe("Tasks page → Backlog tab wiring", () => {
 
         const props = captured.props!;
         for (const name of [
-            "onScheduleTask",
+            "onAddToSprint",
             "onToggleCompleted",
             "onShowAllCompleted",
             "onHandleAddBacklog",

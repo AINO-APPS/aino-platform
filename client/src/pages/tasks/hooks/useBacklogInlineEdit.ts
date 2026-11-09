@@ -8,8 +8,8 @@ interface InlineEditOptions {
     fetchBacklog: (quiet?: boolean) => Promise<unknown>;
     setError: (message: string) => void;
     undo: { register: (entry: { label: string; undo: () => Promise<void> }) => void };
-    /** A ticket left the backlog for Scheduled or a sprint. */
-    onMoved?: (to: "scheduled" | "sprint") => void;
+    /** A ticket left the backlog for a sprint. */
+    onMoved?: (to: "sprint") => void;
 }
 
 /**
@@ -32,7 +32,7 @@ export function useBacklogInlineEdit({
             const { data: fresh } = await updateTask(task.id, patch);
             setBacklogTasks((current) => current.map((item) => item.id === task.id ? fresh as Task : item).filter((item) => item.container === "backlog"));
             if (fresh.container !== "backlog") {
-                if (fresh.container === "sprint" || fresh.container === "scheduled") onMoved?.(fresh.container);
+                if (fresh.container === "sprint") onMoved?.("sprint");
                 await fetchBacklog(true);
             }
             undo.register({

@@ -55,24 +55,21 @@ describe("server capability rendering (web and desktop)", () => {
                 can: {
                     ...ticket.capabilities.can,
                     edit: { allowed: false, reason: "ACCESS_DENIED" },
-                    schedule: { allowed: false, reason: "IN_SPRINT" },
                     placeInSprint: { allowed: false, reason: "SPRINT_FROZEN" },
                 },
             },
         };
         const props = {
             workflowStates: [],
-            scheduleTaskId: null, scheduleDate: "", setScheduleTaskId: vi.fn(), setScheduleDate: vi.fn(),
-            onOpenDetail: vi.fn(), onScheduleTask: vi.fn(), onInlineEdit: vi.fn(), onAddToSprint: vi.fn(),
+            onOpenDetail: vi.fn(), onInlineEdit: vi.fn(), onAddToSprint: vi.fn(),
         };
         const { rerender } = render(<BacklogCard task={denied} {...props} />);
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toHaveAttribute("title", "This ticket is in a sprint. Move it out before scheduling a day.");
+        expect(screen.queryByRole("button", { name: "Schedule to a day" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: `Actions for ${ticket.ticket_key}` }));
         expect(screen.getByRole("menuitem", { name: "Add to sprint" })).toBeDisabled();
         expect(screen.getByRole("menuitem", { name: "Edit title" })).toBeDisabled();
         rerender(<BacklogCard task={{ ...ticket, capabilities: undefined }} {...props} />);
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toBeDisabled();
+        expect(screen.queryByRole("button", { name: "Schedule to a day" })).toBeNull();
         expect(screen.getByRole("menuitem", { name: "Add to sprint" })).toBeDisabled();
     });
 

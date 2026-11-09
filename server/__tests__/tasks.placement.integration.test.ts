@@ -108,7 +108,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         return { results, changes };
     }
 
-    test("a backlog ticket joining a sprint takes the sprint's end as its due date and remembers its own", async () => {
+    test("a backlog ticket joining a sprint keeps its own due date", async () => {
         const id = await ticket({ due_date: "2026-11-20" });
 
         const { results } = await place([id], { sprint: ALPHA_PLANNED });
@@ -118,24 +118,24 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             ok: true,
             task: expect.objectContaining({
                 sprint_id: ALPHA_PLANNED,
-                due_date: "2026-11-14",
-                pre_sprint_due_date: "2026-11-20",
+                due_date: "2026-11-20",
+                pre_sprint_due_date: null,
                 planned_date: null,
             }),
         })]);
     });
 
     test.each([
-        ["a Scheduled ticket", { planned_date: "2026-11-05", due_date: "2026-11-30" }, "2026-11-30"],
-        ["a sprinted ticket with a planned day", { sprint_id: ALPHA_PLANNED, planned_date: "2026-11-05", due_date: "2026-11-14", pre_sprint_due_date: "2026-11-30" }, "2026-11-30"],
-    ])("%s joining a sprint keeps its planned day, which the sprint outranks", async (_label, seed, remembered) => {
+        ["a dated ticket", { planned_date: "2026-11-05", due_date: "2026-11-30" }, "2026-11-30", null],
+        ["a sprinted ticket with a planned day", { sprint_id: ALPHA_PLANNED, planned_date: "2026-11-05", due_date: "2026-11-14", pre_sprint_due_date: "2026-11-30" }, "2026-11-14", "2026-11-30"],
+    ])("%s joining a sprint keeps its dates", async (_label, seed, dueDate, remembered) => {
         const id = await ticket(seed);
 
         const { results } = await place([id], { sprint: ALPHA_ACTIVE });
 
         expect(results[0]).toMatchObject({
             ok: true,
-            task: { sprint_id: ALPHA_ACTIVE, planned_date: "2026-11-05", due_date: "2026-11-28", pre_sprint_due_date: remembered },
+            task: { sprint_id: ALPHA_ACTIVE, planned_date: "2026-11-05", due_date: dueDate, pre_sprint_due_date: remembered },
         });
     });
 
@@ -156,21 +156,21 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         expect(results[0]).toMatchObject({ ok: true, task: { planned_date: "2026-11-09", due_date: "2026-11-30", sprint_id: null } });
     });
 
-    test("moving sprint to sprint takes the new sprint's end and keeps the remembered own due date", async () => {
+    test("moving sprint to sprint leaves both sprint and due-date bookkeeping alone", async () => {
         const id = await ticket({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20" });
 
         const { results } = await place([id], { sprint: ALPHA_ACTIVE });
 
         expect(results[0]).toMatchObject({
             ok: true,
-            task: { sprint_id: ALPHA_ACTIVE, due_date: "2026-11-28", pre_sprint_due_date: "2026-11-20" },
+            task: { sprint_id: ALPHA_ACTIVE, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20" },
         });
     });
 
     test.each([
         ["no planned day lands in the backlog", null],
         ["a planned day lands in Scheduled", "2026-11-05"],
-    ])("leaving a sprint restores the own due date; %s", async (_label, plannedDay) => {
+    ])("leaving a sprint keeps the ticket due date; %s", async (_label, plannedDay) => {
         const id = await ticket({
             sprint_id: ALPHA_PLANNED, planned_date: plannedDay, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20",
         });
@@ -179,7 +179,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
         expect(results[0]).toMatchObject({
             ok: true,
-            task: { sprint_id: null, planned_date: plannedDay, due_date: "2026-11-20", pre_sprint_due_date: null },
+            task: { sprint_id: null, planned_date: plannedDay, due_date: "2026-11-14", pre_sprint_due_date: null },
         });
     });
 
@@ -203,9 +203,9 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     test.each([
         ["from Scheduled clears the planned day and keeps the due date", { planned_date: "2026-11-06", due_date: "2026-11-30" },
             { planned_date: null, due_date: "2026-11-30" }],
-        ["from a sprint clears the sprint and the planned day and restores the own due date",
+        ["from a sprint clears the sprint and the planned day without changing the due date",
             { sprint_id: ALPHA_PLANNED, planned_date: "2026-11-06", due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20" },
-            { sprint_id: null, planned_date: null, due_date: "2026-11-20", pre_sprint_due_date: null }],
+            { sprint_id: null, planned_date: null, due_date: "2026-11-14", pre_sprint_due_date: null }],
     ])("back to backlog %s", async (_label, seed, expected) => {
         const id = await ticket(seed);
 
@@ -282,14 +282,13 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         )).rows;
     }
 
-    test("joining a sprint records sprint and due-date history by sprint name", async () => {
+    test("joining a sprint records sprint history without rewriting the due date", async () => {
         const id = await ticket({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-14" });
 
         await place([id], { sprint: ALPHA_ACTIVE });
 
         expect(await history(id)).toEqual([
             { action: "updated", field: "sprint", old_value: "Alpha 1", new_value: "Alpha 2", user_id: ALICE },
-            { action: "updated", field: "due_date", old_value: "2026-11-14", new_value: "2026-11-28", user_id: ALICE },
         ]);
     });
 
@@ -324,7 +323,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             entity_type: "task",
             details: {
                 from: { sprint_id: null, planned_date: null, due_date: "2026-11-20" },
-                to: { sprint_id: ALPHA_PLANNED, planned_date: null, due_date: "2026-11-14" },
+                to: { sprint_id: ALPHA_PLANNED, planned_date: null, due_date: "2026-11-20" },
             },
             ip_address: "10.0.0.1",
             user_agent: "jest",
@@ -362,7 +361,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         expect(visibleToOthersWhenNotified).toBe(ALPHA_PLANNED);
         expect(changes).toEqual([expect.objectContaining({
             before: expect.objectContaining({ sprint_id: null, due_date: "2026-11-20" }),
-            after: expect.objectContaining({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-14" }),
+            after: expect.objectContaining({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-20" }),
             actor: ACTOR,
         })]);
     });
@@ -408,14 +407,13 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
                 ok: true,
                 oldTeamId: ALPHA,
                 clearedSprint: { id: ALPHA_PLANNED, name: "Alpha 1" },
-                task: { team_id: BETA, sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20", pre_sprint_due_date: null },
+                task: { team_id: BETA, sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-14", pre_sprint_due_date: null },
             });
             expect(await history(id)).toEqual(expect.arrayContaining([
                 { action: "transferred", field: "team", old_value: String(ALPHA), new_value: String(BETA), user_id: ALICE },
                 { action: "transferred", field: "project", old_value: "1", new_value: "2", user_id: ALICE },
                 { action: "transferred", field: "ticket_key", old_value: "GEN-1", new_value: "BETA-1", user_id: ALICE },
                 { action: "updated", field: "sprint", old_value: "Alpha 1", new_value: "none", user_id: ALICE },
-                { action: "updated", field: "due_date", old_value: "2026-11-14", new_value: "2026-11-20", user_id: ALICE },
                 expect.objectContaining({ action: "updated", field: "workflow_state" }),
             ]));
             expect(changes).toEqual([expect.objectContaining({
@@ -426,7 +424,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
                 action: "transfer",
                 details: {
                     from: { team_id: ALPHA, project_id: 1, ticket_key: "GEN-1", sprint_id: ALPHA_PLANNED, planned_date: "2026-11-05", due_date: "2026-11-14" },
-                    to: { team_id: BETA, project_id: 2, ticket_key: "BETA-1", sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-20" },
+                    to: { team_id: BETA, project_id: 2, ticket_key: "BETA-1", sprint_id: null, planned_date: "2026-11-05", due_date: "2026-11-14" },
                 },
             }]);
         });
@@ -446,7 +444,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     });
 
     describe("sprint end-date moves", () => {
-        test("re-time members still on the old end and leave hand-edited due dates alone", async () => {
+        test("changing a sprint end leaves every member due date unchanged", async () => {
             const onEnd = await ticket({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-30" });
             const handEdited = await ticket({ sprint_id: ALPHA_PLANNED, due_date: "2026-11-10" });
             const elsewhere = await ticket({ sprint_id: ALPHA_ACTIVE, due_date: "2026-11-14" });
@@ -457,19 +455,17 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
                 context(client, afterCommit, changes), ALPHA_PLANNED, "2026-11-14", "2026-11-17",
             ));
 
-            expect(moved).toBe(1);
+            expect(moved).toBe(0);
             const dueDates = (await pool.query(
                 "SELECT id, due_date, pre_sprint_due_date FROM tasks ORDER BY id",
             )).rows;
             expect(dueDates).toEqual([
-                { id: onEnd, due_date: "2026-11-17", pre_sprint_due_date: "2026-11-30" },
+                { id: onEnd, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-30" },
                 { id: handEdited, due_date: "2026-11-10", pre_sprint_due_date: null },
                 { id: elsewhere, due_date: "2026-11-14", pre_sprint_due_date: null },
             ]);
-            expect(await history(onEnd)).toEqual([
-                { action: "updated", field: "due_date", old_value: "2026-11-14", new_value: "2026-11-17", user_id: ALICE },
-            ]);
-            expect(changes.map((c) => c.after.id)).toEqual([onEnd]);
+            expect(await history(onEnd)).toEqual([]);
+            expect(changes).toEqual([]);
         });
 
         test("refuses a sprint outside the actor's org and re-times nothing", async () => {
@@ -489,7 +485,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             expect((await pool.query("SELECT due_date FROM tasks WHERE id = $1", [foreign])).rows[0].due_date).toBe("2026-11-14");
         });
 
-        test("concurrent retiming and placement serialize before task and sprint locks", async () => {
+        test("a sprint end edit and placement keep the ticket's due date independent", async () => {
             const id = await ticket({
                 sprint_id: ALPHA_ACTIVE,
                 due_date: "2026-11-28",
@@ -512,7 +508,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
                 [id],
             )).rows[0]).toMatchObject({
                 sprint_id: null,
-                due_date: "2026-12-10",
+                due_date: "2026-11-28",
                 pre_sprint_due_date: null,
             });
         });

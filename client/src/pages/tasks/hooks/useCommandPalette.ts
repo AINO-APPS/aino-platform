@@ -36,9 +36,8 @@ export interface PaletteItem {
 /**
  * The views the palette offers, in the order they appear.
  *
- * `allowed` is the team's tab set (`planningTabs`). Sprint and Scheduled are
- * alternatives, so the palette must not offer the one this team does not have —
- * otherwise the hidden tab stays reachable from the keyboard.
+ * `allowed` is the team's tab set (`planningTabs`), so hidden tabs stay
+ * unreachable from the keyboard.
  */
 export function paletteViews(sprintId?: string | null, allowed?: string[]): PaletteView[] {
     const views: PaletteView[] = [
@@ -49,7 +48,6 @@ export function paletteViews(sprintId?: string | null, allowed?: string[]): Pale
         { id: "view-backlog", label: "Backlog", view: "backlog" },
         { id: "view-board", label: "Sprint board", view: "sprint", sprintId },
         { id: "view-plan", label: "Sprint plan", view: "sprint", sprintId, plan: true },
-        { id: "view-schedule", label: "Schedule", view: "scheduled" },
         { id: "view-desk", label: "Service desk", view: "service-desk" },
     ];
     if (!allowed) return views.filter((entry) => !["board", "list", "calendar", "reports"].includes(entry.view));

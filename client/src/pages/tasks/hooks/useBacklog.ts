@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { getBacklog, addBacklogTask, scheduleTask, unscheduleTask, assignTaskToSprint, updateTask, bulkTaskAction } from "../../../api/tasks";
+import { getBacklog, addBacklogTask, assignTaskToSprint, updateTask, bulkTaskAction } from "../../../api/tasks";
 import { useBacklogInlineEdit } from "./useBacklogInlineEdit";
-import { getLocalToday } from "../../../api/client";
 import useRealtimeEvent from "../../../hooks/useRealtimeEvent";
 import { useVisiblePoll } from "./useVisiblePoll";
 import { useTaskPreferences } from "./useTaskPreferences";
@@ -37,8 +36,6 @@ interface UseBacklogParams {
     createProjects?: any[];
     createProjectUserKey?: string;
     activeTab: string;
-    backlogOpen: boolean;
-    date: string;
     backlogFilters: Record<string, unknown> | null;
     /** Team scope from the admin Plan switcher: `{ team_id }` or `{ unassigned: 1 }`. */
     scopeParams?: Record<string, unknown>;
@@ -47,16 +44,12 @@ interface UseBacklogParams {
     closeConfirm: () => void;
     fetchTasks: () => void;
     setError: (msg: string) => void;
-    /** Called after a successful schedule (e.g. a toast with a "View" action). */
-    onScheduled?: (taskId: number | string, date: string) => void;
-    /** A ticket left the backlog for Scheduled or a sprint after an edit. */
-    onMoved?: (to: "scheduled" | "sprint") => void;
+    /** A ticket left the backlog for a sprint after an edit. */
+    onMoved?: (to: "sprint") => void;
 }
 
 export function useBacklog({
     activeTab,
-    backlogOpen,
-    date,
     backlogFilters,
     scopeParams = EMPTY_SCOPE,
     projectOwnership = false,
@@ -67,7 +60,6 @@ export function useBacklog({
     closeConfirm,
     fetchTasks,
     setError,
-    onScheduled,
     onMoved,
 }: UseBacklogParams) {
     const [backlogTasks, setBacklogTasks] = useState<Task[]>([]);
@@ -102,10 +94,6 @@ export function useBacklog({
         enabled: projectOwnership, projects: createProjects, currentProjectId: scopeParams.project_id,
         userKey: createProjectUserKey, value: backlogProjectId, onChange: setBacklogProjectId,
     });
-    const [scheduleTaskId, setScheduleTaskId] = useState<number | string | null>(
-        null,
-    );
-    const [scheduleDate, setScheduleDate] = useState<string>(() => getLocalToday());
     const [backlogSummary, setBacklogSummary] = useState<BacklogSummary>({
         total: 0,
         byStatus: {},
@@ -367,59 +355,6 @@ export function useBacklog({
 
     const inlineEdit = useBacklogInlineEdit({ setBacklogTasks, fetchBacklog, setError, undo, onMoved });
 
-    const handleScheduleTask = (
-        taskId: number | string,
-        taskTitle: string | undefined,
-        closeAfter?: () => void,
-        overrideDate?: string,
-    ) => {
-        const dateToUse = overrideDate || scheduleDate;
-        if (!dateToUse) return;
-        showConfirm(
-            "Schedule Task",
-            `Schedule "${taskTitle || "this task"}" to ${dateToUse}?`,
-            async () => {
-                closeConfirm();
-                try {
-                    const { data } = await scheduleTask(taskId, dateToUse);
-                    replaceTicket(data as Task);
-                    setScheduleTaskId(null);
-                    fetchBacklog(true);
-                    if (dateToUse === date) fetchTasks();
-                    if (closeAfter) closeAfter();
-                    onScheduled?.(taskId, dateToUse);
-                } catch (error) {
-                    setError(writeError(error, "Failed to schedule task"));
-                }
-            },
-            { confirmText: "Schedule" },
-        );
-    };
-
-    const handleUnscheduleTask = (
-        taskId: number | string,
-        taskTitle: string | undefined,
-        closeAfter?: () => void,
-    ) => {
-        showConfirm(
-            "Move to Backlog",
-            `Move "${taskTitle || "this task"}" to backlog? Its planned day is cleared; a due date is kept as a deadline.`,
-            async () => {
-                closeConfirm();
-                try {
-                    const { data } = await unscheduleTask(taskId);
-                    replaceTicket(data as Task);
-                    fetchTasks();
-                    if (backlogOpen || activeTab === "backlog" || activeTab === "sprint") fetchBacklog(true);
-                    if (closeAfter) closeAfter();
-                } catch (error) {
-                    setError(writeError(error, "Failed to move task to backlog"));
-                }
-            },
-            { confirmText: "Move to Backlog" },
-        );
-    };
-
     const handleImportToSprint = async () => {
         if (!importConfigTask || !selectedSprintId) return;
         const importedId = importConfigTask.id;
@@ -562,10 +497,6 @@ export function useBacklog({
         backlogOffset,
         setBacklogOffset,
         backlogTotal,
-        scheduleTaskId,
-        setScheduleTaskId,
-        scheduleDate,
-        setScheduleDate,
         backlogSummary,
         backlogSort,
         setBacklogSort,
@@ -578,8 +509,6 @@ export function useBacklog({
         fetchBacklog,
         sortedBacklogTasks,
         handleAddBacklog,
-        handleScheduleTask,
-        handleUnscheduleTask,
         handleImportToSprint,
     };
 }

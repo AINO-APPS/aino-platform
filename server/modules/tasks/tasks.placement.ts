@@ -1,18 +1,17 @@
 /**
- * Ticket placement: the one module that moves tickets between the three
- * planning containers (sprint, Scheduled, backlog) — ADR-015.
+ * Ticket placement: the one module that moves tickets between planning
+ * containers. Current project types use sprint/backlog/board placement; the
+ * legacy Scheduled target remains for compatibility until ticket 11.
  *
- * Every write to `sprint_id`, `planned_date`, and the due-date bookkeeping
- * that goes with sprint membership (`due_date` ↔ `pre_sprint_due_date`) goes
- * through here, so the rules live in one place instead of in every route
- * (architecture review 2026-11-01; `.scratch/ticket-placement/spec.md`).
- * SQL lives in `tasks.placementRepository.ts`.
+ * Every write to `sprint_id`, `planned_date`, and legacy
+ * `pre_sprint_due_date` cleanup goes through here, so placement rules live in
+ * one place instead of in every route. Ticket due dates are independent of
+ * sprint membership. SQL lives in `tasks.placementRepository.ts`.
  *
  * Targets: "leave the sprint" and "back to the backlog" are two targets, not
  * one. Leaving a sprint (unassign, sprint completion or deletion, transfer)
- * keeps a planned day the ticket already had, so it lands in Scheduled — the
- * sprint only outranked the day. "Back to the backlog" is the user's explicit
- * request to clear both.
+ * keeps legacy planned-date metadata when leaving a sprint. "Back to the
+ * backlog" is the user's explicit request to clear it too.
  *
  * Callers pass an open transaction. History and audit are written inside it;
  * realtime and notifications are handed to `effects` only after COMMIT, so a
@@ -290,26 +289,14 @@ export async function moveTicketProject(
     return { id: ticketId, ok: true, task: after, oldTeamId: before.team_id ?? null, clearedSprint };
 }
 
-/**
- * A sprint's end date moved: members whose due date is still the old end take
- * the new one (ADR-015, amended 2026-11-01). A due date someone edited by hand
- * inside the sprint is theirs and stays. Returns how many tickets moved; a
- * sprint outside the actor's org moves nothing.
- */
+/** A sprint end date is not a ticket due date. Kept as a legacy no-op seam. */
 export async function retimeSprintDueDates(
-    ctx: PlacementContext,
-    sprintId: number,
-    oldEnd: string,
-    newEnd: string,
+    _ctx: PlacementContext,
+    _sprintId: number,
+    _oldEnd: string,
+    _newEnd: string,
 ): Promise<number> {
-    if (oldEnd === newEnd) return 0;
-    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
-    const members = await repo.lockSprintMembersDueOn(ctx.db, sprintId, oldEnd, ctx.actor.orgId);
-    for (const before of members) {
-        const after = await repo.setDueDate(ctx.db, Number(before.id), newEnd);
-        await record(ctx, "place", before, after, historyFor(before, after, new Map()));
-    }
-    return members.length;
+    return 0;
 }
 
 function joinsSprint(target: PlacementTarget): target is { sprint: number } {

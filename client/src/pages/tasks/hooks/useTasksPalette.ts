@@ -55,8 +55,7 @@ export function useTasksPalette({
         },
     ];
 
-    // Sprint and Scheduled are alternatives, so the palette offers only the tabs
-    // this team has — the same rule the tab row uses.
+    // The palette offers only tabs supported by the planning surface.
     const allowedViews = planningTabs({ agileEnabled, currentSprintId, planTabs }).tabs;
 
     const palette = useCommandPalette({
