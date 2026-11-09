@@ -86,5 +86,6 @@ export function transitionOptions(ticket: Ticket, states: any[] = []) {
 export function writeError(error: unknown, fallback: string): string {
     const data = (error as { response?: { data?: { code?: string; error?: string } } })?.response?.data;
     const code = data?.code || (data?.error && REASONS[data.error] ? data.error : undefined);
+    if (code === "WIP_EXCEEDED" && data?.error && data.error !== code) return data.error;
     return code ? reasonCopy(code) : data?.error || fallback;
 }

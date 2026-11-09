@@ -26,6 +26,7 @@ import BulkActionBar from "./tasks/BulkActionBar";
 import BacklogBulkBar from "./tasks/BacklogBulkBar";
 import SprintPlan from "./tasks/SprintPlan";
 import SprintTab from "./tasks/SprintTab";
+import ProjectBoard from "./tasks/ProjectBoard";
 import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
@@ -481,7 +482,12 @@ export default function Tasks() {
           />
         )}
 
-        {activeTab === "backlog" && (
+        {projectOwnership && team.selectedProject && (activeTab === "board" || activeTab === "backlog" && !team.selectedProject.hasSprints) && (
+          <ProjectBoard key={`${team.selectedProject.id}:${activeTab}`} project={team.selectedProject} backlog={activeTab === "backlog"}
+            updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail}
+            onOpenComments={(id) => detail.openTaskDetail({ id })} showConfirm={showConfirm} closeConfirm={closeConfirm} />
+        )}
+        {activeTab === "backlog" && (!projectOwnership || team.selectedProject?.hasSprints) && (
           <BacklogTab
             {...backlog}
             {...backlogTabHandlers(backlog)}

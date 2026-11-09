@@ -7,6 +7,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { TransactionContext } from "../../types/domain";
+import { LifecycleWriteError, withLifecycleWrite } from "../../modules/tasks/tasks.workflowWrite";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
@@ -158,7 +159,7 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                         results.push({ id: task.id, ok: true, previous: { workflow_state_id: task.workflow_state_id } });
                         continue;
                     }
-                    await setWorkflowState(req.db!, task.id, target.id);
+                    await withLifecycleWrite(req.db!, req.userOrgId, task, target, actor, (client) => setWorkflowState(client, task.id, target.id));
                     await logHistory(task.id, req.userId, "status_change", "workflow_state", task.workflow_state_id, target.id, null, req.db);
                     await announceStatusMove(req, {
                         task,
@@ -216,7 +217,8 @@ router.post("/bulk", auth, loadUserContext, async (req: Request, res: Response) 
                     });
                 }
             } catch (err) {
-                results.push({ id: task.id, ok: false, error: (err as Error).message });
+                results.push({ id: task.id, ok: false, error: (err as Error).message,
+                    ...(err instanceof LifecycleWriteError ? { code: err.conflict.body.code } : {}) });
             }
         }
 

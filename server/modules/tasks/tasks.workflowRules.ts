@@ -24,6 +24,7 @@ export interface WorkflowState {
     is_active?: boolean;
     sort_order?: number;
     wip_limit?: number | null;
+    color?: string;
 }
 
 export interface Transition {
@@ -280,7 +281,7 @@ export interface LifecycleDb {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 }
 
-/** Load the requested project's states, explicit rows and org WIP setting. */
+/** Load the requested project's states, explicit rows and WIP setting. */
 export async function loadLifecycleContext(
     db: LifecycleDb,
     orgId: number | null | undefined,
@@ -291,7 +292,7 @@ export async function loadLifecycleContext(
     const projectFilter = projectId === undefined ? "" : " AND project_id IS NOT DISTINCT FROM $2";
     const params = projectId === undefined ? [orgId] : [orgId, projectId];
     const states = (await db.query(
-        `SELECT id, key, name, category, is_initial, is_terminal, is_active, sort_order, wip_limit
+        `SELECT id, key, name, category, color, is_initial, is_terminal, is_active, sort_order, wip_limit
            FROM workflow_states
           WHERE org_id = $1 AND is_active = TRUE${projectFilter}
           ORDER BY sort_order ASC, id ASC`,
@@ -307,9 +308,9 @@ export async function loadLifecycleContext(
         to: Number(row.to_state_id),
     }));
 
-    const settings = (await db.query(
-        "SELECT enable_wip_limits FROM org_agile_settings WHERE org_id = $1",
-        [orgId],
+    const settings = projectId == null ? null : (await db.query(
+        "SELECT enable_wip_limits FROM projects WHERE org_id = $1 AND id = $2",
+        [orgId, projectId],
     )).rows[0];
 
     return buildLifecycleContext(states, transitions, !!settings?.enable_wip_limits);

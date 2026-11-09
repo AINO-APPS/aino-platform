@@ -88,7 +88,7 @@ describe("API sprint routes", () => {
 
     describe("GET /api/sprints/:id/board", () => {
         const sprint = {
-            id: 10, team_id: 1, name: "Sprint 10", status: "active",
+            id: 10, team_id: 1, project_id: 10, name: "Sprint 10", status: "active",
             start_date: "2026-11-01", end_date: "2026-11-14", org_id: 1,
             team_name: "Alpha",
         };
@@ -133,7 +133,7 @@ describe("API sprint routes", () => {
                 if (/FROM workflow_transitions/.test(sql)) {
                     return { rows: [{ from_state_id: 101, to_state_id: 102 }, { from_state_id: 101, to_state_id: 103 }], rowCount: 2 };
                 }
-                if (/FROM org_agile_settings/.test(sql)) {
+                if (/SELECT enable_wip_limits FROM projects/.test(sql)) {
                     return { rows: [{ enable_wip_limits: options.wipEnabled ?? true }], rowCount: 1 };
                 }
                 if (/FROM tasks t/.test(sql) && /workflow_state_key/.test(sql)) {
@@ -176,7 +176,7 @@ describe("API sprint routes", () => {
                 String(sql).includes("active.key = 'cancelled'"))).toBe(true);
         });
 
-        test("accepts tickets when org WIP limits are disabled, even at the configured limit", async () => {
+        test("accepts tickets when project WIP limits are disabled, even at the configured limit", async () => {
             setupBoardReads({ wipEnabled: false });
 
             const res = await request(app).get("/api/sprints/10/board").set("Cookie", authCookie());
