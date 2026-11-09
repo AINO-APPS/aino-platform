@@ -92,6 +92,8 @@ async function enrichTasks(
         const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
             ...t,
+            start_date: t.start_date ?? null,
+            planned_date: t.start_date ?? null,
             time_spent_minutes: timeSpent[t.id] ?? 0,
             logged_minutes: timeSpent[t.id] ?? 0,
             estimated_minutes: t.original_estimate_minutes ?? null,
@@ -129,6 +131,8 @@ async function enrichTaskSummaries(
     const enriched = await enrichTasks(tasks, db, actor, lifecycle);
     return tasks.map((task, index) => ({
         ...task,
+        start_date: enriched[index].start_date,
+        planned_date: enriched[index].planned_date,
         time_spent_minutes: enriched[index].time_spent_minutes,
         logged_minutes: enriched[index].logged_minutes,
         estimated_minutes: enriched[index].estimated_minutes,

@@ -22,7 +22,7 @@ export async function searchTasks(
         : "";
     return (await db.query(
         `SELECT t.id, t.title, t.description, t.ticket_key, ws.key AS workflow_state_key, t.priority,
-                t.planned_date, t.due_date, t.sprint_id, t.user_id, t.assigned_to,
+                t.start_date, t.due_date, t.sprint_id, t.user_id, t.assigned_to,
                 t.team_id, t.org_id, t.workflow_state_id, t.completed_at,
                 ts_headline('english', t.title || ' ' || COALESCE(t.description, ''),
                     to_tsquery('english', $1), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet

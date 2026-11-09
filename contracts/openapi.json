@@ -14484,7 +14484,7 @@
             }
           }
         },
-        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back. Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
       }
     },
     "/api/tasks/{id}": {
@@ -14666,7 +14666,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditTicketDatesRequest"
+              }
+            }
+          }
+        },
+        "description": " Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
       }
     },
     "/api/tasks/{id}/acceptance-criteria": {
@@ -16615,6 +16626,26 @@
               }
             }
           }
+        },
+        "description": "Expand compatibility shim: sets start_date from legacy date without changing sprint or backlog placement. Refuses invalid dates and due-before-start with HTTP 400.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "date"
+                ],
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -17170,7 +17201,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Expand compatibility shim: clears start_date without changing sprint membership or due_date."
       }
     },
     "/api/tasks/assignable-users": {
@@ -17872,7 +17904,7 @@
             }
           }
         },
-        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back. Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
       }
     },
     "/api/tasks/bulk": {
@@ -24781,7 +24813,8 @@
               "string",
               "null"
             ],
-            "format": "date"
+            "format": "date",
+            "description": "Deprecated compatibility alias of start_date during Expand."
           },
           "due_date": {
             "type": [
@@ -24850,6 +24883,14 @@
               "is_archived"
             ],
             "additionalProperties": false
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected day work begins; independent of placement."
           }
         },
         "required": [
@@ -24875,7 +24916,8 @@
           "container",
           "capabilities",
           "container",
-          "capabilities"
+          "capabilities",
+          "start_date"
         ],
         "additionalProperties": false
       },
@@ -24947,7 +24989,7 @@
               "null"
             ],
             "format": "date",
-            "description": "Date-only planning metadata. Never affects backlog membership."
+            "description": "Deprecated compatibility alias of start_date during Expand."
           },
           "due_date": {
             "type": [
@@ -25132,6 +25174,14 @@
               "null"
             ],
             "minimum": 0
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected day work begins; independent of placement."
           }
         },
         "required": [
@@ -25150,7 +25200,8 @@
           "team_id",
           "project_id",
           "rank",
-          "is_blocked"
+          "is_blocked",
+          "start_date"
         ],
         "additionalProperties": false
       },
@@ -27479,7 +27530,8 @@
               "string",
               "null"
             ],
-            "format": "date"
+            "format": "date",
+            "description": "Deadline; earlier than start_date is refused with HTTP 400."
           },
           "label_ids": {
             "type": "array",
@@ -27529,6 +27581,22 @@
               "string",
               "null"
             ]
+          },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected start day; date edits never change placement. Explicit null clears it."
+          },
+          "planned_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Legacy alias of start_date; start_date wins when both are supplied."
           }
         },
         "required": [
@@ -28092,6 +28160,36 @@
           "cleared_sprint"
         ],
         "additionalProperties": false
+      },
+      "EditTicketDatesRequest": {
+        "type": "object",
+        "properties": {
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected start day; date edits never change placement. Explicit null clears it."
+          },
+          "planned_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Legacy alias of start_date; start_date wins when both are supplied."
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Deadline; earlier than start_date is refused with HTTP 400."
+          }
+        },
+        "additionalProperties": true
       }
     }
   }

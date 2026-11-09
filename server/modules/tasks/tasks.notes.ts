@@ -4,8 +4,7 @@
  *
  * They live here rather than in `routes/notes.ts` so the route file stays under
  * its size ratchet and every task read goes through one place that knows the
- * workflow state is the only status (D4) and `planned_date` the only planner
- * day (D2).
+ * workflow state is the only status (D4) and start date drives date reads.
  */
 
 import {
@@ -19,7 +18,7 @@ export interface NotesTaskDb {
 }
 
 /** The task columns the Notes UI renders, with the workflow-state key as `status`. */
-const TASK_SELECT = `SELECT t.*, ws.key AS status, t.planned_date AS date
+const TASK_SELECT = `SELECT t.*, ws.key AS status, t.start_date AS date
                        FROM tasks t
                        LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id`;
 
@@ -86,7 +85,7 @@ export async function insertNoteTicket(
 /** One task's summary for a linked-entity panel, scoped to the actor's org. */
 export async function findLinkedTask(db: NotesTaskDb, taskId: unknown, orgId: number | null): Promise<any | null> {
     return (await db.query(
-        `SELECT t.*, ws.key AS status, t.planned_date AS date
+        `SELECT t.*, ws.key AS status, t.start_date AS date
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE t.id = $1 AND t.org_id IS NOT DISTINCT FROM $2`,

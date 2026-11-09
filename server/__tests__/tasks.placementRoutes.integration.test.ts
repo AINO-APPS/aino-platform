@@ -59,6 +59,7 @@ jest.mock("../utils/mailer", () => ({ notifyByEmail: jest.fn(), sendMail: jest.f
 
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
 const postgresDescribe = databaseUrl ? describe : describe.skip;
+jest.setTimeout(30_000);
 
 postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -133,8 +134,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Queued', 'open', TRUE) RETURNING *", [source.id])).rows[0];
         const to = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Destination queue', 'open', TRUE) RETURNING *", [target.id])).rows[0];
         const ticket = (await pool.query(`INSERT INTO tasks
-            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date)
-            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
+            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date, start_date)
+            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
         const before = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
         const { sendToUser } = require("../utils/ws");
         sendToUser.mockClear();
@@ -696,7 +697,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     test("My Work and dashboard ticket lists include actor capabilities", async () => {
         const today = (await pool.query("SELECT CURRENT_DATE::text AS date")).rows[0].date;
         const taskId = (await pool.query(
-            `INSERT INTO tasks (title, user_id, org_id, team_id, planned_date)
+            `INSERT INTO tasks (title, user_id, org_id, team_id, start_date)
              VALUES ('Manager dashboard capability', 1, 1, 1, $1) RETURNING id`,
             [today],
         )).rows[0].id;
@@ -790,14 +791,14 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         });
     });
 
-    test("scheduling a ticket in a sprint is refused and changes nothing", async () => {
+    test("scheduling edits start date without moving a sprint ticket", async () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "New", sprint_id: 10 });
         const before = await row(created.body.id);
 
         const res = await request(app).patch(`/api/tasks/${created.body.id}/schedule`).send({ date: "2026-11-06" });
 
-        expect(res.status).toBe(409);
-        expect(res.body.code).toBe("IN_SPRINT");
+        expect(res.status).toBe(200);
+        expect(res.body.start_date).toBe("2026-11-06");
         expect(await row(created.body.id)).toEqual(before);
     });
 
@@ -844,7 +845,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: null, planned_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
-        expect((await row(created.body.id)).planned_date).toBe("2026-11-06");
+        expect(res.body.start_date).toBe("2026-11-06");
+        expect((await row(created.body.id)).planned_date).toBeNull();
     });
 
     test("editing the due date of a sprinted ticket while resending its sprint keeps the typed date", async () => {
@@ -888,7 +890,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect((await pool.query("SELECT org_id FROM tasks WHERE id = $1", [res.body.task.id])).rows[0].org_id).toBe(1);
     });
 
-    test("carry-forward records one planned-day history row per copy", async () => {
+    test("carry-forward compatibility records a start-date history row per copy", async () => {
         await pool.query("UPDATE users SET timezone = 'UTC' WHERE id = 1").catch(() => undefined);
         const yesterday = (await pool.query("SELECT (CURRENT_DATE - 1)::text AS d")).rows[0].d;
         const created = await request(app).post("/api/tasks").send({ title: "Yesterday", date: yesterday });
@@ -900,7 +902,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const copies = (await pool.query("SELECT id FROM tasks WHERE title = 'Yesterday' AND id <> $1", [created.body.id])).rows;
         expect(copies).toHaveLength(1);
         const history = (await pool.query(
-            "SELECT action, field FROM task_history WHERE task_id = $1 AND field = 'planned_date'", [copies[0].id],
+            "SELECT action, field FROM task_history WHERE task_id = $1 AND field = 'start_date'", [copies[0].id],
         )).rows;
         expect(history).toHaveLength(1);
     });

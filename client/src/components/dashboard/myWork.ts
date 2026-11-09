@@ -1,3 +1,4 @@
+import { startDateOf } from "../../pages/tasks/dates";
 /**
  * The rules behind the home "My Work" card.
  *
@@ -19,6 +20,7 @@ export interface MyWorkTask {
     title: string;
     priority?: string | null;
     planned_date?: string | null;
+    start_date?: string | null;
     assigned_to?: number | string | null;
     /** The workflow state is the only status (D4). */
     workflow_state_key?: string | null;
@@ -183,14 +185,14 @@ export function weekGroups(
     if (overdue.length > 0) {
         const sorted = [...overdue].sort(
             (a, b) =>
-                (a.planned_date ?? "").localeCompare(b.planned_date ?? "") ||
+                (startDateOf(a) ?? "").localeCompare(startDateOf(b) ?? "") ||
                 priorityRank(a.priority) - priorityRank(b.priority),
         );
         groups.push({ key: "overdue", label: "Overdue", tasks: sorted });
     }
     for (let offset = 0; offset < 7; offset++) {
         const day = addDays(weekStart, offset);
-        const tasks = week.filter((task) => task.planned_date === day);
+        const tasks = week.filter((task) => startDateOf(task) === day);
         if (tasks.length === 0) continue;
         groups.push({ key: day, label: DAY_NAMES[parseDateString(day).getDay()], tasks });
     }
@@ -214,8 +216,8 @@ export function sprintGroups(tasks: MyWorkTask[]): MyWorkGroup[] {
  * already names the day everywhere else (spec D4).
  */
 export function rowDayLabel(task: MyWorkTask, groupKey: string): string | null {
-    if (groupKey !== "overdue" || !task.planned_date) return null;
-    const date = parseDateString(task.planned_date);
+    if (groupKey !== "overdue" || !startDateOf(task)) return null;
+    const date = parseDateString(startDateOf(task)!);
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 

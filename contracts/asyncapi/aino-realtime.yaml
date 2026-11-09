@@ -421,6 +421,7 @@ components:
                       assigned_to: { type: [integer, "null"] }
                       due_date: { type: [string, "null"] }
                       planned_date: { type: [string, "null"] }
+                      start_date: { type: [string, "null"] }
                       sprint_id: { type: [integer, "null"] }
                       story_points: { type: [number, "null"] }
                       work_item_type_id: { type: [integer, "null"] }

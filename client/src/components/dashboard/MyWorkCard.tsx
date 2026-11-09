@@ -1,3 +1,4 @@
+import { startDateOf } from "../../pages/tasks/dates";
 import React, { memo, useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Zap, CalendarDays } from "../../constants/icons";
@@ -65,8 +66,8 @@ const MyWorkCard = memo(function MyWorkCard() {
         ]);
         if (cancelledRef.current) return;
 
-        const weekRows = ((weekRes.data.tasks as MyWorkTask[]) || []).filter((task) => task.container === "scheduled");
-        const overdueRows = ((overdueRes?.data.tasks as MyWorkTask[]) || []).filter((task) => task.container === "scheduled");
+        const weekRows = ((weekRes.data.tasks as MyWorkTask[]) || []).filter((task) => startDateOf(task) !== null);
+        const overdueRows = ((overdueRes?.data.tasks as MyWorkTask[]) || []).filter((task) => startDateOf(task) !== null);
         const capped = capGroups(weekGroups(myOpenTasks(overdueRows, userId), myOpenTasks(weekRows, userId), range.start));
         setGroups(capped.groups);
         setHidden(capped.hidden);

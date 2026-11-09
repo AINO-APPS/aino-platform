@@ -14,6 +14,7 @@ export const DELTA_FIELDS = [
     "assigned_to",
     "due_date",
     "planned_date",
+    "start_date",
     "sprint_id",
     "story_points",
     "work_item_type_id",

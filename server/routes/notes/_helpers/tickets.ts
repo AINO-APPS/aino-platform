@@ -15,6 +15,8 @@ async function linkedTickets(links: any[], ticketsById: Map<number, any>, req: R
     const ticketById = new Map(tickets.map((ticket: any) => [Number(ticket.id), {
         id: ticket.id,
         title: ticket.title,
+        start_date: ticket.start_date,
+        planned_date: ticket.planned_date,
         status: ticket.status,
         priority: ticket.priority,
         date: ticket.date,
@@ -32,6 +34,8 @@ async function dailyTasks(tasks: any[], req: Request): Promise<any[]> {
     return (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
         id: task.id,
         title: task.title,
+        start_date: task.start_date,
+        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
         container: task.container,
@@ -43,6 +47,8 @@ async function oneOnOneTasks(tasks: any[], req: Request): Promise<any[]> {
     return (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
         id: task.id,
         title: task.title,
+        start_date: task.start_date,
+        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
         date: task.date,
@@ -57,7 +63,9 @@ async function convertedTask(placed: any, req: Request): Promise<any> {
     return {
         id: placed.id,
         title: placed.title,
-        date: placed.planned_date ?? null,
+        start_date: enriched[0].start_date,
+        planned_date: enriched[0].planned_date,
+        date: placed.start_date ?? null,
         priority: placed.priority,
         sprint_id: placed.sprint_id ?? null,
         container: enriched[0].container,
@@ -82,6 +90,8 @@ async function sprintEmbed(sprint: any, tasks: any[], req: Request): Promise<any
         tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
             id: task.id,
             title: task.title,
+        start_date: task.start_date,
+        planned_date: task.planned_date,
             status: task.status,
             status_category: task.status_category,
             priority: task.priority,
@@ -106,6 +116,8 @@ async function searchTasks(userRow: any, q: string | undefined, req: Request): P
     return tasks.map((task: any) => ({
         id: task.id,
         title: task.title,
+        start_date: task.start_date,
+        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
         date: task.date,
