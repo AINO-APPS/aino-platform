@@ -4,14 +4,14 @@
 
 **Blocked by:** 01: Project type controls and lifecycle; 02: Start dates without Scheduled placement; 03: Kanban board and backlog.
 
-**Status:** resolved (server/web); Android slice pending
+**Status:** resolved (server/web + Android)
 
 - [x] Task list projects provide List, Board and Calendar views, while Kanban and Scrum retain their own type-specific views.
 - [x] The list can sort and filter by key, title, type, status, assignee, priority, start date and due date.
 - [x] The calendar shows open tickets across the inclusive start-to-due span; a ticket with one date appears on that date, and an undated ticket appears in a separate list.
 - [x] Calendar drag actions update ticket dates and refuse a due date before the start date.
 - [x] Leave, holiday and meeting overlays are shown on the calendar.
-- [ ] Android provides an upcoming view grouped by start date with overdue work first; calendar remains web-only.
+- [x] Android provides an upcoming view grouped by start date with overdue work first; calendar remains web-only.
 - [x] Tests verify the date-range behavior, filters, date edits and project scoping through the public reads and client interactions.
 
 ## Answer
@@ -51,7 +51,8 @@ boards at lines 163/213 (two failures), and `tasks.teamVisibility.routes` expect
 detail implementations and fixtures are unchanged by ticket04; these are not
 counted as passing validation.
 
-**Still pending:** ticket04 Android upcoming (overdue first, grouped by start
-date), separately from this server/web slice. Android03 is also pending. Calendar
-remains web-only; inherited ticket05 Scrum behavior and ticket06 hierarchy were
-preserved.
+Android List, workflow Board and Upcoming are integrated on the Android
+`integration/project-types` branch. The ticket branch passed 45 focused tests
+and five guardrails; the merged run passed the focused Task list, Kanban,
+planning and shared sprint regressions (**113 tests, zero failures**). Calendar
+remains web-only; inherited Scrum behavior and hierarchy remain unchanged.
