@@ -220,7 +220,7 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-role", "team_lead")
             .send({ key: "ALPHA", name: "Alpha Stream", team_ids: [1, 2] });
         expect(created.status).toBe(200);
-        expect(created.body.capabilities).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
+        expect(created.body.capabilities).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true, canChangeType: true });
 
         const grants = (await pool.query(
             "SELECT user_id, team_id, role FROM project_members WHERE project_id = $1 ORDER BY user_id NULLS LAST, team_id",
@@ -237,7 +237,7 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
             .set("x-test-team", "1");
         expect(listed.status).toBe(200);
         expect(listed.body.find((project: any) => project.id === created.body.id).capabilities)
-            .toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
+            .toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true, canChangeType: true });
 
         const second = await request(app)
             .post("/api/projects")
@@ -262,10 +262,10 @@ postgresDescribe("project access and member routes (PostgreSQL)", () => {
         expect(await access.roleForProject(10)).toBe("project_admin");
         expect(await access.roleForProject(11)).toBe("viewer");
         expect(await access.accessibleProjectIds()).toEqual(expect.arrayContaining([10, 11]));
-        expect(await access.capabilities(10)).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true });
+        expect(await access.capabilities(10)).toEqual({ canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true, canChangeType: true });
         expect(await access.capabilitiesForProjects([10, 11])).toEqual(new Map([
-            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true }],
-            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false, canCreateTickets: false, canEditWorkflow: false, canArchive: false }],
+            [10, { canAdminister: true, canManageMembers: true, canRenameKey: true, canCreateTickets: true, canEditWorkflow: true, canArchive: true, canChangeType: true }],
+            [11, { canAdminister: false, canManageMembers: false, canRenameKey: false, canCreateTickets: false, canEditWorkflow: false, canArchive: false, canChangeType: false }],
         ]));
     });
 

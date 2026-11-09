@@ -51,6 +51,7 @@ export interface ProjectCapabilities {
     canEditWorkflow: boolean;
     canRenameKey: boolean;
     canArchive: boolean;
+    canChangeType: boolean;
 }
 
 export function projectCapabilities(role: ProjectRole | null, archived = false): ProjectCapabilities {
@@ -62,6 +63,7 @@ export function projectCapabilities(role: ProjectRole | null, archived = false):
         canEditWorkflow: admin && !archived,
         canRenameKey: admin && !archived,
         canArchive: admin && !archived,
+        canChangeType: admin && !archived,
     };
 }
 

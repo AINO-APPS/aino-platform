@@ -10,6 +10,28 @@
   ],
   "features": [
     {
+      "id": "project-type-controls",
+      "name": "Server-decided project type controls, lifecycle permissions and stable planning tabs",
+      "decision": "D56",
+      "phase": 3,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/planningTabsByProject.test.tsx"
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/planningTabsByProject.test.tsx"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "Phase 3 release A ships server/web controls first; native Plan tabs ship with the Android clients release. Project settings remain web-only. Older clients retain compatibility endpoints until the version gate."
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "The scoped webview inherits the web project-type controls and server-decided tabs."
+      }
+    },
+    {
       "id": "project-key-realtime-refresh",
       "name": "Post-commit project key invalidation refetches current project and ticket data",
       "decision": "D48",

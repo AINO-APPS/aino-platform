@@ -18,6 +18,7 @@ const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", te
 const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
 const denialMessages: Record<CapabilityReason, string> = {
+    PROJECT_HAS_NO_SPRINTS: "Sprints are only available in Scrum projects.",
     READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
     PROJECT_ARCHIVED: "This project is archived and its tickets are read-only.",
     ACCESS_DENIED: "Access denied",
@@ -102,6 +103,8 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
             (1,102,101), (1,102,103), (1,102,104), (1,102,105), (1,102,106),
             (1,103,102), (1,103,104), (1,103,105), (1,104,102),
             (1,106,102), (1,106,103), (1,106,105)`);
+        await pool.query("SELECT setval(pg_get_serial_sequence('workflow_states', 'id'), (SELECT MAX(id) FROM workflow_states))");
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(`INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES
             (10, 1, 'Planned', '2026-11-01', '2026-11-14', 'planned'),
             (11, 1, 'Active', '2026-11-15', '2026-11-28', 'active'),
@@ -178,9 +181,22 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         if (!write) expect(decision.capabilities.can.edit).toEqual(denied(archived ? "PROJECT_ARCHIVED" : comment ? "READ_ONLY_ROLE" : "ACCESS_DENIED"));
     });
 
+
+    test.each(['scrum', 'kanban', 'task_list'])('project type %s drives placement capabilities across containers', async (type) => {
+        const project = (await pool.query("INSERT INTO projects (org_id, key, name, type) VALUES (1, $1, 'Typed', $2) RETURNING id", ['TYPE' + type.slice(0, 2).toUpperCase(), type])).rows[0];
+        const actor: TaskActor = { ...member, role: 'super_admin', projectOwnership: true };
+        for (const day of [null, '2026-11-03']) {
+            const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, project_id, workflow_state_id, planned_date) VALUES ('Typed work', 1, 1, $1, 101, $2) RETURNING *", [project.id, day])).rows[0];
+            const decision = decideTicket(actor, ticket, await loadTicketDecisionContext(pool, actor, [ticket]));
+            expect(decision.capabilities.can.placeInSprint).toEqual(type === 'scrum' ? allowed : denied('PROJECT_HAS_NO_SPRINTS'));
+            expect(decision.capabilities.can.edit).toEqual(allowed);
+        }
+    });
+
     test("project-mode placement ignores team hints but refuses a different project's sprint with the shared message", async () => {
         const sprint = (await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0];
-        const destination = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'CAPDEST', 'Another project') RETURNING id")).rows[0];
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE id = $1", [sprint.project_id]);
+        const destination = (await pool.query("INSERT INTO projects (org_id, key, name, type) VALUES (1, 'CAPDEST', 'Another project', 'scrum') RETURNING id")).rows[0];
         await pool.query(`INSERT INTO sprints (id, team_id, project_id, name, start_date, end_date)
             VALUES (21, 2, $1, 'Other project', '2026-11-01', '2026-11-14')`, [destination.id]);
         const actor: TaskActor = { ...member, role: "super_admin", projectOwnership: true };

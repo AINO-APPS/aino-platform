@@ -37,5 +37,5 @@ export function usePlanningScope(options: {
         currentSprintId: project.currentSprintId,
         currentSprintLoaded: project.currentSprintLoaded,
     } : legacy;
-    return { ...scope, selectedProjectId: project.selectedProjectId, changeProject: project.changeProject };
+    return { ...scope, selectedProject: project.selectedProject, selectedProjectId: project.selectedProjectId, changeProject: project.changeProject };
 }

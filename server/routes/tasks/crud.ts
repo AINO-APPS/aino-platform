@@ -142,12 +142,8 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
-        // Sprint assignment is part of the Agile feature bundle — when the
-        // tenant's "Agile & Sprints" flag is off (plan default or feature
-        // override) silently ignore any sprint_id so a stale client can't
-        // sneak a task into a sprint.
-        const { isFeatureEnabled } = require('../../utils/planCatalog');
-        if (sprint_id && isFeatureEnabled((req as any).tenant, 'agile')) {
+        // Sprint assignment follows the destination project, not its feature flag.
+        if (sprint_id) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
@@ -442,12 +438,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
         }
 
-        // Where the edit moves the ticket, if anywhere (ADR-015). The agile gate
-        // keeps sprint moves off entirely when the tenant disables it; a planned
-        // day on a sprinted ticket is ignored because the sprint wins.
-        const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
+        // Sprint destinations are validated by project type; legacy day placement is retained.
         let requestedSprint: { id: number } | null | undefined;
-        if (sprint_id !== undefined && isAgileFeatureEnabled((req as any).tenant, 'agile')) {
+        if (sprint_id !== undefined) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,

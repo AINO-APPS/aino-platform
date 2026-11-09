@@ -63,7 +63,7 @@ const SECTIONS: Section[] = [
     { key: "departments",    label: "Departments",       icon: Building,     group: "Structure", requires: "orgId" },
     { key: "teams",          label: "Teams",             icon: UsersRound,   group: "Structure", requires: "orgId" },
     { key: "org-chart",      label: "Org Chart",         icon: GitBranch,    group: "Structure", requires: "orgId" },
-    { key: "agile",          label: "Agile Config",      icon: WorkflowIcon, group: "Structure", requires: "orgId", feature: "agile" },
+    { key: "agile",          label: "Agile Config",      icon: WorkflowIcon, group: "Structure", requires: "orgId" },
     { key: "projects",       label: "Projects",          icon: Folder,       group: "Structure", requires: "orgId", feature: "agile" },
 
     { key: "integrations",   label: "Integrations",      icon: GitMerge,     group: "Settings",  requires: "orgId" },

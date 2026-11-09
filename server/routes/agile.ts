@@ -3,7 +3,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
-const { requireTenant, requireFeature } = require("../middleware/tenant");
+const { requireTenant } = require("../middleware/tenant");
 const { requireAgileEditor, isAgileEditor, isAgileReviewerRole } = require("../middleware/agileEditor");
 
 // Custom middleware: allow any reviewer role (super_admin / hr_admin /
@@ -25,7 +25,7 @@ import {
 } from "../modules/tasks/tasks.projectWorkflowRepository";
 
 const router = express.Router();
-router.use(requireTenant, requireFeature("agile"));
+router.use(requireTenant);
 router.use(auth);
 router.use(loadUserContext);
 

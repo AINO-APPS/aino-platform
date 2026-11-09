@@ -42,13 +42,17 @@ export interface PaletteItem {
  */
 export function paletteViews(sprintId?: string | null, allowed?: string[]): PaletteView[] {
     const views: PaletteView[] = [
+        { id: "view-project-board", label: "Board", view: "board" },
+        { id: "view-list", label: "List", view: "list" },
+        { id: "view-calendar", label: "Calendar", view: "calendar" },
+        { id: "view-reports", label: "Reports", view: "reports" },
         { id: "view-backlog", label: "Backlog", view: "backlog" },
         { id: "view-board", label: "Sprint board", view: "sprint", sprintId },
         { id: "view-plan", label: "Sprint plan", view: "sprint", sprintId, plan: true },
         { id: "view-schedule", label: "Schedule", view: "scheduled" },
         { id: "view-desk", label: "Service desk", view: "service-desk" },
     ];
-    if (!allowed) return views;
+    if (!allowed) return views.filter((entry) => !["board", "list", "calendar", "reports"].includes(entry.view));
     return views.filter((entry) => allowed.includes(entry.view));
 }
 

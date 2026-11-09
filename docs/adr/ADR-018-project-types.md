@@ -50,6 +50,15 @@ subtasks is open, and subtasks always move with thei Tickets that are in a sprin
 - What happens to `pre_sprint_due_date` is still open.
 - The sprint scheduler is removed.
 
+### Project-type lifecycle
+
+Project admins may change a non-archived project's type. Leaving Scrum is
+refused with `PROJECT_HAS_OPEN_SPRINTS` while any sprint is planned, active or
+paused; completed history is retained. The `agile` feature controls only creation
+and change destinations (Task list only without it). Existing Scrum and Kanban
+projects keep working after feature loss. Project responses carry ordered Plan
+tabs and type capabilities; clients render that decision without deriving it.
+
 ## Alternatives considered
 
 - **Keep the Scheduled container for teams without sprints.** Rejected because it

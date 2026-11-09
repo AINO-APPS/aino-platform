@@ -26,23 +26,25 @@ export function useProjectScope({
             return known(stored) ? stored : projects[0]?.id ?? null;
         });
     }, [projects, enabled, storageKey]);
+    const selectedProject = projects.find((project) => project.id === selectedProjectId);
+    const hasSprints = selectedProject?.hasSprints ?? agileEnabled;
     const scopeParams = useMemo(() => ({ project_id: selectedProjectId ?? -1 }), [selectedProjectId]);
     const { data, isFetched } = useQuery({
         queryKey: ["tasks", "sprintList", scopeParams],
-        enabled: enabled && agileEnabled && selectedProjectId != null,
+        enabled: enabled && hasSprints && selectedProjectId != null,
         queryFn: async () => (await getSprints(scopeParams)).data as any,
     });
-    const visibleSprints = enabled && selectedProjectId != null
+    const visibleSprints = enabled && hasSprints && selectedProjectId != null
         ? (data?.sprints ?? EMPTY).filter((sprint: any) => Number(sprint.project_id) === selectedProjectId)
         : EMPTY;
-    const currentSprintId = data?.currentSprintId ?? null;
-    const currentSprintLoaded = !enabled || !agileEnabled
+    const currentSprintId = hasSprints ? data?.currentSprintId ?? null : null;
+    const currentSprintLoaded = !enabled || !hasSprints
         || (projectsLoaded && projects.length === 0)
         || (selectedProjectId != null && isFetched);
     useEffect(() => {
         if (!enabled || !currentSprintLoaded) return;
         setSelectedSprintId((previous: any) => visibleSprints.some((sprint: any) => sprint.id === previous)
-            ? previous : currentSprintId ?? visibleSprints[0]?.id ?? null);
+            ? previous : currentSprintId ?? (selectedProject?.hasSprints === undefined ? visibleSprints[0]?.id : null) ?? null);
     }, [enabled, data, selectedProjectId, currentSprintId, currentSprintLoaded, setSelectedSprintId]);
     const changeProject = useCallback((id: number) => {
         if (!projects.some((project) => project.id === id)) return;
@@ -50,5 +52,5 @@ export function useProjectScope({
         setProjectId(id);
         try { localStorage.setItem(storageKey, String(id)); } catch { /* storage unavailable */ }
     }, [projects, storageKey, setSelectedSprintId]);
-    return { selectedProjectId, changeProject, scopeParams, visibleSprints, currentSprintId, currentSprintLoaded };
+    return { selectedProject, selectedProjectId, changeProject, scopeParams, visibleSprints, currentSprintId, currentSprintLoaded };
 }

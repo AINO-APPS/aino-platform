@@ -65,6 +65,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES (1, 'planner', 'x', 'Planner', 1, 1)");
         await pool.query(`INSERT INTO projects (id, org_id, key, name, origin_team_id) VALUES
             (10, 1, 'ONE', 'One', 1), (20, 1, 'TWO', 'Two', NULL), (30, 1, 'HIDE', 'Hidden', 2)`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE id IN (10, 20, 30)");
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
     });
 

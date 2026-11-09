@@ -311,6 +311,7 @@ export interface ProjectCreateInput {
     color: string;
     leadUserId: number | null;
     teamIds: number[];
+    type?: import("./tasks.projectTypes").ProjectType;
 }
 
 export async function createProjectWithGrants(
@@ -333,10 +334,10 @@ export async function createProjectWithGrants(
             [input.orgId, input.key],
         );
         const inserted = await client.query(
-            `INSERT INTO projects (org_id, key, name, description, color, lead_user_id, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO projects (org_id, key, name, description, color, lead_user_id, created_by, type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING *`,
-            [input.orgId, input.key, input.name, input.description, input.color, input.leadUserId, input.creatorId],
+            [input.orgId, input.key, input.name, input.description, input.color, input.leadUserId, input.creatorId, input.type ?? "task_list"],
         );
         const project = inserted.rows[0];
         await client.query(

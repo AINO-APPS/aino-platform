@@ -1,8 +1,10 @@
+import type { TasksView } from "./useTasksRoute";
 import { useEffect, useState } from "react";
 import { useCommandPalette, type PaletteAction } from "./useCommandPalette";
 import { planningTabs } from "./usePlanningSurface";
 
 interface UseTasksPaletteOptions {
+    planTabs?: TasksView[];
     sprintId: string | number | null;
     currentSprintId: number | string | null;
     /** Agile off means no Sprint board is ever offered. */
@@ -21,6 +23,7 @@ interface UseTasksPaletteOptions {
  * `Tasks.tsx` stays within its file-size ratchet.
  */
 export function useTasksPalette({
+    planTabs,
     sprintId,
     currentSprintId,
     agileEnabled,
@@ -54,12 +57,12 @@ export function useTasksPalette({
 
     // Sprint and Scheduled are alternatives, so the palette offers only the tabs
     // this team has — the same rule the tab row uses.
-    const allowedViews = planningTabs({ agileEnabled, currentSprintId }).tabs;
+    const allowedViews = planningTabs({ agileEnabled, currentSprintId, planTabs }).tabs;
 
     const palette = useCommandPalette({
         sprintId: sprintId == null ? null : String(sprintId),
         allowedViews,
-        actions,
+        actions: allowedViews.includes("sprint") ? actions : actions.filter((action) => action.id !== "action-start-sprint"),
         onOpenTask,
         onGoToView: (view) => onGoToView(view.view, view.sprintId),
     });

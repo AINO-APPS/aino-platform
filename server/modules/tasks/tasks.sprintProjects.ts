@@ -1,3 +1,5 @@
+import { projectTypePolicy } from "./tasks.projectTypes";
+import { PROJECT_TYPE_MESSAGES } from "./tasks.projectTypeLifecycle";
 import type { SprintDb } from "./tasks.sprintRepository";
 import { resolveTaskVisibilityForRequest, type TaskActor } from "./tasks.policy";
 
@@ -63,12 +65,13 @@ export async function createProjectSprint(
         return { error: { status: 403, body: { error: "Project membership required" } } };
     }
     const project = (await db.query(
-        "SELECT id, is_archived FROM projects WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
+        "SELECT id, type, is_archived FROM projects WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
         [projectId, actor.orgId],
     )).rows[0];
     if (!project || project.is_archived) {
         return { error: { status: 409, body: { error: "Project is archived", code: "PROJECT_ARCHIVED" } } };
     }
+    if (!projectTypePolicy(project).hasSprints) return { error: { status: 409, body: { error: PROJECT_TYPE_MESSAGES.PROJECT_HAS_NO_SPRINTS, code: "PROJECT_HAS_NO_SPRINTS" } } };
     const existing = (await db.query(
         "SELECT id FROM sprints WHERE project_id = $1 AND name = $2", [projectId, body.name],
     )).rows[0];

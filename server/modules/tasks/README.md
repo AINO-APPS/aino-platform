@@ -94,6 +94,27 @@ Create, edit, bulk and plan placement all refuse a sprint from another project
 with `SPRINT_PROJECT_MISMATCH`. This replaces the legacy team mismatch code;
 flag-off tenants retain their existing team-scoped placement rules.
 
+## Project-type policy and lifecycle (ADR-018)
+
+`tasks.projectTypes.ts` is the pure policy seam: ordered Plan tabs, backlog,
+board scope, 14-day Done window, Cancelled exclusion and type-change refusal.
+`tasks.projectTypeLifecycle.ts` validates choices and coordinates locked changes;
+its repository owns sprint-status reads, project locks and type writes. Routes
+remain adapters; clients consume `planTabs` and `changeableTypes`. Only project
+admins of active projects can change type.
+
+`agile` controls new type destinations only. Workflow, project, board and sprint
+endpoints keep existing projects working after feature loss. Sprint requests use
+`tasks.projectSprintPolicy.ts` and refuse non-Scrum with `PROJECT_HAS_NO_SPRINTS`.
+Ticket placement capabilities ask the same pure policy. Migration
+`0028_project_type_lifecycle.sql` adds the default-off Kanban backlog setting;
+project-row locks and database triggers serialize open-sprint writers with type
+changes, preventing bypass and concurrent orphaning.
+
+Run `npx jest projectTypes.integration tasks.projectTypes tasks.capabilities.integration --runInBand`
+with the local test-database variable for pure policy, HTTP and capability seams.
+Ticket 01 does not replace subsequent tickets' planning board contents.
+
 ## Migration review and publication
 
 At `/projects`, **Review project migration** opens the super-admin review.

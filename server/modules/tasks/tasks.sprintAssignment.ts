@@ -1,3 +1,5 @@
+import { assertScrumSprintRequest } from "./tasks.projectSprintPolicy";
+import { ProjectTypeError } from "./tasks.projectTypeLifecycle";
 /**
  * Request-side checks before a placement: which sprint the caller may target,
  * and the due-date / planned-day pair rule on an edit. What a move does to the
@@ -25,6 +27,11 @@ export async function resolveSprintTarget(
     request: SprintAssignmentRequest,
 ): Promise<{ sprint?: { id: number; team_id: number | null; end_date: string }; error?: { status: number; body: Record<string, unknown> } }> {
     if (request.sprintId === null || request.sprintId === "") return { sprint: undefined };
+    try { await assertScrumSprintRequest(db, request.orgId, { sprintId: request.sprintId }); }
+    catch (err) {
+        if (err instanceof ProjectTypeError) return { error: { status: err.status, body: { error: err.message, code: err.code } } };
+        throw err;
+    }
     const sprint = (await db.query(
         request.actor?.projectOwnership
             ? "SELECT s.id, s.team_id, s.project_id, s.end_date, p.is_archived FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $1 AND p.org_id = $2"

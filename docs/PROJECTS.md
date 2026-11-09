@@ -8,8 +8,7 @@ access to any number of projects, never an exclusive project owner.
 
 ## Access and settings
 
-Creating a project requires **team lead or above**, an Agile-enabled organization,
-and a web session. The creator becomes project admin and may grant selected
+Creating a project requires **team lead or above** and a web session. The creator becomes project admin and may grant selected
 teams member access. `/projects` exposes details, members, workflow, key rename
 and archive according to the returned project capabilities.
 
@@ -31,6 +30,31 @@ The create picker uses `GET /api/projects/mine`, preferring the current project
 and then a valid remembered choice. Plan uses the accessible-project listing
 (`GET /api/projects?include_archived=1`); archived projects remain readable.
 Clients render server capabilities and denial reasons, not role guesses.
+
+## Project types (ADR-018)
+
+Creation and settings offer **Scrum**, **Kanban** and **Task list**, with a short
+explanation of each. The switcher and project cards show the stored type.
+Without `agile`, only Task list is offered for creation and type changes;
+existing Scrum and Kanban projects keep working, including their sprint routes.
+
+Project admins change type in **Edit project**. Leaving Scrum is refused while
+any sprint is planned, active or paused (`PROJECT_HAS_OPEN_SPRINTS`). Completed
+history does not block a change. Archived projects cannot change type. Settings
+and type save together: a refusal leaves all settings unchanged.
+
+Responses provide `planTabs`, `hasSprints`, `hasBacklog`, `availableTypes`,
+`changeableTypes` and `capabilities.canChangeType`. `GET /api/projects/types`
+supplies organization choices even before its first project exists. Clients
+render the decisions, not a project-type lookup table. Scrum tabs remain
+**Backlog, Sprint, Reports** without a current sprint; Kanban uses **Board**
+(with **Backlog** when enabled); Task list uses **List, Board, Calendar**.
+Service Desk remains separately accessible. Non-Scrum sprint requests are
+refused with `PROJECT_HAS_NO_SPRINTS`.
+
+Ticket 01 establishes type controls and the stable Plan shell. Continuous boards,
+Task list view contents, start dates and removal of Scheduled/automatic sprints
+ship in subsequent project-types tickets; those surfaces are not replaced here.
 
 ## Keys, moves and archive
 

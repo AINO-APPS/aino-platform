@@ -247,9 +247,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
         // sneak a backlog ticket into a sprint.
-        const { isFeatureEnabled } = require('../../utils/planCatalog');
-        const agileOn = isFeatureEnabled((req as any).tenant, 'agile');
-        if (sprint_id && agileOn) {
+        if (sprint_id) {
             const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id, orgId: req.userOrgId || null, actorTeamId: req.userTeamId ?? null,

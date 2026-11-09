@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-export type TasksView = "backlog" | "sprint" | "scheduled" | "service-desk";
+export type TasksView = "backlog" | "sprint" | "scheduled" | "service-desk" | "board" | "list" | "calendar" | "reports";
 
 export interface TasksRoute {
     view: TasksView;
@@ -11,6 +11,10 @@ export interface TasksRoute {
 }
 
 const VIEW_PATHS: Record<TasksView, string> = {
+    board: "/tasks/board",
+    list: "/tasks/list",
+    calendar: "/tasks/calendar",
+    reports: "/tasks/reports",
     backlog: "/tasks/backlog",
     sprint: "/tasks/sprint",
     scheduled: "/tasks/schedule",
@@ -21,6 +25,10 @@ const VIEW_PATHS: Record<TasksView, string> = {
 export const LEGACY_TABS: TasksView[] = ["backlog", "sprint", "scheduled", "service-desk"];
 
 const PATH_VIEWS: Array<[RegExp, TasksView]> = [
+    [/^\/tasks\/board\/?$/, "board"],
+    [/^\/tasks\/list\/?$/, "list"],
+    [/^\/tasks\/calendar\/?$/, "calendar"],
+    [/^\/tasks\/reports\/?$/, "reports"],
     [/^\/tasks\/backlog\/?$/, "backlog"],
     [/^\/tasks\/sprint(\/|$)/, "sprint"],
     [/^\/tasks\/schedule\/?$/, "scheduled"],

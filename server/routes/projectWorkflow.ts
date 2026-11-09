@@ -20,10 +20,10 @@ import {
 
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
-const { requireTenant, requireFeature } = require("../middleware/tenant");
+const { requireTenant } = require("../middleware/tenant");
 
 const router = express.Router();
-router.use(requireTenant, requireFeature("agile"), auth, loadUserContext);
+router.use(requireTenant, auth, loadUserContext);
 
 const CATEGORIES = new Set(["open", "in_progress", "in_review", "done"]);
 const REQUIRED_CATEGORIES = ["open", "in_progress", "in_review", "done"];
