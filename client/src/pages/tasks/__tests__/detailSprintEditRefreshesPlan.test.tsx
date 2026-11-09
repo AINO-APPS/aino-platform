@@ -134,6 +134,7 @@ const TICKET = {
     priority: "high",
     workflow_state_key: "pending",
     story_points: 3,
+    due_date: "2026-10-25",
 };
 
 /** Server state: the ticket's sprint membership. */
@@ -202,9 +203,14 @@ describe("sprint membership from the detail panel on the Plan view", () => {
         );
         expect(sprintPicker).toBeTruthy();
         fireEvent.change(sprintPicker!, { target: { value: "1" } });
+        expect(screen.getByLabelText("Due date")).toHaveValue("2026-10-25");
         fireEvent.click(screen.getByRole("button", { name: /^Save/i }));
 
         await waitFor(() => expect(updateTask).toHaveBeenCalled(), { timeout: 5000 });
+        expect(updateTask).toHaveBeenCalledWith(
+            7,
+            expect.objectContaining({ due_date: "2026-10-25" }),
+        );
         await waitFor(() => expect(sprintIdOfTicket).toBe(1), { timeout: 5000 });
 
         // The backlog must have been reloaded after the move, not just the sprint.

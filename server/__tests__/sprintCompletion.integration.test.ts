@@ -5,7 +5,6 @@ import { installPgTypeParsers } from "../platform/db/pgTypes";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { completeSprint } from "../services/sprintCompletion";
 import { placeTickets } from "../modules/tasks/tasks.placement";
-import { __test__ as schedulerTest } from "../services/sprintScheduler";
 
 installPgTypeParsers();
 
@@ -166,30 +165,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         expect((await pool.query("SELECT id FROM task_history WHERE task_id = $1 AND field = 'sprint'", [id])).rows).toHaveLength(1);
     });
 
-    test("scheduler rollover uses the next sprint's end date and placement history", async () => {
-        const id = await ticket({
-            sprintId: 10,
-            workflowStateId: openStateId,
-            dueDate: "2026-11-14",
-            preSprintDueDate: "2026-12-10",
-        });
-
-        await schedulerTest.completeAndRollover(db, 10, 11, 1);
-
-        const moved = (await pool.query(
-            "SELECT sprint_id, due_date, pre_sprint_due_date, carried_over_from_sprint_id FROM tasks WHERE id = $1",
-            [id],
-        )).rows[0];
-        expect(moved).toMatchObject({
-            sprint_id: 11,
-            due_date: "2026-11-28",
-            pre_sprint_due_date: "2026-12-10",
-            carried_over_from_sprint_id: 10,
-        });
-        expect((await pool.query("SELECT id FROM task_history WHERE task_id = $1 AND field = 'sprint'", [id])).rows).toHaveLength(1);
-    });
-
-    test("completion moves unfinished tickets out while preserving planned day and restoring their due date", async () => {
+    test("completion moves unfinished tickets out while preserving their due date and planned day", async () => {
         const id = await ticket({
             sprintId: 10,
             workflowStateId: openStateId,
@@ -207,7 +183,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         expect(moved).toMatchObject({
             sprint_id: null,
             planned_date: "2026-11-07",
-            due_date: "2026-12-10",
+            due_date: "2026-11-14",
             pre_sprint_due_date: null,
         });
     });

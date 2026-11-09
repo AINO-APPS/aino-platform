@@ -11,7 +11,6 @@ const params = (query: string) => new URLSearchParams(query);
 describe("tasks routes", () => {
     test("each view has its own path", () => {
         expect(tasksViewPath("backlog")).toBe("/tasks/backlog");
-        expect(tasksViewPath("scheduled")).toBe("/tasks/schedule");
         expect(tasksViewPath("service-desk")).toBe("/tasks/desk");
         expect(tasksViewPath("sprint", 12)).toBe("/tasks/sprint/12");
         expect(tasksViewPath("sprint", 12, true)).toBe("/tasks/sprint/12/plan");
@@ -27,9 +26,7 @@ describe("tasks routes", () => {
         expect(parseTasksRoute("/tasks/sprint/12/plan", params(""))).toEqual({
             view: "sprint", sprintId: "12", plan: true,
         });
-        expect(parseTasksRoute("/tasks/schedule", params(""))).toEqual({
-            view: "scheduled", sprintId: null, plan: false,
-        });
+        expect(parseTasksRoute("/tasks/schedule", params("")).view).toBe("backlog");
     });
 
     test("an unknown or stale path degrades to the backlog", () => {
@@ -39,7 +36,7 @@ describe("tasks routes", () => {
     });
 
     test("a legacy ?tab= link names its view from the first render", () => {
-        expect(parseTasksRoute("/tasks", params("tab=scheduled")).view).toBe("scheduled");
+        expect(parseTasksRoute("/tasks", params("tab=scheduled")).view).toBe("backlog");
         expect(parseTasksRoute("/tasks", params("tab=service-desk")).view).toBe("service-desk");
         expect(parseTasksRoute("/tasks", params("tab=nonsense")).view).toBe("backlog");
         // A real path always wins over the legacy parameter.

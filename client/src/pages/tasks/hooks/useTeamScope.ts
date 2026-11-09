@@ -29,7 +29,7 @@ function readStoredTeam(): TeamScope | null {
  * Super admin and above pick one team at a time (or the Unassigned bucket for
  * legacy tickets); there is no merged view, because one board cannot show
  * several sprints. The chosen team narrows the sprint list — which drives the
- * tabs and the landing view — and the backlog/scheduled queries. The choice is
+ * tabs and the landing view — and the backlog query. The choice is
  * remembered. Everyone else is pinned to their own team.
  */
 export function useTeamScope(options: {

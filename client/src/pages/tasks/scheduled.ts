@@ -1,7 +1,7 @@
 import { startDateOf } from "./dates";
 import { parseLocalDate } from "./utils";
 
-/** Days back (overdue) and ahead covered by the Scheduled tab. */
+/** Days back (overdue) and ahead covered by date-based task views. */
 export const SCHEDULED_PAST_DAYS = 30;
 export const SCHEDULED_AHEAD_DAYS = 30;
 
@@ -40,7 +40,7 @@ function dayLabel(day: string, today: string): string {
   return parseLocalDate(day).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-/** The day a scheduled ticket sits on: its planned date, else its due date. */
+/** The calendar day for a task: its start date, else its due date. */
 export function scheduleDateOf(task: any): string | null {
   for (const value of [task ? startDateOf(task) : null, task?.due_date]) {
     if (typeof value === "string" && value.length >= 10) return value.slice(0, 10);
@@ -51,20 +51,12 @@ export function scheduleDateOf(task: any): string | null {
 const byDoneThenPriority = (a: any, b: any) =>
   Number(!!a.completed_at) - Number(!!b.completed_at) || rank(a) - rank(b);
 
-/**
- * Overdue (past date, not done) first, then one section per day for the next
- * 30 days, then everything further out under "Later" so no dated ticket goes
- * missing now that dated work has left the backlog. A ticket's day is its
- * planned date, else its due date. Completed past tasks are dropped — they are
- * history. Mirrors Android's `groupScheduled`.
- */
+/** Groups calendar tasks by due/start date, retaining recent completed history. */
 export function groupScheduled(tasks: any[], today: string): ScheduledGroup[] {
   const horizon = addDays(today, SCHEDULED_AHEAD_DAYS - 1);
   const dated = tasks
     .map((t) => ({ t, d: scheduleDateOf(t) }))
     .filter((x): x is { t: any; d: string } => x.d !== null);
-  // History window: a ticket finished within the last 30 days keeps its day
-  // (the server applies the same window). Older finished work is history.
   const historyFrom = addDays(today, -SCHEDULED_PAST_DAYS);
   const finishedWithin = (t: any) =>
     Boolean(t.completed_at) && String(t.completed_at).slice(0, 10) >= historyFrom;

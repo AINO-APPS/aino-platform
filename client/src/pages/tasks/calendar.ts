@@ -1,10 +1,10 @@
 import { scheduleDateOf } from "./scheduled";
 
 /**
- * Calendar maths for the Schedule view.
+ * Calendar maths for the task calendar view.
  *
  * Dates are date-only strings (`YYYY-MM-DD`), matching the server's
- * `planned_date` column. "Today" is the viewer's local today.
+ * `start_date` and `due_date` columns. "Today" is the viewer's local today.
  */
 
 export type CalendarMode = "month" | "week" | "list";
@@ -80,6 +80,7 @@ export interface ScheduledTask {
     capabilities?: import("../../types/generated/tasks").TicketCapabilities;
     id: number | string;
     title?: string;
+    start_date?: string | null;
     planned_date?: string | null;
     due_date?: string | null;
     story_points?: number | null;
@@ -88,11 +89,10 @@ export interface ScheduledTask {
 }
 
 /**
- * The calendar day of a scheduled task: its planned date, else its due date,
- * so a ticket in Scheduled for its deadline alone still has a cell.
+ * The calendar day of a task: its start date, else its due date.
  */
 export function plannedDay(task: ScheduledTask): string | null {
-    // One rule with the Scheduled list (see `scheduleDateOf`).
+    // Keep the calendar aligned with the legacy date-grouping helper.
     return scheduleDateOf(task);
 }
 

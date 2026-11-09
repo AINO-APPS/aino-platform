@@ -5,7 +5,7 @@
  * title, and a footer with the status pill, due date, at most two labels and
  * the assignee avatar. Comfortable adds the description preview and comment
  * count. Backlog and board share the same anatomy; the backlog adds the
- * org-themed "Schedule to a day" action.
+ * server-authorized "Add to sprint" action.
  */
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -14,8 +14,6 @@ import BacklogCard from "../BacklogCard";
 import TaskCard from "../TaskCard";
 import { TaskProvider, useCardDensity } from "../TaskContext";
 import { ToastProvider } from "../../../components/common/Toast";
-import fs from "node:fs";
-import path from "node:path";
 
 import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 const task = {
@@ -71,12 +69,7 @@ const backlog = (props: Partial<React.ComponentProps<typeof BacklogCard>> = {}) 
     <BacklogCard
         task={task}
         workflowStates={[]}
-        scheduleTaskId={null}
-        scheduleDate=""
-        setScheduleTaskId={vi.fn()}
-        setScheduleDate={vi.fn()}
         onOpenDetail={vi.fn()}
-        onScheduleTask={vi.fn()}
         {...props}
     />
 );
@@ -120,33 +113,5 @@ describe("comfortable density", () => {
     test("adds the description preview", () => {
         wrap(board(), "comfortable");
         expect(screen.getByText(/Retry failed refund/)).toBeTruthy();
-    });
-});
-
-describe("schedule to a day", () => {
-    test("the backlog row shows an org-themed Schedule action", () => {
-        wrap(backlog(), "compact");
-        const button = screen.getByRole("button", { name: "Schedule to a day" });
-        expect(button.className).toContain("schedule-btn");
-    });
-
-    test("the popover offers quick picks and confirms with Schedule", () => {
-        const setScheduleDate = vi.fn();
-        const onScheduleTask = vi.fn();
-        wrap(
-            backlog({ scheduleTaskId: 7, scheduleDate: "2026-10-26", setScheduleDate, onScheduleTask }),
-            "compact",
-        );
-        fireEvent.click(screen.getByRole("button", { name: "Tomorrow" }));
-        expect(setScheduleDate).toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
-        expect(onScheduleTask).toHaveBeenCalledWith(7, "Refund webhook retries");
-    });
-
-    test("the schedule button is painted with the org primary, not a fixed colour", () => {
-        const css = fs.readFileSync(path.join(__dirname, "..", "TaskCard.module.css"), "utf8");
-        const rule = css.match(/\.schedule-btn\s*\{([^}]*)\}/)?.[1] ?? "";
-        expect(rule).toMatch(/var\(--primary\)/);
-        expect(rule).not.toMatch(/#[0-9a-f]{3,6}/i);
     });
 });

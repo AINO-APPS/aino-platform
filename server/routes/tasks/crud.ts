@@ -455,7 +455,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         const placementTarget = move.target;
 
         // Ticket 05 retains ownership of the legacy sprint deadline override.
-        const dueDateRequested = due_date !== undefined && !move.joinsSprint;
+        const dueDateRequested = due_date !== undefined;
         const dates = resolveTicketDates(task, { ...req.body, due_date: dueDateRequested ? due_date : undefined });
         if (dates.error) return res.status(400).json({ error: dates.error });
 

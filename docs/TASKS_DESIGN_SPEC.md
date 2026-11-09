@@ -1,7 +1,8 @@
-# WorkPulse Tasks — Backlog / Sprint / Schedule Design Spec
+# WorkPulse Tasks — Historical Backlog / Sprint / Schedule Design Spec
 
-**Status:** approved design, not yet implemented
-**Date:** 2026-10-25
+**Status:** historical design; current project planning decisions are defined by
+[ADR-018](adr/ADR-018-project-types.md) and the project-type rollout.
+**Date:** 2026-10-25 (historical)
 **Scope:** the Tasks area (Backlog, Sprint, Schedule) of every WorkPulse client
 **Parity matrix:** [`contracts/tasks-parity.json`](../contracts/tasks-parity.json)
 **Parity gate:** `node scripts/validate-tasks-parity.mjs` (wired into `contracts:validate`)
@@ -18,6 +19,14 @@ for integrated validation and outstanding cross-branch parity gaps.
 This is the single source of truth for the Tasks domain model, information
 architecture, per-view behaviour, API surface, and per-client parity. It follows
 the convention established by [`CHAT_DESIGN_SPEC.md`](./CHAT_DESIGN_SPEC.md).
+
+> **Current model:** ADR-018 supersedes this spec's earlier Scheduled container
+> and Continuous sprint model. Tickets are placed in Scrum sprints/backlog,
+> Kanban boards (optionally with backlog), or Task list views. Start and due
+> dates are fields, not containers. Ticket 05 removes current web Scheduled
+> planning and automatic sprint controls while retaining legacy endpoint
+> compatibility until ticket 11. The decision table below retains prior
+> decisions for historical context; D57 is authoritative where they conflict.
 
 ---
 
@@ -222,6 +231,7 @@ are referenced by the parity matrix and the phase plan.
 | D52 | **Team mode is web-only configuration.** `server/middleware/webOnly.ts` already blocks agile editor/reviewer routes for native clients, so the Continuous/Sprints switch is edited on web and only *read* by Android and the iOS webview. |
 | D53 | **The home card shows the running sprint or this week — never the backlog.** With an active sprint (and the tenant `agile` feature) it lists the viewer's tickets in that sprint; otherwise the tickets assigned to the viewer with a `planned_date` in this Monday–Sunday window, with open tickets planned before it pinned as **Overdue**. Both modes keep strictly `assigned_to = me` and drop `cancelled`, which the date-range query does not exclude; an empty week says so instead of falling back to the backlog, because a section whose meaning flips is the ambiguity ADR-015 exists to end. |
 | D56 | **Project-type controls (ADR-018):** project admins change type; leaving Scrum refuses planned, active or paused sprints. `agile` controls creation/change destinations only, not existing work. Server project responses decide ordered Plan tabs, backlog/sprint policy and type capabilities. Web/desktop render those decisions; later Phase 3 tickets replace board/list/calendar contents. |
+| D57 | **Scrum planning without Scheduled or auto sprints (ADR-018):** Backlog, Sprint and Reports tabs remain stable; empty Sprint links to Backlog. Sprint membership and end-date edits never retime ticket due dates. The sprint board shows both dates. Automatic sprint controls/scheduler and current web Scheduled planning are removed; migration 0032 safely retires existing automatic sprints and restores only untouched sprint-derived due dates. |
 | D55 | **Project-owned creation (ADR-017):** web/desktop and Android require an active `canCreateTickets` project, defaulting to the current or last-used project. Older clients may omit it; the server resolves request → sprint → legacy team project → General. Archived/viewer-only destinations are refused. Create, edit, bulk and plan placement use `SPRINT_PROJECT_MISMATCH` when a sprint belongs to another project. |
 | D54 | **Project moves are transactional placements (ADR-017).** With project ownership on, `canMoveProject` requires member or higher in the active source project. Web/desktop and Android select a creatable project, preview `POST /tasks/:id/move-project/preview { project_id }`, then confirm `POST /tasks/:id/move-project`. Both validate source/target grants and archive state and share workflow mapping (active key, first active category by order/id, initial fallback). Preview reserves no number. Commit allocates the target key, aliases the old key, clears the source project's sprint while restoring the personal due date and retaining a planned day, writes history/audit, then emits `task_updated`. Project moves retain legacy `team_id`; `/transfer` keeps its envelope and maps the target team to its generated project, changing `team_id` only before switch-over. Older Android clients' legacy transfer remains supported until the Phase 3 gate. |
 

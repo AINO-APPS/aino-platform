@@ -10,7 +10,7 @@ describe("server-decided project planning tabs", () => {
     ])("%s renders the server order even without agile or a current sprint", (_name, planTabs, labels) => {
         render(<PlanningTabs activeTab={planTabs[0]} setActiveTab={vi.fn()} agileEnabled={false}
             backlogCount={0} currentSprintId={null} setSelectedSprintId={vi.fn()} planTabs={planTabs as any} />);
-        expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([...labels, "Service Desk"]);
+        expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(labels);
     });
     test("Scrum Sprint never swaps for Scheduled as a sprint starts or ends", () => {
         const onSprint = vi.fn();
@@ -20,7 +20,7 @@ describe("server-decided project planning tabs", () => {
         fireEvent.click(screen.getByRole("tab", { name: "Sprint" }));
         expect(onSprint).toHaveBeenCalledWith(null);
         rerender(<PlanningTabs {...props} currentSprintId={7} />);
-        expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Backlog", "Sprint", "Reports", "Service Desk"]);
+        expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Backlog", "Sprint", "Reports"]);
         rerender(<PlanningTabs {...props} currentSprintId={null} />);
         expect(screen.queryByRole("tab", { name: "Scheduled" })).toBeNull();
         expect(screen.getByRole("tab", { name: "Sprint" })).toBeTruthy();
