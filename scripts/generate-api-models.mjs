@@ -47,6 +47,7 @@ const MODELS = [
     "SprintList",
     "SprintBaseline",
     "TaskListResponse",
+    "TaskCollectionResponse",
     "BacklogResponse",
 ];
 

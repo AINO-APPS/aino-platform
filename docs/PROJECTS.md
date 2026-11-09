@@ -52,9 +52,23 @@ render the decisions, not a project-type lookup table. Scrum tabs remain
 Service Desk remains separately accessible. Non-Scrum sprint requests are
 refused with `PROJECT_HAS_NO_SPRINTS`.
 
-Ticket 01 establishes type controls and the stable Plan shell. Continuous boards,
-Task list view contents, start dates and removal of Scheduled/automatic sprints
-ship in subsequent project-types tickets; those surfaces are not replaced here.
+Web/desktop Task list projects provide all three views. **List** shows every
+project ticket, with a filter and sort for key, title, type, status, assignee,
+priority, start date and due date. Dates do not determine list membership.
+**Board** reuses the project-wide workflow board.
+
+**Calendar** shows open tickets on every day of their inclusive start-to-due
+span. A single date shows on that day; work with neither date stays in the
+Undated side list. Drag a ticket to shift its dates together (the duration is
+preserved), or drag undated work onto a day to set both dates. **Edit dates**
+provides the same planning access without dragging, including clearing dates.
+An earlier due date is refused. Viewers and archived projects stay read-only.
+Approved leave, holidays and meetings provide independently toggled, read-only
+context; none changes a ticket or its workflow.
+
+Android's date-grouped upcoming view is a separate pending ticket04 slice;
+the calendar is web-only. Integrated ticket05 removes Scheduled from the web
+and retires automatic sprints. Compatibility endpoints remain until ticket11.
 
 ## Keys, moves and archive
 

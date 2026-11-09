@@ -25,8 +25,6 @@ const { logHistory } = require('./_helpers/logHistory');
 const { ticketActionConflict, ticketCreationConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
-    rejectsForeignTeamRequest,
-    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
@@ -35,7 +33,6 @@ const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusE
 const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
-const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
@@ -59,57 +56,7 @@ interface DbLike {
 
 const router = express.Router();
 
-// ─── Get tasks for a specific date or date range ─────────────────────────
-router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
-
-        // One policy for every list surface. Admins may ask for a team (the
-        // Plan team switcher) or the Unassigned bucket; a non-admin asking for
-        // a foreign team is rejected rather than silently narrowed.
-        const actor = taskActorFromRequest(req);
-        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
-            return res.status(403).json({ error: ACCESS_DENIED });
-        }
-        const visibility = await resolveTaskVisibilityForRequest(actor, {
-            scope,
-            teamId: Number.isNaN(requestedTeamId as number)
-                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
-                : requestedTeamId,
-            projectId: project_id ? Number.parseInt(project_id, 10) : null,
-            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
-        });
-
-        const collection = buildTaskCollection({
-            scope: 'schedule',
-            orgId: req.userOrgId || null,
-            visibility,
-            sprintId: sprint_id ? parseInt(sprint_id, 10) : undefined,
-            startDate: start_date,
-            endDate: end_date,
-            date: date || (sprint_id || (start_date && end_date) ? undefined : getLocalToday(req)),
-            filters: { assignee, label, priority, status, search, projectId: project_id, includeDue: include_due === '1' },
-        });
-
-        const tasks = (await req.db!.query(`
-            SELECT t.* FROM tasks t
-            WHERE ${collection.whereSql}
-            ORDER BY ${collection.orderSql}
-            LIMIT 500
-        `, collection.params)).rows;
-
-        const enriched = await enrichTasks(tasks, req.db, actor);
-        const total = enriched.length;
-        const done = enriched.filter((t: any) => t.workflow_state_category === 'done').length;
-        const inProgress = enriched.filter((t: any) => t.workflow_state_category === 'in_progress').length;
-
-        res.json({ tasks: enriched, stats: { total, done, inProgress, percent: total > 0 ? Math.round((done / total) * 100) : 0 } });
-    } catch (err) {
-        req.log.error({ err: err }, 'Error fetching tasks:');
-        res.status(500).json({ error: 'Failed to fetch tasks' });
-    }
-});
+router.use(require("./collection"));
 
 // ─── Add a task ──────────────────────────────────────────────────────────
 router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {

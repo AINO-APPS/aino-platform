@@ -77,6 +77,91 @@ async function retryConnection<T>(operation: () => Promise<T>): Promise<T> {
             VALUES ($1, 1, 1, $2, $3) RETURNING id`, [title, projectId, state])).rows[0].id;
     }
 
+    test("Task list calendar reads inclusive spans, single dates and undated open work within one project", async () => {
+        await request(app).put("/api/projects/10").send({ type: "task_list" }).expect(200);
+        const create = async (title: string, start_date: string | null, due_date: string | null) => {
+            const result = await request(app).post("/api/tasks").send({ project_id: 10, title, start_date, due_date });
+            expect(result.status).toBe(200);
+            return result.body.id;
+        };
+        const span = await create("Spans the whole range", "2026-11-01", "2026-11-30");
+        const end = await create("Ends on first day", "2026-11-01", "2026-11-09");
+        const start = await create("Starts on last day", "2026-11-15", null);
+        const due = await create("Only a deadline", null, "2026-11-10");
+        const undated = await create("Not yet dated", null, null);
+        await create("Outside range", "2026-11-16", "2026-11-17");
+        await ticket("Other project", "pending", 20);
+        const done = await ticket("Done", "done");
+        await ticket("Cancelled", "cancelled");
+        const calendar = await request(app).get("/api/tasks").query({
+            scope: "calendar", project_id: 10, start_date: "2026-11-09", end_date: "2026-11-15",
+        }).expect(200);
+        expect(calendar.body.tasks.map((row: any) => row.id).sort()).toEqual([span, end, start, due].sort());
+        const tray = await request(app).get("/api/tasks").query({ scope: "calendar", project_id: 10, undated: "1" }).expect(200);
+        expect(tray.body.tasks.map((row: any) => row.id)).toEqual([undated]);
+        const list = await request(app).get("/api/tasks").query({ scope: "list", project_id: 10 }).expect(200);
+        expect(list.body.tasks.map((row: any) => row.id)).toEqual(expect.arrayContaining([span, undated, done]));
+        expect(list.body.tasks.map((row: any) => row.title)).not.toContain("Other project");
+        await request(app).get("/api/tasks").query({ scope: "list", project_id: 20 }).expect(403);
+        const day = await request(app).get("/api/tasks").query({ scope: "calendar", project_id: 10, date: "2026-11-10" }).expect(200);
+        expect(day.body.tasks.map((row: any) => row.id).sort()).toEqual([span, due].sort());
+    });
+
+    test("Task list reads filter and sort all eight fields, with literal key/title matching and pagination", async () => {
+        await request(app).put("/api/projects/10").send({ type: "task_list" }).expect(200);
+        const bugType = (await pool.query("SELECT id FROM work_item_types WHERE org_id = 1 AND key = 'bug'")).rows[0].id;
+        const first = (await request(app).post("/api/tasks").send({
+            project_id: 10, title: "Zulu 100%", priority: "high", assigned_to: 1,
+            start_date: "2026-11-09", due_date: "2026-11-12",
+        }).expect(200)).body;
+        const second = (await request(app).post("/api/tasks").send({
+            project_id: 10, title: "Alpha", priority: "low", work_item_type_id: bugType,
+            start_date: "2026-11-10", due_date: "2026-11-13", workflow_state_id: states.in_progress,
+        }).expect(200)).body;
+        for (const [field, value] of Object.entries({
+            key: first.ticket_key, title: "100%", work_item_type_id: first.work_item_type_id, status: "pending",
+            assignee: "1", priority: "high", start_on: "2026-11-09", due_on: "2026-11-12",
+        })) {
+            const list = await request(app).get("/api/tasks").query({ scope: "list", project_id: 10, [field]: value }).expect(200);
+            expect({ field, ids: list.body.tasks.map((row: any) => row.id) }).toEqual({ field, ids: [first.id] });
+        }
+        for (const [sort, expected] of Object.entries({
+            key: [first.id, second.id], title: [second.id, first.id], type: [second.id, first.id],
+            status: [second.id, first.id], assignee: [first.id, second.id], priority: [first.id, second.id],
+            start_date: [first.id, second.id], due_date: [first.id, second.id],
+        })) {
+            const list = await request(app).get("/api/tasks").query({ scope: "list", project_id: 10, sort }).expect(200);
+            expect({ sort, ids: list.body.tasks.map((row: any) => row.id) }).toEqual({ sort, ids: expected });
+        }
+        const descending = await request(app).get("/api/tasks").query({ scope: "list", project_id: 10, sort: "due_date", direction: "desc", offset: 1 }).expect(200);
+        expect(descending.body.tasks.map((row: any) => row.id)).toEqual([first.id]);
+        expect(descending.body.pagination).toEqual({ offset: 1, hasMore: false });
+        const unassigned = await request(app).get("/api/tasks").query({ scope: "list", project_id: 10, assignee: "unassigned" }).expect(200);
+        expect(unassigned.body.tasks.map((row: any) => row.id)).toEqual([second.id]);
+    });
+
+    test("calendar date edits are atomic, validated and capability-guarded through public reads", async () => {
+        await request(app).put("/api/projects/10").send({ type: "task_list" }).expect(200);
+        const created = (await request(app).post("/api/tasks").send({
+            project_id: 10, title: "Calendar edits", start_date: "2026-11-09", due_date: "2026-11-12",
+        }).expect(200)).body;
+        await request(app).put(`/api/tasks/${created.id}`).send({ start_date: "2026-11-15" }).expect(400);
+        await request(app).put(`/api/tasks/${created.id}`).send({ start_date: "2026-11-15", due_date: "2026-11-18" }).expect(200);
+        const read = await request(app).get("/api/tasks").query({ scope: "calendar", project_id: 10, date: "2026-11-16" }).expect(200);
+        expect(read.body.tasks).toEqual([expect.objectContaining({ id: created.id, start_date: "2026-11-15", due_date: "2026-11-18", sprint_id: null })]);
+        const history = await request(app).get(`/api/tasks/${created.id}/history`).expect(200);
+        expect(history.body).toEqual(expect.arrayContaining([expect.objectContaining({ field: "start_date", new_value: "2026-11-15" })]));
+        await pool.query("UPDATE project_members SET role = 'viewer' WHERE project_id = 10 AND user_id = 1");
+        const viewer = await request(app).get("/api/tasks").query({ scope: "calendar", project_id: 10, date: "2026-11-16" }).expect(200);
+        expect(viewer.body.tasks[0].capabilities.can.edit.allowed).toBe(false);
+        await request(app).put(`/api/tasks/${created.id}`).send({ due_date: "2026-11-20" }).expect(403);
+        for (const query of [
+            { scope: "calendar", project_id: 10 }, { scope: "list" },
+            { scope: "calendar", project_id: 10, start_date: "2026-11-12", end_date: "2026-11-01" },
+            { scope: "calendar", project_id: 10, date: "2026-02-30" },
+        ]) await request(app).get("/api/tasks").query(query).expect(400);
+    });
+
     test("continuous board includes all project work, recent Done only, and never Cancelled", async () => {
         const open = await ticket("Open with dates", "pending");
         await pool.query("UPDATE tasks SET start_date = '2026-01-01', planned_date = '2026-01-01' WHERE id = $1", [open]);

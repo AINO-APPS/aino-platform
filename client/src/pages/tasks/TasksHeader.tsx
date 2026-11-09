@@ -108,6 +108,7 @@ export default function TasksHeader({
     const selectedProject = projects.find((project) => project.id === selectedProjectId);
     const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
     const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
+    const datedProjectView = projectOwnership && (activeTab === "list" || activeTab === "calendar");
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -194,6 +195,8 @@ export default function TasksHeader({
                                 <span className="page-icon">
                                     {activeTab === "service-desk" ? (
                                         <Headset size={18} style={{ verticalAlign: "middle" }} />
+                                    ) : activeTab === "calendar" ? (
+                                        <CalendarDays size={18} style={{ verticalAlign: "middle" }} />
                                     ) : activeTab === "reports" ? (
                                         <BarChart3 size={18} style={{ verticalAlign: "middle" }} />
                                     ) : (
@@ -202,6 +205,10 @@ export default function TasksHeader({
                                 </span>{" "}
                                 {activeTab === "service-desk"
                                     ? "Service Desk"
+                                    : activeTab === "list"
+                                      ? "List"
+                                    : activeTab === "calendar"
+                                      ? "Calendar"
                                     : activeTab === "reports"
                                       ? "Reports"
                                       : activeTab === "board"
@@ -211,6 +218,8 @@ export default function TasksHeader({
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
+                                    : datedProjectView
+                                      ? `${teamName} — ${activeTab === "list" ? "every ticket, sorted your way" : "plan open work by start and due dates"}`
                                     : activeTab === "reports"
                                       ? "Sprint insights and project delivery reports"
                                       : projectBoard
@@ -306,7 +315,7 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {activeTab !== "service-desk" && !projectBoard && (
+                    {activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["filter-toggle-btn"]} ${filterCount > 0 ? s["has-filters"] : ""}`}
                             onClick={() => setFiltersOpen((o) => !o)}
@@ -319,7 +328,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["density-toggle"]}`}
                             onClick={() =>
@@ -509,7 +518,7 @@ export default function TasksHeader({
             )}
 
             {/* Filter Bar */}
-            {filtersOpen && activeTab !== "service-desk" && !projectBoard && (
+            {filtersOpen && activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                 <div className={s["filter-bar"]}>
                     <div className={s["filter-row"]}>
                         <div className={s["filter-group"]}>

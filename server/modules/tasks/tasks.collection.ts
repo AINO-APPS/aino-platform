@@ -12,7 +12,11 @@ import { buildVisibilityPredicate, type TaskVisibility } from "./tasks.policy";
 export type { TaskVisibility };
 
 /**
- * Containers are mutually exclusive, and a planned day is what decides them:
+ * Project views are independent of legacy placement:
+ *  - `list`     — every ticket in the selected project, regardless of dates.
+ *  - `calendar` — open date spans overlapping a range, or undated open work.
+ *
+ * Compatibility collection scopes remain for older callers until retirement:
  * a sprint wins over a day, and a day wins over the backlog.
  *  - `backlog`   — no sprint, no planned day. A due date is a deadline, not a
  *                  container: it never moves a ticket out of the backlog.
@@ -25,7 +29,7 @@ export type { TaskVisibility };
  * Scheduled tab is hidden, into nowhere). It is now metadata: it sorts, it
  * renders on the card, and it is never a reason to leave the backlog.
  */
-export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled";
+export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled" | "list" | "calendar";
 
 /** Completed scheduled work older than this drops out of the Scheduled tab. */
 export const SCHEDULED_HISTORY_DAYS = 30;
@@ -59,6 +63,10 @@ export interface TaskCollectionFilters {
     completed?: "all" | "incomplete" | "completed";
     /** Schedule scope: also match tasks whose due date is the requested day. */
     includeDue?: boolean;
+    key?: string;
+    title?: string;
+    startOn?: string;
+    dueOn?: string;
 }
 
 export interface TaskCollectionInput {
@@ -75,6 +83,9 @@ export interface TaskCollectionInput {
     date?: string;
     /** Scheduled scope only: the caller's local today (YYYY-MM-DD). */
     today?: string;
+    undated?: boolean;
+    sort?: string;
+    direction?: string;
 }
 
 export interface TaskCollectionQuery {
@@ -106,6 +117,8 @@ const ORDER_BY: Record<TaskCollectionScope, string> = {
     board: "t.created_at ASC",
     scheduled: `COALESCE(t.start_date, t.due_date) ASC, ${PRIORITY_ORDER}, t.created_at ASC`,
     schedule: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
+    list: "t.ticket_key ASC, t.id ASC",
+    calendar: "COALESCE(t.start_date, t.due_date) ASC, t.id ASC",
 };
 
 const VALID_PRIORITIES = ["low", "medium", "high"];
@@ -139,7 +152,19 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     };
 
     // ── Container scope ────────────────────────────────────────────────────
-    if (input.scope === "backlog") {
+    if (input.scope === "list" || input.scope === "calendar") {
+        if (input.scope === "calendar") {
+            conditions.push(INCOMPLETE_PREDICATE,
+                "NOT EXISTS (SELECT 1 FROM workflow_states ws WHERE ws.id = t.workflow_state_id AND ws.key = 'cancelled')");
+            if (input.undated) {
+                conditions.push("t.start_date IS NULL", "t.due_date IS NULL");
+            } else {
+                const from = input.date ?? input.startDate;
+                const to = input.date ?? input.endDate;
+                push(`COALESCE(t.start_date, t.due_date) <= $${pi} AND COALESCE(t.due_date, t.start_date) >= $${pi + 1}`, to, from);
+            }
+        }
+    } else if (input.scope === "backlog") {
         // The collapsed Completed section lists every finished unsprinted
         // ticket, dated or not; the open list is unplanned only.
         if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);
@@ -196,16 +221,28 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     // ── Filters ────────────────────────────────────────────────────────────
     const filters = input.filters || {};
 
+    for (const [value, column] of [[filters.key, "t.ticket_key"], [filters.title, "t.title"]] as const) {
+        if (value?.trim()) push(`${column} ILIKE $${pi} ESCAPE '\\'`, `%${escapeLike(value.trim())}%`);
+    }
+    if (filters.startOn) push(`t.start_date = $${pi}`, filters.startOn);
+    if (filters.dueOn) push(`t.due_date = $${pi}`, filters.dueOn);
+
     if (filters.assignee) {
-        const visibilityUserId = "userId" in input.visibility ? input.visibility.userId : null;
-        const assigneeId = filters.assignee === "me"
-            ? visibilityUserId
-            : parseId(filters.assignee);
-        if (assigneeId !== null) {
-            push(
-                `(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`,
-                assigneeId,
-            );
+        if (filters.assignee === "unassigned") {
+            conditions.push("t.assigned_to IS NULL");
+        } else {
+            const visibilityUserId = "userId" in input.visibility ? input.visibility.userId : null;
+            const assigneeId = filters.assignee === "me"
+                ? visibilityUserId
+                : parseId(filters.assignee);
+            if (assigneeId !== null) {
+                push(
+                    input.scope === "list" || input.scope === "calendar"
+                        ? `t.assigned_to = $${pi}`
+                        : `(t.assigned_to = $${pi} OR (t.user_id = $${pi} AND t.assigned_to IS NULL))`,
+                    assigneeId,
+                );
+            }
         }
     }
 
@@ -266,9 +303,19 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     return {
         whereSql: conditions.join(" AND "),
         params,
-        orderSql: ORDER_BY[input.scope],
+        orderSql: input.scope === "list" && input.sort && Object.hasOwn(LIST_SORT, input.sort)
+            ? `${LIST_SORT[input.sort]} ${input.direction === "desc" ? "DESC" : "ASC"} NULLS LAST, t.id ASC`
+            : ORDER_BY[input.scope],
     };
 }
+
+const LIST_SORT: Record<string, string> = {
+    key: "t.ticket_key", title: "LOWER(t.title)",
+    type: "(SELECT name FROM work_item_types WHERE id = t.work_item_type_id)",
+    status: "(SELECT name FROM workflow_states WHERE id = t.workflow_state_id)",
+    assignee: "(SELECT LOWER(COALESCE(full_name, username)) FROM users WHERE id = t.assigned_to)",
+    priority: PRIORITY_ORDER, start_date: "t.start_date", due_date: "t.due_date",
+};
 
 /** Completed tasks matching the same filters, for the collapsed section. */
 export function buildCompletedQuery(input: TaskCollectionInput): TaskCollectionQuery {
@@ -281,6 +328,14 @@ export function buildCompletedQuery(input: TaskCollectionInput): TaskCollectionQ
 /** Minimal database port for the collection queries. */
 export interface CollectionDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[] }>;
+}
+
+export async function readTaskCollection(db: CollectionDb, collection: TaskCollectionQuery, offset = 0, paginated = false) {
+    return (await db.query(
+        `SELECT t.* FROM tasks t WHERE ${collection.whereSql}
+         ORDER BY ${collection.orderSql} LIMIT ${paginated ? 501 : 500} OFFSET $${collection.params.length + 1}`,
+        [...collection.params, offset],
+    )).rows;
 }
 
 /**
