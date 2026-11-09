@@ -644,6 +644,37 @@ Delete a sprint.
 - **Auth**: `auth`, `loadUserContext`, `requireRole('team_lead')`
 - **Response**: `200 { message: "Sprint deleted" }`
 
+### GET `/api/sprints/:id/completion-preview`
+Preview the exact carryover plan used when completing a sprint.
+
+- **Query**: `rolloverTo=next|new|backlog` to preview a selected destination. Omitting it previews the default.
+- **Response**:
+  ```json
+  {
+    "supportsNewSprint": true,
+    "defaultTarget": 12,
+    "defaultTargetType": "next",
+    "selectedTarget": "new",
+    "hasNext": true,
+    "nextPlannedSprint": { "id": 12, "name": "Sprint 25" },
+    "moving": [],
+    "movingParents": [],
+    "movingSubtasks": 2,
+    "staying": [],
+    "movingPoints": 8,
+    "newSprint": { "name": "Next after Sprint 24 (9)", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD" }
+  }
+  ```
+- `moving` and `staying` contain all tickets; subtasks are grouped with their parent for movement. `movingParents` excludes subtasks, `movingSubtasks` is their count, and `movingPoints` sums the full moving set.
+- `defaultTarget` remains the legacy next-sprint ID or `"backlog"`; `supportsNewSprint` signals support for the additive target contract.
+
+### POST `/api/sprints/:id/complete`
+Complete a sprint and move its unfinished parent tickets and all their subtasks in one transaction.
+
+- **Body**: `{ "rolloverTo": "next" | "new" | "backlog" }`; omission uses the same default as the preview (next planned sprint, otherwise backlog).
+- `"new"` creates a planned sprint in the closing sprint's project, starting the day after completion and with the same inclusive duration. Numeric sprint IDs remain accepted for older clients.
+- **Response**: Existing completion fields plus `rolloverTarget`, `rolloverTargetType`, and `targetSprint`.
+
 ### GET `/api/sprints/:id/tasks`
 Get all tasks in a specific sprint.
 

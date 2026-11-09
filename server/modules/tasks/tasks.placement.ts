@@ -66,6 +66,8 @@ export interface PlacementContext {
     projectOwnership?: boolean;
     /** Only the atomic create path may place a newly created subtask. */
     creatingSubtaskOf?: number;
+    /** A lifecycle operation may move a subtask together with its locked parent. */
+    cascadeParentIds?: Set<number>;
 }
 
 export type PlacementRefusalCode =
@@ -151,11 +153,14 @@ export async function placeTickets(
         const before = tickets.get(id);
         const action = plansDay(target) ? "schedule" : joinsSprint(target) ? "placeInSprint" : "edit";
         const creatingSubtask = ctx.creatingSubtaskOf != null && Number(before?.parent_task_id) === ctx.creatingSubtaskOf;
+        const cascadingSubtask = before?.parent_task_id != null
+            && ctx.cascadeParentIds?.has(Number(before.parent_task_id)) === true
+            && ids.includes(Number(before.parent_task_id));
         if (creatingSubtask) context?.subtaskIds?.delete(id);
         const verdict = before && context && ctx.ticketActor
             ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
         const code = !before ? "NOT_FOUND" : verdict && !verdict.allowed ? verdict.reason
-            : subtaskIds.has(id) && !creatingSubtask ? "SUBTASK_FOLLOWS_PARENT" : verdict ? null
+            : subtaskIds.has(id) && !creatingSubtask && !cascadingSubtask ? "SUBTASK_FOLLOWS_PARENT" : verdict ? null
             : placementRefusal(before, target, targetSprint, sprints, projectOwnership);
         return { id, before, code };
     });

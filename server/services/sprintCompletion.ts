@@ -7,6 +7,8 @@ import {
 } from "../modules/tasks/tasks.placement";
 import * as placementRepo from "../modules/tasks/tasks.placementRepository";
 import * as repo from "../modules/tasks/tasks.sprintRepository";
+import { assertTicketHierarchy, HierarchyRefused } from "../modules/tasks/tasks.hierarchy";
+import { carryoverSprintName, planCarryover, sprintDurationDays } from "../modules/tasks/tasks.sprintLifecycle";
 
 interface SprintCompletionDb extends PlacementDb {
     transaction<T>(
@@ -16,11 +18,22 @@ interface SprintCompletionDb extends PlacementDb {
 
 export interface CompleteSprintOptions {
     sprintId: number;
-    targetSprintId: number | null;
+    target?: number | string | "next" | "new" | "backlog" | null;
+    /** Legacy service callers can still express an explicit sprint id or backlog. */
+    targetSprintId?: number | null;
     orgId?: number | null;
     projectOwnership?: boolean;
     actor?: PlacementActor;
     effects: PlacementEffects;
+}
+
+export function parseSprintCompletionTarget(value: unknown): number | "next" | "new" | "backlog" | undefined | null {
+    if (value == null || value === "") return undefined;
+    if (value === "next" || value === "new" || value === "backlog") return value;
+    const text = typeof value === "number" ? String(value) : value;
+    if (typeof text !== "string" || !/^[1-9]\d*$/.test(text)) return null;
+    const id = Number(text);
+    return Number.isSafeInteger(id) ? id : null;
 }
 
 export interface SprintCompletionResult {
@@ -30,10 +43,12 @@ export interface SprintCompletionResult {
     totalTasks: number;
     rolledOver: number;
     rolloverTarget: string;
+    rolloverTargetType: "next" | "new" | "backlog" | "sprint";
+    targetSprint: any | null;
 }
 
 export class SprintCompletionError extends Error {
-    constructor(readonly code: "TARGET_INVALID" | "PLACEMENT_REFUSED", message: string) {
+    constructor(readonly code: "TARGET_INVALID" | "PLACEMENT_REFUSED" | "NEW_SPRINT_UNAVAILABLE", message: string) {
         super(message);
     }
 }
@@ -62,21 +77,63 @@ export async function completeSprint(
             orgId: team?.org_id == null ? null : Number(team.org_id),
         };
 
+        const nextPlanned = await repo.findNextPlannedSprint(
+            client,
+            claimed.team_id,
+            options.sprintId,
+            orgId,
+            options.projectOwnership ? Number(claimed.project_id) : undefined,
+        );
+        const requestedTarget = options.target !== undefined
+            ? options.target
+            : options.targetSprintId !== undefined
+                ? options.targetSprintId ?? "backlog"
+                : undefined;
+        const plan = planCarryover(members, nextPlanned?.id ?? null, requestedTarget);
         let target: any = null;
-        if (options.targetSprintId != null) {
-            if (Number(options.targetSprintId) === Number(options.sprintId)) {
+        let rolloverTargetType: "next" | "new" | "backlog" | "sprint" = "backlog";
+        if (plan.target === "new") {
+            const durationDays = sprintDurationDays(claimed.start_date, claimed.end_date);
+            if (!durationDays || !claimed.project_id) {
+                throw new SprintCompletionError("NEW_SPRINT_UNAVAILABLE", "Cannot create a next sprint without valid sprint dates and project ownership");
+            }
+            const dates = await repo.findCarryoverSprintDateRange(client, durationDays);
+            target = await repo.createCarryoverSprint(
+                client,
+                Number(claimed.project_id),
+                orgId,
+                carryoverSprintName(String(claimed.name), options.sprintId),
+                dates.start_date,
+                dates.end_date,
+            );
+            if (!target) {
+                throw new SprintCompletionError("NEW_SPRINT_UNAVAILABLE", "Cannot create a next sprint in this project");
+            }
+            rolloverTargetType = "new";
+        } else if (plan.target !== "backlog") {
+            if (Number(plan.target) === Number(options.sprintId)) {
                 throw new SprintCompletionError("TARGET_INVALID", "Cannot roll over to the sprint being completed");
             }
-            target = await repo.findRolloverTarget(client, options.targetSprintId, Number(claimed.team_id), orgId,
+            target = await repo.findRolloverTarget(client, Number(plan.target), Number(claimed.team_id), orgId,
                 options.projectOwnership ? Number(claimed.project_id) : undefined);
-            if (!target || target.status === "completed") {
+            const selectedNext = String(plan.target) === String(nextPlanned?.id);
+            if (!target || target.status === "completed" || (selectedNext && target.status !== "planned")) {
                 throw new SprintCompletionError("TARGET_INVALID", "Target sprint not found or completed");
             }
+            rolloverTargetType = selectedNext ? "next" : "sprint";
         }
 
-        const unfinished = members
-            .filter((row: { is_terminal: boolean }) => !row.is_terminal)
-            .map((row: { id: number }) => Number(row.id));
+        for (const parent of plan.movingParents) {
+            try {
+                await assertTicketHierarchy(client, { id: Number(parent.id), org_id: orgId });
+            } catch (error) {
+                if (error instanceof HierarchyRefused) {
+                    throw new SprintCompletionError("PLACEMENT_REFUSED", error.message);
+                }
+                throw error;
+            }
+        }
+        const unfinished = plan.moving.map((row) => Number(row.id));
 
         await repo.snapshotBurndown(client, Number(options.sprintId), orgId);
         const velocity = await repo.findSprintCompletionVelocity(client, options.sprintId, orgId);
@@ -84,7 +141,14 @@ export async function completeSprint(
             throw new Error("Cannot record automated sprint placement without a team actor");
         }
         const placement = await placeTickets(
-            { db: client, afterCommit, actor, effects: options.effects, projectOwnership: options.projectOwnership },
+            {
+                db: client,
+                afterCommit,
+                actor,
+                effects: options.effects,
+                projectOwnership: options.projectOwnership,
+                cascadeParentIds: new Set(plan.movingParents.map((parent) => Number(parent.id))),
+            },
             unfinished,
             target ? { sprint: Number(target.id) } : { sprint: null },
         );
@@ -109,6 +173,8 @@ export async function completeSprint(
             totalTasks: Number(velocity.total_tasks),
             rolledOver: placement.filter((result) => result.ok && unfinished.includes(result.id)).length,
             rolloverTarget: target?.name ?? "the backlog",
+            rolloverTargetType,
+            targetSprint: target,
         };
     });
 }

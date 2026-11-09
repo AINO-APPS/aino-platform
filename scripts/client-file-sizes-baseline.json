@@ -2,7 +2,7 @@
   "components/DailyNotes/components/NotesHome.tsx": 607,
   "components/DailyNotes/components/SlashMenu.tsx": 647,
   "components/DailyNotes/useNotesStore.ts": 1439,
-  "components/agile/AgileWorkflowPanels.tsx": 1123,
+  "components/agile/AgileWorkflowPanels.tsx": 1092,
   "components/calendar/EventFormModal.tsx": 658,
   "components/chat/CallOverlay.tsx": 997,
   "components/chat/call/index.tsx": 1721,
