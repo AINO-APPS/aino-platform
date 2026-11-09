@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Project type controls and lifecycle.
 
-**Status:** platform + web complete; Android slice pending
+**Status:** resolved (platform + web); Android slice pending
 
 - [x] The project board returns Kanban tickets by workflow state, excluding Cancelled tickets and showing Done tickets only for the 14-day window.
 - [x] Project admins can enable or disable the Kanban backlog; when enabled, initial-state tickets appear in the backlog instead of a board column.

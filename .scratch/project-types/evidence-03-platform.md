@@ -62,11 +62,15 @@ cases pass independently. No unrelated legacy sprint behavior was rewritten.
 Shared PG transient connection stalls were retried only after responsiveness
 returned; the final PG run passed and cleaned its disposable database.
 
-## Handoff
+## Integration merge
 
-Android remains the next ticket03 slice; do not mark the combined ticket done.
-Migration0031 is reserved by ticket06. Ticket05 owns shared Scrum sprint-end
-card display. Ticket11 destructive compatibility removal is untouched.
-No push, integration merge into the integration branch, release or production
-operation was performed. Before handoff, the latest local integration ref is
-merged into this branch (already-current is a valid merge result).
+`0c3333e8` was merged with `--no-ff` into `integration/project-types` as
+`5cb690ad`, with no conflicts. The focused server/client tests, contracts and
+guardrails above were already run on the ticket commit; they were not repeated
+after this conflict-free merge.
+
+Ticket03's platform/web slice is resolved, but the combined Web/Android
+checkbox remains open for Android. Migration0031 is reserved by ticket06.
+Ticket05 owns shared Scrum sprint-end card display. Ticket11 destructive
+compatibility removal is untouched. No push, release or production operation
+was performed.
