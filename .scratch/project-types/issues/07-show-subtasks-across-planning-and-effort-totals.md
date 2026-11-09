@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Kanban board and backlog; 04: Task list views and calendar; 05: Scrum planning without Scheduled or auto sprints; 06: Enforce ticket hierarchy and create subtasks.
 
-**Status:** resolved (platform + web); Android slice in progress
+**Status:** resolved (platform + web + Android)
 
 - [x] Moving a parent between backlog and sprints moves all its subtasks in the same transaction, with history for each placement; direct subtask placement remains refused.
 - [x] Moving a parent to another project also moves its subtasks, gives each a new ticket key and preserves each old key as an alias.
@@ -31,7 +31,14 @@ parent keys, exposes done/total subtask counts and separates own from aggregate
 spent/remaining effort. Live worklogs exclude soft-deleted work. Subtask point
 writes are refused, including zero; shared metric filtering excludes legacy
 subtask/epic points without removing child cards from WIP or carryover membership.
-No database migration, schedule/timer redesign or Android change was required.
+No database migration or schedule/timer redesign was required for the platform/web
+implementation.
+
+Android implements nested subtasks in Backlog, Sprint Plan and the Kanban
+backlog while retaining independent board cards. Detail views expose parent/child
+navigation and server-provided progress; parent effort totals refresh from detail
+reads after child or worklog changes. Story-point edits and placement remain
+server-capability-aware, and flat child reads are grouped without ranking children.
 
 ### Verification
 
@@ -47,6 +54,9 @@ No database migration, schedule/timer redesign or Android change was required.
   detail refresh/navigation, worklogs, estimates and reorder regressions.
 - Both TypeScript checks, dependency layering, 90 contract tests, generated
   contract/model freshness, root guardrails and whitespace checks passed.
+- Android integration commit `d3c0768b` passed the full CI Gradle command:
+  Play and Direct unit tests, Play lint, and Play/Direct debug assemblies.
+  All five Android Node guardrails passed.
 - Legacy `sprints.routes.test.ts` has nine 404-versus-expected failures reproduced
   on the unchanged starting integration tip. Exploratory older project-board/
   planning PG suites also had five population expectations fail; these were not
@@ -56,5 +66,4 @@ No database migration, schedule/timer redesign or Android change was required.
   A preceding broader rerun lost its disposable connection (`ETIMEDOUT`); the
   final focused 21-test PG acceptance rerun passed.
 
-Android remains a separate requested follow-up. No integration merge-back, push,
-release or production operation was performed.
+No push, release or production operation was performed.
