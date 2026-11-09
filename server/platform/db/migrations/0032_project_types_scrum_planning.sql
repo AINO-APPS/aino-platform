@@ -39,27 +39,53 @@ BEGIN
            SET pre_sprint_due_date = NULL
          WHERE pre_sprint_due_date IS NOT NULL;
 
+        CREATE TEMP TABLE project_types_0032_auto_sprint_moves ON COMMIT DROP AS
+        WITH active_auto_sprint_tasks AS (
+            SELECT t.id, t.parent_task_id, t.sprint_id, s.name AS sprint_name,
+                   COALESCE(ws.category, '') AS category,
+                   COALESCE(w.key = 'subtask', FALSE) AS is_subtask
+              FROM tasks t
+              JOIN sprints s ON s.id = t.sprint_id
+              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
+              LEFT JOIN work_item_types w ON w.id = t.work_item_type_id
+             WHERE s.auto_managed = TRUE
+               AND s.status IN ('active', 'paused')
+        ), roots_to_backlog AS (
+            SELECT t.*
+              FROM active_auto_sprint_tasks t
+             WHERE t.category <> 'done'
+                OR (
+                    NOT t.is_subtask
+                    AND EXISTS (
+                        SELECT 1
+                          FROM active_auto_sprint_tasks child
+                         WHERE child.parent_task_id = t.id
+                           AND child.sprint_id = t.sprint_id
+                           AND child.is_subtask
+                           AND child.category <> 'done'
+                    )
+                )
+        ), move_set AS (
+            SELECT id, sprint_id, sprint_name FROM roots_to_backlog
+            UNION
+            SELECT child.id, child.sprint_id, child.sprint_name
+              FROM active_auto_sprint_tasks child
+              JOIN roots_to_backlog parent
+                ON child.parent_task_id = parent.id
+               AND child.sprint_id = parent.sprint_id
+             WHERE child.is_subtask
+        )
+        SELECT DISTINCT id, sprint_id, sprint_name FROM move_set;
+
         INSERT INTO task_history (task_id, user_id, action, field, old_value, new_value)
-        SELECT t.id, t.user_id, 'updated', 'sprint', s.name, 'none'
+        SELECT t.id, t.user_id, 'updated', 'sprint', m.sprint_name, 'none'
           FROM tasks t
-          JOIN sprints s ON s.id = t.sprint_id
-         WHERE s.auto_managed = TRUE
-           AND s.status IN ('active', 'paused')
-           AND NOT EXISTS (
-               SELECT 1 FROM workflow_states ws
-                WHERE ws.id = t.workflow_state_id AND ws.category = 'done'
-           );
+          JOIN project_types_0032_auto_sprint_moves m ON m.id = t.id;
 
         UPDATE tasks t
            SET sprint_id = NULL
-          FROM sprints s
-         WHERE s.id = t.sprint_id
-           AND s.auto_managed = TRUE
-           AND s.status IN ('active', 'paused')
-           AND NOT EXISTS (
-               SELECT 1 FROM workflow_states ws
-                WHERE ws.id = t.workflow_state_id AND ws.category = 'done'
-           );
+          FROM project_types_0032_auto_sprint_moves m
+         WHERE m.id = t.id;
 
         INSERT INTO task_history (task_id, user_id, action, field, old_value, new_value)
         SELECT t.id, t.user_id, 'updated', 'sprint', s.name, 'none'
