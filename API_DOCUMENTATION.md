@@ -619,10 +619,16 @@ See `contracts/openapi.json` for the complete schemas.
 Base path: `/api/sprints`
 
 ### GET `/api/sprints`
-List team sprints sorted by status and start date.
+List team or project sprints sorted by status and start date. Project-scoped
+sprint rows include `can_manage`, which reflects the authenticated actor's
+server-side sprint lifecycle permission; clients should prefer it over role
+name checks.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Response**: Array of sprint objects with task counts
+- **Response**: `{ sprints: Sprint[], currentSprintId: number | null }`.
+  Project-scoped sprint rows also include `can_manage`, which reflects the
+  authenticated actor's server-side lifecycle permission; clients should prefer
+  it over role-name checks.
 
 ### GET `/api/sprints/active`
 Get the currently active sprint (cached in Redis).

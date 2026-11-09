@@ -2,7 +2,7 @@ import { requireScrumSprint } from "./_helpers/projectSprint";
 import express from "express";
 import type { Request, Response } from "express";
 import { sprintManagementRole } from "./_helpers/sprintRole";
-import { canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
+import { addSprintManagementCapability, canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
 import { completeSprint, parseSprintCompletionTarget, SprintCompletionError } from "../services/sprintCompletion";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
@@ -59,7 +59,8 @@ router.get("/", auth, loadUserContext, requireScrumSprint, async (req: Request, 
         if (actor.projectOwnership) {
             const projectIds = await sprintProjectIds(actor, req.query);
             const sprints = await findSprintsForProjects(req.db!, req.userOrgId, projectIds);
-            return res.json(sprintListResponse(sprints, req.query.team_id != null || req.query.project_id != null));
+            const sprintsWithCapabilities = await addSprintManagementCapability(req.db!, sprints, actor);
+            return res.json(sprintListResponse(sprintsWithCapabilities, req.query.team_id != null || req.query.project_id != null));
         }
 
         // Org admins see every team's sprints (and may filter with ?team_id=);

@@ -152,6 +152,7 @@ export interface Sprint {
   auto_managed: boolean;
   sprint_number?: number | null;
   carried_from_sprint_id?: number | null;
+  can_manage?: boolean;
 }
 
 export interface SprintList {

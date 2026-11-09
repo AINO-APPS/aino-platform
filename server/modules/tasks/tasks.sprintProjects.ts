@@ -51,6 +51,40 @@ export async function canManageSprint(db: SprintDb, sprint: any, actor: TaskActo
     return !!project && !project.is_archived;
 }
 
+export async function addSprintManagementCapability(
+    db: SprintDb,
+    sprints: any[],
+    actor: TaskActor,
+): Promise<any[]> {
+    if (!actor.projectOwnership) return sprints;
+    const projectAccess = actor.projectAccess;
+    const projectIds = [...new Set(sprints
+        .map((sprint) => Number(sprint.project_id))
+        .filter((id) => Number.isInteger(id) && id > 0))];
+    if (projectIds.length === 0 || !projectAccess?.rolesForProjects) {
+        return sprints.map((sprint) => ({ ...sprint, can_manage: false }));
+    }
+
+    const [roles, projects] = await Promise.all([
+        projectAccess.rolesForProjects(projectIds),
+        db.query(
+            "SELECT id, is_archived FROM projects WHERE org_id IS NOT DISTINCT FROM $1 AND id = ANY($2::int[])",
+            [actor.orgId, projectIds],
+        ),
+    ]);
+    const archivedIds = new Set(
+        projects.rows.filter((project) => project.is_archived).map((project) => Number(project.id)),
+    );
+    return sprints.map((sprint) => {
+        const projectId = Number(sprint.project_id);
+        const role = roles.get(projectId);
+        return {
+            ...sprint,
+            can_manage: role != null && role !== "viewer" && !archivedIds.has(projectId),
+        };
+    });
+}
+
 export async function createProjectSprint(
     db: SprintDb,
     actor: TaskActor,

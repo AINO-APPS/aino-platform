@@ -35,6 +35,7 @@ export interface TaskActor {
     projectOwnership?: boolean;
     projectAccess?: {
         roleForProject(projectId: number): Promise<ProjectRole | null>;
+        rolesForProjects?(projectIds: number[]): Promise<Map<number, ProjectRole | null>>;
         accessibleProjectIds(): Promise<number[]>;
         projectForTeam(teamId: number): Promise<number | null>;
     };

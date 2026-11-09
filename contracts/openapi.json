@@ -26209,6 +26209,10 @@
               "integer",
               "null"
             ]
+          },
+          "can_manage": {
+            "type": "boolean",
+            "description": "When present in project-scoped sprint lists, the actor may manage the sprint lifecycle."
           }
         },
         "required": [

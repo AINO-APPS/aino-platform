@@ -33,13 +33,16 @@ export default function SprintProgressCard({
     onSprintChanged,
 }: SprintProgressCardProps) {
     const sprint = availableSprints.find((candidate) => candidate.id === selectedSprintId);
-    const canManageSprint = [
+    const legacyCanManageSprint = [
         "team_lead",
         "manager",
         "super_admin",
         "hr_admin",
         "platform_admin",
     ].includes(currentUser?.role);
+    const canManageSprint = typeof sprint?.can_manage === "boolean"
+        ? sprint.can_manage
+        : legacyCanManageSprint;
 
     return (
         <div className={s["tasks-progress-card"]}>

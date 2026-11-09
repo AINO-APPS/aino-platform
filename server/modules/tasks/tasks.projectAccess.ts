@@ -124,6 +124,15 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
     }
 
     async function capabilitiesForProjects(projectIds: number[]): Promise<Map<number, ProjectCapabilities>> {
+        const rolesByProject = await rolesForProjects(projectIds);
+        const capabilitiesByProject = new Map<number, ProjectCapabilities>();
+        for (const [projectId, role] of rolesByProject) {
+            capabilitiesByProject.set(projectId, projectCapabilities(role));
+        }
+        return capabilitiesByProject;
+    }
+
+    async function rolesForProjects(projectIds: number[]): Promise<Map<number, ProjectRole | null>> {
         const uniqueIds = [...new Set(projectIds.map(Number))];
         if (uniqueIds.length === 0 || !actor.orgId) return new Map();
         const grantsByProject = await findProjectRolesForProjects(db, {
@@ -132,21 +141,21 @@ export function createProjectAccess(db: ProjectAccessRepositoryDb, actor: Projec
             orgId: actor.orgId,
             teamIds: actor.teamIds,
         });
-        const capabilitiesByProject = new Map<number, ProjectCapabilities>();
+        const rolesByProject = new Map<number, ProjectRole | null>();
         for (const projectId of uniqueIds) {
             const grants = grantsByProject.get(projectId) ?? [];
-            const role = resolveEffectiveProjectRole({
+            rolesByProject.set(projectId, resolveEffectiveProjectRole({
                 orgRole: actor.orgRole,
                 personalRole: grants.find((grant) => grant.userId === actor.userId)?.role ?? null,
                 teamRoles: grants.filter((grant) => grant.teamId != null).map((grant) => grant.role),
-            });
-            capabilitiesByProject.set(projectId, projectCapabilities(role));
+            }));
         }
-        return capabilitiesByProject;
+        return rolesByProject;
     }
 
     return {
         roleForProject,
+        rolesForProjects,
         accessibleProjectIds,
         projectForTeam,
         capabilities,
