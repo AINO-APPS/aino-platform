@@ -1,4 +1,5 @@
 import { applyProjectTypeContract } from "./project-types.mjs";
+import { applyHierarchyContract } from "./hierarchy.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -248,6 +249,7 @@ applyWorklogContract(paths, schemas);
 applyEstimateContract(paths, schemas);
 applyProjectMoveContract(paths, schemas);
 applyProjectTypeContract(paths, schemas);
+applyHierarchyContract(paths, schemas);
 const openapi={openapi:"3.1.0",info:{title:"AINO Platform HTTP API",version:"0.1.0",description:"Initial contract baseline derived from mounted server routers and route tests. See contracts/README.md for explicit completeness limits."},servers:[{url:"/",description:"Current origin"}],tags:mounts.filter(m=>m.coverage==="baseline").map(m=>({name:m.id})).concat({name:"health"}),paths,components:{securitySchemes:{cookieAuth:{type:"apiKey",in:"cookie",name:"token",description:"HttpOnly JWT cookie used by web and desktop clients"},bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"JWT returned by auth flows for native mobile clients"}},parameters:{CsrfHeader:{name:"X-Requested-With",in:"header",required:true,description:"Required on mutating /api requests. AINO is preferred; WorkPulse is accepted for compatibility.",schema:{type:"string",enum:["AINO","WorkPulse"]}}},schemas}};
 openapi.paths=Object.fromEntries([...reviewed.pathOrder,...Object.keys(paths).filter(route=>!reviewed.pathOrder.includes(route))].map(route=>[route,paths[route]]));
 openapi.components.schemas=Object.fromEntries([...reviewed.schemaOrder,...Object.keys(schemas).filter(name=>!reviewed.schemaOrder.includes(name))].map(name=>[name,schemas[name]]));

@@ -17,6 +17,7 @@ import {
     WorkItemTypePicker,
 } from "../../components/agile/AgilePickers";
 import AcceptanceCriteria from "../../components/agile/AcceptanceCriteria";
+import SubtasksPanel from "../../components/agile/SubtasksPanel";
 import {
     BlockerControl,
     DependenciesPanel,
@@ -532,14 +533,12 @@ export default function TaskDetailModal({
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
                             <AcceptanceCriteria taskId={detailTask.id} />
-                            {/* Epics show their child tickets; everything else shows its
-                  parent + dependencies. The panel decides what to render
-                  based on the work item type's is_epic flag. */}
-                            <ParentChildPanel
+                           <ParentChildPanel
                                 task={detailTask}
                                 onOpenTask={swapToTask}
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
+                            <SubtasksPanel task={detailTask} onOpenTask={swapToTask} onChanged={() => fetchTasks?.()} />
                             {!isEpic && <DependenciesPanel task={detailTask} />}
                             <CustomFieldsEditor
                                 taskId={detailTask.id}

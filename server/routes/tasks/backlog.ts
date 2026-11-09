@@ -9,6 +9,8 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { TransactionContext } from "../../types/domain";
+import { assertTicketHierarchy, hierarchyParentId } from "../../modules/tasks/tasks.hierarchy";
+import { prepareHierarchyCreate, sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
@@ -68,7 +70,7 @@ async function resolveCompletedSince(
     return sprintStart < requested ? sprintStart : requested;
 }
 
-const router = express.Router();
+const router = Object.assign(express.Router(), { createBacklogTicket });
 
 // ─── Backlog: Get all backlog items ───────────────────────────────────────
 //
@@ -220,8 +222,9 @@ router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Respon
 });
 
 // ─── Backlog: Create a backlog item (no date) ─────────────────────────────
-router.post('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
+async function createBacklogTicket(req: Request, res: Response) {
     try {
+        if (!await prepareHierarchyCreate(req, res)) return;
         const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
@@ -293,14 +296,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
-        let parentTaskId = null;
-        if (parent_task_id) {
-            const parentNum = parseInt(parent_task_id, 10);
-            if (!isNaN(parentNum)) {
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (parent && parent.org_id === req.userOrgId) parentTaskId = parent.id;
-            }
-        }
+        const parentTaskId = hierarchyParentId(parent_task_id);
 
         // Bug #1 (Stage 2): atomic INSERT + labels + history (see crud.js POST).
         // Stage 3: when a project is assigned, reserve the next task_number
@@ -310,6 +306,10 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // placement in the same transaction (ADR-015), so its own due date is
         // remembered exactly as for any other sprint entry.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const hierarchy = await assertTicketHierarchy(client, {
+                org_id: req.userOrgId ?? null, project_id: validProjectId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId,
+            }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -340,10 +340,12 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            if (parentTaskId != null) await logHistory(newId, req.userId, 'updated', 'parent', null, parentTaskId, client, req.db);
             await setTicketStartDate(client, { id: newId }, dates.startDate, req.userId);
             if (validSprintId) {
                 placedOrThrow(await placeTickets(
-                    placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
+                    { ...placementContext(req, client, afterCommit, { notify: false }),
+                        creatingSubtaskOf: hierarchy.ticket.is_subtask ? parentTaskId! : undefined }, [newId], { sprint: validSprintId },
                 ));
             }
             return newId;
@@ -359,12 +361,14 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating backlog item:');
         res.status(500).json({ error: 'Failed to create backlog item' });
     }
-});
+}
+router.post('/backlog', auth, loadUserContext, createBacklogTicket);
 
 // ─── Legacy shim: set start date without placement ───────────────────────
 router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: Response) => {

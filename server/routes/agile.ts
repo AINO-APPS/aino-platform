@@ -1,6 +1,8 @@
 /** Agile configuration, read-only organization workflow, and editor access routes. */
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { assertSubtaskTypeMutation, assertHierarchyTypeEdit } from "../modules/tasks/tasks.hierarchy";
+import { sendHierarchyRefusal } from "./tasks/_helpers/hierarchy";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
 const { requireTenant } = require("../middleware/tenant");
@@ -205,7 +207,7 @@ router.get("/work-item-types", async (req: Request, res: Response) => {
     try {
         if (!req.userOrgId) return res.json([]);
         const r = await req.db!.query(
-            `SELECT id, key, name, icon, color, description, is_default, is_epic, is_active, sort_order, created_at
+            `SELECT id, key, name, icon, color, description, is_default, is_epic, is_subtask, is_active, sort_order, created_at
                FROM work_item_types
               WHERE org_id = $1
               ORDER BY sort_order ASC, id ASC`,
@@ -220,6 +222,7 @@ router.get("/work-item-types", async (req: Request, res: Response) => {
 
 router.post("/work-item-types", requireAgileEditor, async (req: Request, res: Response) => {
     try {
+        assertSubtaskTypeMutation({}, req.body || {});
         if (!req.userOrgId) return res.status(400).json({ error: "Organization context required" });
         const { name, icon, color, description, is_epic, is_default } = req.body || {};
         if (!name || !String(name).trim()) return res.status(400).json({ error: "Name is required" });
@@ -230,10 +233,8 @@ router.post("/work-item-types", requireAgileEditor, async (req: Request, res: Re
 
         const exists = await req.db!.query("SELECT id FROM work_item_types WHERE org_id = $1 AND key = $2", [req.userOrgId, key]);
         if (exists.rows[0]) return res.status(409).json({ error: "A work item type with this key already exists" });
-
         const sortRes = await req.db!.query("SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM work_item_types WHERE org_id = $1", [req.userOrgId]);
         const sortOrder = sortRes.rows[0].next;
-
         await (req.db as unknown as DbLike).transaction(async (client) => {
             if (is_default) {
                 await client.query("UPDATE work_item_types SET is_default = FALSE WHERE org_id = $1", [req.userOrgId]);
@@ -255,6 +256,7 @@ router.post("/work-item-types", requireAgileEditor, async (req: Request, res: Re
         logAction(req, "create", "work_item_type", row.id, { key, name: finalName });
         res.json(row);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         req.log.error({ err }, "POST /agile/work-item-types error");
         res.status(500).json({ error: "Failed to create work item type" });
     }
@@ -266,13 +268,12 @@ router.put("/work-item-types/:id", requireAgileEditor, async (req: Request, res:
         if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
         const existing = (await req.db!.query("SELECT * FROM work_item_types WHERE id = $1", [id])).rows[0];
         if (!existing || existing.org_id !== req.userOrgId) return res.status(404).json({ error: "Work item type not found" });
-
         const b = req.body || {};
+        assertSubtaskTypeMutation(existing, b);
         const updates: string[] = [];
         const params: unknown[] = [];
         let p = 1;
         const set = (col: string, val: unknown) => { updates.push(`${col} = $${p++}`); params.push(val); };
-
         if (b.name !== undefined) set("name", String(b.name).trim().slice(0, 50));
         if (b.icon !== undefined) set("icon", b.icon ? String(b.icon).slice(0, 40) : null);
         if (b.color !== undefined) set("color", validateColor(b.color, existing.color));
@@ -280,8 +281,8 @@ router.put("/work-item-types/:id", requireAgileEditor, async (req: Request, res:
         if (b.is_epic !== undefined) set("is_epic", !!b.is_epic);
         if (b.is_active !== undefined) set("is_active", !!b.is_active);
         if (b.sort_order !== undefined) set("sort_order", parseInt(b.sort_order, 10) || 0);
-
         await (req.db as unknown as DbLike).transaction(async (client) => {
+            await assertHierarchyTypeEdit(client, existing, b);
             if (b.is_default === true) {
                 await client.query("UPDATE work_item_types SET is_default = FALSE WHERE org_id = $1", [req.userOrgId]);
                 set("is_default", true);
@@ -298,6 +299,7 @@ router.put("/work-item-types/:id", requireAgileEditor, async (req: Request, res:
         logAction(req, "update", "work_item_type", id, { name: row.name });
         res.json(row);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         req.log.error({ err }, "PUT /agile/work-item-types/:id error");
         res.status(500).json({ error: "Failed to update work item type" });
     }
@@ -309,8 +311,7 @@ router.delete("/work-item-types/:id", requireAgileEditor, async (req: Request, r
         if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
         const existing = (await req.db!.query("SELECT * FROM work_item_types WHERE id = $1", [id])).rows[0];
         if (!existing || existing.org_id !== req.userOrgId) return res.status(404).json({ error: "Work item type not found" });
-
-        // Block delete if any task references this type
+        assertSubtaskTypeMutation(existing, {}, true);
         const usage = (await req.db!.query("SELECT COUNT(*)::int AS c FROM tasks WHERE work_item_type_id = $1", [id])).rows[0];
         if (usage.c > 0) {
             return res.status(409).json({
@@ -318,7 +319,6 @@ router.delete("/work-item-types/:id", requireAgileEditor, async (req: Request, r
                 taskCount: usage.c,
             });
         }
-        // Block deleting the only default
         if (existing.is_default) {
             const otherDefault = (await req.db!.query(
                 "SELECT id FROM work_item_types WHERE org_id = $1 AND id != $2 AND is_active = TRUE LIMIT 1",
@@ -326,11 +326,11 @@ router.delete("/work-item-types/:id", requireAgileEditor, async (req: Request, r
             )).rows[0];
             if (!otherDefault) return res.status(409).json({ error: "Cannot delete the only active work item type. Add another first." });
         }
-
         await req.db!.query("DELETE FROM work_item_types WHERE id = $1", [id]);
         logAction(req, "delete", "work_item_type", id, { name: existing.name });
         res.json({ message: "Work item type deleted" });
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         req.log.error({ err }, "DELETE /agile/work-item-types/:id error");
         res.status(500).json({ error: "Failed to delete work item type" });
     }

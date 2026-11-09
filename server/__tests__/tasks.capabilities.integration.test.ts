@@ -18,6 +18,8 @@ const member: TaskActor = { userId: 1, orgId: 1, teamId: 1, role: "employee", te
 const allowed = { allowed: true };
 const denied = (reason: string) => ({ allowed: false, reason });
 const denialMessages: Record<CapabilityReason, string> = {
+    SUBTASK_FOLLOWS_PARENT: "A subtask follows its parent's project and sprint and cannot move independently.",
+    INVALID_HIERARCHY: "Only a Story, Task or Bug may have subtasks.",
     PROJECT_HAS_NO_SPRINTS: "Sprints are only available in Scrum projects.",
     READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
     PROJECT_ARCHIVED: "This project is archived and its tickets are read-only.",

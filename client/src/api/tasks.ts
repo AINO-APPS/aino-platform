@@ -272,6 +272,7 @@ export const setTaskBlocker = (
 export const quicksearchTasks = (q: string) =>
     API.get("/tasks/lookup/quicksearch", { params: { q } });
 export const getTaskChildren = (id: number | string) => API.get(`/tasks/${id}/children`);
+export const createTaskSubtask = (id: number | string, data: { title: string }) => API.post(`/tasks/${id}/subtasks`, data);
 export const getTaskParent = (id: number | string) => API.get(`/tasks/${id}/parent`);
 export const setTaskParent = (id: number | string, parent_task_id: number | string | null) =>
     API.patch(`/tasks/${id}/parent`, { parent_task_id });

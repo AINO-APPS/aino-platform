@@ -11,6 +11,8 @@ import express from "express";
 import type { Request, Response } from "express";
 import type { LifecycleContext } from "../../modules/tasks/tasks.workflow";
 import type { TransactionContext } from "../../types/domain";
+import { assertTicketHierarchy, hierarchyParentId, getHierarchyType, recordHierarchyHistory } from "../../modules/tasks/tasks.hierarchy";
+import { prepareHierarchyCreate, sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
@@ -39,7 +41,7 @@ const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { resolveSprintTarget, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
 const { requestedStartDate, resolveTicketDates, setTicketStartDate, lockTicketDates, recordDateHistory } = require('../../modules/tasks/tasks.dates');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
-const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
+const { placementContext, placedOrThrow, sendPlacementRefusal, PlacementRefused } = require('./_helpers/placement');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -111,6 +113,7 @@ router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
 // ─── Add a task ──────────────────────────────────────────────────────────
 router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        if (!await prepareHierarchyCreate(req, res)) return;
         const { title, description, priority, date, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
@@ -184,14 +187,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
-        let parentTaskId = null;
-        if (parent_task_id) {
-            const parentNum = parseInt(parent_task_id, 10);
-            if (!isNaN(parentNum)) {
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (parent && parent.org_id === req.userOrgId) parentTaskId = parent.id;
-            }
-        }
+        const parentTaskId = hierarchyParentId(parent_task_id);
 
         // Bug #1 (Stage 2): the INSERT + label sync + history were three
         // separate statements. A failure between them left orphan rows (e.g.
@@ -200,6 +196,10 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         //
         // Reserve the key and place the ticket in the same transaction.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const hierarchy = await assertTicketHierarchy(client, {
+                org_id: req.userOrgId ?? null, project_id: validProjectId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId,
+            }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -232,9 +232,11 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            if (parentTaskId != null) await logHistory(newId, req.userId, 'updated', 'parent', null, parentTaskId, client, req.db);
             await setTicketStartDate(client, { id: newId }, created.startDate, req.userId);
             if (validSprintId) placedOrThrow(await placeTickets(
-                placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
+                { ...placementContext(req, client, afterCommit, { notify: false }),
+                    creatingSubtaskOf: hierarchy.ticket.is_subtask ? parentTaskId! : undefined }, [newId], { sprint: validSprintId },
             ));
             return newId;
         });
@@ -254,6 +256,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating task:');
         res.status(500).json({ error: 'Failed to create task' });
@@ -368,6 +371,11 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         const decisionContext = await loadTicketDecisionContext(req.db!, actor, [task]);
         const refusal = await ticketActionConflict(req.db!, actor, task, changesState ? "changeState" : "edit", decisionContext);
         if (refusal) return res.status(refusal.status).json(refusal.body);
+        if (decisionContext.subtaskIds?.has(id) && (sprint_id !== undefined
+            || project_id !== undefined && String(project_id ?? "") !== String(task.project_id ?? ""))) {
+            return res.status(409).json({ code: "SUBTASK_FOLLOWS_PARENT",
+                error: "A subtask follows its parent's project and sprint and cannot move independently." });
+        }
 
         // Stage 3: allow assigning a task to a project *only if it has none
         // yet*. Re-keying an existing task (PROJ-12 → OTHER-7) would orphan
@@ -499,15 +507,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         let newParentTaskId = task.parent_task_id;
         if (parent_task_id !== undefined) {
-            if (parent_task_id === null || parent_task_id === '') {
-                newParentTaskId = null;
-            } else {
-                const parentNum = parseInt(parent_task_id, 10);
-                if (isNaN(parentNum) || parentNum === id) return res.status(400).json({ error: 'Invalid parent_task_id' });
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (!parent || parent.org_id !== req.userOrgId) return res.status(400).json({ error: 'Parent task not found' });
-                newParentTaskId = parent.id;
-            }
+            newParentTaskId = hierarchyParentId(parent_task_id);
         }
         let newAc = task.acceptance_criteria;
         if (acceptance_criteria !== undefined) {
@@ -527,6 +527,21 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         // the due-date bookkeeping), then the plain fields. A due date the user
         // typed is applied after the move, so it wins over a restored one.
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const hierarchy = await assertTicketHierarchy(client, {
+                id, org_id: req.userOrgId ?? null,
+                ...(work_item_type_id === undefined ? {} : { work_item_type_id: newWitId }),
+                ...(parent_task_id === undefined ? {} : { parent_task_id: newParentTaskId }),
+                ...(wantsProjectAssign ? { project_id: newProjectId } : {}),
+            }, actor);
+            if (hierarchy.ticket.is_subtask && (sprint_id !== undefined
+                || project_id !== undefined && String(project_id ?? "") !== String(hierarchy.ticket.project_id ?? ""))) {
+                throw new PlacementRefused({ id, ok: false, code: "SUBTASK_FOLLOWS_PARENT",
+                    error: "A subtask follows its parent's project and sprint and cannot move independently." });
+            }
+            newParentTaskId = hierarchy.ticket.parent_task_id;
+            newWitId = hierarchy.ticket.work_item_type_id;
+            newProjectId = hierarchy.ticket.project_id;
+            if (!wantsProjectAssign) newTaskNumber = hierarchy.current.task_number;
             const current = requestedStartDate(req.body) !== undefined || dueDateRequested
                 ? await lockTicketDates(client, id) : task;
             let row = current;
@@ -550,6 +565,12 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                     newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                     newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
             );
+            await recordHierarchyHistory(client, id, req.userId!, "parent", hierarchy.current.parent_task_id, newParentTaskId);
+            if (String(hierarchy.current.work_item_type_id ?? "") !== String(newWitId ?? "")) {
+                const oldType = await getHierarchyType(client, hierarchy.current.work_item_type_id, req.userOrgId ?? null);
+                const newType = await getHierarchyType(client, newWitId, req.userOrgId ?? null);
+                await recordHierarchyHistory(client, id, req.userId!, "work_item_type", oldType?.name, newType?.name);
+            }
             if (requestedStartDate(req.body) !== undefined) {
                 await setTicketStartDate(client, current, lockedDates.startDate, req.userId);
             }
@@ -594,17 +615,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // than "8.00 → 9" (Postgres NUMERIC vs JS number formatting).
             await logHistory(id, req.userId, 'updated', 'story_points', oldSpNum, newSpNum, null, req.db);
         }
-        if (String(newWitId ?? '') !== String(task.work_item_type_id ?? '')) {
-            const oldWit = task.work_item_type_id ? (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [task.work_item_type_id])).rows[0] : null;
-            const newWit = newWitId ? (newWitRow || (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [newWitId])).rows[0]) : null;
-            await logHistory(id, req.userId, 'updated', 'work_item_type', oldWit?.name || 'none', newWit?.name || 'none', null, req.db);
-        }
         const statusActor = await findActorName(req.db!, req.userId);
         if (stateChanged) {
             await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, newWsId, null, req.db);
-        }
-        if (String(newParentTaskId ?? '') !== String(task.parent_task_id ?? '')) {
-            await logHistory(id, req.userId, 'updated', 'parent', task.parent_task_id || 'none', newParentTaskId || 'none', null, req.db);
         }
         if (!!newIsBlocked !== !!task.is_blocked) {
             await logHistory(id, req.userId, 'updated', 'is_blocked', String(task.is_blocked), String(newIsBlocked), null, req.db);
@@ -655,6 +668,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error updating task:');

@@ -25,7 +25,8 @@ router.get('/:id/detail', auth, loadUserContext, async (req: Request, res: Respo
 
         const comments = await taskService.getComments(req.db!, task.id);
 
-        res.json({ ...enriched[0], comments });
+        const hierarchy = await taskService.getTicketHierarchy(req.db!, task, taskActorFromRequest(req));
+        res.json({ ...enriched[0], comments, ...hierarchy });
     } catch (err) {
         req.log.error({ err: err }, 'Error fetching task detail:');
         res.status(500).json({ error: 'Failed to fetch task detail' });

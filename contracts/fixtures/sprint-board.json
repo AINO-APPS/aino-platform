@@ -86,6 +86,9 @@
           },
           "canMoveProject": {
             "allowed": true
+          },
+          "canAddSubtask": {
+            "allowed": true
           }
         }
       },

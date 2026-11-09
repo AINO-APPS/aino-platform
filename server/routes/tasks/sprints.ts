@@ -103,7 +103,7 @@ router.patch('/:id/assign-sprint', auth, loadUserContext, async (req: Request, r
         const task = await findTask(req.db!, id);
         const actor = taskActorFromRequest(req);
         if (!task) return denyTaskAccess(res, task, actor);
-        const refusal = await ticketActionConflict(req.db!, actor, task, "edit");
+        const refusal = await ticketActionConflict(req.db!, actor, task, "placeInSprint");
         if (refusal) return res.status(refusal.status).json(refusal.body);
 
         const leaving = sprint_id === null || sprint_id === undefined || sprint_id === '';

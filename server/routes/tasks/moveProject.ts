@@ -1,6 +1,7 @@
 import express from "express";
 import { moveTicketProject, previewProjectMove } from "../../modules/tasks/tasks.placement";
 import { placementContext, PlacementRefused, sendPlacementRefusal } from "./_helpers/placement";
+import { sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
@@ -30,6 +31,7 @@ for (const preview of [true, false]) {
             if ("preview" in result) res.json(result.preview);
             else res.json({ task: (await enrichTasks([result.task], req.db, actor))[0], moved: true, cleared_sprint: result.clearedSprint });
         } catch (error) {
+            if (sendHierarchyRefusal(res, error)) return;
             if (sendPlacementRefusal(res, error)) return;
             req.log.error({ err: error }, "Error moving ticket to project");
             res.status(500).json({ error: "Failed to move ticket to project" });

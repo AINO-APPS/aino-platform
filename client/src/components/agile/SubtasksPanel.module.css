@@ -1,0 +1,17 @@
+.panel { margin-block: 1rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .85rem; }
+.header h4 { margin: 0; font-size: .85rem; }
+.header h4 span { margin-inline-start: .4rem; color: var(--text-muted); font-weight: 400; }
+.list { list-style: none; padding: 0; margin: 0; }
+.list li { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: .65rem .85rem; border-top: 1px solid var(--border); }
+.list a { color: var(--text-primary); text-decoration: none; overflow-wrap: anywhere; font-size: .85rem; }
+.list a:hover { color: var(--primary); text-decoration: underline; }
+.key { font-size: .75rem; color: var(--text-muted); margin-inline-end: .4rem; }
+.state { color: var(--text-muted); font-size: .75rem; flex-shrink: 0; }
+.empty { margin: 0; padding: 0 .85rem .85rem; color: var(--text-muted); font-size: .8rem; }
+.form { display: grid; gap: .5rem; border-top: 1px solid var(--border); padding: .85rem; }
+.form label { font-size: .8rem; font-weight: 600; }
+.form input { min-width: 0; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-primary); color: var(--text-primary); font: inherit; }
+.form input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.error { margin: .5rem .85rem .85rem; color: var(--danger); font-size: .8rem; }
