@@ -1,10 +1,4 @@
-/**
- * The Tasks tab row.
- *
- * Driven by the selected team's server-selected current sprint: Sprint and
- * Backlog sit beside each other when present; otherwise Scheduled replaces it.
- * Service Desk always renders.
- */
+/** Render the selected project's server-decided tabs without deriving type rules. */
 import React from "react";
 import { CalendarDays, Package, Headset } from "../../constants/icons";
 import { planningTabs, type PlanningSurface } from "./hooks/usePlanningSurface";
@@ -12,6 +6,7 @@ import type { TasksView } from "./hooks/useTasksRoute";
 import s from "./TasksHeader.module.css";
 
 interface PlanningTabsProps {
+    planTabs?: TasksView[];
     activeTab: string;
     setActiveTab: (tab: string) => void;
     agileEnabled: boolean;
@@ -21,6 +16,10 @@ interface PlanningTabsProps {
 }
 
 const LABELS: Record<TasksView, string> = {
+    board: "Board",
+    list: "List",
+    calendar: "Calendar",
+    reports: "Reports",
     sprint: "Sprint",
     backlog: "Backlog",
     scheduled: "Scheduled",
@@ -37,6 +36,7 @@ function TabIcon({ tab }: { tab: TasksView }) {
 }
 
 export default function PlanningTabs({
+    planTabs,
     activeTab,
     setActiveTab,
     agileEnabled,
@@ -44,7 +44,7 @@ export default function PlanningTabs({
     currentSprintId,
     setSelectedSprintId,
 }: PlanningTabsProps) {
-    const { tabs, currentSprintId: sprintId }: PlanningSurface = planningTabs({ agileEnabled, currentSprintId });
+    const { tabs, currentSprintId: sprintId }: PlanningSurface = planningTabs({ agileEnabled, currentSprintId, planTabs });
     return (
         <div className={s["tab-switcher"]} role="tablist" aria-label="Tasks views">
             {tabs.map((tab) => (

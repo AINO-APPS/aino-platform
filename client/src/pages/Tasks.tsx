@@ -1,3 +1,4 @@
+import SprintInsights from "./SprintInsights";
 import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as GlyphBan, ArrowDownCircle, ClipboardList } from "../constants/icons";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -116,13 +117,6 @@ export default function Tasks() {
   const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, effectiveTeamId, visibleSprints, teamScopeParams } = team;
   const teamVisibility = hasFeature("team_visibility");
 
-  // If agile gets disabled while the user is on the Sprint tab (feature
-  // override flipped from the platform console), bounce back to Backlog.
-  useEffect(() => {
-    if (!hasFeature("agile") && activeTab === "sprint") {
-      setActiveTab("backlog");
-    }
-  }, [hasFeature, activeTab]);
   const { sprintStats, refreshSprintStats } = useSprintStats(activeTab, selectedSprintId, tasks.length, stats.done);
   const { unitLabel, features, initialState, terminalStates, workflowStates } = useAgileConfig() as any;
   const autoCarriedRef = useRef<string | null>(null); // stores the last date carry-forward ran
@@ -241,6 +235,7 @@ export default function Tasks() {
 
   // Landing on the bare /tasks entry point opens the server-selected current sprint.
   useSprintLanding({
+    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
     pathname: location.pathname,
     currentSprintId: team.currentSprintId, sprintsLoaded: sprintsLoaded && team.currentSprintLoaded && (!showTeamSwitcher || selectedTeamId !== null),
     agileEnabled: hasFeature("agile"),
@@ -250,6 +245,7 @@ export default function Tasks() {
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
   useTasksRouteSync({
+    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
     route: tasksRoute.route,
     searchParams,
     navigate,
@@ -259,6 +255,7 @@ export default function Tasks() {
   });
 
   useTeamSwitchNavigation({
+    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
     selectedTeamId,
     currentSprintId: team.currentSprintId, currentSprintLoaded: team.currentSprintLoaded,
     activeTab: tasksRoute.route.view,
@@ -343,6 +340,7 @@ export default function Tasks() {
   // One keyboard entry point for tasks, views and actions, plus the `?` help
   // overlay that documents the complete shortcut set.
   const tasksPalette = useTasksPalette({
+    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
     sprintId: selectedSprintId,
     currentSprintId: team.currentSprintId,
     agileEnabled: hasFeature("agile"),
@@ -436,7 +434,8 @@ export default function Tasks() {
 
         {!projectOwnership && <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />}
 
-        {activeTab === "sprint" && (
+        {activeTab === "sprint" && selectedSprintId == null && <section className="card"><h3>No current sprint</h3><p>Plan your next sprint from the backlog.</p><button className="btn btn-secondary" onClick={() => changeTab("backlog")}>Open backlog</button></section>}
+        {activeTab === "sprint" && selectedSprintId != null && (
           <SprintTab
             stats={stats}
             sprintStats={sprintStats}
@@ -508,6 +507,7 @@ export default function Tasks() {
           />
         )}
 
+        {activeTab === "reports" && <SprintInsights projectId={team.selectedProjectId} />}
         {activeTab === "scheduled" && (<ScheduledTab updatedTicket={detail.detailTask} filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}
 

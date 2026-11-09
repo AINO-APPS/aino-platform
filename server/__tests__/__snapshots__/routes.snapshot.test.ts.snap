@@ -417,6 +417,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "POST   /api/projects/migration/switch",
   "POST   /api/projects/migration/switch-back",
   "GET    /api/projects/mine",
+  "GET    /api/projects/types",
   "GET    /api/public/branding",
   "GET    /api/public/branding/logo",
   "GET    /api/public/notes/:token",

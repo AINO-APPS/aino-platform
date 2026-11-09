@@ -114,6 +114,7 @@ postgresDescribe("start date routes (PostgreSQL)", () => {
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'alice', 'x', 'Alice', 1, 1), (2, 'admin', 'x', 'Admin', 1, 1)`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
         );

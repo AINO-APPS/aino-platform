@@ -1,3 +1,4 @@
+import { requireScrumSprint } from "../_helpers/projectSprint";
 // Sprint-related task routes:
 //   GET   /available-sprints     — sprints the requester can target
 //   PATCH /:id/assign-sprint     — move a task into / out of a sprint
@@ -7,7 +8,7 @@ import type { Request, Response } from "express";
 import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
-const { requireFeature } = require('../../middleware/tenant');
+
 
 const { ticketActionConflict, denyTaskAccess } = require("./_helpers/access");
 const { isOrgAdmin, taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
@@ -23,17 +24,8 @@ const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_he
 
 const router = express.Router();
 
-// Both routes below are part of the Agile feature bundle — same gate as
-// /api/sprints and /api/agile. Applied per-route (NOT router.use) because
-// this sub-router is mounted at '/' under /api/tasks and a router-level
-// gate would block every non-agile task route too. Without this gate a
-// tenant with "Agile & Sprints" disabled could still list (and even
-// auto-materialise!) sprints, which is why the mobile app kept showing the
-// Sprint tab after the feature override was turned off.
-const requireAgile = requireFeature('agile');
-
 // ─── Get available sprints for user's team (current + future) ────────────
-router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req: Request, res: Response) => {
+router.get('/available-sprints', auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
         if (actor.projectOwnership) {
@@ -103,7 +95,7 @@ router.get('/available-sprints', requireAgile, auth, loadUserContext, async (req
 });
 
 // ─── Assign task to sprint ────────────────────────────────────────────────
-router.patch('/:id/assign-sprint', requireAgile, auth, loadUserContext, async (req: Request, res: Response) => {
+router.patch('/:id/assign-sprint', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { sprint_id } = req.body;

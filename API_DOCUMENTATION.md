@@ -442,6 +442,16 @@ Revoke an approved leave (restores the balance).
 
 Base path: `/api/tasks`
 
+Project-type controls: `GET /api/projects/types` returns organization
+`availableTypes` and `defaultType`; create and update accept `type` (`scrum`,
+`kanban`, `task_list`). Project responses carry ordered `planTabs`, type-policy
+fields, `changeableTypes` and `capabilities.canChangeType`. Only project admins
+change type; leaving Scrum with planned/active/paused sprints returns 409
+`PROJECT_HAS_OPEN_SPRINTS`. Without `agile`, new destinations are Task list only
+(403 `PROJECT_TYPE_NOT_AVAILABLE` otherwise); existing projects keep working.
+Sprint requests outside Scrum return 409 `PROJECT_HAS_NO_SPRINTS`.
+See [Projects](docs/PROJECTS.md) and `contracts/openapi.json`.
+
 #### Start dates (project types Expand)
 
 Tickets expose nullable `start_date` (`YYYY-MM-DD`). Both create endpoints and

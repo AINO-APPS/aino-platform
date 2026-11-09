@@ -3,7 +3,7 @@ import type { SprintLike } from "./tasks.sprintLifecycle";
 
 export async function findDecisionProjects(db: LifecycleDb, ids: number[], orgId: number | null) {
     if (!ids.length) return [];
-    return (await db.query("SELECT id, is_archived FROM projects WHERE id = ANY($1::int[]) AND org_id = $2",
+    return (await db.query("SELECT id, is_archived, type FROM projects WHERE id = ANY($1::int[]) AND org_id = $2",
         [ids, orgId])).rows;
 }
 

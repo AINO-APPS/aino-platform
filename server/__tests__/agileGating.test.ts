@@ -1,18 +1,6 @@
 export {};
 
-/**
- * Agile & Sprints feature-gate regression tests.
- *
- * Regression context: the sprint-related routes under /api/tasks
- * (/tasks/available-sprints, /tasks/:id/assign-sprint) were NOT gated on the
- * `agile` feature, while /api/sprints and /api/agile were. A tenant whose
- * "Agile & Sprints" was disabled via a platform-console feature override could
- * still list — and even auto-materialise — sprints through the ungated
- * endpoints, which is why the mobile app kept showing the Sprint tab after
- * the override was turned off. These tests pin the fix: with agile OFF both
- * routes return the standard 403 FEATURE_NOT_AVAILABLE gate response; with
- * agile ON they proceed past the gate.
- */
+/** Agile loss does not gate sprint access; project type and membership decide. */
 
 // The global jest.setup.js mocks middleware/tenant with pass-through stubs.
 // This suite needs the REAL requireFeature, so unmock before requiring.
@@ -55,20 +43,17 @@ function makeApp(tenant: any) {
 }
 
 describe("Agile gate on /api/tasks sprint routes", () => {
-    test("GET /tasks/available-sprints → 403 when agile is disabled by override", async () => {
+    test("GET /tasks/available-sprints remains reachable when agile is disabled by override", async () => {
         // Pro plan has agile OFF by default; explicit override keeps intent clear.
         const app = makeApp({ id: 7, plan: "pro", features: { agile: false } });
         const res = await request(app).get("/api/tasks/available-sprints");
-        expect(res.status).toBe(403);
-        expect(res.body.code).toBe("FEATURE_NOT_AVAILABLE");
-        expect(res.body.feature).toBe("agile");
+        expect(res.status).toBe(200);
     });
 
-    test("GET /tasks/available-sprints → 403 when the plan default disables agile", async () => {
+    test("GET /tasks/available-sprints remains reachable when the plan default disables agile", async () => {
         const app = makeApp({ id: 7, plan: "standard", features: {} });
         const res = await request(app).get("/api/tasks/available-sprints");
-        expect(res.status).toBe(403);
-        expect(res.body.code).toBe("FEATURE_NOT_AVAILABLE");
+        expect(res.status).toBe(200);
     });
 
     test("GET /tasks/available-sprints passes the gate when agile is enabled", async () => {
@@ -85,13 +70,12 @@ describe("Agile gate on /api/tasks sprint routes", () => {
         expect(res.status).toBe(200);
     });
 
-    test("PATCH /tasks/:id/assign-sprint → 403 when agile is disabled", async () => {
+    test("PATCH /tasks/:id/assign-sprint checks ticket access, not agile", async () => {
         const app = makeApp({ id: 7, plan: "enterprise", features: { agile: false } });
         const res = await request(app)
             .patch("/api/tasks/42/assign-sprint")
             .send({ sprint_id: 1 });
         expect(res.status).toBe(403);
-        expect(res.body.code).toBe("FEATURE_NOT_AVAILABLE");
-        expect(res.body.feature).toBe("agile");
+        expect(res.body.feature).toBeUndefined();
     });
 });

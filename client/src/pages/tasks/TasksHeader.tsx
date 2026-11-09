@@ -1,3 +1,4 @@
+import { projectTypeLabel } from "../../components/tasks/ProjectTypeControl";
 import { Run as GlyphRun, Plus as GlyphPlus, X as GlyphX } from "../../constants/icons";
 import React from "react";
 import { PRIORITIES, COLUMNS } from "./constants";
@@ -110,6 +111,8 @@ export default function TasksHeader({
     const { assignableUsers, orgLabels, availableSprints, currentUser, currentSprintId } =
         useTaskCtx() as any;
     const { hasFeature } = useFeatures() as any;
+    const selectedProject = projects.find((project) => project.id === selectedProjectId);
+    const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -228,7 +231,7 @@ export default function TasksHeader({
                         >
                             {selectedProjectId == null && <option value="" disabled>Select a project</option>}
                             {projects.map((project) => (
-                                <option key={project.id} value={project.id}>{project.key} — {project.name}</option>
+                                <option key={project.id} value={project.id}>{project.key} — {project.name} · {projectTypeLabel(project.type)}</option>
                             ))}
                         </select>
                     )}
@@ -256,7 +259,8 @@ export default function TasksHeader({
                     <PlanningTabs
                         activeTab={activeTab}
                         setActiveTab={setActiveTab}
-                        agileEnabled={hasFeature("agile")}
+                        planTabs={projectOwnership ? selectedProject?.planTabs : undefined}
+                        agileEnabled={hasSprints}
                         backlogCount={backlogTasks.length}
                         currentSprintId={currentSprintId}
                         setSelectedSprintId={setSelectedSprintId}
@@ -267,7 +271,7 @@ export default function TasksHeader({
               is intentionally NOT linked from here — it lives only inside
               Admin → Structure → Agile Config so it doesn't leak through to
               team members from the tasks page. */}
-                    {hasFeature("agile") && (
+                    {hasSprints && (
                         <Link
                             to="/sprint-insights"
                             className={`btn btn-secondary btn-sm ${s["add-task-toggle"]}`}
@@ -283,7 +287,7 @@ export default function TasksHeader({
                     )}
 
                     {/* Sprint select (when multiple sprints) */}
-                    {hasFeature("agile") && activeTab === "sprint" && availableSprints.length > 1 && (
+                    {hasSprints && activeTab === "sprint" && availableSprints.length > 1 && (
                         <select
                             value={selectedSprintId || ""}
                             onChange={(e) => setSelectedSprintId(Number(e.target.value))}
@@ -340,7 +344,7 @@ export default function TasksHeader({
 
                     {/* The Plan split view (backlog beside a sprint) is a
                         Backlog action, as in Jira — never the landing view. */}
-                    {hasFeature("agile") && activeTab === "backlog" && onPlanSprint && (
+                    {hasSprints && activeTab === "backlog" && onPlanSprint && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={onPlanSprint}
@@ -351,7 +355,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {hasFeature("agile") && activeTab === "sprint" && selectedSprintId && (
+                    {hasSprints && activeTab === "sprint" && selectedSprintId && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]} ${s[""]}`}
                             onClick={() => {

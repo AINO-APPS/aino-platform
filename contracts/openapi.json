@@ -13388,14 +13388,10 @@
             }
           },
           "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+            "description": "ACCESS_DENIED or PROJECT_TYPE_NOT_AVAILABLE"
+          },
+          "409": {
+            "description": "PROJECT_HAS_OPEN_SPRINTS or PROJECT_ARCHIVED"
           },
           "429": {
             "description": "Rate limit exceeded",
@@ -13417,7 +13413,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          }
+        },
+        "description": "Project admin only. Settings and type change commit atomically. Leaving Scrum refuses planned, active or paused sprints with PROJECT_HAS_OPEN_SPRINTS (409). Non-agile destinations refuse PROJECT_TYPE_NOT_AVAILABLE (403). Unchanged types remain editable after feature loss; archived projects cannot change type."
       }
     },
     "/api/projects/{id}/archive": {
@@ -14484,7 +14491,7 @@
             }
           }
         },
-        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back. Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/{id}": {
@@ -14666,18 +14673,7 @@
               }
             }
           }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditTicketDatesRequest"
-              }
-            }
-          }
-        },
-        "description": " Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
+        }
       }
     },
     "/api/tasks/{id}/acceptance-criteria": {
@@ -16626,26 +16622,6 @@
               }
             }
           }
-        },
-        "description": "Expand compatibility shim: sets start_date from legacy date without changing sprint or backlog placement. Refuses invalid dates and due-before-start with HTTP 400.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "date"
-                ],
-                "properties": {
-                  "date": {
-                    "type": "string",
-                    "format": "date"
-                  }
-                }
-              }
-            }
-          }
         }
       }
     },
@@ -17201,8 +17177,7 @@
               }
             }
           }
-        },
-        "description": "Expand compatibility shim: clears start_date without changing sprint membership or due_date."
+        }
       }
     },
     "/api/tasks/assignable-users": {
@@ -17904,7 +17879,7 @@
             }
           }
         },
-        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back. Accepts nullable start_date and legacy planned_date alias. Dates are independent of placement; due-before-start is refused with HTTP 400 and error \"Due date cannot be earlier than the start date\"."
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/bulk": {
@@ -22927,6 +22902,37 @@
         "description": "Returns only non-archived projects with canCreateTickets, resolved from the actor's effective personal/team role and organization-admin override."
       }
     },
+    "/api/projects/types": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Organization project type choices",
+        "operationId": "getProjectTypes",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Type options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTypeOptions"
+                }
+              }
+            }
+          }
+        },
+        "description": "agile controls creation and type-change destinations only. Existing projects retain their type and capabilities."
+      }
+    },
     "/api/service-desk/tickets": {
       "post": {
         "tags": [
@@ -24915,9 +24921,9 @@
           "capabilities",
           "container",
           "capabilities",
+          "start_date",
           "container",
-          "capabilities",
-          "start_date"
+          "capabilities"
         ],
         "additionalProperties": false
       },
@@ -25156,6 +25162,14 @@
             ],
             "additionalProperties": false
           },
+          "start_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Expected day work begins; independent of placement."
+          },
           "time_spent_minutes": {
             "type": "integer",
             "minimum": 0,
@@ -25174,14 +25188,6 @@
               "null"
             ],
             "minimum": 0
-          },
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Expected day work begins; independent of placement."
           }
         },
         "required": [
@@ -25223,7 +25229,8 @@
               "PROJECT_ARCHIVED",
               "SPRINT_PROJECT_MISMATCH",
               "WORKLOG_CANCELLED",
-              "WORKLOG_FOR_OTHERS_DENIED"
+              "WORKLOG_FOR_OTHERS_DENIED",
+              "PROJECT_HAS_NO_SPRINTS"
             ]
           }
         },
@@ -25251,7 +25258,8 @@
               "CANCELLED_TERMINAL",
               "READ_ONLY_ROLE",
               "PROJECT_ARCHIVED",
-              "SPRINT_PROJECT_MISMATCH"
+              "SPRINT_PROJECT_MISMATCH",
+              "PROJECT_HAS_NO_SPRINTS"
             ]
           }
         },
@@ -26246,6 +26254,10 @@
           },
           "canArchive": {
             "type": "boolean"
+          },
+          "canChangeType": {
+            "type": "boolean",
+            "description": "Project admin of a non-archived project. Allowed destinations are in changeableTypes."
           }
         },
         "required": [
@@ -26254,7 +26266,8 @@
           "canManageMembers",
           "canEditWorkflow",
           "canRenameKey",
-          "canArchive"
+          "canArchive",
+          "canChangeType"
         ],
         "additionalProperties": false
       },
@@ -26611,12 +26624,7 @@
             "type": "integer"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "scrum",
-              "kanban",
-              "task_list"
-            ]
+            "$ref": "#/components/schemas/ProjectType"
           },
           "origin_team_id": {
             "type": [
@@ -26655,13 +26663,63 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/ProjectCapabilities"
+          },
+          "kanban_backlog_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "planTabs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanTab"
+            }
+          },
+          "hasSprints": {
+            "type": "boolean"
+          },
+          "hasBacklog": {
+            "type": "boolean"
+          },
+          "boardScope": {
+            "type": "string",
+            "enum": [
+              "current_sprint",
+              "open_tickets",
+              "open_except_initial"
+            ]
+          },
+          "doneWindowDays": {
+            "type": "integer",
+            "const": 14
+          },
+          "includeCancelled": {
+            "type": "boolean",
+            "const": false
+          },
+          "availableTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectType"
+            }
+          },
+          "changeableTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectType"
+            }
           }
         },
         "required": [
           "id",
           "key",
           "name",
-          "capabilities"
+          "capabilities",
+          "type",
+          "planTabs",
+          "availableTypes",
+          "changeableTypes",
+          "hasSprints",
+          "hasBacklog"
         ],
         "additionalProperties": true
       },
@@ -26827,6 +26885,10 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          "type": {
+            "$ref": "#/components/schemas/ProjectType",
+            "description": "Defaults to Scrum with agile enabled, otherwise Task list."
           }
         },
         "required": [
@@ -27530,8 +27592,7 @@
               "string",
               "null"
             ],
-            "format": "date",
-            "description": "Deadline; earlier than start_date is refused with HTTP 400."
+            "format": "date"
           },
           "label_ids": {
             "type": "array",
@@ -27581,22 +27642,6 @@
               "string",
               "null"
             ]
-          },
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Expected start day; date edits never change placement. Explicit null clears it."
-          },
-          "planned_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Legacy alias of start_date; start_date wins when both are supplied."
           }
         },
         "required": [
@@ -28161,35 +28206,70 @@
         ],
         "additionalProperties": false
       },
-      "EditTicketDatesRequest": {
+      "ProjectType": {
+        "type": "string",
+        "enum": [
+          "scrum",
+          "kanban",
+          "task_list"
+        ]
+      },
+      "PlanTab": {
+        "type": "string",
+        "enum": [
+          "backlog",
+          "sprint",
+          "reports",
+          "board",
+          "list",
+          "calendar"
+        ]
+      },
+      "ProjectTypeOptions": {
         "type": "object",
         "properties": {
-          "start_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Expected start day; date edits never change placement. Explicit null clears it."
+          "availableTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectType"
+            }
           },
-          "planned_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Legacy alias of start_date; start_date wins when both are supplied."
-          },
-          "due_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Deadline; earlier than start_date is refused with HTTP 400."
+          "defaultType": {
+            "$ref": "#/components/schemas/ProjectType"
           }
         },
-        "additionalProperties": true
+        "required": [
+          "availableTypes",
+          "defaultType"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "lead_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": {
+            "$ref": "#/components/schemas/ProjectType"
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

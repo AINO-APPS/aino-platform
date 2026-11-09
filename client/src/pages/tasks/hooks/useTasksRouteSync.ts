@@ -10,9 +10,10 @@ import type { NavigateFunction } from "react-router-dom";
 import { getTaskByKey, getTaskDetail } from "../../../api/tasks";
 import { useFeatures } from "../../../FeaturesContext";
 import { planningTabs } from "./usePlanningSurface";
-import { LEGACY_TABS, landingTasksPath, sprintIdFrom, tasksViewPath, type TasksRoute } from "./useTasksRoute";
+import { LEGACY_TABS, landingTasksPath, sprintIdFrom, tasksViewPath, type TasksRoute, type TasksView } from "./useTasksRoute";
 
 interface RouteSyncOptions {
+    planTabs?: TasksView[];
     route: TasksRoute;
     searchParams: URLSearchParams;
     navigate: NavigateFunction;
@@ -24,6 +25,7 @@ interface RouteSyncOptions {
 }
 
 export function useTasksRouteSync({
+    planTabs,
     route,
     searchParams,
     navigate,
@@ -55,9 +57,9 @@ export function useTasksRouteSync({
         if (sprintsLoaded) {
             const { tabs, currentSprintId: current } = planningTabs({
                 agileEnabled: hasFeature("agile"),
-                currentSprintId,
+                currentSprintId, planTabs,
             });
-            if (route.view === "sprint" && !route.sprintId) {
+            if (route.view === "sprint" && !route.sprintId && (!planTabs || current != null)) {
                 navigate(
                     current && tabs.includes("sprint")
                         ? tasksViewPath("sprint", current)
@@ -69,15 +71,15 @@ export function useTasksRouteSync({
             // A named sprint is reachable even with nothing running: that is how
             // a future sprint is planned. Everything else must be a tab the
             // team has (Scheduled is not, while a sprint runs).
-            const namedSprint = route.view === "sprint" && route.sprintId != null;
+            const namedSprint = route.view === "sprint" && route.sprintId != null && (!planTabs || tabs.includes("sprint"));
             if (!namedSprint && !tabs.includes(route.view)) {
-                navigate(tasksViewPath("backlog", null), { replace: true });
+                navigate(tasksViewPath(planTabs?.[0] ?? "backlog", null), { replace: true });
                 return;
             }
         }
         setActiveTab(route.view);
         if (route.sprintId) setSelectedSprintId(sprintIdFrom(route.sprintId));
-    }, [route.view, route.sprintId, searchParams, navigate, setActiveTab, setSelectedSprintId, currentSprintId, sprintsLoaded, hasFeature]);
+    }, [route.view, route.sprintId, searchParams, navigate, setActiveTab, setSelectedSprintId, currentSprintId, sprintsLoaded, hasFeature, planTabs]);
 }
 
 /**
@@ -90,12 +92,14 @@ export function useTasksRouteSync({
  * only after the selected team's sprints have loaded.
  */
 export function useSprintLanding({
+    planTabs,
     pathname,
     currentSprintId,
     sprintsLoaded = true,
     agileEnabled,
     navigate,
 }: {
+    planTabs?: TasksView[];
     pathname: string;
     currentSprintId: number | string | null;
     sprintsLoaded?: boolean;
@@ -106,11 +110,12 @@ export function useSprintLanding({
 
     useEffect(() => {
         if (applied.current || !sprintsLoaded) return;
-        const { currentSprintId: current } = planningTabs({ agileEnabled, currentSprintId });
-        const target = landingTasksPath(pathname, current);
+        const { currentSprintId: current } = planningTabs({ agileEnabled, currentSprintId, planTabs });
+        const target = planTabs && (pathname === "/tasks" || pathname === "/tasks/")
+            ? tasksViewPath(planTabs[0]) : landingTasksPath(pathname, current);
         applied.current = true;
         if (target !== pathname) navigate(target, { replace: true });
-    }, [pathname, currentSprintId, sprintsLoaded, agileEnabled, navigate]);
+    }, [pathname, currentSprintId, sprintsLoaded, agileEnabled, navigate, planTabs]);
 }
 
 /** Open the task named by `?task=` once, on arrival. */

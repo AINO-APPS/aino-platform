@@ -1,3 +1,4 @@
+import { projectTypePolicy, type ProjectType } from "./tasks.projectTypes";
 import {
     canAccessSprint, canCancelTask, canChangeTaskStatus, canWriteTask,
     isOrgAdmin, type TaskActor, type TaskRowLike,
@@ -12,7 +13,7 @@ import { findDecisionOwners, findDecisionProjects, findDecisionSprints } from ".
 
 export type CapabilityReason = "INVALID_TRANSITION" | "ACCESS_DENIED" | "SPRINT_FROZEN"
     | "IN_SPRINT" | "SPRINT_PROJECT_MISMATCH" | "CANCELLED_TERMINAL" | "READ_ONLY_ROLE" | "PROJECT_ARCHIVED"
-    | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
+    | "PROJECT_HAS_NO_SPRINTS" | "WORKLOG_CANCELLED" | "WORKLOG_FOR_OTHERS_DENIED";
 export type Capability = { allowed: true } | { allowed: false; reason: CapabilityReason };
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"
     | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate" | "canMoveProject";
@@ -37,7 +38,7 @@ export interface TicketDecisionContext {
     lifecyclesByProject?: Map<number, LifecycleContext>;
     sprints: Map<number, SprintLike>;
     ownerTeams: Map<number, number | null>;
-    projects?: Map<number, { role: string | null; archived: boolean }>;
+    projects?: Map<number, { role: string | null; archived: boolean; type?: ProjectType }>;
     /** Undefined is a general action; null is a requested but unavailable destination. */
     targetSprint?: SprintLike | null;
 }
@@ -58,7 +59,7 @@ export async function loadTicketDecisionContext(
     const sprints = new Map(sprintRows.map((sprint) => [Number(sprint.id), sprint]));
     const owners = actor.teamVisibility ? [] : await findDecisionOwners(db,
         [...new Set(tickets.flatMap((ticket) => ticket.user_id == null ? [] : [Number(ticket.user_id)]))], actor.orgId);
-    const projects = new Map<number, { role: string | null; archived: boolean }>();
+    const projects = new Map<number, { role: string | null; archived: boolean; type?: ProjectType }>();
     if (actor.projectOwnership) {
         const projectIds = [...new Set(tickets.flatMap((ticket) => ticket.project_id == null ? [] : [Number(ticket.project_id)]))];
         if (projectIds.length) {
@@ -67,6 +68,7 @@ export async function loadTicketDecisionContext(
                 projects.set(Number(project.id), {
                     role: isOrgAdmin(actor.role) ? "project_admin" : await actor.projectAccess?.roleForProject(Number(project.id)) ?? null,
                     archived: project.is_archived === true,
+                    type: project.type,
                 });
             }));
         }
@@ -137,6 +139,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
         ? placementRefusal(ticket, { sprint: Number(context.targetSprint.id) }, context.targetSprint, context.sprints, actor.projectOwnership)
         : null;
     const placeInSprint = !edit.allowed ? edit
+        : project && !projectTypePolicy(project).hasSprints ? deny("PROJECT_HAS_NO_SPRINTS")
         : context.targetSprint !== undefined && !(actor.projectOwnership
             ? context.targetSprint !== null
             : canAccessSprint(context.targetSprint, actor)) ? deny("ACCESS_DENIED")
@@ -169,7 +172,7 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
 export function decideWorklog(
     actor: Pick<TaskActor, 'userId' | 'role' | 'projectOwnership'> | undefined,
     worklog: { author_id: number },
-    project?: { role: string | null; archived: boolean },
+    project?: { role: string | null; archived: boolean; type?: ProjectType },
 ) {
     const writable = !actor?.projectOwnership || project != null && !project.archived
         && (project.role === "member" || project.role === "project_admin");

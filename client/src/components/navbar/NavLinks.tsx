@@ -40,7 +40,7 @@ export default function NavLinks() {
     const isHR = userLevel >= 4;
 
     const moreItems: MoreItem[] = [];
-    if (hasFeature("agile"))
+    if (user?.org_id)
         moreItems.push({ to: "/projects", label: "Projects", icon: Settings });
     if (user?.org_id || user?.role === "platform_admin")
         moreItems.push({ to: "/organization", label: "Organization", icon: Building2 });

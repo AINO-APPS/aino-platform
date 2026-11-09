@@ -83,6 +83,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect((await pool.query(
             "SELECT user_id, team_id FROM user_team_memberships WHERE user_id = 9",
         )).rows).toEqual([{ user_id: 9, team_id: 9 }]);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await require("../platform/db/agileDefaults").seedAgileDefaults(query);
 
         const { makePoolQuery, makePoolTransaction } = require("../platform/db/pool");
@@ -115,9 +116,11 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'alice', 'x', 'Alice', 1, 1), (2, 'admin', 'x', 'Admin', 1, 1)`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
         );
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
     });
 
@@ -130,6 +133,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
         const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE id = $1", [source.id]);
         await pool.query("UPDATE sprints SET project_id = $1 WHERE id = 10", [source.id]);
         const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Queued', 'open', TRUE) RETURNING *", [source.id])).rows[0];
         const to = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Destination queue', 'open', TRUE) RETURNING *", [target.id])).rows[0];

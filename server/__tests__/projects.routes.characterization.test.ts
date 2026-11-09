@@ -53,21 +53,16 @@ describe("project route characterization", () => {
         mockFeatureAllowed = true;
         mockOrgId = 3;
         mockAuthCalls = 0;
-        mockQuery.mockReset();
+        mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 1 });
         mockTransaction.mockReset().mockImplementation(async (fn: any) => fn({ query: mockTxQuery }));
         mockLogAction.mockReset();
     });
 
-    test("checks the Agile feature before authentication", async () => {
-        mockFeatureAllowed = false;
-
-        const res = await request(makeApp()).get("/api/projects");
-
-        expect(res.status).toBe(403);
-        expect(res.body).toEqual({ code: "FEATURE_NOT_AVAILABLE" });
-        expect(mockAuthCalls).toBe(0);
-        expect(mockQuery).not.toHaveBeenCalled();
+    test("project type options remain accessible when agile is disabled", async () => {
+        const res = await request(makeApp()).get("/api/projects/types");
+        expect(res.status).toBe(200);
+        expect(res.body.availableTypes).toEqual(["scrum", "kanban", "task_list"]);
     });
 
     test("preserves the legacy plain-array list response", async () => {
@@ -76,7 +71,7 @@ describe("project route characterization", () => {
         const res = await request(makeApp()).get("/api/projects");
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual([{
+        expect(res.body).toMatchObject([{
             id: 1,
             key: "APP",
             capabilities: {
@@ -86,6 +81,7 @@ describe("project route characterization", () => {
                 canEditWorkflow: false,
                 canCreateTickets: false,
                 canArchive: false,
+                canChangeType: false,
             },
         }]);
         expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");

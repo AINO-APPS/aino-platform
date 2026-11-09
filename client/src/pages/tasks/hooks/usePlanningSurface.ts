@@ -1,19 +1,4 @@
-/**
- * Which tabs a team gets, decided by the server's currentSprintId.
- *
- * Sprint and Scheduled are **alternatives**, never companions: a team that
- * plans work in a sprint plans it there, and a dated list beside it is noise.
- * So a current sprint shows the Sprint board, Backlog and Service Desk; with no
- * current sprint there is no board to show, Scheduled takes its place, and the
- * team works from Backlog and Scheduled. Service Desk belongs to every team.
- *
- * Every entry point must agree: the tab row, the URL guard and the command
- * palette all read `tabs` from here, so hiding a tab cannot leave a way in.
- *
- * The sprint list must already be narrowed to the selected team (an admin's
- * picker or the user's own team) so one team's sprint never drives another's
- * tabs.
- */
+/** Server project tabs are authoritative; legacy team surfaces retain their compatibility rule. */
 import type { TasksView } from "./useTasksRoute";
 
 export interface PlanningSurface {
@@ -37,10 +22,13 @@ const DATED_ORDER: TasksView[] = ["backlog", "scheduled", "service-desk"];
 export function planningTabs({
     agileEnabled,
     currentSprintId,
+    planTabs,
 }: {
     agileEnabled: boolean;
     currentSprintId: number | string | null;
+    planTabs?: TasksView[];
 }): PlanningSurface {
+    if (planTabs) return { tabs: [...planTabs, "service-desk"], currentSprintId };
     const current = agileEnabled ? currentSprintId : null;
     // `TAB_ORDER` holds the sprint-led set; the dated surface replaces the
     // board when there is no current sprint, so the two can never both be offered.
