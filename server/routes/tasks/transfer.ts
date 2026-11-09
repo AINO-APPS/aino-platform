@@ -6,6 +6,7 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import { sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const redis = require("../../redis");
@@ -65,6 +66,7 @@ router.post("/:id/transfer", auth, loadUserContext, async (req: Request, res: Re
             cleared_sprint: clearedSprint,
         });
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err }, "Error transferring task:");
         res.status(500).json({ error: "Failed to transfer task" });

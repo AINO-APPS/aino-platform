@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Project type controls and lifecycle; 02: Start dates without Scheduled placement.
 
-**Status:** resolved (platform + web); PostgreSQL integration verification blocked
+**Status:** resolved (platform + web)
 
 - [x] Scrum projects keep Backlog, Sprint and Reports tabs whether or not a sprint is active; the empty Sprint state points members to the backlog.
 - [x] Joining, leaving or changing a sprint's end date never changes a ticket's due date; the board shows the sprint end date beside the ticket due date.
@@ -14,4 +14,4 @@
 - [x] The Scheduled screen and controls are removed from the current web client, while legacy Scheduled endpoints remain compatible until ticket 11. (Native client work is maintained separately and is outside this platform/web ticket.)
 - [x] Placement tests verify unchanged due dates, and migration tests verify safe restoration and automatic-sprint conversion.
 
-**Validation:** Client typecheck passed; 82 focused UI tests passed, with the remaining sprint-detail test passing in isolation. Server typecheck, contracts and guardrails passed. The server sprint-route suite retains 9 project-type mock failures; migration/placement PostgreSQL suites were not run because the known disposable test database service is unavailable.
+**Validation:** Client typecheck passed; 82 focused UI tests passed, with the remaining sprint-detail test passing in isolation. Server typecheck, contracts and guardrails passed. The ordered `0031_ticket_hierarchy.sql` + `0032_project_types_scrum_planning.sql` migration integration test passed against the disposable PostgreSQL test database, including safe due-date restoration, automatic-sprint retirement, hierarchy-aware backlog moves and repeat-application behavior. The client file-size ratchet passed. The server sprint-route suite retains 9 legacy project-type mock failures unrelated to this ticket.
