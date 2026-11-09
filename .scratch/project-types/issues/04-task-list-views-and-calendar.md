@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Project type controls and lifecycle; 02: Start dates without Scheduled placement; 03: Kanban board and backlog.
 
-**Status:** ready-for-agent
+**Status:** claimed (server/web); Android slice pending
 
 - [ ] Task list projects provide List, Board and Calendar views, while Kanban and Scrum retain their own type-specific views.
 - [ ] The list can sort and filter by key, title, type, status, assignee, priority, start date and due date.

@@ -468,16 +468,29 @@ start date. Sprint-date bookkeeping and remaining legacy routes are retained
 until the separate planning/Contract tickets.
 
 ### GET `/api/tasks`
-List tasks with filtering and pagination.
+Read legacy day/sprint tasks, or opt into project List/Calendar views.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Query**: `?sprint_id=&status=todo|in_progress|review|done&priority=low|medium|high|critical&assignee_id=&date=YYYY-MM-DD&search=&page=1&limit=50`
+- **Project views**: `scope=list|calendar&project_id=…` requires project access and
+  refuses `sprint_id`. List membership is independent of dates. Calendar returns
+  only open, non-Cancelled tickets overlapping inclusive `start_date`/`end_date`
+  or a single `date`; either missing ticket date coalesces to the other.
+  `undated=1` instead returns open tickets with neither date.
+- **Filters**: `key`, `title` (case-insensitive literal substrings),
+  `work_item_type_id`, `status` (project workflow key), `assignee` (ID, `me`,
+  `unassigned`), `priority=low|medium|high`, `start_on`, `due_on` (exact days).
+- **List sort**: `sort=key|title|type|status|assignee|priority|start_date|due_date`,
+  `direction=asc|desc`. Nulls last; ID breaks ties. Priority ascending is high-first.
+- **Pagination**: at most 500 tickets per page. `offset=0` initially; advance
+  by returned count while `pagination.hasMore` is true. Legacy reads omit pagination.
+- **Legacy reads**: retain `date`, `sprint_id`, `start_date`/`end_date`, `search`,
+  `include_due`, project/team/personal visibility and existing filters.
 - **Response**:
   ```json
   {
-    "tasks": [{ "id", "title", "description", "status", "priority", "assignee", "labels", "sprint_id", "created_at", "updated_at" }],
-    "total": 100,
-    "page": 1
+    "tasks": [],
+    "stats": { "total": 0, "done": 0, "inProgress": 0, "percent": 0 },
+    "pagination": { "offset": 0, "hasMore": false }
   }
   ```
 

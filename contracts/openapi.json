@@ -14296,14 +14296,31 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "description": "personal shows the actor's tickets. list returns all project tickets, independent of dates/sprints. calendar returns open, non-Cancelled project tickets overlapping an inclusive date range, or undated work. list/calendar require project_id and project access; sprint_id is refused.",
             "schema": {
               "type": "string",
               "enum": [
-                "personal"
+                "personal",
+                "list",
+                "calendar"
               ]
             }
-          }
+          },
+            { "name": "date", "in": "query", "description": "Single inclusive calendar day; either single date appears on its own day, and spans include both boundaries.", "schema": { "type": "string", "format": "date" } },
+            { "name": "start_date", "in": "query", "description": "Inclusive calendar range start. Matches start <= range end and due >= range start, coalescing either missing date to the other.", "schema": { "type": "string", "format": "date" } },
+            { "name": "end_date", "in": "query", "description": "Inclusive calendar range end; must not precede start_date.", "schema": { "type": "string", "format": "date" } },
+            { "name": "undated", "in": "query", "description": "calendar only: return open tickets with neither date instead of the range.", "schema": { "type": "string", "enum": ["1"] } },
+            { "name": "key", "in": "query", "description": "Case-insensitive literal ticket-key substring.", "schema": { "type": "string" } },
+            { "name": "title", "in": "query", "description": "Case-insensitive literal title substring.", "schema": { "type": "string" } },
+            { "name": "work_item_type_id", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+            { "name": "status", "in": "query", "description": "Project workflow-state key.", "schema": { "type": "string" } },
+            { "name": "assignee", "in": "query", "description": "User ID, me, or unassigned. list/calendar match the actual assignee, not the reporter.", "schema": { "type": "string" } },
+            { "name": "priority", "in": "query", "schema": { "type": "string", "enum": ["high", "medium", "low"] } },
+            { "name": "start_on", "in": "query", "description": "Exact start-date filter.", "schema": { "type": "string", "format": "date" } },
+            { "name": "due_on", "in": "query", "description": "Exact due-date filter.", "schema": { "type": "string", "format": "date" } },
+            { "name": "sort", "in": "query", "description": "list only. Priority ascending is high-first. Nulls always last; ID breaks ties.", "schema": { "type": "string", "enum": ["key", "title", "type", "status", "assignee", "priority", "start_date", "due_date"] } },
+            { "name": "direction", "in": "query", "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" } },
+            { "name": "offset", "in": "query", "description": "list/calendar only. Pages contain at most 500 tickets; advance by returned count while pagination.hasMore is true.", "schema": { "type": "integer", "minimum": 0, "default": 0 } }
         ],
         "security": [
           {
@@ -14319,7 +14336,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TaskCollectionResponse"
                 }
               }
             }
@@ -25384,6 +25401,17 @@
               "null"
             ]
           },
+          "assignee": {
+            "type": ["object", "null"],
+            "description": "Enriched assignee summary, null for unassigned tickets.",
+            "properties": {
+              "username": { "type": "string" },
+              "full_name": { "type": ["string", "null"] },
+              "avatar": { "type": ["string", "null"] }
+            },
+            "required": ["username", "full_name", "avatar"],
+            "additionalProperties": false
+          },
           "user_id": {
             "type": "integer"
           },
@@ -25872,6 +25900,35 @@
           "captured_at",
           "reason"
         ],
+        "additionalProperties": false
+      },
+      "TaskCollectionResponse": {
+        "type": "object",
+        "description": "Enriched task collection. list/calendar include pagination; legacy date/sprint reads omit it.",
+        "properties": {
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer", "minimum": 0 },
+              "done": { "type": "integer", "minimum": 0 },
+              "inProgress": { "type": "integer", "minimum": 0 },
+              "percent": { "type": "integer", "minimum": 0, "maximum": 100 }
+            },
+            "required": ["total", "done", "inProgress", "percent"],
+            "additionalProperties": false
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "offset": { "type": "integer", "minimum": 0 },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["offset", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["tasks", "stats"],
         "additionalProperties": false
       },
       "TaskListResponse": {

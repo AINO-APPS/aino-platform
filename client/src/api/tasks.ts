@@ -53,12 +53,12 @@ export const deleteTaskWorklog = (id: number | string, worklogId: number, input:
     API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`, { data: input });
 
 // Tasks
-export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
+export const getTasks = <T = any>(date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };
     if (date !== undefined) {
         params.date = date;
     }
-    return API.get("/tasks", { params, signal });
+    return API.get<T>("/tasks", { params, signal });
 };
 export const addTask = (data: AnyData) => API.post("/tasks", data);
 export const getProjectTypes = () => API.get<import("../types/generated/tasks").ProjectTypeOptions>("/projects/types");

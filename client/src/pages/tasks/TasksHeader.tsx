@@ -114,6 +114,7 @@ export default function TasksHeader({
     const selectedProject = projects.find((project) => project.id === selectedProjectId);
     const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
     const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
+    const datedProjectView = projectOwnership && (activeTab === "list" || activeTab === "calendar");
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -200,17 +201,19 @@ export default function TasksHeader({
                                 <span className="page-icon">
                                     {activeTab === "service-desk" ? (
                                         <Headset size={18} style={{ verticalAlign: "middle" }} />
-                                    ) : activeTab === "scheduled" ? (
+                                    ) : activeTab === "scheduled" || activeTab === "calendar" ? (
                                         <CalendarDays size={18} style={{ verticalAlign: "middle" }} />
                                     ) : (
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "board" ? "Board" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
+                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "list" ? "List" : activeTab === "calendar" ? "Calendar" : activeTab === "board" ? "Board" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
+                                    : datedProjectView
+                                      ? `${teamName} — ${activeTab === "list" ? "every ticket, sorted your way" : "plan open work by start and due dates"}`
                                     : projectBoard
                                       ? activeTab === "board" ? "Project-wide workflow, without sprint boundaries" : "Initial-state tickets waiting to join the board"
                                     : activeTab === "scheduled"
@@ -304,7 +307,7 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {activeTab !== "service-desk" && !projectBoard && (
+                    {activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["filter-toggle-btn"]} ${filterCount > 0 ? s["has-filters"] : ""}`}
                             onClick={() => setFiltersOpen((o) => !o)}
@@ -317,7 +320,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["density-toggle"]}`}
                             onClick={() =>
@@ -507,7 +510,7 @@ export default function TasksHeader({
             )}
 
             {/* Filter Bar */}
-            {filtersOpen && activeTab !== "service-desk" && !projectBoard && (
+            {filtersOpen && activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                 <div className={s["filter-bar"]}>
                     <div className={s["filter-row"]}>
                         <div className={s["filter-group"]}>

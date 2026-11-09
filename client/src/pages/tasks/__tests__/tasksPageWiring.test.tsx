@@ -16,8 +16,10 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { getTasks } from "../../../api/tasks";
 
 const captured: { props: Record<string, any> | null } = { props: null };
+const scope = vi.hoisted(() => ({ projectOwnership: false, projects: [] as any[] }));
 
 vi.mock("../BacklogTab", () => ({
     default: (props: Record<string, any>) => {
@@ -47,7 +49,8 @@ vi.mock("../../../api/tasks", () => ({
     getTaskDetail: vi.fn(),
     getAvailableSprints: vi.fn().mockResolvedValue({ data: [] }),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn(async () => ({ data: scope.projects })),
+    getMyProjects: vi.fn(async () => ({ data: scope.projects })),
     getBacklog: vi.fn().mockResolvedValue({
         data: { tasks: [], summary: { total: 0, byStatus: {}, byPriority: {} }, pagination: { total: 0 } },
     }),
@@ -84,7 +87,7 @@ vi.mock("../../../api/organization", () => ({
 }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee" } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: scope.projectOwnership } }),
     hasTenantContext: () => true,
 }));
 
@@ -114,13 +117,13 @@ vi.mock("../../../components/common/Toast", () => ({
 
 import Tasks from "../../Tasks";
 
-function renderPage() {
+function renderPage(path = "/tasks/backlog") {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },
     });
     return render(
         <QueryClientProvider client={queryClient}>
-            <MemoryRouter initialEntries={["/tasks/backlog"]}>
+            <MemoryRouter initialEntries={[path]}>
                 <Tasks />
             </MemoryRouter>
         </QueryClientProvider>,
@@ -130,6 +133,8 @@ function renderPage() {
 describe("Tasks page → Backlog tab wiring", () => {
     beforeEach(() => {
         captured.props = null;
+        scope.projectOwnership = false;
+        scope.projects = [];
     });
 
     test("every handler the backlog tab renders is supplied", async () => {
@@ -152,5 +157,14 @@ describe("Tasks page → Backlog tab wiring", () => {
         ]) {
             expect(typeof props[name], `${name} must be a function`).toBe("function");
         }
+    });
+
+    test.each([["list", "Project task list"], ["calendar", "Project calendar"]])("Task list %s route renders its real project-scoped surface", async (view, name) => {
+        scope.projectOwnership = true;
+        scope.projects = [{ id: 10, name: "Operations", key: "OPS", type: "task_list", hasSprints: false, planTabs: ["list", "board", "calendar"] }];
+        renderPage(`/tasks/${view}`);
+        expect(await screen.findByRole("region", { name }, { timeout: 10_000 })).toBeInTheDocument();
+        await waitFor(() => expect(getTasks).toHaveBeenCalledWith(undefined,
+            expect.objectContaining({ scope: view, project_id: 10 }), expect.anything()));
     });
 });

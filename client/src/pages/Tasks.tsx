@@ -27,6 +27,8 @@ import BacklogBulkBar from "./tasks/BacklogBulkBar";
 import SprintPlan from "./tasks/SprintPlan";
 import SprintTab from "./tasks/SprintTab";
 import ProjectBoard from "./tasks/ProjectBoard";
+import TaskListView from "./tasks/TaskListView";
+import TaskCalendar from "./tasks/TaskCalendar";
 import { useToast } from "../components/common/Toast";
 import { TaskProvider } from "./tasks/TaskContext";
 
@@ -513,6 +515,12 @@ export default function Tasks() {
           />
         )}
 
+        {projectOwnership && team.selectedProject?.type === "task_list" && activeTab === "list" && (
+          <TaskListView key={team.selectedProject.id} project={team.selectedProject} updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail} />
+        )}
+        {projectOwnership && team.selectedProject?.type === "task_list" && activeTab === "calendar" && (
+          <TaskCalendar key={team.selectedProject.id} project={team.selectedProject} updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail} />
+        )}
         {activeTab === "reports" && <SprintInsights projectId={team.selectedProjectId} />}
         {activeTab === "scheduled" && (<ScheduledTab updatedTicket={detail.detailTask} filters={filters.plannerFilters} scopeParams={teamScopeParams} focusDate={scheduledFocus} onFocusConsumed={() => setScheduledFocus(null)} onOpenDetail={detail.openTaskDetail} onOpenComments={comments.openComments} />)}
         {activeTab === "service-desk" && <ServiceDeskTab />}

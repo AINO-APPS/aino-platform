@@ -10,6 +10,33 @@
   ],
   "features": [
     {
+      "id": "task-list-planning",
+      "name": "Task list field filters and sorts, inclusive date calendar and capability-controlled date edits",
+      "decision": "D56",
+      "phase": 3,
+      "web": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx",
+        "owner_tests": [
+          { "path": "client/src/pages/tasks/__tests__/taskListViews.test.tsx", "name": "every list field forwards its filter and sort, and a second sort reverses direction" },
+          { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "dragging shifts a span together and dates undated work, without changing project or workflow" },
+          { "path": "client/src/pages/tasks/__tests__/tasksPageWiring.test.tsx", "name": "Task list %s route renders its real project-scoped surface" }
+        ]
+      },
+      "desktop": {
+        "status": "shipped",
+        "owner_test": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx"
+      },
+      "android": {
+        "status": "waived",
+        "waiver": "Ticket04 native upcoming grouped by start date with overdue first is a separate pending Android slice. The date calendar is web-only; compatibility reads remain available. Android03 is also pending."
+      },
+      "ios": {
+        "status": "waived",
+        "waiver": "The scoped webview inherits the web List, Board and Calendar surfaces."
+      }
+    },
+    {
       "id": "project-type-controls",
       "name": "Server-decided project type controls, lifecycle permissions and stable planning tabs",
       "decision": "D56",

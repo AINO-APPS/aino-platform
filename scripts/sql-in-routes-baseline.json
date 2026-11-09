@@ -24,7 +24,7 @@
   "routes/tasks/backlog.ts": 9,
   "routes/tasks/carryForward.ts": 5,
   "routes/tasks/comments.ts": 12,
-  "routes/tasks/crud.ts": 21,
+  "routes/tasks/crud.ts": 20,
   "routes/tasks/dependencies.ts": 6,
   "routes/tasks/labels.ts": 10,
   "routes/tasks/search.ts": 1,

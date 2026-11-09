@@ -14,6 +14,30 @@ flag-off compatibility policy.
 
 ## Start date (project types, Expand)
 
+### Task list reads and calendar
+
+`GET /api/tasks?scope=list&project_id=…` reads all project tickets, without a
+date or sprint restriction. `tasks.collection.ts` owns shared SQL, literal
+key/title substring filters, type/status/assignee/priority and exact
+`start_on`/`due_on` filters, plus allowlisted sorting across all eight fields.
+Use `sort=key|title|type|status|assignee|priority|start_date|due_date` and
+`direction=asc|desc` (nulls last; ID breaks ties).
+
+`scope=calendar` reads open, non-Cancelled tickets overlapping inclusive
+`start_date`/`end_date` or one `date`: missing start/due coalesces to the other.
+`undated=1` instead reads open work with neither date. Both scopes require a
+positive project ID and project access, reject sprint scope, and return
+`{ tasks, stats, pagination: { offset, hasMore } }` in pages of 500.
+The calendar client follows all pages; List provides page controls. Legacy
+day/sprint reads retain their behavior and omit pagination.
+
+The web calendar uses normal `PUT /api/tasks/:id` date edits, not placement.
+Drag shifts both dates by the same day offset, preserving null single dates
+and duration; undated drops set both dates to the target. An accessible editor
+supports precise/cleared dates. Server edit capabilities control dragging and
+editing. Existing schedule overlays supply read-only approved leave, holiday
+and meeting context. No schema migration is required.
+
 `tasks.start_date` is nullable date metadata, independent of sprint/backlog
 placement. `tasks.dateRepository.ts` owns locking, persistence and history SQL;
 `tasks.dates.ts` validates real ISO days and refuses a deadline before
