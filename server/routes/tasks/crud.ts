@@ -10,6 +10,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { LifecycleContext } from "../../modules/tasks/tasks.workflow";
+import { guardLifecycleWrite, LifecycleWriteError, withLifecycleWrite } from "../../modules/tasks/tasks.workflowWrite";
 import type { TransactionContext } from "../../types/domain";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
@@ -319,11 +320,11 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         const startsCycle = wasOpen && targetIsStartOfWork;
         if (startsCycle) cycleStartedAtClause = ', cycle_started_at = NOW()';
 
-        await req.db!.query(
+        await withLifecycleWrite(req.db!, req.userOrgId, task, target, actor, (client) => client.query(
             `UPDATE tasks SET workflow_state_id = $1${cycleStartedAtClause}
               WHERE id = $2`,
             [target.id, id]
-        );
+        ));
 
         const statusChanged = String(task.workflow_state_id ?? '') !== String(target.id ?? '');
         const statusActor = await findActorName(req.db!, req.userId);
@@ -346,6 +347,7 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         }
         res.json(enriched[0]);
     } catch (err) {
+        if (err instanceof LifecycleWriteError) return res.status(err.conflict.status).json(err.conflict.body);
         req.log.error({ err: err }, 'Error updating task status:');
         res.status(500).json({ error: 'Failed to update task status' });
     }
@@ -527,6 +529,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         // the due-date bookkeeping), then the plain fields. A due date the user
         // typed is applied after the move, so it wins over a restored one.
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            if (stateChanged) await guardLifecycleWrite(client, req.userOrgId, task, newWsRow, actor);
             const current = requestedStartDate(req.body) !== undefined || dueDateRequested
                 ? await lockTicketDates(client, id) : task;
             let row = current;
@@ -656,6 +659,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         res.json(enriched[0]);
     } catch (err) {
         if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
+        if (err instanceof LifecycleWriteError) return res.status(err.conflict.status).json(err.conflict.body);
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error updating task:');
         res.status(500).json({ error: 'Failed to update task' });

@@ -107,6 +107,7 @@ export default function TasksHeader({
     const { hasFeature } = useFeatures() as any;
     const selectedProject = projects.find((project) => project.id === selectedProjectId);
     const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
+    const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -199,14 +200,24 @@ export default function TasksHeader({
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "reports" ? "Reports" : "Backlog"}
+                                {activeTab === "service-desk"
+                                    ? "Service Desk"
+                                    : activeTab === "reports"
+                                      ? "Reports"
+                                      : activeTab === "board"
+                                        ? "Board"
+                                        : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
                                     : activeTab === "reports"
                                       ? "Sprint insights and project delivery reports"
-                                      : "Tickets not assigned to a sprint yet, waiting to be picked up"}
+                                      : projectBoard
+                                        ? activeTab === "board"
+                                            ? "Project-wide workflow, without sprint boundaries"
+                                            : "Initial-state tickets waiting to join the board"
+                                        : "Tickets not assigned to a sprint yet, waiting to be picked up"}
                             </p>
                         </>
                     )}
@@ -295,7 +306,7 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !projectBoard && (
                         <button
                             className={`btn btn-secondary ${s["filter-toggle-btn"]} ${filterCount > 0 ? s["has-filters"] : ""}`}
                             onClick={() => setFiltersOpen((o) => !o)}
@@ -327,7 +338,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab === "backlog" && (
+                    {activeTab === "backlog" && hasSprints && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={() => setBacklogFormOpen((o) => !o)}
@@ -498,7 +509,7 @@ export default function TasksHeader({
             )}
 
             {/* Filter Bar */}
-            {filtersOpen && activeTab !== "service-desk" && (
+            {filtersOpen && activeTab !== "service-desk" && !projectBoard && (
                 <div className={s["filter-bar"]}>
                     <div className={s["filter-row"]}>
                         <div className={s["filter-group"]}>
