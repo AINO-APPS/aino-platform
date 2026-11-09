@@ -3,7 +3,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import { sprintManagementRole } from "./_helpers/sprintRole";
 import { canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
-import { completeSprint, SprintCompletionError } from "../services/sprintCompletion";
+import { completeSprint, parseSprintCompletionTarget, SprintCompletionError } from "../services/sprintCompletion";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const { requireTenant } = require("../middleware/tenant");
@@ -438,39 +438,26 @@ router.post("/:id/start", auth, loadUserContext, requireScrumSprint, sprintManag
         req.log.error({ err }, "Error starting sprint");
         res.status(500).json({ error: "Failed to start sprint" });
     }
-});// ─── Sprint lifecycle: COMPLETE (with optional rollover) ────────────────────
+});// ─── Sprint lifecycle: COMPLETE (with optional carryover target) ─────────────
 //
-// Body: { rolloverTo?: <sprintId or "backlog"> }
-//   - "backlog" (default) — moves any incomplete tickets to the backlog
-//     (sprint_id = NULL) so they can be re-prioritised.
-//   - sprintId — bulk-assigns the incomplete tickets to that next sprint.
+// The target vocabulary is shared with GET /:id/completion-preview. Omitting
+// rolloverTo uses its default: the next planned sprint, or the backlog.
 router.post("/:id/complete", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { rolloverTo } = req.body || {};
+        const rolloverTo = parseSprintCompletionTarget(req.body?.rolloverTo);
+        if (rolloverTo === null) return res.status(400).json({ error: "Invalid rolloverTo target" });
 
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "completed") return res.status(409).json({ error: "Sprint already completed" });
 
-        let targetSprintId: number | null = null;
-        if (rolloverTo && rolloverTo !== "backlog") {
-            targetSprintId = parseInt(String(rolloverTo), 10);
-            if (isNaN(targetSprintId)) return res.status(400).json({ error: "Invalid rolloverTo sprint id" });
-            const target = (await req.db!.query(
-                `SELECT id, name, status FROM sprints WHERE id = $1 AND ${req.projectOwnership ? "project_id" : "team_id"} = $2`,
-                [targetSprintId, req.projectOwnership ? sprint.project_id : sprint.team_id]
-            )).rows[0];
-            if (!target) return res.status(400).json({ error: "Target sprint not found" });
-            if (target.status === "completed") return res.status(400).json({ error: "Cannot roll over to a completed sprint" });
-        }
-
         const actor = taskActorFromRequest(req);
         const xff = req.headers?.["x-forwarded-for"];
         const completion = await completeSprint(req.db! as any, {
             sprintId: Number(id),
-            targetSprintId,
+            target: rolloverTo,
             projectOwnership: req.projectOwnership,
             actor: {
                 userId: actor.userId,
@@ -500,10 +487,19 @@ router.post("/:id/complete", auth, loadUserContext, requireScrumSprint, sprintMa
             doneTasks: completion.doneTasks,
             totalTasks: completion.totalTasks,
             rolledOver: completion.rolledOver,
+            rolloverTarget: completion.rolloverTarget,
+            rolloverTargetType: completion.rolloverTargetType,
+            targetSprint: completion.targetSprint ? {
+                id: completion.targetSprint.id,
+                name: completion.targetSprint.name,
+                start_date: completion.targetSprint.start_date,
+                end_date: completion.targetSprint.end_date,
+            } : null,
         });
     } catch (err) {
         if (err instanceof SprintCompletionError) {
-            return res.status(err.code === "TARGET_INVALID" ? 400 : 409).json({ error: err.message, code: err.code });
+            return res.status(err.code === "TARGET_INVALID" ? 400 : 409)
+                .json({ error: err.message, code: err.code });
         }
         req.log.error({ err }, "Error completing sprint");
         res.status(500).json({ error: "Failed to complete sprint" });

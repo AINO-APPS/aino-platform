@@ -217,8 +217,37 @@ export const bulkTaskAction = (data: {
 }) => API.post("/tasks/bulk", data);
 export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIComponent(key)}`);
 export const getEpics = () => API.get("/tasks/epics");
-export const getSprintCompletionPreview = (id: number | string) =>
-    API.get(`/sprints/${id}/completion-preview`);
+export type SprintCompletionTarget = "next" | "new" | "backlog" | number | string;
+export interface SprintCarryoverTicket {
+    id: number | string;
+    title?: string;
+    story_points?: number | null;
+    parent_task_id?: number | string | null;
+}
+export interface SprintCompletionPreview {
+    supportsNewSprint?: boolean;
+    sprint: { id: number | string; name: string; status: string; start_date?: string | null; end_date?: string | null };
+    defaultTarget: number | string | "backlog";
+    defaultTargetType?: "next" | "backlog";
+    selectedTarget?: "next" | "new" | "backlog";
+    hasNext?: boolean;
+    nextPlannedSprint?: {
+        id: number | string;
+        name: string;
+        start_date?: string | null;
+        end_date?: string | null;
+    } | null;
+    moving: SprintCarryoverTicket[];
+    movingParents?: SprintCarryoverTicket[];
+    movingSubtasks?: number;
+    staying: SprintCarryoverTicket[];
+    movingPoints: number;
+    newSprint?: { name: string; start_date: string; end_date: string } | null;
+}
+export const getSprintCompletionPreview = (id: number | string, rolloverTo?: SprintCompletionTarget) =>
+    API.get<SprintCompletionPreview>(`/sprints/${id}/completion-preview`, {
+        params: rolloverTo == null ? undefined : { rolloverTo },
+    });
 export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
 export const getScheduleOverlays = (from: string, to: string) =>
     API.get("/tasks/schedule-overlays", { params: { from, to } });
@@ -239,7 +268,7 @@ export const getSprintBoard = (id: number | string, signal?: AbortSignal) =>
     API.get(`/sprints/${id}/board`, { signal });
 export const getSprintStats = (id: number | string) => API.get(`/sprints/${id}/stats`);
 export const startSprint = (id: number | string) => API.post(`/sprints/${id}/start`);
-export const completeSprint = (id: number | string, rolloverTo?: number | string) =>
+export const completeSprint = (id: number | string, rolloverTo?: SprintCompletionTarget) =>
     API.post(`/sprints/${id}/complete`, { rolloverTo });
 export const pauseSprint = (id: number | string) => API.post(`/sprints/${id}/pause`);
 export const resumeSprint = (id: number | string) => API.post(`/sprints/${id}/resume`);
