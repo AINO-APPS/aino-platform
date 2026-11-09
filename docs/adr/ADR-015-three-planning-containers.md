@@ -1,6 +1,7 @@
 # ADR-015 — Three exclusive planning containers (sprint, Scheduled, backlog)
 
-- **Status:** Accepted (supersedes D1/D2 of `docs/TASKS_DESIGN_SPEC.md`);
+- **Status:** Superseded by [ADR-018](ADR-018-project-types.md) (2026-11-03); binding on existing code until ADR-018 ships.
+  Previously Accepted (supersedes D1/D2 of `docs/TASKS_DESIGN_SPEC.md`);
   amended 2026-10-29 — a due date is metadata, only a planned day is a container;
   amended 2026-11-01 — sprint end-date moves re-time member due dates, and a
   ticket in a sprint cannot be given a new planned day
