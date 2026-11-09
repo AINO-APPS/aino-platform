@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Kanban board and backlog; 04: Task list views and calendar; 05: Scrum planning without Scheduled or auto sprints; 06: Enforce ticket hierarchy and create subtasks.
 
-**Status:** resolved (platform + web; Android deferred)
+**Status:** resolved (platform + web); Android slice in progress
 
 - [x] Moving a parent between backlog and sprints moves all its subtasks in the same transaction, with history for each placement; direct subtask placement remains refused.
 - [x] Moving a parent to another project also moves its subtasks, gives each a new ticket key and preserves each old key as an alias.
