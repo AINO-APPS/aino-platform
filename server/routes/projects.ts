@@ -37,6 +37,7 @@ import {
 const router = express.Router();
 router.use(requireTenant);
 router.use("/migration", require("./projectMigration"));
+router.use(require("./projectBoard"));
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;

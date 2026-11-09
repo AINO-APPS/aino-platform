@@ -113,6 +113,7 @@ export default function TasksHeader({
     const { hasFeature } = useFeatures() as any;
     const selectedProject = projects.find((project) => project.id === selectedProjectId);
     const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
+    const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -205,11 +206,13 @@ export default function TasksHeader({
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
+                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "board" ? "Board" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
+                                    : projectBoard
+                                      ? activeTab === "board" ? "Project-wide workflow, without sprint boundaries" : "Initial-state tickets waiting to join the board"
                                     : activeTab === "scheduled"
                                       ? "Tickets planned onto a day, with no sprint — overdue first"
                                       : "Tickets with no sprint and no day planned, waiting to be picked up"}
@@ -227,7 +230,7 @@ export default function TasksHeader({
                             onChange={(event) => onProjectChange?.(Number(event.target.value))}
                             className={s["date-input"]}
                             aria-label="Project"
-                            title="Show a project's sprint, backlog and scheduled tickets"
+                            title="Show a project's planning views"
                         >
                             {selectedProjectId == null && <option value="" disabled>Select a project</option>}
                             {projects.map((project) => (
@@ -301,7 +304,7 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !projectBoard && (
                         <button
                             className={`btn btn-secondary ${s["filter-toggle-btn"]} ${filterCount > 0 ? s["has-filters"] : ""}`}
                             onClick={() => setFiltersOpen((o) => !o)}
@@ -333,7 +336,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab === "backlog" && (
+                    {activeTab === "backlog" && hasSprints && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={() => setBacklogFormOpen((o) => !o)}
@@ -504,7 +507,7 @@ export default function TasksHeader({
             )}
 
             {/* Filter Bar */}
-            {filtersOpen && activeTab !== "service-desk" && (
+            {filtersOpen && activeTab !== "service-desk" && !projectBoard && (
                 <div className={s["filter-bar"]}>
                     <div className={s["filter-row"]}>
                         <div className={s["filter-group"]}>

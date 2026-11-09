@@ -63,6 +63,12 @@ export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) 
 export const addTask = (data: AnyData) => API.post("/tasks", data);
 export const getProjectTypes = () => API.get<import("../types/generated/tasks").ProjectTypeOptions>("/projects/types");
 export const getMyProjects = () => API.get("/projects/mine");
+export const getProjectBoard = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/projects/${id}/board`, { signal });
+export const getProjectBacklog = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/projects/${id}/backlog`, { signal });
+export const updateProjectBoardSettings = (id: number | string, data: { enable_wip_limits?: boolean; kanban_backlog_enabled?: boolean }) =>
+    API.patch(`/projects/${id}/board-settings`, data);
 export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);

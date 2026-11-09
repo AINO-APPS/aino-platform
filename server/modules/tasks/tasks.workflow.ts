@@ -3,6 +3,8 @@ export * from "./tasks.workflowRules";
 import { decideTicket, lifecycleForTicket, loadTicketDecisionContext, type DecisionTicket, type TicketDecisionContext } from "./tasks.capabilities";
 import { capabilityConflict } from "./tasks.writeGuards";
 import type { TaskActor } from "./tasks.policy";
+import { findBoardProject, targetBoardOccupancy } from "./tasks.boardRepository";
+import { projectTypePolicy } from "./tasks.projectTypes";
 import {
     loadLifecycleContext, transitionConflict, wipConflict,
     type Conflict, type LifecycleContext, type LifecycleDb, type WorkflowState,
@@ -34,10 +36,11 @@ export async function assertLifecycleMove(
             : capabilityConflict(verdict, task, actor);
     }
     if (sameState || !lifecycle.wipEnabled || !target.wip_limit) return null;
-    const row = (await db.query(
-        `SELECT COUNT(*)::int AS c FROM tasks
-          WHERE workflow_state_id = $1 AND id != $2 AND org_id = $3`,
-        [target.id, task.id, orgId ?? null],
-    )).rows[0];
-    return wipConflict(lifecycle, target, Number(row?.c ?? 0));
+    if (task.project_id == null) return null;
+    const project = await findBoardProject(db, orgId ?? null, Number(task.project_id));
+    if (!project?.enable_wip_limits) return null;
+    const state = lifecycle.stateById.get(Number(target.id));
+    if (state?.key === "cancelled" || projectTypePolicy(project).boardScope === "open_except_initial" && state?.is_initial) return null;
+    const occupancy = await targetBoardOccupancy(db, project, task, Number(target.id));
+    return occupancy == null ? null : wipConflict(lifecycle, target, occupancy);
 }

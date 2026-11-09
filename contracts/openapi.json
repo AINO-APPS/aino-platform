@@ -21223,6 +21223,308 @@
         }
       }
     },
+    "/api/projects/{id}/backlog": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project backlog: unsprinted Scrum work or Kanban initial-state work",
+        "operationId": "getProjectBacklog",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ProjectBoard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectBoard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_HAS_NO_SPRINTS or PROJECT_HAS_NO_BACKLOG"
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Any project role may read; foreign or inaccessible projects return 404. Kanban and Task list have no sprints. An optional Kanban backlog excludes initial-state tickets from the board. No date field affects membership."
+      }
+    },
+    "/api/projects/{id}/board": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project board for any project type",
+        "operationId": "getProjectBoard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sprint_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Scrum only; defaults to current active or paused sprint."
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ProjectBoard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectBoard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_HAS_NO_SPRINTS or PROJECT_HAS_NO_BACKLOG"
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Any project role may read; foreign or inaccessible projects return 404. Kanban and Task list have no sprints. An optional Kanban backlog excludes initial-state tickets from the board. No date field affects membership."
+      }
+    },
+    "/api/projects/{id}/board-settings": {
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Change project board settings (project admin only)",
+        "operationId": "updateProjectBoardSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or PROJECT_HAS_NO_KANBAN_BACKLOG"
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Non-archived projects only. kanban_backlog_enabled applies only to Kanban; limits themselves are configured on the project workflow states. WIP capacity remains a final write guard, not a ticket capability.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectBoardSettings"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{id}/key": {
       "post": {
         "tags": [
@@ -25321,6 +25623,14 @@
               "null"
             ],
             "minimum": 0
+          },
+          "sprint_end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Board-only Scrum sprint end date, separate from the ticket due date."
           }
         },
         "required": [
@@ -25590,7 +25900,7 @@
           "count": {
             "type": "integer",
             "minimum": 0,
-            "description": "Active, non-Cancelled organization-wide occupancy for this workflow state; matches the write guard."
+            "description": "Occupancy in this project's board column: selected sprint for Scrum, continuous project population otherwise. Done has a 14-day window and Cancelled never appears."
           },
           "limit": {
             "type": [
@@ -25601,6 +25911,9 @@
           },
           "accepting": {
             "type": "boolean"
+          },
+          "state": {
+            "$ref": "#/components/schemas/WorkflowState"
           }
         },
         "required": [
@@ -26846,6 +27159,11 @@
             "items": {
               "$ref": "#/components/schemas/ProjectType"
             }
+          },
+          "enable_wip_limits": {
+            "type": "boolean",
+            "default": false,
+            "description": "Project WIP switch; copied once from the former org switch during expansion."
           }
         },
         "required": [
@@ -28406,6 +28724,55 @@
           },
           "type": {
             "$ref": "#/components/schemas/ProjectType"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProjectBoard": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "sprint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sprint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SprintBoardColumn"
+            }
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "project",
+          "sprint",
+          "columns",
+          "tickets"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectBoardSettings": {
+        "type": "object",
+        "properties": {
+          "enable_wip_limits": {
+            "type": "boolean"
+          },
+          "kanban_backlog_enabled": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
