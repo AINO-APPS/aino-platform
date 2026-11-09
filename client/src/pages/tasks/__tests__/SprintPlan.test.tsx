@@ -40,6 +40,16 @@ function renderPlan(overrides: Record<string, unknown> = {}) {
 }
 
 describe("SprintPlan", () => {
+    test("subtasks nest below parents without independent placement or capacity points", () => {
+        const child = { ...ticket, id: 8, title: "Verify retries", is_subtask: true, parent_task_id: 3, story_points: 99 };
+        const props = renderPlan({ sprintTasks: [child, ...sprintTasks] });
+        const group = screen.getByRole("list", { name: "Subtasks of Retry backoff" });
+        expect(group).toHaveTextContent("Verify retries");
+        expect(screen.getByText("8/20 SP")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: /Move Verify retries/ })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Verify retries" }));
+        expect(props.onOpenDetail).toHaveBeenCalledWith(child);
+    });
     test("placement controls render the ticket's server decision and denial copy", () => {
         const denied = {
             ...ticket, capabilities: { ...ticket.capabilities, can: { ...ticket.capabilities.can, placeInSprint: { allowed: false, reason: "SPRINT_FROZEN" } } },

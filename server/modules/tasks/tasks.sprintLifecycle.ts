@@ -1,4 +1,5 @@
 import { findSprintStatusInOrg } from "./tasks.sprintRepository";
+import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
 
 /**
  * Sprint lifecycle rules.
@@ -195,7 +196,7 @@ export async function activateSprint(
         "UPDATE sprints SET status = 'active', started_at = COALESCE(started_at, NOW()) WHERE id = $1",
         [sprintId],
     );
-    const tasks = (await db.query("SELECT id, story_points FROM tasks WHERE sprint_id = $1", [sprintId])).rows;
+    const tasks = (await db.query(`SELECT t.id, t.story_points FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`, [sprintId])).rows;
     const baseline = commit(tasks as Array<{ id: number; story_points: number | null }>);
     await db.query(
         "INSERT INTO sprint_baselines (sprint_id, committed_points, committed_task_ids, reason) VALUES ($1, $2, $3::jsonb, 'start')",

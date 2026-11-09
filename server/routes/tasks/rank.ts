@@ -7,6 +7,7 @@
 
 import express from "express";
 import type { Request, Response } from "express";
+import { getHierarchyTicket } from "../../modules/tasks/tasks.hierarchy";
 const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
@@ -36,6 +37,9 @@ router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Respo
         }
         const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
         if (refusal) return res.status(refusal.status).json(refusal.body);
+        if ((await getHierarchyTicket(req.db!, Number(id), req.userOrgId ?? null))?.is_subtask) {
+            return res.status(409).json({ code: "SUBTASK_FOLLOWS_PARENT", error: "Subtasks follow their parent's rank." });
+        }
 
         const before = await rankOf(req, beforeId);
         const after = await rankOf(req, afterId);

@@ -222,3 +222,6 @@
     white-space: nowrap;
     max-width: 9rem;
 }
+.plan-row[data-has-subtasks="true"] {
+    flex-wrap: wrap;
+}

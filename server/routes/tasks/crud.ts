@@ -146,7 +146,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const hierarchy = await assertTicketHierarchy(client, {
                 org_id: req.userOrgId ?? null, project_id: validProjectId,
-                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId, story_points: sp,
             }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {
@@ -477,6 +477,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const hierarchy = await assertTicketHierarchy(client, {
                 id, org_id: req.userOrgId ?? null,
+                story_points: newStoryPoints,
                 ...(work_item_type_id === undefined ? {} : { work_item_type_id: newWitId }),
                 ...(parent_task_id === undefined ? {} : { parent_task_id: newParentTaskId }),
                 ...(wantsProjectAssign ? { project_id: newProjectId } : {}),

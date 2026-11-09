@@ -1,5 +1,6 @@
 import { projectTypePolicy, type TypedProject } from "./tasks.projectTypes";
 import type { LifecycleDb } from "./tasks.workflowRules";
+import { PLANNING_PARENT_SQL } from "./tasks.hierarchyRepository";
 
 export interface BoardProject extends TypedProject {
     id: number;
@@ -29,6 +30,7 @@ export function boardPopulation(project: BoardProject, sprintId: number | null, 
         "t.org_id = $1", "t.project_id = $2", "ws.is_active = TRUE", "ws.key <> 'cancelled'",
     ];
     if (backlog) {
+        conditions.push(PLANNING_PARENT_SQL);
         conditions.push("t.completed_at IS NULL");
         conditions.push(policy.hasSprints ? "t.sprint_id IS NULL" : "ws.is_initial = TRUE");
     } else {

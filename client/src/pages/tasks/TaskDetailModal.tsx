@@ -148,6 +148,7 @@ export default function TaskDetailModal({
     const [editStoryPoints, setEditStoryPoints] = useState<any>(null);
     const [editWorkItemType, setEditWorkItemType] = useState<any>("");
     const [editProjectId, setEditProjectId] = useState<string | number>("");
+    const editingSubtask = detailTask?.is_subtask || typeById[editWorkItemType]?.is_subtask;
 
     // Initialise edit fields from detailTask whenever edit mode is entered.
     useEffect(() => {
@@ -394,7 +395,7 @@ export default function TaskDetailModal({
                                     <label>Type</label>
                                     <WorkItemTypePicker
                                         value={editWorkItemType}
-                                        onChange={setEditWorkItemType}
+                                        onChange={(value) => { setEditWorkItemType(value); if (value != null && typeById[value]?.is_subtask) setEditStoryPoints(null); }}
                                     />
                                 </div>
                                 {availableProjects && availableProjects.length > 0 && (
@@ -451,7 +452,7 @@ export default function TaskDetailModal({
                                     </div>
                                 )}
                             </div>
-                            <div
+                            {!editingSubtask && <div
                                 style={{
                                     display: "flex",
                                     alignItems: "center",
@@ -463,11 +464,7 @@ export default function TaskDetailModal({
                                     value={editStoryPoints}
                                     onChange={setEditStoryPoints}
                                 />
-                            </div>
-                            {/* Pass 2 editors — only available while editing the ticket so
-                  the read-only view stays clean and changes are clustered with
-                  other edits. Clicking Save Changes closes edit mode (parent
-                  refresh re-fetches detail), so any saves done here also persist. */}
+                            </div>}
                             <BlockerControl
                                 task={detailTask}
                                 onChanged={() => fetchTasks && fetchTasks()}
@@ -495,6 +492,8 @@ export default function TaskDetailModal({
                             customValues={customValues}
                             currentUser={currentUser}
                             onStatusChange={onStatusChange}
+                            onOpenTask={swapToTask}
+                            onHierarchyChanged={() => { fetchTasks?.(); getTaskDetail(detailTask.id).then(result => onReplaced?.(result.data)).catch(() => {}); }}
                             activity={
                                 <div className={s["detail-comments"]}>
                                     <div className={s["detail-tab-switcher"]}>

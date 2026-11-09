@@ -72,6 +72,11 @@ const backlogCard = (task: any = baseTask) => (
 );
 
 describe("card anatomy", () => {
+    test("a subtask card names its parent instead of presenting it as an epic", () => {
+        wrap("compact", boardCard({ ...baseTask, is_subtask: true, parent_task_id: 1, parent_key: "PAY-1" }));
+        expect(screen.getByText("Subtask of PAY-1")).toBeTruthy();
+        expect(screen.queryByText("Epic")).toBeNull();
+    });
     test("the description is not previewed on a compact card", () => {
         wrap("compact", boardCard());
         expect(screen.queryByText(/A long description/)).toBeNull();

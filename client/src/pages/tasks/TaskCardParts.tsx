@@ -164,8 +164,11 @@ export function CardBody({
             <div className={s["card-top"]}>
                 <WorkItemTypeBadge value={task.work_item_type_id || task.work_item_type_key} />
                 {keySlot}
-                <StoryPointBadge value={task.story_points} />
-                {task.parent_task_id && (
+                {!task.is_subtask && <StoryPointBadge value={task.story_points} />}
+                {task.is_subtask && task.parent_key && (
+                    <span className={s["epic-badge"]}>Subtask of {task.parent_key}</span>
+                )}
+                {!task.is_subtask && task.parent_task_id && (
                     <span className={s["epic-badge"]} title="Part of an epic">
                         Epic
                     </span>

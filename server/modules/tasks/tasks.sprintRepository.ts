@@ -6,6 +6,7 @@
  * live next to the rules they serve.
  */
 import { findDefaultTicketProject } from "./tasks.repository";
+import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
 
 /**
  * Scheduled container: unsprinted tickets carrying a planned day.
@@ -158,15 +159,23 @@ export async function insertBaseline(
 /** The id and points of every task in a sprint, for scope deltas. */
 export async function findSprintTaskPoints(db: SprintDb, sprintId: unknown) {
     return (await db.query(
-        "SELECT id, story_points FROM tasks WHERE sprint_id = $1",
+        `SELECT t.id, t.story_points FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`,
         [sprintId],
+    )).rows;
+}
+
+export async function findSprintReportTasks(db: SprintDb, sprintId: number) {
+    return (await db.query(
+        `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
+                t.story_points, t.assigned_to, t.is_blocked, t.completed_at, t.priority
+         FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`, [sprintId],
     )).rows;
 }
 
 /** Sprint members with workflow terminality and hierarchy for carryover planning. */
 export async function findSprintCarryoverTasks(db: SprintDb, sprintId: unknown, orgId: number | null) {
     return (await db.query(
-        `SELECT t.id, t.title, t.story_points, t.parent_task_id,
+        `SELECT t.id, t.title, CASE WHEN ${SPRINT_POINT_TICKET_SQL} THEN t.story_points ELSE NULL END AS story_points, t.parent_task_id,
                 COALESCE(w.is_subtask, FALSE) AS is_subtask,
                 COALESCE(ws.is_terminal, FALSE) AS is_terminal,
                 COALESCE(ws.is_terminal, FALSE) AS completed
@@ -259,7 +268,7 @@ export async function findSprintBurndownInputs(db: SprintDb, sprintId: number, o
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1
+          WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}
             AND t.org_id IS NOT DISTINCT FROM $2
             AND tm.org_id IS NOT DISTINCT FROM $2`,
         [sprintId, orgId],
@@ -380,7 +389,7 @@ export async function findRolloverTarget(
 
 export async function lockSprintCompletionMembers(db: SprintDb, sprintId: number, orgId: number | null): Promise<any[]> {
     return (await db.query(
-        `SELECT t.id, t.title, t.story_points, t.parent_task_id,
+        `SELECT t.id, t.title, CASE WHEN ${SPRINT_POINT_TICKET_SQL} THEN t.story_points ELSE NULL END AS story_points, t.parent_task_id,
                 COALESCE(w.is_subtask, FALSE) AS is_subtask,
                 COALESCE(ws.is_terminal, FALSE) AS is_terminal,
                 COALESCE(ws.is_terminal, FALSE) AS completed
@@ -407,7 +416,7 @@ export async function findSprintCompletionVelocity(db: SprintDb, sprintId: numbe
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1
+          WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}
             AND t.org_id IS NOT DISTINCT FROM $2
             AND tm.org_id IS NOT DISTINCT FROM $2`,
         [sprintId, orgId],

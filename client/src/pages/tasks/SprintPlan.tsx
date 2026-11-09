@@ -6,6 +6,8 @@ import AsyncSection from "../../components/common/AsyncSection";
 import { useCardDensity } from "./TaskContext";
 import s from "./SprintPlan.module.css";
 import { actionDecision, decisionProps } from "./ticketCapabilities";
+import { planningFamilies, planningPoints } from "./planningHierarchy";
+import PlanningSubtasks from "./PlanningSubtasks";
 
 interface SprintPlanProps {
     backlogTasks: any[];
@@ -28,10 +30,6 @@ interface SprintPlanProps {
     selectedEpicId?: number | string | null;
     onSelectEpic?: (id: number | string | null) => void;
     scope?: { addedPoints: number; removedPoints: number };
-}
-
-function points(tasks: any[]): number {
-    return tasks.reduce((sum, task) => sum + (Number(task.story_points) || 0), 0);
 }
 
 /**
@@ -111,7 +109,7 @@ export default function SprintPlan({
     // and points — the same rule the backlog and board follow.
     const compact = useCardDensity() === "compact";
 
-    const committed = useMemo(() => points(sprintTasks), [sprintTasks]);
+    const committed = useMemo(() => planningPoints(sprintTasks), [sprintTasks]);
     const capacity = Number(sprint?.velocity_points) || velocity.average || 0;
     const percent = capacity > 0 ? Math.min(100, Math.round((committed / capacity) * 100)) : 0;
 
@@ -143,9 +141,10 @@ export default function SprintPlan({
                     onRetry={onRetryBacklog}
                 >
                     <ul className={s["plan-list"]}>
-                        {backlogTasks.map((task) => (
+                        {planningFamilies(backlogTasks).map(({ task, subtasks }) => (
                             <li
                                 key={task.id}
+                                data-has-subtasks={subtasks.length > 0}
                                 className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
                             >
                                 <IssueKey task={task} copyable={false} />
@@ -162,7 +161,7 @@ export default function SprintPlan({
                                         {task.assignee.full_name || task.assignee.username}
                                     </span>
                                 )}
-                                <button
+                                {!task.is_subtask && <button
                                     type="button"
                                     className={s["plan-move"]}
                                     aria-label={`Move ${task.title} into the sprint`}
@@ -170,7 +169,8 @@ export default function SprintPlan({
                                     onClick={() => onMoveToSprint(task.id)}
                                 >
                                     <ChevronRight size={14} aria-hidden="true" />
-                                </button>
+                                </button>}
+                                <PlanningSubtasks parent={task} subtasks={subtasks} onOpenDetail={onOpenDetail} />
                             </li>
                         ))}
                         {backlogTasks.length === 0 && (
@@ -246,9 +246,10 @@ export default function SprintPlan({
                     onRetry={onRetrySprint}
                 >
                     <ul className={s["plan-list"]}>
-                        {sprintTasks.map((task) => (
+                        {planningFamilies(sprintTasks).map(({ task, subtasks }) => (
                             <li
                                 key={task.id}
+                                data-has-subtasks={subtasks.length > 0}
                                 className={`${s["plan-row"]} ${compact ? s["plan-row-compact"] : ""}`}
                             >
                                 <IssueKey task={task} copyable={false} />
@@ -265,7 +266,7 @@ export default function SprintPlan({
                                         {task.assignee.full_name || task.assignee.username}
                                     </span>
                                 )}
-                                <button
+                                {!task.is_subtask && <button
                                     type="button"
                                     className={s["plan-move"]}
                                     aria-label={`Move ${task.title} back to the backlog`}
@@ -273,7 +274,8 @@ export default function SprintPlan({
                                     onClick={() => onMoveToBacklog(task.id)}
                                 >
                                     <ChevronLeft size={14} aria-hidden="true" />
-                                </button>
+                                </button>}
+                                <PlanningSubtasks parent={task} subtasks={subtasks} onOpenDetail={onOpenDetail} />
                             </li>
                         ))}
                         {sprintTasks.length === 0 && (

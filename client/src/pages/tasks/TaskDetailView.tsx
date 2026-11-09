@@ -15,6 +15,7 @@ import TaskMetaGrid from "./TaskMetaGrid";
 import TaskStatusControl from "./TaskStatusControl";
 import TaskTimePanel from "./TaskTimePanel";
 import TaskGitRefs from "./TaskGitRefs";
+import SubtasksPanel from "../../components/agile/SubtasksPanel";
 import ArchivedProjectLabel from "./ArchivedProjectLabel";
 import s from "./TaskDetailModal.module.css";
 
@@ -27,6 +28,8 @@ interface TaskDetailViewProps {
     onStatusChange: (task: any, option: any) => void;
     /** Discussion and history, rendered under the content in the main column. */
     activity?: React.ReactNode;
+    onOpenTask?: (id: number | string) => void;
+    onHierarchyChanged?: () => void;
 }
 
 /**
@@ -46,6 +49,8 @@ export default function TaskDetailView({
     currentUser,
     onStatusChange,
     activity,
+    onOpenTask,
+    onHierarchyChanged,
 }: TaskDetailViewProps) {
     const labels: any[] = task.labels ?? [];
     const formerKeys: string[] = Array.isArray(task.key_aliases) ? task.key_aliases : [];
@@ -79,7 +84,7 @@ export default function TaskDetailView({
                         )}
                         <WorkItemTypeBadge value={task.work_item_type_id} />
                         <ArchivedProjectLabel task={task} />
-                        <StoryPointBadge value={task.story_points} />
+                        {!task.is_subtask && <StoryPointBadge value={task.story_points} />}
                         <BlockerBadge task={task} />
                     </div>
 
@@ -118,6 +123,11 @@ export default function TaskDetailView({
                         </div>
                     )}
                 </header>
+
+                {task.parent && <p>Parent: <a href={`/tasks?task=${task.parent.id}`} onClick={event => {
+                    if (onOpenTask) { event.preventDefault(); onOpenTask(task.parent.id); }
+                }}>{task.parent.ticket_key || `#${task.parent.id}`} · {task.parent.title}</a></p>}
+                <SubtasksPanel task={task} onOpenTask={onOpenTask} onChanged={onHierarchyChanged} />
 
                 {task.description && (
                     <HighlightedHtml

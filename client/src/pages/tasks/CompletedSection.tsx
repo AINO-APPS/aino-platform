@@ -2,6 +2,8 @@ import React from "react";
 import { ChevronDown, ChevronRight, CheckCircle2 } from "../../constants/icons";
 import TicketHistoryRow from "./TicketHistoryRow";
 import s from "./CompletedSection.module.css";
+import PlanningSubtasks from "./PlanningSubtasks";
+import { planningFamilies } from "./planningHierarchy";
 
 interface CompletedSectionProps {
     count: number;
@@ -65,13 +67,16 @@ export default function CompletedSection({
                         </div>
                     )}
 
-                    {tasks.map((task) => (
+                    {planningFamilies(tasks).map(({ task, subtasks }) => (
+                        <React.Fragment key={task.id}>
                         <TicketHistoryRow
                             key={task.id}
                             task={task}
                             onOpenDetail={onOpenDetail}
                             formatDate={formatDate}
                         />
+                        <PlanningSubtasks parent={task} subtasks={subtasks} onOpenDetail={onOpenDetail} />
+                        </React.Fragment>
                     ))}
 
                     {!showingAll && (

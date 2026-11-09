@@ -1,5 +1,10 @@
 import type { PlacementDb as TasksDb } from "./tasks.placementRepository";
 
+export const PLANNING_PARENT_SQL = `NOT EXISTS (
+    SELECT 1 FROM work_item_types hierarchy_type
+    WHERE hierarchy_type.id = t.work_item_type_id AND hierarchy_type.is_subtask = TRUE
+)`;
+
 export async function findHierarchyTicket(db: TasksDb, id: number, orgId: number | null) {
     return (await db.query(
         `SELECT t.*, COALESCE(w.is_epic, FALSE) AS is_epic, COALESCE(w.is_subtask, FALSE) AS is_subtask
@@ -23,6 +28,16 @@ export async function findHierarchyChildren(db: TasksDb, id: number) {
          FROM tasks t LEFT JOIN work_item_types w ON w.id = t.work_item_type_id
          WHERE t.parent_task_id = $1 ORDER BY t.id`,
         [id],
+    )).rows;
+}
+
+export async function findHierarchySubtasks(db: TasksDb, parentIds: number[], orgId: number | null) {
+    if (!parentIds.length) return [];
+    return (await db.query(
+        `SELECT t.* FROM tasks t JOIN work_item_types w ON w.id = t.work_item_type_id
+         WHERE t.parent_task_id = ANY($1::int[]) AND t.org_id IS NOT DISTINCT FROM $2
+         AND w.is_subtask = TRUE ORDER BY t.id`,
+        [parentIds, orgId],
     )).rows;
 }
 

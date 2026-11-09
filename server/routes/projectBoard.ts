@@ -8,7 +8,7 @@ import { projectPlanningResponse } from "../modules/tasks/tasks.projectTypeLifec
 import { projectSprintStatuses } from "../modules/tasks/tasks.projectTypeRepository";
 import { isFeatureEnabled } from "../utils/planCatalog";
 import { broadcast } from "../realtime/fanout";
-const { enrichTasks } = require("./tasks/_helpers/enrich");
+const { enrichTasks, enrichPlanningTasks } = require("./tasks/_helpers/enrich");
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
 const router = express.Router();
@@ -30,7 +30,7 @@ async function read(req: Request, res: Response, backlog = false) {
         const result = await readProjectBoard(req.db!, projectActor(req), id, sprintId, backlog);
         const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, id);
         const columns = buildProjectBoardColumns(lifecycle, result.project, result.tickets);
-        const tickets = await enrichTasks(result.tickets, req.db!, actor, lifecycle);
+        const tickets = await (backlog ? enrichPlanningTasks : enrichTasks)(result.tickets, req.db!, actor, lifecycle);
         const statuses = (await projectSprintStatuses(req.db!, [id])).get(id) ?? [];
         return res.json({
             project: projectPlanningResponse(result.project, result.capabilities, isFeatureEnabled((req.tenant ?? null) as any, "agile"), statuses),

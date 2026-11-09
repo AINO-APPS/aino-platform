@@ -1,0 +1,28 @@
+.subtasks {
+    flex: 0 0 100%;
+    list-style: none;
+    margin: 0 0 8px 18px;
+    padding: 2px 0 2px 12px;
+    border-left: 2px solid var(--border-color, #dce1e8);
+}
+.row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 4px;
+    font-size: 12px;
+}
+.title {
+    flex: 1;
+    min-width: 0;
+    padding: 2px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.title:hover { text-decoration: underline; }
+.title:focus-visible { outline: 2px solid var(--accent-color, #2563eb); outline-offset: 2px; }
+.state { color: var(--text-secondary, #657084); font-size: 11px; }

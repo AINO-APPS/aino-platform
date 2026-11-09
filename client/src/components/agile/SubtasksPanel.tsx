@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createTaskSubtask } from "../../api/tasks";
 import s from "./SubtasksPanel.module.css";
 
-interface SubtaskSummary { id: number | string; title: string; ticket_key?: string | null; state_name?: string | null }
+interface SubtaskSummary { id: number | string; title: string; ticket_key?: string | null; state_name?: string | null; completed_at?: string | null }
 interface Props {
     task: {
         id: number | string;
@@ -43,7 +43,7 @@ export default function SubtasksPanel({ task, onOpenTask, onChanged }: Props) {
     if (!canAdd && !subtasks.length) return null;
     return <section className={s.panel} aria-label="Subtasks">
         <div className={s.header}>
-            <h4>Subtasks <span>{subtasks.length}</span></h4>
+            <h4>Subtasks <span>{subtasks.filter(row => row.completed_at != null).length}/{subtasks.length} done</span></h4>
             {canAdd && !adding && <button type="button" className="btn btn-secondary btn-sm"
                 onClick={() => setAdding(true)}>Add subtask</button>}
         </div>
