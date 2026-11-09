@@ -37,6 +37,8 @@ import BacklogCard from "./BacklogCard";
 import QuickAdd from "./QuickAdd";
 import CreateProjectPicker from "./CreateProjectPicker";
 import s from "./BacklogTab.module.css";
+import PlanningSubtasks from "./PlanningSubtasks";
+import { planningFamilies } from "./planningHierarchy";
 
 function getPriority(p: string | undefined): PriorityOption {
     return PRIORITIES.find((pr) => pr.value === p) || PRIORITIES[1];
@@ -447,7 +449,8 @@ export default function BacklogTab({
                             itemLabel="ticket"
                         />
                     )}
-                    {sortedBacklogTasks.map((task) => (
+                    {planningFamilies(sortedBacklogTasks).map(({ task, subtasks }) => (
+                        <React.Fragment key={task.id}>
                         <BacklogCard
                             key={task.id}
                             task={task}
@@ -461,6 +464,8 @@ export default function BacklogTab({
                             selection={selection}
                             attribution={attribution?.[String(task.id)] ?? null}
                         />
+                        <PlanningSubtasks parent={task} subtasks={subtasks} onOpenDetail={onOpenDetail} />
+                        </React.Fragment>
                     ))}
                     <div className="sr-only" role="status" aria-live="polite">
                         {reorderAnnouncement}

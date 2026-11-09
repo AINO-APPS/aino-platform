@@ -68,12 +68,24 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
     return (
         <section className={s["time-panel"]} aria-label="Time tracking">
             <div className={s["time-row"]}>
-                <span className={s["time-label"]}>Time spent</span>
+                <span className={s["time-label"]}>{task.subtask_summary?.total ? "Own time spent" : "Time spent"}</span>
                 <span className={s["time-value"]}>
                     {formatMinutes(summary.logged)} /{" "}
                     {original != null ? formatMinutes(original) : "—"}
                 </span>
             </div>
+
+            {task.subtask_summary?.total > 0 && task.effort && (
+                <div className={s["time-row"]} role="group" aria-label="Including subtasks">
+                    <span className={s["time-label"]}>Including subtasks</span>
+                    <span className={s["time-value"]}>
+                        {formatMinutes(task.effort.total_time_spent_minutes + summary.logged - task.effort.own_time_spent_minutes)} spent
+                        {" · "}{task.effort.total_remaining_estimate_minutes == null && remaining == null ? "—"
+                            : formatMinutes((task.effort.total_remaining_estimate_minutes ?? 0)
+                                + (remaining ?? 0) - (task.effort.own_remaining_estimate_minutes ?? 0))} remaining
+                    </span>
+                </div>
+            )}
 
             {(['original', 'remaining'] as const).map(kind => <InlineEstimate key={`${taskId}:${kind}`} taskId={taskId} kind={kind}
                 value={estimates ? estimates[`${kind}_estimate_minutes`] : (kind === 'original' ? task?.original_estimate_minutes ?? task?.estimated_minutes : task?.remaining_estimate_minutes) ?? null}

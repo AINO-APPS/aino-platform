@@ -11,6 +11,18 @@ export interface EnrichDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
 }
 
+export async function findHierarchyMetadata(db: EnrichDb, ids: number[]) {
+    if (!ids.length) return [];
+    return (await db.query(
+        `SELECT t.id, COALESCE(w.is_subtask, FALSE) AS is_subtask, COALESCE(w.is_epic, FALSE) AS is_epic,
+                CASE WHEN w.is_subtask THEN p.ticket_key END AS parent_key
+         FROM tasks t LEFT JOIN work_item_types w ON w.id = t.work_item_type_id
+         LEFT JOIN tasks p ON p.id = t.parent_task_id AND p.project_id = t.project_id
+             AND p.org_id IS NOT DISTINCT FROM t.org_id
+         WHERE t.id = ANY($1::int[])`, [ids],
+    )).rows;
+}
+
 export async function findLabelsForTasks(db: EnrichDb, taskIds: number[]): Promise<any[]> {
     if (!taskIds.length) return [];
     return (await db.query(

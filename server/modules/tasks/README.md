@@ -34,9 +34,24 @@ including future organizations. It detaches invalid ordinary/epic links;
 invalid legacy Subtasks become ordinary Tasks without moving their project or
 key, while valid Subtasks' sprint mismatches are aligned. Full before/after
 snapshots and reasons remain in `task_hierarchy_repairs`, with system history.
-The data marker makes SQL replay safe. No cascading moves, nesting, new rollups
-or point-metric changes are implemented here (ticket 07); parent project moves
-that would strand Subtasks are refused until cascading is available.
+The data marker makes SQL replay safe.
+
+Parent placement and project moves cascade through `getTicketSubtasks` under the
+organization placement lock. Every member gets transactional placement history,
+audit and post-commit invalidation. Project moves reserve a key and alias the old
+key for each member, mapping each workflow independently. A failed child write
+rolls back the entire family; direct Subtask placement, project moves and ranking
+remain refused. Sprint completion uses the same placement seam for whole parents.
+
+Planning backlog reads page/count ordinary parents and batch-enrich their nested
+`subtasks`. Board reads stay flat and include `is_subtask` and `parent_key`.
+Detail preserves own `time_spent_minutes`/`remaining_estimate_minutes` and adds
+`subtask_summary` (total/done, using canonical `completed_at`) and `effort`
+(own/including-subtasks spent and remaining minutes). Deleted worklogs are excluded;
+an entirely unknown remaining forecast stays null. `tasks.points.ts` owns the shared
+point predicate: Subtasks cannot carry points, and Subtasks/Epics do not contribute
+to sprint points, capacity, baselines, burndown or velocity. Board WIP still counts
+cards, including Subtasks.
 
 Real PostgreSQL coverage: `npx jest tasks.hierarchy.integration
 tasksHierarchyExpand.integration --runInBand`.

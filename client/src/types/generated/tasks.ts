@@ -112,7 +112,6 @@ export interface Task {
   estimated_minutes?: number | null;
   logged_minutes?: number;
   assigned_to?: number | null;
-  assignee?: TaskAssignee;
   user_id?: number;
   org_id?: number | null;
   is_blocked: boolean;
@@ -128,6 +127,13 @@ export interface Task {
   original_estimate_minutes?: number | null;
   remaining_estimate_minutes?: number | null;
   sprint_end_date?: string | null;
+  is_subtask?: boolean;
+  is_epic?: boolean;
+  parent_key?: string | null;
+  subtasks?: TaskSubtasks[];
+  subtask_summary?: TaskSubtask_summary;
+  effort?: TaskEffort;
+  assignee?: TaskAssignee;
 }
 
 export interface Sprint {
@@ -196,18 +202,46 @@ export interface TicketCapabilitiesCan {
   canAddSubtask: TicketCapability;
 }
 
-export interface TaskAssignee {
-  username: string;
-  full_name: string | null;
-  avatar: string | null;
-}
-
 export interface TaskProject {
   id: number;
   key: string;
   name: string;
   color?: string;
   is_archived: boolean;
+}
+
+export interface TaskSubtasks {
+  id: number;
+  title: string;
+  ticket_key: string | null;
+  project_id: number;
+  work_item_type_id?: number | null;
+  workflow_state_id?: number | null;
+  is_subtask?: boolean;
+  state_name?: string | null;
+  parent_key?: string | null;
+  parent_task_id?: number | null;
+  completed_at?: string | null;
+  time_spent_minutes?: number;
+  remaining_estimate_minutes?: number | null;
+}
+
+export interface TaskSubtask_summary {
+  total: number;
+  done: number;
+}
+
+export interface TaskEffort {
+  own_time_spent_minutes: number;
+  total_time_spent_minutes: number;
+  own_remaining_estimate_minutes: number | null;
+  total_remaining_estimate_minutes: number | null;
+}
+
+export interface TaskAssignee {
+  username: string;
+  full_name: string | null;
+  avatar: string | null;
 }
 
 export interface TaskCollectionResponseStats {

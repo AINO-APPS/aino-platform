@@ -25,6 +25,7 @@ const {
     findSprintInOrg,
     lockSprintForDeletion,
     findSprintMemberIds,
+    findSprintReportTasks,
     deleteSprint,
     pauseSprintForOrg,
 } = require("../modules/tasks/tasks.sprintRepository");
@@ -283,13 +284,7 @@ router.get("/:id/stats", auth, loadUserContext, requireScrumSprint, async (req: 
         const sprint = await loadAccessibleSprint(req, res, id);
         if (!sprint) return;
 
-        const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
-                    t.story_points, t.assigned_to, t.is_blocked, t.completed_at, t.priority
-               FROM tasks t
-              WHERE t.sprint_id = $1`,
-            [id]
-        )).rows;
+        const tasks = await findSprintReportTasks(req.db!, id);
 
         // Pull workflow state metadata (category, terminal flag) and type metadata
         const stateIds = [...new Set(tasks.map((t: any) => t.workflow_state_id).filter(Boolean))];

@@ -70,6 +70,20 @@ Android's date-grouped upcoming view is a separate pending ticket04 slice;
 the calendar is web-only. Integrated ticket05 removes Scheduled from the web
 and retires automatic sprints. Compatibility endpoints remain until ticket11.
 
+## Subtasks in planning
+
+Backlogs and sprint plans nest subtasks under their parent. Move or rank the
+parent, not individual subtasks: sprint/backlog placement moves the whole family
+atomically, preserving dates and recording history for each ticket. Boards keep
+subtasks as individual cards labelled with the parent's key.
+
+Parent detail separates **own** time/remaining estimate from totals **including
+subtasks**, and shows done/total subtask counts. Deleted worklogs do not contribute.
+Subtask detail links back to the parent. Subtasks have no story points; sprint
+capacity, baselines, burndown and velocity count ordinary parent points only.
+These nested views and effort summaries ship on web/desktop; Android is a separate
+slice.
+
 ## Keys, moves and archive
 
 Keys are stored, organization-unique and never reused. A project admin previews
@@ -86,6 +100,9 @@ Commit assigns a new key and aliases the old one, clears the source sprint,
 restores the ticket's personal due date, retains its planned day, and maps the
 workflow by active state key, then category, then the initial state. History
 and audit commit atomically; realtime invalidation follows commit.
+When the ticket has subtasks, the same transaction moves them all, independently
+maps their workflow states and preserves every old key as an alias. A failure
+leaves the entire family unchanged.
 
 Archive makes a project read-only and removes it from create/move pickers;
 reading, search, key lookup and comments remain available. Unarchive requires an

@@ -5,6 +5,7 @@ import { canReadProjectTask, type TaskActor } from "./tasks.policy";
 export const getHierarchyType = repo.findHierarchyType;
 export const getHierarchyTicket = repo.findHierarchyTicket;
 export const recordHierarchyHistory = repo.recordHierarchyHistory;
+export const getTicketSubtasks = repo.findHierarchySubtasks;
 
 export class HierarchyRefused extends Error {
     readonly code = "INVALID_HIERARCHY";
@@ -39,12 +40,14 @@ export interface HierarchyTicket {
     work_item_type_id?: number | null;
     is_epic?: boolean;
     is_subtask?: boolean;
+    story_points?: unknown;
 }
 
 /** Custom non-epic types occupy the Story/Task/Bug level. */
 export function hierarchyViolation(ticket: HierarchyTicket, parent: HierarchyTicket | null): string | null {
     if (ticket.is_epic) return parent ? "An epic cannot have a parent." : null;
     if (ticket.is_subtask) {
+        if (ticket.story_points != null && ticket.story_points !== "") return "A subtask cannot carry story points.";
         if (!parent || parent.is_epic || parent.is_subtask) return "A subtask must have a Story, Task or Bug parent.";
         if (ticket.project_id == null || Number(ticket.project_id) !== Number(parent.project_id)) return "A subtask must be in its parent's project.";
         if (ticket.sprint_id !== undefined && String(ticket.sprint_id ?? "") !== String(parent.sprint_id ?? "")) return "A subtask must be in its parent's sprint.";
@@ -61,7 +64,7 @@ export function hierarchyParentId(raw: unknown): number | null {
 }
 
 /** Call inside the write transaction, before acquiring ticket/date row locks. */
-export async function assertTicketHierarchy(db: TasksDb, change: Partial<HierarchyTicket> & { org_id: number | null }, actor?: TaskActor) {
+export async function assertTicketHierarchy(db: TasksDb, change: Partial<HierarchyTicket> & { org_id: number | null }, actor?: TaskActor, cascadeProject = false) {
     await acquirePlacementLifecycleLock(db, change.org_id);
     const current = change.id == null ? null : await repo.findHierarchyTicket(db, change.id, change.org_id);
     const ticket = { ...current, ...change };
@@ -80,7 +83,8 @@ export async function assertTicketHierarchy(db: TasksDb, change: Partial<Hierarc
     if (violation) throw new HierarchyRefused(violation);
     if (ticket.id != null) {
         for (const child of await repo.findHierarchyChildren(db, ticket.id)) {
-            const childViolation = hierarchyViolation(child, ticket);
+            const childViolation = hierarchyViolation(cascadeProject && child.is_subtask
+                ? { ...child, project_id: ticket.project_id } : child, ticket);
             if (childViolation) throw new HierarchyRefused(`This change would invalidate a child: ${childViolation}`);
         }
     }

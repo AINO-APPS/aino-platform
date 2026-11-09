@@ -9,6 +9,8 @@ import type { ShowConfirm } from "./hooks/useConfirmDialog";
 import { boardTargetDecision, reasonCopy, writeError } from "./ticketCapabilities";
 import type { BoardColumn } from "./boardTypes";
 import s from "./ProjectBoard.module.css";
+import PlanningSubtasks from "./PlanningSubtasks";
+import { planningFamilies } from "./planningHierarchy";
 
 interface Props {
     project: any;
@@ -111,7 +113,8 @@ export default function ProjectBoard({ project, backlog = false, updatedTicket, 
         </form>}
         {isLoading ? <p role="status">Loading project work…</p> : backlog ? <div className={s.backlog}>
             {!tickets.length && <p className={s.empty}>Nothing waiting. Pull work back to the initial state to keep it here.</p>}
-            {tickets.map((ticket) => <div key={ticket.id} className={s.backlogRow}>
+            {planningFamilies(tickets).map(({ task: ticket, subtasks }) => <div key={ticket.id}>
+                <div className={s.backlogRow}>
                 <TaskCard task={ticket} onOpenDetail={onOpenDetail} onOpenComments={onOpenComments} onStatusChange={move} />
                 <label className={s.pull}>Pull onto board
                     <select aria-label={`Move ${ticket.ticket_key ?? ticket.id} to board`} value="" onChange={(event) => move(ticket, { id: event.target.value })}>
@@ -124,6 +127,8 @@ export default function ProjectBoard({ project, backlog = false, updatedTicket, 
                         })}
                     </select>
                 </label>
+                </div>
+                <PlanningSubtasks parent={ticket} subtasks={subtasks} onOpenDetail={onOpenDetail} />
             </div>)}
         </div> : <KanbanBoard tasks={tickets} columns={columns} sprintMode={false} drag={drag} boardDrag={boardDrag}
             announcement={announcement} onOpenDetail={onOpenDetail} onOpenComments={onOpenComments} onStatusChange={move} />}

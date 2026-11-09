@@ -36,7 +36,7 @@ const {
     resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
-const { enrichTasks } = require('./_helpers/enrich');
+const { enrichTasks, enrichPlanningTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const {
     validateStoryPoints,
@@ -166,7 +166,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const total = countRes.rows[0]?.total ?? tasks.length;
         const completedCount = completedCountRes.rows[0]?.total ?? 0;
 
-        const enriched = await enrichTasks(tasks, req.db, taskActorFromRequest(req));
+        const enriched = await enrichPlanningTasks(tasks, req.db, taskActorFromRequest(req));
         const summary: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> } = { total, byStatus: {}, byPriority: { high: 0, medium: 0, low: 0 } };
         for (const t of enriched) {
             const key = t.workflow_state_key;
@@ -308,7 +308,7 @@ async function createBacklogTicket(req: Request, res: Response) {
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const hierarchy = await assertTicketHierarchy(client, {
                 org_id: req.userOrgId ?? null, project_id: validProjectId,
-                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId, story_points: sp,
             }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {

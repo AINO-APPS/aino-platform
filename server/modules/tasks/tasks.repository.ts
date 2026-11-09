@@ -66,6 +66,7 @@ export const findChildren = async (db: TasksDb, taskId: number) => (await db.que
     `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.user_id, t.assigned_to,
             t.team_id, t.org_id, t.sprint_id, t.start_date, t.completed_at,
             t.story_points, t.work_item_type_id, t.priority, t.project_id, t.ticket_key,
+            t.parent_task_id, t.original_estimate_minutes, t.remaining_estimate_minutes,
             u.full_name AS assignee_name, u.username AS assignee_username,
             ws.name AS state_name, ws.color AS state_color, ws.is_terminal,
             wit.name AS type_name, wit.color AS type_color, wit.is_subtask

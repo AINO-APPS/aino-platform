@@ -12,6 +12,7 @@ export function sendHierarchyRefusal(res: Response, error: unknown): boolean {
 export async function prepareHierarchyCreate(req: Request, res: Response): Promise<boolean> {
     const type = await getHierarchyType(req.db!, req.body?.work_item_type_id, req.userOrgId ?? null);
     if (!type?.is_subtask) return true;
+    if (req.body.story_points != null && req.body.story_points !== "") throw new HierarchyRefused("A subtask cannot carry story points.");
     const parentId = hierarchyParentId(req.body?.parent_task_id);
     if (parentId == null) throw new HierarchyRefused("A subtask must have a Story, Task or Bug parent.");
     const typedParent = await getHierarchyTicket(req.db!, parentId, req.userOrgId ?? null);

@@ -57,6 +57,10 @@ jest.setTimeout(30_000);
         });
         app.use("/api/tasks", require("../routes/tasks"));
         app.use("/api/agile", require("../routes/agile"));
+        app.use("/api/sprints", require("../routes/sprints"));
+        app.use("/api/sprints", require("../routes/sprintBaseline"));
+        app.use("/api/sprints", require("../routes/sprintCompletion"));
+        app.use("/api/projects", require("../routes/projects"));
     }, 120_000);
     afterAll(async () => { await pool?.end(); await database?.drop(); });
     beforeEach(async () => {
@@ -172,9 +176,192 @@ jest.setTimeout(30_000);
             work_item_type_id: "subtask", parent_task_id: parent.id, sprint_id: null,
         });
         expect(conversionMove).toMatchObject({ status: 409, body: { code: "SUBTASK_FOLLOWS_PARENT" } });
-        // Ticket 07 supplies cascading moves; ticket 06 must not leave a cross-project child meanwhile.
         const moveParent = await request(app).post(`/api/tasks/${parent.id}/move-project`).send({ project_id: otherProjectId });
-        expect(moveParent).toMatchObject({ status: 409, body: { code: "INVALID_HIERARCHY" } });
+        expect(moveParent.status).toBe(200);
+        const movedChild = await request(app).get(`/api/tasks/${subtask.id}/detail`);
+        expect(movedChild.body).toMatchObject({ project_id: otherProjectId, sprint_id: null, parent_task_id: parent.id });
+        expect(movedChild.body.ticket_key).toMatch(/^TWO-/);
+        expect(movedChild.body.key_aliases).toContain(subtask.ticket_key);
+    });
+
+    test("parent placement cascades to every subtask with individual history and preserves dates", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status)
+            VALUES (10, 10, 'First', '2026-11-01', '2026-11-14', 'planned'),
+                   (11, 10, 'Next', '2026-11-15', '2026-11-28', 'planned')`);
+        const parent = (await create({ work_item_type_id: "story", due_date: "2026-12-01" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({
+            title: "Piece", start_date: "2026-11-09", due_date: "2026-12-02",
+        })).body;
+        for (const sprintId of [10, 11, null]) {
+            const moved = await request(app).patch(`/api/tasks/${parent.id}/assign-sprint`).send({ sprint_id: sprintId });
+            expect(moved.status).toBe(200);
+            for (const item of [parent, child]) {
+                const detail = await request(app).get(`/api/tasks/${item.id}/detail`);
+                expect(detail.body.sprint_id).toBe(sprintId);
+                expect(detail.body.due_date).toBe(item.due_date);
+                const history = await request(app).get(`/api/tasks/${item.id}/history`);
+                expect(history.body).toEqual(expect.arrayContaining([
+                    expect.objectContaining({ field: "sprint", new_value: sprintId == null ? "none" : sprintId === 10 ? "First" : "Next" }),
+                ]));
+            }
+        }
+    });
+
+    test("sprint completion places whole parents through current hierarchy with one history entry per member", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status)
+            VALUES (10, 10, 'First', CURRENT_DATE, CURRENT_DATE + 14, 'active'),
+                   (11, 10, 'Next', CURRENT_DATE + 15, CURRENT_DATE + 28, 'planned')`);
+        const parent = (await create({ work_item_type_id: "story", sprint_id: 10 })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        const completed = await request(app).post("/api/sprints/10/complete").set("x-test-role", "super_admin");
+        expect(completed.status).toBe(200);
+        expect(completed.body.rolledOver).toBe(2);
+        for (const item of [parent, child]) {
+            const detail = await request(app).get(`/api/tasks/${item.id}/detail`);
+            expect(detail.body.sprint_id).toBe(11);
+            const history = await request(app).get(`/api/tasks/${item.id}/history`);
+            expect(history.body.filter((entry: any) => entry.field === "sprint" && entry.new_value === "Next")).toHaveLength(1);
+        }
+    });
+
+    test("backlog pagination counts parents and includes their subtasks, while boards expose the parent key", async () => {
+        const parent = (await create({ work_item_type_id: "story", title: "Parent" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        const backlog = await request(app).get(`/api/tasks/backlog?project_id=10&limit=1`);
+        expect(backlog.body).toMatchObject({
+            pagination: { total: 1, hasMore: false },
+            tasks: [{ id: parent.id, subtasks: [{ id: child.id, is_subtask: true, parent_key: parent.ticket_key }] }],
+        });
+        const rank = await request(app).patch(`/api/tasks/${child.id}/rank`).send({ beforeId: null, afterId: null });
+        expect(rank).toMatchObject({ status: 409, body: { code: "SUBTASK_FOLLOWS_PARENT" } });
+        const points = await request(app).put(`/api/tasks/${child.id}`).send({ story_points: 5 });
+        expect(points).toMatchObject({ status: 409, body: { code: "INVALID_HIERARCHY" } });
+    });
+
+    test.each(["scrum", "kanban", "task_list"])("%s boards expose subtask parent keys and planning backlogs nest families", async type => {
+        await pool.query("UPDATE projects SET type = $1, kanban_backlog_enabled = $2 WHERE id = 10", [type, type === "kanban"]);
+        const parent = (await create({ work_item_type_id: "story", title: "Parent" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        if (type !== "task_list") {
+            const backlog = await request(app).get("/api/projects/10/backlog");
+            expect(backlog.status).toBe(200);
+            expect(backlog.body.tickets).toEqual([
+                expect.objectContaining({ id: parent.id, subtasks: [expect.objectContaining({ id: child.id })] }),
+            ]);
+        }
+        if (type === "scrum") {
+            await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status)
+                VALUES (10, 10, 'Plan', CURRENT_DATE, CURRENT_DATE + 14, 'planned')`);
+            expect((await request(app).patch(`/api/tasks/${parent.id}/assign-sprint`).send({ sprint_id: 10 })).status).toBe(200);
+        } else if (type === "kanban") {
+            await pool.query("UPDATE projects SET kanban_backlog_enabled = FALSE WHERE id = 10");
+        }
+        const board = await request(app).get(`/api/projects/10/board${type === "scrum" ? "?sprint_id=10" : ""}`);
+        expect(board.status).toBe(200);
+        expect(board.body.tickets).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: child.id, is_subtask: true, parent_key: parent.ticket_key }),
+        ]));
+    });
+
+    test.each(["scrum", "kanban", "task_list"])("%s parent detail rolls up live subtask effort, not deleted worklogs", async type => {
+        await pool.query("UPDATE projects SET type = $1 WHERE id = 10", [type]);
+        const parent = (await create({ work_item_type_id: "story" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        for (const [id, remaining] of [[parent.id, "30m"], [child.id, "1h 30m"]]) {
+            const estimate = await request(app).patch(`/api/tasks/${id}/estimates`).send({ remaining_estimate: remaining });
+            expect(estimate.status).toBe(200);
+        }
+        for (const [id, spent] of [[parent.id, "20m"], [child.id, "40m"]]) {
+            const work = await request(app).post(`/api/tasks/${id}/worklogs`).send({
+                day_worked: "2026-11-09", time_spent: spent, remaining_mode: "leave",
+            });
+            expect(work.status).toBe(201);
+        }
+        const removed = await request(app).post(`/api/tasks/${child.id}/worklogs`).send({
+            day_worked: "2026-11-09", time_spent: "10m", remaining_mode: "leave",
+        });
+        expect(removed.status).toBe(201);
+        expect((await request(app).delete(`/api/tasks/${child.id}/worklogs/${removed.body.worklog.id}`)
+            .send({ remaining_mode: "leave" })).status).toBe(200);
+        const detail = await request(app).get(`/api/tasks/${parent.id}/detail`);
+        expect(detail.body).toMatchObject({
+            time_spent_minutes: 20, remaining_estimate_minutes: 30,
+            effort: { own_time_spent_minutes: 20, total_time_spent_minutes: 60,
+                own_remaining_estimate_minutes: 30, total_remaining_estimate_minutes: 120 },
+            subtask_summary: { total: 1, done: 0 },
+        });
+        const childDetail = await request(app).get(`/api/tasks/${child.id}/detail`);
+        expect(childDetail.body).toMatchObject({ parent: { ticket_key: parent.ticket_key }, subtask_summary: { total: 0, done: 0 } });
+    });
+
+    test("sprint baseline, capacity report and burndown exclude legacy subtask points", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status)
+            VALUES (10, 10, 'First', CURRENT_DATE, CURRENT_DATE + 14, 'planned')`);
+        const parent = (await create({ work_item_type_id: "story", sprint_id: 10, story_points: 8 })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        await pool.query("UPDATE tasks SET story_points = 99 WHERE id = $1", [child.id]);
+        const started = await request(app).post("/api/sprints/10/start").set("x-test-role", "super_admin");
+        expect(started.status).toBe(200);
+        const baseline = await request(app).get("/api/sprints/10/baseline");
+        expect(baseline.body.baseline.committed_task_ids).toEqual([parent.id]);
+        expect(Number(baseline.body.baseline.committed_points)).toBe(8);
+        const stats = await request(app).get("/api/sprints/10/stats");
+        expect(stats.body.totals).toMatchObject({ tasks: 1, points: 8, remainingPoints: 8 });
+        const burndown = await request(app).get("/api/sprints/10/burndown");
+        expect(burndown.body.snapshots).toHaveLength(1);
+        expect(Number(burndown.body.snapshots[0].total_points)).toBe(8);
+        expect(Number(burndown.body.snapshots[0].remaining_points)).toBe(8);
+        expect(burndown.body.snapshots[0].open_tasks).toBe(1);
+        const preview = await request(app).get("/api/sprints/10/completion-preview");
+        expect(preview.status).toBe(200);
+        expect(preview.body.movingPoints).toBe(8);
+        expect(preview.body.moving).toHaveLength(2);
+        await pool.query(`UPDATE tasks SET workflow_state_id =
+            (SELECT id FROM workflow_states WHERE project_id = 10 AND key = 'done' LIMIT 1) WHERE id = ANY($1::int[])`, [[parent.id, child.id]]);
+        const complete = await request(app).post("/api/sprints/10/complete").set("x-test-role", "super_admin");
+        expect(complete.status).toBe(200);
+        expect(complete.body.velocity).toBe(8);
+    });
+
+    test.each(["placement", "project"])("a child history failure rolls back the entire %s move", async move => {
+        await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status)
+            VALUES (10, 10, 'First', CURRENT_DATE, CURRENT_DATE + 14, 'planned')`);
+        const parent = (await create({ work_item_type_id: "story" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        await pool.query(`CREATE FUNCTION refuse_family_history() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN IF NEW.task_id = ${Number(child.id)} THEN RAISE EXCEPTION 'test history failure'; END IF; RETURN NEW; END $$;
+            CREATE TRIGGER refuse_family_history BEFORE INSERT ON task_history FOR EACH ROW EXECUTE FUNCTION refuse_family_history()`);
+        try {
+            const response = move === "placement"
+                ? await request(app).patch(`/api/tasks/${parent.id}/assign-sprint`).send({ sprint_id: 10 })
+                : await request(app).post(`/api/tasks/${parent.id}/move-project`).send({ project_id: 20 });
+            expect(response.status).toBe(500);
+            for (const item of [parent, child]) {
+                const detail = await request(app).get(`/api/tasks/${item.id}/detail`);
+                expect(detail.body).toMatchObject({ project_id: 10, sprint_id: null, ticket_key: item.ticket_key, key_aliases: [] });
+            }
+        } finally {
+            await pool.query("DROP TRIGGER refuse_family_history ON task_history; DROP FUNCTION refuse_family_history()");
+        }
+    });
+
+    test.each(["scrum", "kanban", "task_list"])("moving a family to %s maps each state and preserves every key alias", async (type) => {
+        await pool.query("UPDATE projects SET type = $1 WHERE id = 20", [type]);
+        const parent = (await create({ work_item_type_id: "story" })).body;
+        const child = (await request(app).post(`/api/tasks/${parent.id}/subtasks`).send({ title: "Piece" })).body;
+        await pool.query(`UPDATE tasks SET workflow_state_id =
+            (SELECT id FROM workflow_states WHERE project_id = 10 AND key = 'done' LIMIT 1) WHERE id = $1`, [child.id]);
+        const moved = await request(app).post(`/api/tasks/${parent.id}/move-project`).send({ project_id: otherProjectId });
+        expect(moved.status).toBe(200);
+        for (const item of [parent, child]) {
+            const detail = await request(app).get(`/api/tasks/${item.id}/detail`);
+            expect(detail.body).toMatchObject({ project_id: 20, sprint_id: null });
+            expect(detail.body.key_aliases).toContain(item.ticket_key);
+            expect(detail.body.ticket_key).toMatch(/^TWO-/);
+            expect(detail.body.workflow_state_key).toBe(item.id === child.id ? "done" : parent.workflow_state_key);
+            const resolved = await request(app).get(`/api/tasks/by-key/${item.ticket_key}`);
+            expect(resolved.body.id).toBe(item.id);
+        }
     });
 
     test("the seeded Subtask type cannot be deleted, deactivated, made default or turned into an epic", async () => {

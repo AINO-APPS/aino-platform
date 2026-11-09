@@ -490,8 +490,22 @@ ordinary parent in the same project and sprint and has no children.
   type per organization stays active and cannot be deleted or made default.
 
 Migration repair snapshots and reasons are recorded in `task_hierarchy_repairs`
-and system ticket history. Cascading moves, nesting and new rollups/point rules
-belong to ticket 07 and are not provided by this endpoint expansion.
+and system ticket history.
+
+Parent sprint/backlog placement and project moves atomically include every
+Subtask, with history/audit for each. Project moves assign each member a new key,
+preserve its old key as an alias and map its workflow independently. Direct
+Subtask placement/project/ranking writes remain refused. Dates do not change.
+
+Backlog reads count/page parents and include their nested `subtasks`; board reads
+remain flat and provide `is_subtask` and `parent_key`. Detail adds
+`subtask_summary: { total, done }` and `effort` with
+`own_time_spent_minutes`, `total_time_spent_minutes`,
+`own_remaining_estimate_minutes`, `total_remaining_estimate_minutes`.
+Existing top-level effort fields remain the ticket's own values. Totals exclude
+deleted worklogs; an entirely unknown remaining forecast is null. Subtask story
+point writes (including zero) return `409 INVALID_HIERARCHY`; sprint metrics
+exclude Subtask and Epic points, including legacy values.
 
 ### GET `/api/tasks`
 Read legacy day/sprint tasks, or opt into project List/Calendar views.

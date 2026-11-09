@@ -149,7 +149,7 @@ export async function completeSprint(
                 projectOwnership: options.projectOwnership,
                 cascadeParentIds: new Set(plan.movingParents.map((parent) => Number(parent.id))),
             },
-            unfinished,
+            plan.movingParents.map(parent => Number(parent.id)),
             target ? { sprint: Number(target.id) } : { sprint: null },
         );
         const refusal = placement.find((result) => !result.ok);
@@ -171,7 +171,7 @@ export async function completeSprint(
             velocity: Number(velocity.velocity),
             doneTasks: Number(velocity.done_tasks),
             totalTasks: Number(velocity.total_tasks),
-            rolledOver: placement.filter((result) => result.ok && unfinished.includes(result.id)).length,
+            rolledOver: unfinished.length,
             rolloverTarget: target?.name ?? "the backlog",
             rolloverTargetType,
             targetSprint: target,

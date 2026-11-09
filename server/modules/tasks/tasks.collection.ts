@@ -8,6 +8,7 @@
  */
 
 import { buildVisibilityPredicate, type TaskVisibility } from "./tasks.policy";
+import { PLANNING_PARENT_SQL } from "./tasks.hierarchyRepository";
 
 export type { TaskVisibility };
 
@@ -165,6 +166,7 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
             }
         }
     } else if (input.scope === "backlog") {
+        conditions.push(PLANNING_PARENT_SQL);
         // The collapsed Completed section lists every finished unsprinted
         // ticket, dated or not; the open list is unplanned only.
         if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);

@@ -18,19 +18,44 @@ export function applyHierarchyContract(paths, schemas) {
             ticket_key: { type: ["string", "null"] }, project_id: { type: "integer" },
             work_item_type_id: { type: ["integer", "null"] }, workflow_state_id: { type: ["integer", "null"] },
             is_subtask: { type: "boolean" }, state_name: { type: ["string", "null"] },
+            parent_key: { type: ["string", "null"] }, parent_task_id: { type: ["integer", "null"] },
+            completed_at: { type: ["string", "null"], format: "date-time" },
+            time_spent_minutes: { type: "integer", minimum: 0 },
+            remaining_estimate_minutes: { type: ["integer", "null"], minimum: 0 },
         },
         required: ["id", "title", "project_id", "ticket_key"],
         additionalProperties: true,
     };
+    Object.assign(schemas.Task.properties, {
+        is_subtask: { type: "boolean" }, is_epic: { type: "boolean" },
+        parent_key: { type: ["string", "null"], description: "Subtask cards label their same-project parent's stored key." },
+        subtasks: { type: "array", items: schemas.TicketSummary, description: "Backlog pages rank and paginate parents; their complete visible subtask families are nested here." },
+        subtask_summary: {
+            type: "object", properties: { total: { type: "integer", minimum: 0 }, done: { type: "integer", minimum: 0 } },
+            required: ["total", "done"], additionalProperties: false,
+        },
+        effort: {
+            type: "object",
+            properties: Object.fromEntries(["own_time_spent_minutes", "total_time_spent_minutes",
+                "own_remaining_estimate_minutes", "total_remaining_estimate_minutes"].map(name => [name, {
+                type: name.includes("remaining") ? ["integer", "null"] : "integer", minimum: 0,
+            }])),
+            required: ["own_time_spent_minutes", "total_time_spent_minutes", "own_remaining_estimate_minutes", "total_remaining_estimate_minutes"],
+            additionalProperties: false,
+            description: "Computed on read from this ticket and its visible non-deleted direct subtasks; only non-deleted worklogs count. Own estimates remain independently editable.",
+        },
+    });
     schemas.TaskDetail = {
         allOf: [ref("Task"), {
             type: "object",
             properties: {
                 parent: { anyOf: [ref("TicketSummary"), { type: "null" }], description: "Null when absent or inaccessible to the caller." },
-                subtasks: { type: "array", items: ref("TicketSummary"), description: "Visible direct Subtasks only; no new rollups." },
+                subtasks: { type: "array", items: ref("TicketSummary"), description: "Visible direct Subtasks only." },
+                subtask_summary: schemas.Task.properties.subtask_summary,
+                effort: schemas.Task.properties.effort,
                 comments: { type: "array", items: ref("FreeFormObject") },
             },
-            required: ["parent", "subtasks", "comments"],
+            required: ["parent", "subtasks", "subtask_summary", "effort", "comments"],
         }],
     };
     schemas.CreateSubtaskRequest = {
