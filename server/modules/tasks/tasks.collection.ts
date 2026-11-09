@@ -16,7 +16,7 @@ export type { TaskVisibility };
  *  - `list`     — every ticket in the selected project, regardless of dates.
  *  - `calendar` — open date spans overlapping a range, or undated open work.
  *
- * Compatibility containers retain their existing rules until ticket 05/11:
+ * Compatibility collection scopes remain for older callers until retirement:
  * a sprint wins over a day, and a day wins over the backlog.
  *  - `backlog`   — no sprint, no planned day. A due date is a deadline, not a
  *                  container: it never moves a ticket out of the backlog.

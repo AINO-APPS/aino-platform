@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getScheduleOverlays, getTasks, updateTask } from "../../api/tasks";
 import useRealtimeEvent from "../../hooks/useRealtimeEvent";
@@ -25,6 +25,8 @@ export default function TaskCalendar({ project, onOpenDetail, updatedTicket, tod
     const [anchor, setAnchor] = useState(today.slice(0, 7));
     const [visible, setVisible] = useState<Record<OverlayType, boolean>>({ leave: true, holidays: true, meetings: true });
     const [editing, setEditing] = useState<Task | null>(null);
+    const startInput = useRef<HTMLInputElement>(null);
+    useEffect(() => { if (editing) startInput.current?.focus(); }, [editing]);
     const [startDate, setStartDate] = useState("");
     const [dueDate, setDueDate] = useState("");
     const [saving, setSaving] = useState(false);
@@ -122,7 +124,7 @@ export default function TaskCalendar({ project, onOpenDetail, updatedTicket, tod
         {editing && <form className={s.editor} aria-label={`Dates for ${editing.ticket_key}`}
             onSubmit={event => { event.preventDefault(); void saveDates(editing, startDate || null, dueDate || null); }}>
             <strong>{editing.ticket_key}</strong>
-            <label>Start date<input type="date" value={startDate} onChange={event => setStartDate(event.target.value)} disabled={saving} /></label>
+            <label>Start date<input ref={startInput} type="date" value={startDate} onChange={event => setStartDate(event.target.value)} disabled={saving} /></label>
             <label>Due date<input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} disabled={saving} /></label>
             <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>Save dates</button>
             <button type="button" className="btn btn-ghost btn-sm" disabled={saving} onClick={() => setEditing(null)}>Cancel</button>

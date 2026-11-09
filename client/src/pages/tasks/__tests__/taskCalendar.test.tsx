@@ -44,6 +44,7 @@ test("keyboard date edits refuse due-before-start locally, then persist both dat
     show();
     await screen.findByText("Ready to plan");
     fireEvent.click(within(screen.getByRole("group", { name: "2026-11-09" })).getByRole("button", { name: "Edit dates for OPS-1" }));
+    expect(screen.getByLabelText("Start date")).toHaveFocus();
     fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-11-08" } });
     fireEvent.click(screen.getByRole("button", { name: "Save dates" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Due date cannot be earlier than the start date");

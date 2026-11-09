@@ -67,8 +67,8 @@ Approved leave, holidays and meetings provide independently toggled, read-only
 context; none changes a ticket or its workflow.
 
 Android's date-grouped upcoming view is a separate pending ticket04 slice;
-the calendar is web-only. Legacy Scheduled/automatic-sprint removal remains
-with ticket05/11, not these project views.
+the calendar is web-only. Integrated ticket05 removes Scheduled from the web
+and retires automatic sprints. Compatibility endpoints remain until ticket11.
 
 ## Keys, moves and archive
 
