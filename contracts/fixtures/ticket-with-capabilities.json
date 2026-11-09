@@ -65,6 +65,9 @@
       "canMoveProject": {
         "allowed": false,
         "reason": "ACCESS_DENIED"
+      },
+      "canAddSubtask": {
+        "allowed": true
       }
     }
   },

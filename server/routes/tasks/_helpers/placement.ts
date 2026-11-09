@@ -27,6 +27,7 @@ const STATUS: Record<PlacementRefusalCode, number> = {
     PROJECT_NOT_FOUND: 404,
     PROJECT_UNCHANGED: 400,
     WORKFLOW_NOT_FOUND: 409,
+    SUBTASK_FOLLOWS_PARENT: 409,
 };
 
 /**

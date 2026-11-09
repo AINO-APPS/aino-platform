@@ -186,6 +186,7 @@ export interface TicketCapabilitiesCan {
   logWorkForOthers: TicketCapability;
   canEditEstimate: TicketCapability;
   canMoveProject: TicketCapability;
+  canAddSubtask: TicketCapability;
 }
 
 export interface TaskProject {

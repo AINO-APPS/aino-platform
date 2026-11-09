@@ -1,6 +1,7 @@
 /** Task-domain orchestration, independent of HTTP. */
 import * as repository from "./tasks.repository";
 import type { GitRefInput, TasksDb } from "./tasks.types";
+import { canReadProjectTask, type TaskActor } from "./tasks.policy";
 
 export const getTask = repository.findTask;
 export const getComments = repository.findComments;
@@ -39,8 +40,10 @@ export function addGitRef(db: TasksDb, id: number, input: GitRefInput) {
 
 export const removeGitRef = repository.deleteGitRef;
 
-export async function getChildren(db: TasksDb, id: number) {
-    const children = await repository.findChildren(db, id);
+export async function getChildren(db: TasksDb, id: number, actor?: TaskActor) {
+    const rows = await repository.findChildren(db, id);
+    const visible = await Promise.all(rows.map(async (child) => !actor || await canReadProjectTask(child, actor)));
+    const children = rows.filter((_row, index) => visible[index]);
     const points = (value: unknown) => value == null ? 0 : Number(value);
     const totalPoints = children.reduce((sum, child) => sum + points(child.story_points), 0);
     const completed = children.filter((child) => child.is_terminal);
@@ -54,20 +57,11 @@ export async function getChildren(db: TasksDb, id: number) {
 
 export const getParent = repository.findParent;
 
-export async function validateAndSetParent(db: TasksDb, id: number, orgId: number | null, rawParentId: unknown) {
-    let parentId: number | null = null;
-    if (rawParentId !== null && rawParentId !== undefined && rawParentId !== "") {
-        const candidateId = Number.parseInt(String(rawParentId), 10);
-        if (Number.isNaN(candidateId) || candidateId === id) throw new Error("Invalid parent_task_id");
-        const candidate = await repository.findTaskOrg(db, candidateId);
-        if (!candidate || candidate.org_id !== orgId) throw new Error("Parent task not found");
-        let cursor: number | null = candidate.id;
-        for (let depth = 0; depth < 50 && cursor; depth++) {
-            if (cursor === id) throw new Error("Would create a cycle (task is an ancestor of the candidate parent)");
-            cursor = await repository.findParentId(db, cursor);
-        }
-        parentId = candidate.id;
-    }
-    await repository.setParent(db, id, parentId);
-    return parentId;
+export async function getTicketHierarchy(db: TasksDb, ticket: any, actor: TaskActor) {
+    const parent = ticket.parent_task_id ? await repository.findParent(db, ticket.parent_task_id) : null;
+    const children = await getChildren(db, ticket.id, actor);
+    return {
+        parent: parent && await canReadProjectTask(parent, actor) ? parent : null,
+        subtasks: children.children.filter((child) => child.is_subtask === true),
+    };
 }

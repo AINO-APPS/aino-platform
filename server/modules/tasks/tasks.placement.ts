@@ -31,6 +31,8 @@ import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
 import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
 import { placementRefusal } from "./tasks.placementRules";
 import type { PlacementTarget } from "./tasks.placementRules";
+import { assertTicketHierarchy, getHierarchyTicket } from "./tasks.hierarchy";
+import { findDecisionSubtasks } from "./tasks.capabilitiesRepository";
 export { placementRefusal, type PlacementTarget } from "./tasks.placementRules";
 
 export type { PlacementDb } from "./tasks.placementRepository";
@@ -63,6 +65,8 @@ export interface PlacementContext {
     /** Present for user writes; sprint lifecycle maintenance is a system operation. */
     ticketActor?: TaskActor;
     projectOwnership?: boolean;
+    /** Only the atomic create path may place a newly created subtask. */
+    creatingSubtaskOf?: number;
 }
 
 export type PlacementRefusalCode =
@@ -78,7 +82,8 @@ export type PlacementRefusalCode =
     | "TEAM_UNCHANGED"
     | "PROJECT_NOT_FOUND"
     | "PROJECT_UNCHANGED"
-    | "WORKFLOW_NOT_FOUND";
+    | "WORKFLOW_NOT_FOUND"
+    | "SUBTASK_FOLLOWS_PARENT";
 
 export type PlacementResult =
     | { id: number; ok: true; task: any }
@@ -141,14 +146,17 @@ export async function placeTickets(
         context.sprints = sprints;
         if (targetSprintId != null) context.targetSprint = targetSprint;
     }
+    const subtaskIds = context?.subtaskIds ?? new Set((await findDecisionSubtasks(ctx.db, ids, ctx.actor.orgId)).map((row) => Number(row.id)));
 
     const decisions = ids.map((id) => {
         const before = tickets.get(id);
         const action = plansDay(target) ? "schedule" : joinsSprint(target) ? "placeInSprint" : "edit";
+        const creatingSubtask = ctx.creatingSubtaskOf != null && Number(before?.parent_task_id) === ctx.creatingSubtaskOf;
+        if (creatingSubtask) context?.subtaskIds?.delete(id);
         const verdict = before && context && ctx.ticketActor
             ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
-        const code = !before ? "NOT_FOUND" : verdict
-            ? verdict.allowed ? null : verdict.reason
+        const code = !before ? "NOT_FOUND" : verdict && !verdict.allowed ? verdict.reason
+            : subtaskIds.has(id) && !creatingSubtask ? "SUBTASK_FOLLOWS_PARENT" : verdict ? null
             : placementRefusal(before, target, targetSprint, sprints, projectOwnership);
         return { id, before, code };
     });
@@ -223,6 +231,9 @@ async function prepareProjectMove(ctx: MoveContext, before: any, projectId: numb
         if (role !== "member" && role !== "project_admin") return refusedTransfer(id, role ? "READ_ONLY_ROLE" : "ACCESS_DENIED");
         if (project.is_archived) return refusedTransfer(id, "PROJECT_ARCHIVED");
     }
+    const hierarchyTicket = await getHierarchyTicket(ctx.db, id, ctx.actor.orgId);
+    if (hierarchyTicket?.is_subtask) return refusedTransfer(id, "SUBTASK_FOLLOWS_PARENT");
+    await assertTicketHierarchy(ctx.db, { id, org_id: ctx.actor.orgId, project_id: projectId });
     const { source: oldState, states } = await repo.findMoveStates(ctx.db, before.workflow_state_id, projectId, ctx.actor.orgId);
     const state = states.find((candidate) => oldState && candidate.key === oldState.key)
         ?? states.find((candidate) => oldState && candidate.category === oldState.category)

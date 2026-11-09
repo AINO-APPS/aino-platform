@@ -815,11 +815,13 @@ interface ParentChildPanelProps {
 
 export function ParentChildPanel({
     task,
-    canEdit = true,
+    canEdit: editable = true,
     onOpenTask,
     onChanged,
 }: ParentChildPanelProps) {
     const { features, typeById } = useAgileConfig();
+    const canEdit = editable && task?.capabilities?.can?.edit?.allowed === true
+        && task?.capabilities?.can?.placeInSprint?.reason !== "SUBTASK_FOLLOWS_PARENT";
     const [children, setChildren] = useState<any[]>([]);
     const [rollup, setRollup] = useState<any>(null);
     const [parent, setParent] = useState<any>(null);
@@ -880,15 +882,9 @@ export function ParentChildPanel({
                         .map((t: any) => t.id),
                 );
                 const all = (r.data?.tasks || []).filter(
-                    (t: any) => t.id !== task?.id,
+                    (t: any) => t.id !== task?.id && epicTypeIds.has(t.work_item_type_id),
                 );
-                // Sort epics to the top, then everything else alphabetically by id.
-                all.sort((a: any, b: any) => {
-                    const ae = epicTypeIds.has(a.work_item_type_id) ? 0 : 1;
-                    const be = epicTypeIds.has(b.work_item_type_id) ? 0 : 1;
-                    if (ae !== be) return ae - be;
-                    return b.id - a.id;
-                });
+                all.sort((a: any, b: any) => b.id - a.id);
                 setResults(all);
             } catch {
                 setResults([]);
@@ -918,7 +914,7 @@ export function ParentChildPanel({
         }
     };
 
-    if (!features.epics) return null;
+    if (!features.epics && isEpic) return null;
     if (loading) return <div className={s.depLoading}>Loading…</div>;
 
     if (isEpic) {
@@ -1074,7 +1070,7 @@ export function ParentChildPanel({
                                 autoFocus
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search by ID or title (Epics shown first)…"
+                                placeholder="Search epics by ID or title…"
                                 className={s.depSearchInput}
                             />
                         </div>
