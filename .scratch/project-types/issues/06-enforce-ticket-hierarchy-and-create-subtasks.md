@@ -24,8 +24,10 @@ TDD began with failing PostgreSQL HTTP, migration and contract tests, then added
 the smallest hierarchy service/repository and detail UI to make them pass.
 Focused pre-merge verification: 48 server tests, 3 detail UI tests, 88 contract
 tests, both typechecks, dependency layering and mandatory guardrails passed.
-Post-merge verification also covers ticket03's board HTTP/UI seams and preserves
-its transactional lifecycle/WIP guard alongside hierarchy enforcement.
+Post-merge verification: 48 focused hierarchy/placement server tests, 9 real-PG
+board tests, 9 detail/board UI tests, 88 contract tests, both typechecks,
+dependency layering and mandatory guardrails passed. The combined transaction
+preserves ticket03's lifecycle/WIP guard alongside hierarchy enforcement.
 
 Repairs retain before/after snapshots in `task_hierarchy_repairs`, write system
 history, and use an idempotent backfill marker. Existing/new organization
