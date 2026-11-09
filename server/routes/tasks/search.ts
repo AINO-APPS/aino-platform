@@ -121,7 +121,7 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         const rows = (await req.db!.query(
             `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
                     t.work_item_type_id, t.user_id, t.assigned_to, t.team_id, t.org_id,
-                    t.sprint_id, t.planned_date, t.completed_at
+                    t.sprint_id, t.start_date, t.completed_at
                FROM tasks t
               WHERE t.org_id = $1
                 AND (
@@ -138,6 +138,8 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
             tasks: enriched.map((task: any) => ({
                 id: task.id,
                 title: task.title,
+                start_date: task.start_date,
+                planned_date: task.planned_date,
                 workflow_state_id: task.workflow_state_id,
                 is_blocked: task.is_blocked,
                 story_points: task.story_points,

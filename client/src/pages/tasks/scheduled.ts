@@ -1,3 +1,4 @@
+import { startDateOf } from "./dates";
 import { parseLocalDate } from "./utils";
 
 /** Days back (overdue) and ahead covered by the Scheduled tab. */
@@ -41,7 +42,7 @@ function dayLabel(day: string, today: string): string {
 
 /** The day a scheduled ticket sits on: its planned date, else its due date. */
 export function scheduleDateOf(task: any): string | null {
-  for (const value of [task?.planned_date, task?.due_date]) {
+  for (const value of [task ? startDateOf(task) : null, task?.due_date]) {
     if (typeof value === "string" && value.length >= 10) return value.slice(0, 10);
   }
   return null;

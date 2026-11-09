@@ -36,7 +36,8 @@ const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
-const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { resolveSprintTarget, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { requestedStartDate, resolveTicketDates, setTicketStartDate, lockTicketDates, recordDateHistory } = require('../../modules/tasks/tasks.dates');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const {
@@ -117,7 +118,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        const targetDate = date || getLocalToday(req);
+        const targetDate = requestedStartDate(req.body, date || getLocalToday(req));
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
         let assignedTo = null;
@@ -130,14 +131,8 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             assignedTo = assigned_to;
         }
 
-        // Bug #15: reject a due date before the scheduled day so an impossible
-        // ticket cannot be created.
-        const created = resolveEditDates({
-            currentDueDate: null,
-            currentPlannedDate: targetDate ?? null,
-            requestedDueDate: due_date ?? undefined,
-        });
-        if (created.error) return res.status(400).json(created.error.body);
+        const created = resolveTicketDates({}, { start_date: targetDate, due_date });
+        if (created.error) return res.status(400).json({ error: created.error });
         let validDueDate = created.dueDate;
 
         let validSprintId = null;
@@ -241,10 +236,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
-            placedOrThrow(await placeTickets(
-                placementContext(req, client, afterCommit, { notify: false }),
-                [newId],
-                validSprintId ? { sprint: validSprintId } : { day: targetDate },
+            await setTicketStartDate(client, { id: newId }, created.startDate, req.userId);
+            if (validSprintId) placedOrThrow(await placeTickets(
+                placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
             ));
             return newId;
         });
@@ -366,7 +360,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
-        const { title, description, priority, assigned_to, due_date, planned_date, label_ids, sprint_id,
+        const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
@@ -443,8 +437,8 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
 
         // Where the edit moves the ticket, if anywhere (ADR-015). The agile gate
-        // keeps sprint moves off entirely when the tenant disables it; a planned
-        // day on a sprinted ticket is ignored because the sprint wins.
+        // keeps sprint moves off entirely when the tenant disables it. Dates
+        // are independent and never request placement.
         const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
         let requestedSprint: { id: number } | null | undefined;
         if (sprint_id !== undefined && isAgileFeatureEnabled((req as any).tenant, 'agile')) {
@@ -461,20 +455,16 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         const move = editPlacement({
             requestedSprint,
-            requestedPlannedDate: planned_date,
+            requestedPlannedDate: undefined,
             currentSprintId: task.sprint_id,
             currentPlannedDate: task.planned_date ?? null,
         });
         const placementTarget = move.target;
 
-        // The pair rule between the two dates (Bug #15), against where the ticket will be.
+        // Ticket 05 retains ownership of the legacy sprint deadline override.
         const dueDateRequested = due_date !== undefined && !move.joinsSprint;
-        const dates = resolveEditDates({
-            currentDueDate: task.due_date,
-            currentPlannedDate: move.plannedAfter,
-            requestedDueDate: dueDateRequested ? due_date : undefined,
-        });
-        if (dates.error) return res.status(dates.error.status).json(dates.error.body);
+        const dates = resolveTicketDates(task, { ...req.body, due_date: dueDateRequested ? due_date : undefined });
+        if (dates.error) return res.status(400).json({ error: dates.error });
 
         // Resolve agile fields (only update if explicitly supplied)
         let newStoryPoints = task.story_points;
@@ -544,7 +534,11 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         // the due-date bookkeeping), then the plain fields. A due date the user
         // typed is applied after the move, so it wins over a restored one.
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
-            let row = task;
+            const current = requestedStartDate(req.body) !== undefined || dueDateRequested
+                ? await lockTicketDates(client, id) : task;
+            let row = current;
+            const lockedDates = resolveTicketDates(current, { ...req.body, due_date: dueDateRequested ? due_date : undefined });
+            if (lockedDates.error) throw Object.assign(new Error(lockedDates.error), { dateError: true });
             if (placementTarget) {
                 row = placedOrThrow(await placeTickets(
                     placementContext(req, client, afterCommit), [id], placementTarget,
@@ -558,16 +552,19 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                     project_id = $13, task_number = $14
                   WHERE id = $15`,
                 [newTitle, newDesc, newPriority, newAssignedTo,
-                    dueDateRequested ? dates.dueDate : row.due_date,
+                    dueDateRequested ? lockedDates.dueDate : row.due_date,
                     newStoryPoints, newWitId, newWsId, newParentTaskId,
                     newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                     newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
             );
+            if (requestedStartDate(req.body) !== undefined) {
+                await setTicketStartDate(client, current, lockedDates.startDate, req.userId);
+            }
+            if (dueDateRequested && (row.due_date ?? null) !== lockedDates.dueDate) {
+                await recordDateHistory(client, id, req.userId, "due_date", row.due_date, lockedDates.dueDate);
+            }
             return row;
         });
-        // History for the container fields was written by placement; this
-        // route only records a due date it set over the placed value.
-        const newDueDate = dueDateRequested ? dates.dueDate : placedRow.due_date;
 
         // Log a project assignment as a first-class history event so users
         // can see when a previously-keyless task picked up an issue key.
@@ -590,9 +587,6 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const oldLabel = oldUser?.full_name || oldUser?.username || 'unassigned';
             const newLabel = newUser?.full_name || newUser?.username || 'unassigned';
             await logHistory(id, req.userId, 'updated', 'assigned_to', oldLabel, newLabel, null, req.db);
-        }
-        if (String(newDueDate ?? '') !== String(placedRow.due_date ?? '')) {
-            await logHistory(id, req.userId, 'updated', 'due_date', placedRow.due_date, newDueDate, null, req.db);
         }
         // Normalize for comparison: DB returns NUMERIC as a string like '8.00',
         // while newStoryPoints is a JS number (e.g. 8). A naive string compare
@@ -668,6 +662,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
 
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error updating task:');
         res.status(500).json({ error: 'Failed to update task' });

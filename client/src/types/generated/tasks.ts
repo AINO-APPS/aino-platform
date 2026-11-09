@@ -55,6 +55,7 @@ export interface Task {
   time_spent_minutes?: number;
   original_estimate_minutes?: number | null;
   remaining_estimate_minutes?: number | null;
+  start_date: string | null;
 }
 
 export interface Sprint {

@@ -15,7 +15,7 @@ import { findDefaultTicketProject } from "./tasks.repository";
  */
 export async function listScheduledTasks(db: SprintDb, whereSql: string, params: unknown[]) {
     return (await db.query(
-        `SELECT t.* FROM tasks t WHERE ${whereSql} ORDER BY COALESCE(t.planned_date, t.due_date) ASC LIMIT 1000`,
+        `SELECT t.* FROM tasks t WHERE ${whereSql} ORDER BY COALESCE(t.start_date, t.due_date) ASC LIMIT 1000`,
         params,
     )).rows;
 }

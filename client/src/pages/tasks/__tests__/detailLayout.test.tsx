@@ -57,14 +57,22 @@ describe("fullscreen task layout", () => {
         renderView();
         const properties = screen.getByRole("complementary", { name: "Task properties" });
         expect(properties).toBeTruthy();
-        expect(properties.textContent).toContain("Planned date");
+        expect(properties.textContent).toContain("Start date");
         expect(properties.textContent).toContain("Due date");
     });
 
-    test("planned and due dates stay distinct", () => {
-        renderView();
-        expect(screen.getByText("Planned date")).toBeTruthy();
+    test("start date is distinct from the deadline and wins over the legacy alias", () => {
+        renderView({ ...task, start_date: "2026-10-28" });
+        expect(screen.getByText("Start date")).toBeTruthy();
+        expect(screen.getByText("2026-10-28")).toBeTruthy();
+        expect(screen.queryByText("2026-10-25")).toBeNull();
         expect(screen.getByText("Due date")).toBeTruthy();
+    });
+
+    test("a cleared start date does not resurrect a stale legacy alias", () => {
+        renderView({ ...task, start_date: null });
+        expect(screen.getByText("No start date")).toBeTruthy();
+        expect(screen.queryByText("2026-10-25")).toBeNull();
     });
 
     test("discussion renders under the content", () => {

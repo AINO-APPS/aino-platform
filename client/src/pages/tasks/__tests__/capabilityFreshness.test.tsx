@@ -73,6 +73,23 @@ test("detail state writes replace detail and list entries directly from the enri
     expect(result.current.backlog).toEqual([fresh]);
 });
 
+test("detail saves canonical start date and preserves the selected sprint", async () => {
+    let confirm: () => void = () => {};
+    const fresh = { ...ticket, start_date: "2026-11-12", planned_date: "2026-11-12", sprint_id: 10 };
+    vi.mocked(updateTask).mockResolvedValue({ data: fresh } as any);
+    vi.mocked(getTaskHistory).mockResolvedValue({ data: [] } as any);
+    const { result } = renderHook(() => useTaskDetail({
+        activeTab: "sprint", showConfirm: (_title, _message, onConfirm) => { confirm = onConfirm; },
+        closeConfirm: vi.fn(), setTasks: vi.fn(), setBacklogTasks: vi.fn(), fetchTasks: vi.fn(), fetchBacklog: vi.fn(), setError: vi.fn(),
+    }));
+    act(() => result.current.setDetailTask({ ...ticket, sprint_id: 10 } as any));
+    act(() => result.current.saveDetailEdit({ startDate: "2026-11-12", sprintId: 10 }));
+    await act(async () => { await confirm(); });
+    expect(updateTask).toHaveBeenCalledWith(ticket.id, expect.objectContaining({ start_date: "2026-11-12", sprint_id: 10 }));
+    expect(vi.mocked(updateTask).mock.calls[0][1]).not.toHaveProperty("planned_date");
+    expect(result.current.detailTask).toEqual(fresh);
+});
+
 test("rejected writes use the same ACCESS_DENIED copy as disabled controls", async () => {
     vi.mocked(updateTask).mockRejectedValue({ response: { data: { code: "ACCESS_DENIED", error: "Different server prose" } } });
     const setError = vi.fn();

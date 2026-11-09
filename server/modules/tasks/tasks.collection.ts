@@ -32,7 +32,6 @@ export const SCHEDULED_HISTORY_DAYS = 30;
 
 const UNSPRINTED = "t.sprint_id IS NULL";
 const UNPLANNED = "t.planned_date IS NULL";
-const PLANNED = "t.planned_date IS NOT NULL";
 
 function isoDaysBefore(iso: string, days: number): string {
     const d = new Date(`${iso}T00:00:00Z`);
@@ -105,7 +104,7 @@ const ORDER_BY: Record<TaskCollectionScope, string> = {
     // applies without touching it.
     backlog: "t.rank ASC NULLS LAST, t.created_at DESC",
     board: "t.created_at ASC",
-    scheduled: `COALESCE(t.planned_date, t.due_date) ASC, ${PRIORITY_ORDER}, t.created_at ASC`,
+    scheduled: `COALESCE(t.start_date, t.due_date) ASC, ${PRIORITY_ORDER}, t.created_at ASC`,
     schedule: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
 };
 
@@ -146,7 +145,7 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
         if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);
         else conditions.push(UNSPRINTED, UNPLANNED);
     } else if (input.scope === "scheduled") {
-        conditions.push(UNSPRINTED, PLANNED);
+        conditions.push(UNSPRINTED, "t.start_date IS NOT NULL");
         if (input.today) {
             push(
                 `(t.completed_at IS NULL OR t.completed_at >= $${pi})`,
@@ -160,18 +159,18 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
             push(`t.sprint_id = $${pi}`, input.sprintId);
         } else if (input.startDate && input.endDate) {
             push(
-                `${UNSPRINTED} AND t.planned_date >= $${pi} AND t.planned_date <= $${pi + 1}`,
+                `t.start_date >= $${pi} AND t.start_date <= $${pi + 1}`,
                 input.startDate,
                 input.endDate,
             );
         } else if (input.date) {
             if (input.filters?.includeDue) {
                 push(
-                    `(t.sprint_id IS NULL AND t.planned_date IS NOT NULL AND (t.planned_date = $${pi} OR t.due_date = $${pi}))`,
+                    `(t.start_date = $${pi} OR t.due_date = $${pi})`,
                     input.date,
                 );
             } else {
-                push(`t.planned_date = $${pi}`, input.date);
+                push(`t.start_date = $${pi}`, input.date);
             }
         }
     }

@@ -13,8 +13,7 @@ const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { ticketActionConflict } = require('./_helpers/access');
-const { placeTickets } = require('../../modules/tasks/tasks.placement');
-const { placementContext, placedOrThrow } = require('./_helpers/placement');
+const { setTicketStartDate } = require('../../modules/tasks/tasks.dates');
 const {
     buildVisibilityPredicate,
     resolveTaskVisibilityForRequest,
@@ -41,12 +40,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         );
 
         const lastTaskDay = (await req.db!.query(`
-            SELECT t.planned_date AS date FROM tasks t
+            SELECT t.start_date AS date FROM tasks t
             WHERE ${personal.sql}
-              AND t.planned_date < $2::date
-              AND t.planned_date >= $2::date - INTERVAL '7 days'
+              AND t.start_date < $2::date
+              AND t.start_date >= $2::date - INTERVAL '7 days'
               AND ((t.org_id = $3) OR (t.org_id IS NULL AND $3::integer IS NULL))
-            ORDER BY t.planned_date DESC LIMIT 1
+            ORDER BY t.start_date DESC LIMIT 1
         `, [req.userId, today, req.userOrgId || null])).rows[0];
 
         if (!lastTaskDay) return res.json({ message: 'No tasks to carry forward', carried: 0 });
@@ -64,7 +63,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                    t.team_id, t.project_id, t.org_id, t.user_id, t.sprint_id
               FROM tasks t
              WHERE ${personal.sql}
-               AND t.planned_date = $2
+               AND t.start_date = $2
                AND t.completed_at IS NULL
                AND ((t.org_id = $3) OR (t.org_id IS NULL AND $3::integer IS NULL))
         `, [req.userId, lastTaskDay.date, req.userOrgId || null])).rows;
@@ -77,8 +76,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
             }
         }
 
-        const carried = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
-            const ctx = placementContext(req, client, afterCommit, { notify: false });
+        const carried = await (req.db as DbLike).transaction(async (client) => {
             let count = 0;
             for (const t of incomplete) {
                 // Bug #3: the dup-check used to ignore org_id, meaning two users
@@ -87,7 +85,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                 const exists = (await client.query(
                     `SELECT id FROM tasks
                       WHERE (user_id = $1 OR assigned_to = $1)
-                        AND planned_date = $2
+                        AND start_date = $2
                         AND LOWER(TRIM(title)) = LOWER(TRIM($3))
                         AND ((org_id = $4) OR (org_id IS NULL AND $4::integer IS NULL))`,
                     [req.userId, today, t.title, req.userOrgId || null]
@@ -122,9 +120,9 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                             [newTaskId, lbl.label_id]
                         );
                     }
-                    // Placement records the planned-day history row.
+                    // Date history and the copied ticket share the transaction.
                     await logHistory(newTaskId, req.userId, 'created', null, null, null, client, req.db);
-                    placedOrThrow(await placeTickets(ctx, [newTaskId], { day: today }));
+                    await setTicketStartDate(client, { id: newTaskId }, today, req.userId!);
                     count++;
                 }
             }

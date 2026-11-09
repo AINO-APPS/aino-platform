@@ -47,6 +47,7 @@ router.get("/", async (req: Request, res: Response) => {
                 description: task.description,
                 workflow_state_key: task.workflow_state_key,
                 priority: task.priority,
+                start_date: task.start_date,
                 planned_date: task.planned_date,
                 due_date: task.due_date,
                 sprint_id: task.sprint_id,
