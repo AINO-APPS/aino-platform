@@ -7,9 +7,9 @@
   ],
   "scopeNote": "All Express router mounts are inventoried. Baseline groups have every current operation in OpenAPI; detailed payload schemas remain incremental.",
   "totals": {
-    "routerMounts": 34,
-    "concreteEndpoints": 537,
-    "openApiOperations": 275
+    "routerMounts": 36,
+    "concreteEndpoints": 539,
+    "openApiOperations": 277
   },
   "standaloneRoutes": [
     {
@@ -127,7 +127,7 @@
       "mountPath": "/api/admin",
       "source": "server/routes/admin.ts",
       "coverage": "inventory-only",
-      "endpointCount": 81
+      "endpointCount": 82
     },
     {
       "id": "tenants",
@@ -275,6 +275,20 @@
       "source": "server/routes/public.ts",
       "coverage": "baseline",
       "endpointCount": 4
+    },
+    {
+      "id": "client-versions",
+      "mountPath": "/api/client-versions",
+      "source": "server/modules/clientVersions/clientVersions.routes.ts",
+      "coverage": "baseline",
+      "endpointCount": 1
+    },
+    {
+      "id": "client-version-adoption",
+      "mountPath": "/api/admin/client-versions",
+      "source": "server/modules/clientVersions/clientVersions.routes.ts",
+      "coverage": "baseline",
+      "endpointCount": 1
     }
   ],
   "endpoints": [
@@ -302,6 +316,11 @@
       "method": "GET",
       "path": "/api/admin/audit-logs",
       "coverage": "inventory-only"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/client-versions",
+      "coverage": "operation"
     },
     {
       "method": "GET",
@@ -1321,6 +1340,11 @@
     {
       "method": "POST",
       "path": "/api/chat/users/:userId/block",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/client-versions",
       "coverage": "operation"
     },
     {

@@ -47,6 +47,18 @@ import integrationsRoutes from "../routes/integrations";
 import impersonationAudit from "../middleware/impersonationAudit";
 import { maintenanceModeMiddleware } from "../middleware/maintenanceMode";
 import { webOnly, webOnlyExcept } from "../middleware/webOnly";
+import auth from "../middleware/auth";
+import { loadUserContext, requireRole } from "../middleware/rbac";
+import requirePlatformIdentity from "../middleware/platformIdentity";
+import { createClientVersionRoutes } from "../modules/clientVersions/clientVersions.routes";
+import { clientVersions } from "../modules/clientVersions/clientVersions";
+
+const clientVersionRoutes = createClientVersionRoutes(clientVersions, [
+    auth, loadUserContext, requireRole("platform_admin"), requirePlatformIdentity,
+]);
+function mountPublicClientVersionRoutes(app: Express): void {
+    app.use("/api/client-versions", clientVersionRoutes.public);
+}
 
 // Legacy JavaScript-style module.exports (the only route module without a
 // TypeScript `export =`), so a default import has no declared export shape.
@@ -108,6 +120,7 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     // (middleware/webOnly.ts). Self-service reads it still needs are exempt.
     // P2.1: changes made through these routers need a recent second factor (step-up).
     app.use("/api/admin/tenants", apiLimiter, webOnly, requireRecentMfa, tenantRoutes);
+    app.use("/api/admin/client-versions", apiLimiter, webOnly, requireRecentMfa, clientVersionRoutes.admin);
     app.use("/api/admin", apiLimiter, webOnly, requireRecentMfa, adminRoutes);
     app.use("/api/platform-access", apiLimiter, webOnly, requireRecentMfa, platformAccessRoutes);
     app.use("/api/internal", apiLimiter, webOnly, internalRoutes);
@@ -132,4 +145,4 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/public", apiLimiter, publicRoutes);
 }
 
-export { mountWebhookRoutes, mountApiRoutes };
+export { mountWebhookRoutes, mountApiRoutes, mountPublicClientVersionRoutes };

@@ -116,8 +116,26 @@ function renderAt(path: string) {
 describe("Tasks first render from the URL", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        session.project_ownership = false;
+        session.project_ownership = true;
+        vi.mocked(getProjects).mockResolvedValue({ data: [
+            { id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] },
+        ] } as any);
+        vi.mocked(getSprints).mockResolvedValue({ data: {
+            sprints: [{ id: 12, project_id: 10, status: "active", name: "Sprint 12", start_date: "2026-10-20", end_date: "2026-11-02" }],
+            currentSprintId: 12,
+        } } as any);
         localStorage.clear();
+    });
+
+    test("an unswitched tenant never falls back to retired team-scope planning requests", async () => {
+        session.project_ownership = false;
+        renderAt("/tasks/backlog");
+        expect(screen.getByText("Project planning is not available yet")).toBeInTheDocument();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        expect(getAvailableSprints).not.toHaveBeenCalled();
+        expect(getSprints).not.toHaveBeenCalled();
+        expect(getBacklog).not.toHaveBeenCalled();
+        expect(getTasks).not.toHaveBeenCalled();
     });
 
     test("the project switcher drives scoped backlog and board requests without Team or Unassigned", async () => {
@@ -146,7 +164,7 @@ describe("Tasks first render from the URL", () => {
     test.each([
         ["/tasks/sprint/12", "sprint-tab"],
         ["/tasks/sprint/12/plan", "sprint-tab"],
-        ["/tasks/schedule", "scheduled-tab"],
+        ["/tasks/schedule", "backlog-tab"],
         ["/tasks/desk", "service-desk-tab"],
         ["/tasks/backlog", "backlog-tab"],
     ])("%s names its view in the very first render, before effects", (path, tabId) => {
@@ -160,6 +178,12 @@ describe("Tasks first render from the URL", () => {
             </QueryClientProvider>,
         );
 
+        if (tabId === "backlog-tab") {
+            // Project backlog/board policy arrives with the project read.
+            expect(html).not.toContain('data-testid="sprint-tab"');
+            expect(html).not.toContain('data-testid="scheduled-tab"');
+            return;
+        }
         expect(html).toContain(`data-testid="${tabId}"`);
         if (tabId !== "backlog-tab") {
             expect(html).not.toContain('data-testid="backlog-tab"');
@@ -169,13 +193,13 @@ describe("Tasks first render from the URL", () => {
     test.each([
         ["/tasks/sprint/12", "sprint-tab"],
         ["/tasks/sprint/12/plan", "sprint-tab"],
-        ["/tasks/schedule", "scheduled-tab"],
+        ["/tasks/schedule", "backlog-tab"],
         ["/tasks/desk", "service-desk-tab"],
         ["/tasks/backlog", "backlog-tab"],
-    ])("%s opens its own view", (path, tabId) => {
+    ])("%s opens its own view", async (path, tabId) => {
         renderAt(path);
 
-        expect(screen.getByTestId(tabId)).toBeTruthy();
+        expect(await screen.findByTestId(tabId)).toBeTruthy();
         if (tabId !== "backlog-tab") {
             expect(screen.queryByTestId("backlog-tab")).toBeNull();
         }
@@ -196,19 +220,20 @@ describe("Tasks first render from the URL", () => {
         expect(screen.queryByTestId("backlog-tab")).toBeNull();
     });
 
-    test("/tasks/schedule requests neither the backlog nor a sprint", async () => {
+    test("a legacy schedule bookmark opens only the project backlog, never a Scheduled read", async () => {
         renderAt("/tasks/schedule");
 
-        await waitFor(() => expect(getAvailableSprints).toHaveBeenCalled());
-        expect(getBacklog).not.toHaveBeenCalled();
+        await waitFor(() => expect(getBacklog).toHaveBeenCalledWith(expect.objectContaining({ project_id: 10 })));
+        expect(getAvailableSprints).not.toHaveBeenCalled();
         expect(getTasks).not.toHaveBeenCalled();
     });
 
-    test("a legacy ?tab= link does not request the backlog it redirects away from", async () => {
+    test("a legacy Scheduled query link resolves to the project backlog", async () => {
         renderAt("/tasks?tab=scheduled&priority=high");
 
-        await waitFor(() => expect(screen.getByTestId("scheduled-tab")).toBeTruthy());
-        expect(getBacklog).not.toHaveBeenCalled();
+        await waitFor(() => expect(screen.getByTestId("backlog-tab")).toBeTruthy());
+        await waitFor(() => expect(getBacklog).toHaveBeenCalledWith(expect.objectContaining({ project_id: 10 })));
+        expect(screen.queryByTestId("scheduled-tab")).toBeNull();
     });
 
     test("a sprint deep link loads that sprint, not whichever is active", async () => {

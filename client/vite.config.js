@@ -1,8 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { getWebBuildVersion } from './scripts/build-version.mjs';
+
+const webBuildVersion = getWebBuildVersion();
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), {
+        name: 'bundled-web-version',
+        generateBundle() {
+            this.emitFile({ type: 'asset', fileName: 'client-version.json', source: JSON.stringify({ version: webBuildVersion }) });
+        },
+    }],
+    define: { 'import.meta.env.VITE_WEB_BUILD_VERSION': JSON.stringify(webBuildVersion) },
     test: {
         globals: true,
         environment: 'jsdom',

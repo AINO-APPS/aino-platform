@@ -188,10 +188,23 @@ async function initMasterDB(): Promise<void> {
             id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
             user_id    INTEGER NOT NULL,
             device     TEXT,
+            observed_client_class TEXT,
+            client_version TEXT,
+            client_version_seen_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     `);
     await masterQuery(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)`);
+    await masterQuery(`
+        CREATE TABLE IF NOT EXISTS client_version_observations (
+            identity_key TEXT NOT NULL,
+            client TEXT NOT NULL CHECK (client IN ('android', 'desktop', 'web')),
+            version TEXT NOT NULL,
+            last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (identity_key, client, version)
+        )
+    `);
+    await masterQuery(`CREATE INDEX IF NOT EXISTS idx_client_version_observations_seen ON client_version_observations(last_seen_at)`);
 
     // ---- Note Share Tokens (cross-tenant lookup for public read-only links) ----
     //

@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MicOff, Mic, CameraOff, Camera, Check, ClipboardList, Volume2, Play } from "../constants/icons";
 import { useParams, useNavigate } from "react-router-dom";
 import { getMeeting } from "../api/meetings";
+import { firstPartyFetch } from "../api/firstPartyFetch";
 import { getIceConfig } from "../api/chat";
 import { useAuth } from "../AuthContext";
 import { useMeeting } from "../MeetingContext";
@@ -210,7 +211,7 @@ export default function MeetingJoin() {
         try {
             const startTime = performance.now();
             // Simple download speed check using a small fetch
-            const response = await fetch("/api/health", { cache: "no-store" });
+            const response = await firstPartyFetch("/api/health", { cache: "no-store" });
             const data = await response.text();
             const endTime = performance.now();
             const duration = (endTime - startTime) / 1000; // seconds

@@ -36,7 +36,9 @@ vi.mock("../../../api/tasks", () => ({
         data: [{ id: 1, name: "Sprint 1", start_date: "2026-10-20", end_date: "2026-11-02", status: "active" }],
     }),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn().mockResolvedValue({ data: [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [{ id: 1, project_id: 10, name: "Sprint 1", status: "active", start_date: "2026-10-20", end_date: "2026-11-02" }], currentSprintId: 1 } }),
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     getTaskHistory: vi.fn().mockResolvedValue({ data: [] }),
     getTaskComments: vi.fn().mockResolvedValue({ data: [] }),
@@ -80,9 +82,7 @@ vi.mock("../../../hooks/useRealtimeEvent", () => ({ default: vi.fn() }));
 vi.mock("../hooks/useVisiblePoll", () => ({ useVisiblePoll: vi.fn() }));
 
 vi.mock("../../../AuthContext", () => ({
-    // This scenario lives on the Sprint tab, which a team only gets when it has
-    // sprint config.
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", team_sprint_enabled: true } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: true } }),
     hasTenantContext: () => true,
 }));
 

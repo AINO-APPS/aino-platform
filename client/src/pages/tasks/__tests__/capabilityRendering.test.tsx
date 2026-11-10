@@ -91,17 +91,16 @@ describe("server capability rendering (web and desktop)", () => {
         );
     });
 
-    test("detail edit, cancel and transfer follow can and fail closed for an older payload", () => {
+    test("detail edit and cancel follow capabilities; legacy team transfer never returns", () => {
         const props = { onEdit: vi.fn(), onCancel: vi.fn(), onReplaced: vi.fn(), onError: vi.fn() };
         const { rerender } = render(<TicketDetailActions task={ticket} {...props} />);
         expect(screen.getByRole("button", { name: "Edit" })).not.toBeDisabled();
         expect(screen.getByRole("button", { name: "Cancel ticket" })).not.toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toHaveAttribute("title", "You do not have permission to do this.");
+        expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
         rerender(<TicketDetailActions task={{ ...ticket, capabilities: undefined }} {...props} />);
         expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Cancel ticket" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toBeDisabled();
+        expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
     });
 
     test("the shared card menu renders the same fixture transitions as detail", () => {

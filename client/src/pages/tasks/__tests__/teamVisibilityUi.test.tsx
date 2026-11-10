@@ -1,9 +1,5 @@
 /**
- * Team-owned tickets in the Plan UI.
- *
- * Only super admin and above get the team switcher (one team at a time,
- * defaulting to their own); a user without a team sees a persistent banner
- * instead of silently losing the Sprint tab.
+ * Released project planning never falls back to team scope for any role.
  */
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -50,7 +46,9 @@ vi.mock("../../../api/tasks", () => ({
         ],
     }),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn().mockResolvedValue({ data: [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [], currentSprintId: null } }),
     getBacklog: vi.fn().mockResolvedValue({
         data: { tasks: [], summary: { total: 0, byStatus: {}, byPriority: {} }, pagination: { total: 0 } },
     }),
@@ -94,7 +92,7 @@ vi.mock("../../../api/organization", () => ({
 }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: state.user }),
+    useAuth: () => ({ user: { project_ownership: true, ...state.user } }),
     hasTenantContext: () => true,
 }));
 
@@ -129,6 +127,8 @@ vi.mock("../../../components/common/Toast", () => ({
 }));
 
 import Tasks from "../../Tasks";
+import { getOrgTeams } from "../../../api/organization";
+import { getBacklog } from "../../../api/tasks";
 
 function renderPage() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -142,25 +142,27 @@ function renderPage() {
 }
 
 beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
     state.user = { id: 1, team_id: 1, role: "employee", team_name: "Payments" };
     state.teamVisibility = true;
 });
 
-describe("Plan team visibility", () => {
-    test("a super admin gets a one-team switcher defaulted to their own team", async () => {
+describe("Plan project visibility", () => {
+    test("a super admin gets a project switcher, never Team or Unassigned", async () => {
         state.user = { id: 2, team_id: 1, role: "super_admin", team_name: "Payments" };
         renderPage();
 
-        const switcher = await screen.findByLabelText("Team");
+        const switcher = await screen.findByLabelText("Project");
         expect(switcher).toBeInTheDocument();
         // The default is applied once the team list resolves.
         await waitFor(() =>
-            expect((switcher as HTMLSelectElement).value).toBe("1"),
+            expect((switcher as HTMLSelectElement).value).toBe("10"),
         );
-        // One team at a time: there is no merged "All teams" board.
-        expect(screen.queryByRole("option", { name: "All teams" })).not.toBeInTheDocument();
-        expect(screen.getByRole("option", { name: "Unassigned" })).toBeInTheDocument();
-        expect(screen.getByRole("option", { name: "Platform" })).toBeInTheDocument();
+        expect(screen.queryByLabelText("Team")).not.toBeInTheDocument();
+        expect(screen.queryByRole("option", { name: "Unassigned" })).not.toBeInTheDocument();
+        expect(getOrgTeams).not.toHaveBeenCalled();
+        await waitFor(() => expect(getBacklog).toHaveBeenCalledWith(expect.objectContaining({ project_id: 10 })));
     });
 
     test("a non-admin never sees the team switcher", () => {
@@ -178,15 +180,16 @@ describe("Plan team visibility", () => {
         state.user = { id: 2, team_id: 1, role: "platform_admin", team_name: "Payments" };
         state.teamVisibility = false;
         renderPage();
-        expect(await screen.findByLabelText("Team")).toBeInTheDocument();
+        expect(await screen.findByLabelText("Project")).toBeInTheDocument();
+        expect(getOrgTeams).not.toHaveBeenCalled();
     });
 
-    test("a user without a team sees the explanatory banner", async () => {
+    test("a user without a team still plans in a project without a legacy team banner", async () => {
         state.user = { id: 3, team_id: null, role: "employee", team_name: null };
         renderPage();
-        expect(await screen.findByRole("status")).toHaveTextContent(
-            /not assigned to a team/i,
-        );
+        expect(await screen.findByLabelText("Project")).toBeInTheDocument();
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(getOrgTeams).not.toHaveBeenCalled();
     });
 
     test("a team member does not see the banner", () => {

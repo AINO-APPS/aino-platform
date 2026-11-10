@@ -48,6 +48,7 @@ vi.mock("../../../api/tasks", () => ({
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
     getProjects: vi.fn(async () => ({ data: scope.projects })),
     getMyProjects: vi.fn(async () => ({ data: scope.projects })),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [], currentSprintId: null } }),
     getBacklog: vi.fn().mockResolvedValue({
         data: { tasks: [], summary: { total: 0, byStatus: {}, byPriority: {} }, pagination: { total: 0 } },
     }),
@@ -130,8 +131,8 @@ function renderPage(path = "/tasks/backlog") {
 describe("Tasks page → Backlog tab wiring", () => {
     beforeEach(() => {
         captured.props = null;
-        scope.projectOwnership = false;
-        scope.projects = [];
+        scope.projectOwnership = true;
+        scope.projects = [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }];
     });
 
     test("every handler the backlog tab renders is supplied", async () => {

@@ -11,7 +11,9 @@ import cookieParser from "cookie-parser";
 import { requestLogger } from "./utils/logger";
 import { resolveTenant } from "./middleware/tenant";
 import { createRateLimiters } from "./http/middleware/rateLimits";
-import { mountWebhookRoutes, mountApiRoutes } from "./http/routes";
+import { mountWebhookRoutes, mountApiRoutes, mountPublicClientVersionRoutes } from "./http/routes";
+import { createClientVersionGate } from "./modules/clientVersions/clientVersions.middleware";
+import { readClientVersionConfig } from "./modules/clientVersions/clientVersions.config";
 import { mountHealthRoutes } from "./http/health";
 import { installSecurity } from "./http/middleware/security";
 import { installCors } from "./http/middleware/cors";
@@ -37,6 +39,8 @@ function buildApp() {
     installCors(app);
 
     app.use(cookieParser());
+    app.use(createClientVersionGate(readClientVersionConfig));
+    mountPublicClientVersionRoutes(app);
     app.use("/api/notes", express.json({ limit: "5mb" }));
     app.use("/api/profile/avatar", express.json({ limit: "10mb" }));
     app.use(express.json({ limit: "100kb" }));
