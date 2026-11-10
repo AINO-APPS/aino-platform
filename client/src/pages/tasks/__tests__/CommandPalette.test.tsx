@@ -69,6 +69,20 @@ describe("buildPaletteItems", () => {
         expect(byKey[0].hint).toBe("WEB-7");
     });
 
+    test("a query matches a former ticket key", () => {
+        const items = buildPaletteItems({
+            query: "OLD-17",
+            tasks: [{ id: 7, title: "Renamed ticket", issue_key: "ALPHA-17", key_aliases: ["OLD-17"] }],
+            views: [],
+            actions: [],
+            onOpenTask: vi.fn(),
+            onGoToView: vi.fn(),
+        });
+
+        expect(items).toHaveLength(1);
+        expect(items[0].hint).toBe("ALPHA-17");
+    });
+
     test("every view is reachable", () => {
         const items = buildPaletteItems({
             query: "",

@@ -53,6 +53,10 @@ interface TasksHeaderProps {
     selectedTeamId?: TeamScope | null;
     onTeamChange?: (value: TeamScope) => void;
     showTeamSwitcher?: boolean;
+    projectOwnership?: boolean;
+    projects?: any[];
+    selectedProjectId?: number | null;
+    onProjectChange?: (id: number) => void;
     /** Opens the Plan split view (or explains how to get a sprint). */
     onPlanSprint?: () => void;
 }
@@ -97,6 +101,10 @@ export default function TasksHeader({
     selectedTeamId = null,
     onTeamChange,
     showTeamSwitcher = false,
+    projectOwnership = false,
+    projects = [],
+    selectedProjectId = null,
+    onProjectChange,
     onPlanSprint,
 }: TasksHeaderProps) {
     const { assignableUsers, orgLabels, availableSprints, currentUser, currentSprintId } =
@@ -113,8 +121,9 @@ export default function TasksHeader({
             && selectedTeamId != null
             && Number(team.id) === Number(selectedTeamId),
     );
-    const teamName =
-        selectedTeam?.name
+    const teamName = projectOwnership
+        ? projects.find((project) => project.id === selectedProjectId)?.name ?? "Project"
+        : selectedTeam?.name
         || (selectedTeamId === "unassigned" ? "Unassigned" : null)
         || currentUser?.team_name
         || currentSprint?.team_name
@@ -209,7 +218,21 @@ export default function TasksHeader({
                 <div className={s["tasks-header-actions"]}>
                     {/* Super admin and above pick one team at a time; its sprint
                         state drives the tabs. Others never see this control. */}
-                    {showTeamSwitcher && (
+                    {projectOwnership && (
+                        <select
+                            value={selectedProjectId ?? ""}
+                            onChange={(event) => onProjectChange?.(Number(event.target.value))}
+                            className={s["date-input"]}
+                            aria-label="Project"
+                            title="Show a project's sprint, backlog and scheduled tickets"
+                        >
+                            {selectedProjectId == null && <option value="" disabled>Select a project</option>}
+                            {projects.map((project) => (
+                                <option key={project.id} value={project.id}>{project.key} — {project.name}</option>
+                            ))}
+                        </select>
+                    )}
+                    {!projectOwnership && showTeamSwitcher && (
                         <select
                             value={selectedTeamId == null ? "" : String(selectedTeamId)}
                             onChange={(event) => {

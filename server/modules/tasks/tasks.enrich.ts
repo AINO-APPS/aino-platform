@@ -51,7 +51,7 @@ export async function findSprintsByIds(db: EnrichDb, sprintIds: number[]): Promi
 export async function findProjectsByIds(db: EnrichDb, projectIds: number[]): Promise<any[]> {
     if (!projectIds.length) return [];
     return (await db.query(
-        "SELECT id, key, name, color FROM projects WHERE id = ANY($1)",
+        "SELECT id, key, name, color, is_archived FROM projects WHERE id = ANY($1)",
         [projectIds],
     )).rows;
 }

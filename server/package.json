@@ -18,7 +18,7 @@
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit --detectOpenHandles",
     "test:ci": "jest --ci --forceExit --coverage",
-    "test:pg": "node scripts/test-pg.mjs",
+    "test:pg": "node --test scripts/test-pg-port.test.mjs && node scripts/test-pg.mjs",
     "test:coverage": "jest --forceExit --coverage"
   },
   "jest": {

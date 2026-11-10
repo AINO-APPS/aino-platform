@@ -151,7 +151,7 @@ describe("resolveCreateTeamId", () => {
             actor: admin, orgId: 1, explicitTeamId: 20, sprint: { id: 5, team_id: 30 },
         });
         expect(result.error?.status).toBe(409);
-        expect(result.error?.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(result.error?.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a legacy ticket adopts the sprint's team", async () => {

@@ -42,6 +42,7 @@ import publicRoutes from "../routes/public";
 import compensationRoutes from "../routes/compensation";
 import webhookRoutes from "../routes/webhooks";
 import projectsRoutes from "../routes/projects";
+import projectWorkflowRoutes from "../routes/projectWorkflow";
 import integrationsRoutes from "../routes/integrations";
 import impersonationAudit from "../middleware/impersonationAudit";
 import { maintenanceModeMiddleware } from "../middleware/maintenanceMode";
@@ -126,6 +127,7 @@ function mountApiRoutes(app: Express, limiters: RateLimiters): void {
     app.use("/api/custom-fields", apiLimiter, customFieldsRoutes);
     app.use("/api/compensation", apiLimiter, webOnlyExcept((req) => req.path.startsWith("/my-")), compensationRoutes);
     app.use("/api/projects", apiLimiter, webOnlyExcept((req) => req.method === "GET"), projectsRoutes);
+    app.use("/api/projects", apiLimiter, webOnlyExcept((req) => req.method === "GET"), projectWorkflowRoutes);
     app.use("/api/integrations", apiLimiter, integrationsRoutes);
     app.use("/api/public", apiLimiter, publicRoutes);
 }

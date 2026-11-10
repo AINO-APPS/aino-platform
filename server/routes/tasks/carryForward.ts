@@ -12,11 +12,12 @@ const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
 
 const { logHistory } = require('./_helpers/logHistory');
+const { ticketActionConflict } = require('./_helpers/access');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow } = require('./_helpers/placement');
 const {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
+    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 
@@ -35,7 +36,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         // the policy for *personal* scope rather than the team list.
         const actor = taskActorFromRequest(req);
         const personal = buildVisibilityPredicate(
-            resolveTaskVisibility(actor, { scope: 'personal' }),
+            await resolveTaskVisibilityForRequest(actor, { scope: 'personal' }),
             1,
         );
 
@@ -60,7 +61,7 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
             SELECT t.id, t.title, t.description, t.priority, t.assigned_to, t.due_date,
                    t.story_points, t.work_item_type_id, t.workflow_state_id,
                    t.parent_task_id, t.acceptance_criteria, t.is_blocked, t.blocked_reason,
-                   t.team_id
+                   t.team_id, t.project_id, t.org_id, t.user_id, t.sprint_id
               FROM tasks t
              WHERE ${personal.sql}
                AND t.planned_date = $2
@@ -69,6 +70,12 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
         `, [req.userId, lastTaskDay.date, req.userOrgId || null])).rows;
 
         if (incomplete.length === 0) return res.json({ message: 'No tasks to carry forward', carried: 0 });
+        if (actor.projectOwnership) {
+            for (const ticket of incomplete) {
+                const refusal = await ticketActionConflict(req.db!, actor, ticket, "edit");
+                if (refusal) return res.status(refusal.status).json(refusal.body);
+            }
+        }
 
         const carried = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const ctx = placementContext(req, client, afterCommit, { notify: false });
@@ -94,15 +101,15 @@ router.post('/carry-forward', auth, loadUserContext, async (req: Request, res: R
                         `INSERT INTO tasks
                             (user_id, title, description, priority, assigned_to, due_date, org_id,
                              team_id, story_points, work_item_type_id, workflow_state_id,
-                             parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+                             parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at, project_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16)
                          RETURNING id`,
                         [req.userId, t.title, t.description, t.priority, t.assigned_to, dueDate, req.userOrgId || null,
                         t.team_id ?? actor.teamId ?? null,
                         t.story_points, t.work_item_type_id, t.workflow_state_id,
                         t.parent_task_id,
                         t.acceptance_criteria ? JSON.stringify(t.acceptance_criteria) : null,
-                        !!t.is_blocked, t.blocked_reason]
+                        !!t.is_blocked, t.blocked_reason, t.project_id]
                     );
                     const newTaskId = insertRes.rows[0].id;
                     // We already have the origin row's id from the SELECT — copy

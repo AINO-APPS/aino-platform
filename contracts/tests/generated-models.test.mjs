@@ -20,7 +20,9 @@ test("the contract defines the canonical task and sprint models", () => {
 test("the task model carries the fields the Tasks spec depends on", () => {
     const task = openapi.components.schemas.Task;
     for (const field of [
+        "ticket_key",
         "issue_key",
+        "project_id",
         "workflow_state_id",
         "planned_date",
         "due_date",
@@ -32,16 +34,19 @@ test("the task model carries the fields the Tasks spec depends on", () => {
         assert.ok(field in task.properties, `Task is missing ${field}`);
     }
     assert.ok(task.required.includes("completed_at"), "completed_at must be required so clients cannot omit it");
+    assert.ok(task.required.includes("ticket_key"), "every ticket response must carry its stored ticket_key");
+    assert.ok(task.required.includes("issue_key"), "legacy issue_key must remain available to older clients");
+    assert.ok(task.required.includes("project_id"), "every ticket must belong to a project");
 });
 
 test("generated web models are current", () => {
-    execFileSync(process.execPath, [generator, "--check"], { cwd: root, stdio: "pipe" });
+    execFileSync(process.execPath, [generator, "--check", "--platform-only"], { cwd: root, stdio: "pipe" });
 });
 
 test("generated web models are committed and reproduce deterministically", () => {
     assert.ok(fs.existsSync(WEB_OUTPUT), "generated web models are missing");
     const first = fs.readFileSync(WEB_OUTPUT, "utf8");
-    execFileSync(process.execPath, [generator], { cwd: root, stdio: "pipe" });
+    execFileSync(process.execPath, [generator, "--platform-only"], { cwd: root, stdio: "pipe" });
     const second = fs.readFileSync(WEB_OUTPUT, "utf8");
     assert.equal(second, first, "regenerating produced different output");
 });
@@ -55,13 +60,13 @@ test("removing a contract field changes the generated output", () => {
     const backup = fs.readFileSync(sourcePath, "utf8");
     try {
         fs.writeFileSync(sourcePath, `${JSON.stringify(mutated, null, 2)}\n`);
-        execFileSync(process.execPath, [generator], { cwd: root, stdio: "pipe" });
+        execFileSync(process.execPath, [generator, "--platform-only"], { cwd: root, stdio: "pipe" });
         const afterRemoval = fs.readFileSync(WEB_OUTPUT, "utf8");
         assert.notEqual(afterRemoval, original, "removing a contract field must change the generated models");
         assert.ok(!afterRemoval.includes("rank:"), "the removed field is still present");
     } finally {
         fs.writeFileSync(sourcePath, backup);
-        execFileSync(process.execPath, [generator], { cwd: root, stdio: "pipe" });
+        execFileSync(process.execPath, [generator, "--platform-only"], { cwd: root, stdio: "pipe" });
     }
     assert.equal(fs.readFileSync(WEB_OUTPUT, "utf8"), original, "the generator did not restore the original output");
 });

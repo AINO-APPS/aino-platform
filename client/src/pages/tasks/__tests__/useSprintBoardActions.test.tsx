@@ -3,6 +3,17 @@ import { describe, expect, test, vi } from "vitest";
 import { useSprintBoardActions } from "../hooks/useSprintBoardActions";
 
 describe("sprint board actions", () => {
+    test("an empty project never directs people to the legacy team sprint screen", () => {
+        const info = vi.fn();
+        const { result } = renderHook(() => useSprintBoardActions({
+            visibleSprints: [], currentSprintId: null, selectedSprintId: null,
+            teamScopeParams: { project_id: 20 }, currentUser: { role: "super_admin" },
+            setSelectedSprintId: vi.fn(), goToView: vi.fn(), fetchTasks: vi.fn(),
+            setError: vi.fn(), toast: { info },
+        }));
+        act(() => result.current.planSprint());
+        expect(info).toHaveBeenCalledWith("No sprint yet in this project.", 6000);
+    });
     test("plan sprint opens the server's paused current sprint", () => {
         const setSelectedSprintId = vi.fn();
         const goToView = vi.fn();

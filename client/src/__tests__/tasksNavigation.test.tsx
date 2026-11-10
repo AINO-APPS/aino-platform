@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { getTaskByKey } from "../api/tasks";
 
 const auth = vi.hoisted(() => ({ isAuthenticated: true, mustChangePassword: false }));
 
@@ -109,7 +110,7 @@ vi.mock("../api/tasks", () => ({
     updateTaskPreferences: vi.fn().mockResolvedValue({ data: {} }),
     getTaskHistory: vi.fn().mockResolvedValue({ data: [] }),
     getTaskComments: vi.fn().mockResolvedValue({ data: [] }),
-    getTaskTimer: vi.fn().mockResolvedValue({ data: { running: false } }),
+    getTaskWorklogs: vi.fn().mockResolvedValue({ data: { worklogs: [], time_spent_minutes: 0 } }),
     getTaskCustomFieldValues: vi.fn().mockResolvedValue({ data: {} }),
     getTaskGitRefs: vi.fn().mockResolvedValue({ data: [] }),
     getScheduleOverlays: vi.fn().mockResolvedValue({ data: null }),
@@ -122,6 +123,7 @@ vi.mock("../api/tasks", () => ({
     getSprintBaseline: vi.fn().mockResolvedValue({ data: {} }),
 }));
 vi.mock("../api/organization", () => ({
+    getOrgTeams: vi.fn().mockResolvedValue({ data: [] }),
     getTeamSprintConfig: vi.fn().mockResolvedValue({ data: {} }),
     getTaskPreferences: vi.fn().mockResolvedValue({ data: {} }),
     updateTaskPreferences: vi.fn().mockResolvedValue({ data: {} }),
@@ -134,6 +136,7 @@ import { queryClient } from "../queryClient";
 
 beforeAll(async () => {
     await import("../pages/Tasks");
+    await import("../pages/Projects");
 });
 
 describe.each(["web", "desktop"])("%s Tasks navigation through the app router", (platform) => {
@@ -147,6 +150,13 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
     afterEach(() => {
         vi.unstubAllGlobals();
         queryClient.clear();
+    });
+
+    test("project settings are reachable by project admins who have an employee org role", async () => {
+        window.history.replaceState({}, "", "/projects");
+        render(<App />);
+        expect(await screen.findByRole("heading", { name: "Projects" })).toBeVisible();
+        expect(window.location.pathname).toBe("/projects");
     });
 
     test.each([
@@ -163,6 +173,26 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
         await waitFor(() => {
             expect(window.location.pathname + window.location.search).toBe(path);
             expect(screen.getByTestId(tabId)).toBeVisible();
+        });
+    });
+
+    test("an alias ticket URL opens the ticket and replaces the path with its current key", async () => {
+        vi.mocked(getTaskByKey).mockResolvedValue({
+            data: {
+                id: 17,
+                ticket_key: "ALPHA-17",
+                issue_key: "ALPHA-17",
+                key_alias: true,
+                requested_key: "OLD-17",
+            },
+        } as any);
+        window.history.replaceState({}, "", "/tasks/key/OLD-17");
+
+        render(<App />);
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/tasks/key/ALPHA-17");
+            expect(getTaskByKey).toHaveBeenCalledWith("OLD-17");
         });
     });
 

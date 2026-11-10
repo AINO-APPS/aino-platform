@@ -10,6 +10,7 @@ import { createSearchService } from "../modules/search/search.service";
 import type { SearchDb } from "../modules/search/search.types";
 import { taskActorFromRequest } from "../modules/tasks/tasks.policy";
 const { enrichTaskSummaries } = require("./tasks/_helpers/enrich");
+const { parseIssueKey, resolveIssueKeys } = require("./tasks/_helpers/issueKey");
 
 const router = express.Router();
 const service = createSearchService({
@@ -26,12 +27,17 @@ router.use(auth, loadUserContext, requireTenant);
 router.get("/", async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
+        const query = typeof req.query.q === "string" ? req.query.q : undefined;
+        const key = parseIssueKey(query?.trim());
+        const exactMatches = key
+            ? await resolveIssueKeys([key], req.userOrgId, req.db)
+            : [];
         const results = await service.search(req.db as unknown as SearchDb, {
-            query: typeof req.query.q === "string" ? req.query.q : undefined,
+            query,
             tenantId: req.tenantId == null ? null : Number(req.tenantId),
             ...actor,
             canReadAuditLogs: (ROLE_LEVEL[req.userRole as string] || 1) >= ROLE_LEVEL.hr_admin,
-        });
+        }, exactMatches.map((match: { task_id: number }) => match.task_id));
         const tasks = await enrichTaskSummaries(results.tasks, req.db, actor);
         const enrichedResults = {
             ...results,
@@ -45,6 +51,9 @@ router.get("/", async (req: Request, res: Response) => {
                 due_date: task.due_date,
                 sprint_id: task.sprint_id,
                 snippet: task.snippet,
+                ticket_key: task.ticket_key,
+                issue_key: task.issue_key,
+                key_aliases: task.key_aliases,
                 container: task.container,
                 capabilities: task.capabilities,
             })),

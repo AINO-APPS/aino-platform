@@ -62,7 +62,9 @@ function authCookie(userId = 1) {
 function setupAuth(role = "employee") {
     mockQuery
         .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [{ role, org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true }], rowCount: 1 });
+        .mockResolvedValueOnce({ rows: [{ role, org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
+        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
 }
 
 // ─── GET /api/notifications ────────────────────────────────────────────────

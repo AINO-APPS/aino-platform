@@ -76,21 +76,33 @@ describe("project route characterization", () => {
         const res = await request(makeApp()).get("/api/projects");
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual([{ id: 1, key: "APP" }]);
+        expect(res.body).toEqual([{
+            id: 1,
+            key: "APP",
+            capabilities: {
+                canAdminister: false,
+                canManageMembers: false,
+                canRenameKey: false,
+                canEditWorkflow: false,
+                canCreateTickets: false,
+                canArchive: false,
+            },
+        }]);
         expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");
     });
 
     test("clamps paginated list limits and can include archived projects", async () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 })
-            .mockResolvedValueOnce({ rows: [{ total: 3 }], rowCount: 1 });
+            .mockResolvedValueOnce({ rows: [{ total: 3 }], rowCount: 1 })
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
         const res = await request(makeApp()).get("/api/projects?paginate=1&include_archived=1&limit=999&offset=-7");
 
         expect(res.status).toBe(200);
         expect(res.body.pagination).toEqual({ limit: 200, offset: 0, total: 3, hasMore: true });
         expect(mockQuery.mock.calls[0][0]).not.toContain("p.is_archived = FALSE");
-        expect(mockQuery.mock.calls[0][1]).toEqual([3, 200, 0]);
+        expect(mockQuery.mock.calls[0][1]).toEqual([3, null, 200, 0]);
     });
 
     test("returns the established empty shape when no organization is assigned", async () => {
@@ -114,15 +126,15 @@ describe("project route characterization", () => {
         expect(mockQuery).not.toHaveBeenCalled();
     });
 
-    test("refuses deletion of a project with tasks unless force is explicit", async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ key: "APP" }], rowCount: 1 })
+    test("refuses deletion of a project that has had tasks even with force", async () => {
+        mockTxQuery
+            .mockResolvedValueOnce({ rows: [{ key: "APP", has_had_tickets: true }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ c: 4 }], rowCount: 1 });
 
-        const res = await request(makeApp()).delete("/api/projects/9");
+        const res = await request(makeApp()).delete("/api/projects/9?force=1");
 
         expect(res.status).toBe(409);
-        expect(res.body).toMatchObject({ code: "PROJECT_NOT_EMPTY", task_count: 4 });
-        expect(mockTransaction).not.toHaveBeenCalled();
+        expect(res.body).toMatchObject({ code: "PROJECT_NOT_EMPTY" });
+        expect(mockTransaction).toHaveBeenCalledTimes(1);
     });
 });

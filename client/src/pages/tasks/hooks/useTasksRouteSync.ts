@@ -117,18 +117,49 @@ export function useSprintLanding({
 export function useTaskDeepLink(
     searchParams: URLSearchParams,
     openTaskDetail: (task: any) => void,
+    pathname: string,
+    navigate: NavigateFunction,
 ) {
+    const lastRequest = useRef<string | null>(null);
+    const pathKeyMatch = pathname.match(/^\/tasks\/key\/([^/]+)\/?$/);
+    let pathKey: string | null = null;
+    try {
+        pathKey = pathKeyMatch ? decodeURIComponent(pathKeyMatch[1]) : null;
+    } catch {
+        pathKey = null;
+    }
+    const taskParam = searchParams.get("task");
+    const requestedKey = pathKey || (taskParam && !/^\d+$/.test(taskParam) ? taskParam : null);
+    const requestId = requestedKey ? `key:${requestedKey}` : taskParam ? `id:${taskParam}` : null;
+
     useEffect(() => {
-        const taskId = searchParams.get("task");
-        if (!taskId) return;
-        // A canonical key (PROJ-123) resolves through its own endpoint; a
-        // numeric id uses the detail endpoint.
-        const request = /^[A-Za-z][A-Za-z0-9_]{1,9}-\d+$/.test(taskId)
-            ? getTaskByKey(taskId)
-            : getTaskDetail(taskId);
+        if (!requestId) {
+            lastRequest.current = null;
+            return;
+        }
+        if (lastRequest.current === requestId) return;
+        lastRequest.current = requestId;
+
+        const request = requestedKey ? getTaskByKey(requestedKey) : getTaskDetail(taskParam!);
         request
-            .then((res) => openTaskDetail(res.data))
+            .then((res) => {
+                const task = res.data as any;
+                const currentKey = task.ticket_key || task.issue_key;
+                if (task.key_alias && currentKey) {
+                    if (pathKey) {
+                        lastRequest.current = `key:${currentKey}`;
+                        navigate(`/tasks/key/${encodeURIComponent(currentKey)}`, { replace: true });
+                    } else if (taskParam) {
+                        const next = new URLSearchParams(searchParams);
+                        next.set("task", currentKey);
+                        lastRequest.current = `key:${currentKey}`;
+                        const query = next.toString();
+                        navigate(`${pathname}${query ? `?${query}` : ""}`, { replace: true });
+                    }
+                }
+                openTaskDetail(task);
+            })
             .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams]);
+    }, [pathname, searchParams, requestId]);
 }

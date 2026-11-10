@@ -14,6 +14,7 @@ import {
     buildLifecycleContext,
     deriveTransitions,
     effectiveTransitions,
+    loadLifecycleContext,
     type LifecycleContext,
     type WorkflowState,
 } from "../modules/tasks/tasks.workflow";
@@ -134,6 +135,32 @@ describe("explicit transition rows", () => {
         const ctx = context(DEFAULT_STATES, [{ from: 10, to: 14 }]);
         expect(allowsTransition(ctx, 10, 14)).toBe(true);
         expect(allowsTransition(ctx, 10, 11)).toBe(false);
+    });
+
+    describe("project workflow loading", () => {
+        test("loads only the requested project's states and transition edges", async () => {
+            const projectStates = [
+                { ...DEFAULT_STATES[0], id: 1001, project_id: 100 },
+                { ...DEFAULT_STATES[1], id: 1002, project_id: 100 },
+            ];
+            const db = {
+                query: jest.fn(async (sql: string, params: unknown[] = []) => {
+                    if (sql.includes("FROM workflow_states")) {
+                        return { rows: params[1] === 100 ? projectStates : [] };
+                    }
+                    if (sql.includes("FROM workflow_transitions")) {
+                        return { rows: params[1] === 100 ? [{ from_state_id: 1001, to_state_id: 1002 }] : [] };
+                    }
+                    return { rows: [{ enable_wip_limits: false }] };
+                }),
+            };
+
+            const loaded = await loadLifecycleContext(db, 1, 100);
+
+            expect(loaded.states).toEqual(projectStates);
+            expect(effectiveTransitions(loaded)).toContainEqual({ from: 1001, to: 1002 });
+            expect(db.query.mock.calls.slice(0, 2).map(([, params]) => params)).toEqual([[1, 100], [1, 100]]);
+        });
     });
 
     test("the effective graph exposes rows plus derivation to the client", () => {

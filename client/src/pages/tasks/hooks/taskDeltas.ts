@@ -23,13 +23,15 @@ export const DELTA_FIELDS = [
     "is_blocked",
     "blocked_reason",
     "project_id",
+    "ticket_key",
+    "issue_key",
     "rank",
     "estimated_minutes",
     "logged_minutes",
     "acceptance_criteria",
-        // A transfer changes the ticket's owning team.
-        "team_id",
-    ] as const;
+    // A transfer changes the ticket's owning team.
+    "team_id",
+] as const;
 
 export type DeltaField = (typeof DELTA_FIELDS)[number];
 

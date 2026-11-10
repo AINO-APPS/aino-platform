@@ -1,14 +1,13 @@
 /**
  * Create the backlog task that mirrors a service-desk ticket.
  *
- * The task starts in the org's initial workflow state, which is the only
- * status the schema has (D4), and has no planner day until someone schedules
- * it (D2).
+ * The task starts in its project's initial workflow state and has no planner
+ * day until someone schedules it.
  */
-
-export interface ServiceDeskTaskDb {
-    query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number }>;
-}
+import { findServiceDeskProject } from "./tasks.serviceDeskRepository";
+import type { ServiceDeskTaskDb } from "./tasks.serviceDeskRepository";
+export type { ServiceDeskTaskDb } from "./tasks.serviceDeskRepository";
+export { syncServiceDeskStatus, cancelServiceDeskCopy } from "./tasks.serviceDeskRepository";
 
 export interface ServiceDeskTaskInput {
     creatorId: number;
@@ -23,18 +22,17 @@ export async function createServiceDeskBacklogTask(
     db: ServiceDeskTaskDb,
     input: ServiceDeskTaskInput,
 ): Promise<void> {
-    // The mirrored ticket belongs to the creator's team, so the team that
-    // triages the service desk sees it without the creator's help.
+    // Retain the creator's team only for flag-off visibility and emergency rollback.
     const creator = (await db.query("SELECT team_id FROM users WHERE id = $1", [input.creatorId])).rows[0];
+    const project = await findServiceDeskProject(db, input.orgId);
+    if (!project?.workflow_state_id) throw new Error("No active Service Desk project with an initial workflow state");
     await db.query(
-        `INSERT INTO tasks (user_id, title, description, priority, org_id, team_id,
+        `INSERT INTO tasks (user_id, title, description, priority, org_id, team_id, project_id,
                            workflow_state_id, service_desk_ticket_id)
-         VALUES ($1, $2, $3, $4, $5, $6,
-                 (SELECT id FROM workflow_states
-                   WHERE org_id = $5 AND is_active = TRUE
-                   ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
-                 $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7,
+                 $8,
+                 $9)`,
         [input.creatorId, input.title, input.description, input.priority, input.orgId,
-            creator?.team_id ?? null, input.ticketId],
+            creator?.team_id ?? null, project.id, project.workflow_state_id, input.ticketId],
     );
 }

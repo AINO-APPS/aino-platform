@@ -302,16 +302,13 @@ function AppRoutes() {
                 </ProtectedRoute>
               }
             />
-            {/* Stage 3 — Projects + Integrations live inside the Admin panel
-              (Admin → Structure → Projects, Admin → Settings → Integrations).
-              Keep these legacy URLs working by redirecting into the
-              corresponding admin tab so any bookmarks / external links from
-              the previous deploy don't 404. */}
+            {/* Project admins need settings independently of their organization role.
+               Integrations remain in the organization Admin panel. */}
             <Route
               path="/projects"
               element={
-                <ProtectedRoute minRole="hr_admin">
-                  <Navigate to="/admin?tab=projects" replace />
+                <ProtectedRoute>
+                  <Projects />
                 </ProtectedRoute>
               }
             />

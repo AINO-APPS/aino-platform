@@ -1,8 +1,27 @@
 export {};
 
-const { extractIssueKeys, formatIssueKey } = require("../routes/tasks/_helpers/issueKey");
+const {
+    extractIssueKeys,
+    formatIssueKey,
+    isValidProjectKey,
+    parseIssueKey,
+    resolveIssueKey,
+} = require("../routes/tasks/_helpers/issueKey");
 
 describe("issueKey helpers", () => {
+    describe("isValidProjectKey", () => {
+        test("accepts a 2–10 character project key", () => {
+            expect(isValidProjectKey("WP_CORE")).toBe(true);
+            expect(isValidProjectKey("A1")).toBe(true);
+        });
+
+        test("rejects keys outside the database constraint", () => {
+            for (const key of ["", "A", "1A", "A-B", "a1", "A".repeat(11)]) {
+                expect(isValidProjectKey(key)).toBe(false);
+            }
+        });
+    });
+
     describe("formatIssueKey", () => {
         test("formats key + number into PROJ-N", () => {
             expect(formatIssueKey("PSSPMT", 123)).toBe("PSSPMT-123");
@@ -14,6 +33,41 @@ describe("issueKey helpers", () => {
             expect(formatIssueKey(null, 1)).toBeNull();
             expect(formatIssueKey("X", null)).toBeNull();
             expect(formatIssueKey("", 1)).toBeNull();
+            expect(formatIssueKey("X", 1)).toBeNull();
+            expect(formatIssueKey("PROJ", 0)).toBeNull();
+            expect(formatIssueKey("PROJ", -1)).toBeNull();
+        });
+    });
+
+    describe("parseIssueKey", () => {
+        test("parses a complete ticket key case-insensitively", () => {
+            expect(parseIssueKey("wp_core-42")).toEqual({
+                projectKey: "WP_CORE",
+                taskNumber: 42,
+                raw: "WP_CORE-42",
+            });
+        });
+
+        describe("resolveIssueKey", () => {
+            test("returns the task and marks whether its requested key is an alias", async () => {
+                const db = {
+                    query: jest.fn()
+                        .mockResolvedValueOnce({ rows: [{ id: 8, ticket_key: "PROJ-8" }], rowCount: 1 })
+                        .mockResolvedValueOnce({ rows: [{ id: 8, ticket_key: "PROJ-8" }], rowCount: 1 }),
+                };
+
+                const current = await resolveIssueKey("PROJ-8", 1, db);
+                const former = await resolveIssueKey("OLD-8", 1, db);
+
+                expect(current).toMatchObject({ task_id: 8, is_alias: false });
+                expect(former).toMatchObject({ task_id: 8, is_alias: true });
+            });
+        });
+
+        test("rejects text that is not exactly one valid key", () => {
+            for (const key of ["X-1", "PROJ-0", "PROJ-1234567890", " PROJ-1", "PROJ-1 extra"]) {
+                expect(parseIssueKey(key)).toBeNull();
+            }
         });
     });
 

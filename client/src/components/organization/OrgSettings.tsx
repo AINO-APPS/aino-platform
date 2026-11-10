@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAutoDismiss } from "../../hooks/useAutoDismiss";
 import { updateOrgSettings } from "../../api/organization";
+import ServiceDeskProjectPicker from "./ServiceDeskProjectPicker";
 import TIMEZONES from "../../constants/timezones";
 import s from "../../pages/Admin.module.css";
 import sf from "../../pages/admin/AdminForms.module.css";
@@ -15,6 +16,7 @@ interface OrgData {
     min_hours_present?: number | string | null;
     office_start_time?: string | null;
     biometric_login_enabled?: boolean;
+    service_desk_project_id?: number | null;
     [key: string]: unknown;
 }
 
@@ -74,6 +76,7 @@ export default function OrgSettings({ org, onUpdate, userRole }: OrgSettingsProp
         // enabled (matches the column DEFAULT TRUE) when the field is absent
         // on a not-yet-migrated org row.
         biometric_login_enabled: org.biometric_login_enabled !== false,
+        service_desk_project_id: org.service_desk_project_id ?? null,
     });
     const [msg, setMsg] = useAutoDismiss("");
     const canEdit = ["hr_admin", "super_admin", "platform_admin"].includes(userRole ?? "");
@@ -124,6 +127,8 @@ export default function OrgSettings({ org, onUpdate, userRole }: OrgSettingsProp
     return (
         <form onSubmit={handleSave} className={su["form-container-sm"]}>
             {msg && <div className={s.success}>{msg}</div>}
+            <ServiceDeskProjectPicker value={form.service_desk_project_id}
+                onChange={(value) => setForm({ ...form, service_desk_project_id: value })} />
             {isSuperAdmin && (
                 <>
                     <div className={sf.formGroup}>

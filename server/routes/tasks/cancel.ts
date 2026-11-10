@@ -32,7 +32,7 @@ router.delete('/:id', auth, loadUserContext, async (req: Request, res: Response)
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
         const task = await findTask(req.db!, id);
         if (!task) return res.status(404).json({ error: 'Task not found' });
-        const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db);
+        const cancelled = await getOrCreateCancelledState(req.userOrgId, req.db, task.project_id);
         if (!cancelled) return res.status(400).json({ error: 'No cancelled workflow state is available' });
         const actor = taskActorFromRequest(req);
         const context = await loadTicketDecisionContext(req.db!, actor, [task]);

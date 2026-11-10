@@ -1,5 +1,11 @@
 # AINO API Documentation
 
+Project ownership, roles, stored keys/aliases, archive and per-org switch-over
+are described in [Projects](docs/PROJECTS.md); keyed work copies, status sync and
+cancel-on-delete are described in [Service Desk](docs/SERVICE_DESK.md).
+The machine-validated current route and payload source is
+[`contracts/openapi.json`](contracts/openapi.json).
+
 > **Base URL**: `/api`  
 > **Authentication**: JWT via HTTP-only cookies  
 > **Rate Limiting**: General API (5000/15min), Auth endpoints have stricter limits noted below  
@@ -496,6 +502,37 @@ Carry forward incomplete tasks from the previous day to today.
 - **Auth**: `auth`, `loadUserContext`
 - **Body**: `{ "task_ids": ["uuid"] }`
 - **Response**: `200 { carried: 3 }`
+
+### Manual worklogs
+
+- `GET /api/tasks/:id/worklogs` returns non-deleted worklogs, author and
+  original logged-by identities, server-decided `canEdit` / `canDelete`, and
+  computed `time_spent_minutes`, `original_estimate_minutes` and
+  `remaining_estimate_minutes` (the estimates are nullable, with zero preserved).
+- `POST /api/tasks/:id/worklogs` accepts `day_worked`, `time_spent` (for example
+  `2h 30m`), optional `start_time`, `comment` and `author_id`. Returns
+  `201 { worklog, ticket, warnings }`.
+- `PATCH /api/tasks/:id/worklogs/:worklogId` accepts changed fields from the
+  same input and returns `{ worklog, ticket, warnings }`.
+- `DELETE /api/tasks/:id/worklogs/:worklogId` soft-deletes and returns `{ ticket }`.
+
+The author, the ticket project's admin or an org admin (HR admin and above) can
+edit/delete visible worklogs. Project admins may log for others only in their
+administered projects (including team-derived grants); members/viewers cannot.
+Archived projects refuse all worklog mutations. Per-worklog `canEdit`/`canDelete`
+reflect the same project-role and archive guards used by the mutation routes.
+Any supplied `author_id`, even self, requires the ticket's
+`capabilities.can.logWorkForOthers.allowed`; otherwise it returns
+`403 WORKLOG_FOR_OTHERS_DENIED`. Authorized authors must be integer user ids in
+this organization; invalid, missing or foreign users return `400 INVALID_WORKLOG`.
+Omitting author uses the caller on create and retains the author on edit.
+`logged_by_id` is the original logger and never changes during correction.
+History/audit identify the actor making each change. Attendance warnings are
+computed after commit for the saved author/day and never block the save.
+Legacy timer stops keep their response shape while saving automatic remaining
+adjustment and exactly one `worklog_added` history/audit record in the transaction;
+`task_updated` is emitted after commit. Existing `time_logged` history is retained.
+See `contracts/openapi.json` for the complete schemas.
 
 ---
 

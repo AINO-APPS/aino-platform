@@ -5,6 +5,7 @@
 
 import type { Request, Response } from "express";
 import {
+    canReadProjectTask,
     taskActorFromRequest,
     type TaskActor,
 } from "../../../modules/tasks/tasks.policy";
@@ -16,9 +17,20 @@ interface DbLike {
 
 const ACCESS_DENIED = "Access denied";
 
+async function ticketCreationConflict(req: Request, projectId: number | null) {
+    const actor = taskActorFromRequest(req);
+    return actor.projectOwnership ? ticketActionConflict(req.db!, actor, {
+        id: 0, project_id: projectId, org_id: req.userOrgId, user_id: req.userId,
+    }, "edit") : null;
+}
+
 async function canAccessTask(task: any, actor: TaskActor, db?: DbLike): Promise<boolean> {
     if (!task || !db) return false;
     if (actor.orgId != null && task.org_id != null && Number(task.org_id) !== Number(actor.orgId)) return false;
+    if (actor.projectOwnership) {
+        if (!await canReadProjectTask(task, actor)) return false;
+        return !await ticketActionConflict(db, actor, task, "comment");
+    }
     const refusal = await ticketActionConflict(db, actor, task, "edit");
     return !refusal || refusal.body.code === "SPRINT_FROZEN";
 }
@@ -45,6 +57,13 @@ async function loadAccessibleTask(req: Request, res: Response, taskId: number): 
         res.status(403).json({ error: ACCESS_DENIED });
         return null;
     }
+    if (actor.projectOwnership && !["GET", "HEAD"].includes(req.method)) {
+        const refusal = await ticketActionConflict(req.db!, actor, task, "edit");
+        if (refusal) {
+            res.status(refusal.status).json(refusal.body);
+            return null;
+        }
+    }
     return task;
 }
 
@@ -66,6 +85,7 @@ function denyTaskAccess(res: Response, task: any, actor: TaskActor): Response {
 export = {
     canAccessTask,
     ticketActionConflict,
+    ticketCreationConflict,
     denyTaskAccess,
     loadAccessibleTask,
     ACCESS_DENIED,

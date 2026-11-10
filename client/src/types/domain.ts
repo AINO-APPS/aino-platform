@@ -90,7 +90,6 @@ export interface TaskLabel {
 }
 
 export interface Sprint extends GeneratedSprint {
-    project_id?: number | null;
     [key: string]: unknown;
 }
 
@@ -99,6 +98,12 @@ export interface Project {
     name?: string;
     key?: string;
     description?: string | null;
+    capabilities?: {
+        canAdminister: boolean;
+        canManageMembers: boolean;
+        canRenameKey: boolean;
+        canEditWorkflow: boolean;
+    };
     [key: string]: unknown;
 }
 

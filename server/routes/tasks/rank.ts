@@ -11,7 +11,7 @@ const auth = require("../../middleware/auth");
 const { loadUserContext } = require("../../middleware/rbac");
 const { logHistory } = require("./_helpers/logHistory");
 
-const { canAccessTask, denyTaskAccess } = require("./_helpers/access");
+const { canAccessTask, denyTaskAccess, ticketActionConflict } = require("./_helpers/access");
 const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { rankForMove } = require("../../modules/tasks/tasks.rank");
 const { findRank, setRank, findTask } = require("../../modules/tasks/tasks.repository");
@@ -34,6 +34,8 @@ router.patch("/:id/rank", auth, loadUserContext, async (req: Request, res: Respo
         if (!await canAccessTask(task, taskActorFromRequest(req), req.db)) {
             return denyTaskAccess(res, task, taskActorFromRequest(req));
         }
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
+        if (refusal) return res.status(refusal.status).json(refusal.body);
 
         const before = await rankOf(req, beforeId);
         const after = await rankOf(req, afterId);

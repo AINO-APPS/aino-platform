@@ -26,7 +26,9 @@ export async function resolveSprintTarget(
 ): Promise<{ sprint?: { id: number; team_id: number | null; end_date: string }; error?: { status: number; body: Record<string, unknown> } }> {
     if (request.sprintId === null || request.sprintId === "") return { sprint: undefined };
     const sprint = (await db.query(
-        "SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
+        request.actor?.projectOwnership
+            ? "SELECT s.id, s.team_id, s.project_id, s.end_date, p.is_archived FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $1 AND p.org_id = $2"
+            : "SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
         [request.sprintId, request.orgId],
     )).rows[0];
     if (request.ticket && request.actor) {
@@ -37,6 +39,12 @@ export async function resolveSprintTarget(
             return { error: { ...conflict, status: conflict.body.code === "ACCESS_DENIED" ? 400 : conflict.status } };
         }
         return { sprint };
+    }
+    if (request.actor?.projectOwnership && sprint) {
+        const role = await request.actor.projectAccess?.roleForProject(Number(sprint.project_id));
+        if (sprint.is_archived) return { error: { status: 409, body: { error: "This project is archived and its tickets are read-only.", code: "PROJECT_ARCHIVED" } } };
+        if (role === "member" || role === "project_admin") return { sprint };
+        return { error: { status: 403, body: { error: "Your project role allows reading and commenting only.", code: "READ_ONLY_ROLE" } } };
     }
     const mayUse = sprint && (sprint.team_id === request.actorTeamId || request.isAdmin);
     if (!mayUse) {

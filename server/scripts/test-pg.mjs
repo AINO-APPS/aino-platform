@@ -6,15 +6,20 @@
  *
  * Needs Docker. The container is removed afterwards, pass or fail. CI uses a
  * service container instead (see .github/workflows/ci.yml).
+ * This disposable database disables crash durability, not transaction rules:
+ * repeated schema setup/TRUNCATE must not wait on host disk fsync.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { waitForPublishedPort } from "./test-pg-port.mjs";
 
 const name = `aino-test-pg-${process.pid}`;
-const docker = (...args) => execFileSync("docker", args, { stdio: ["ignore", "pipe", "inherit"] }).toString().trim();
+const docker = (...args) => execFileSync("docker", args, {
+    stdio: ["ignore", "pipe", "inherit"], timeout: 60_000,
+}).toString().trim();
 
 // `docker info` can exit 0 with no server version when the daemon is down, so
 // check the version itself rather than the exit code.
-const daemon = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], { encoding: "utf8" });
+const daemon = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], { encoding: "utf8", timeout: 60_000 });
 if (daemon.status !== 0 || !daemon.stdout.trim()) {
     console.error("test:pg needs a running Docker daemon (start Docker Desktop and retry).");
     process.exit(1);
@@ -23,18 +28,21 @@ if (daemon.status !== 0 || !daemon.stdout.trim()) {
 // Let Docker choose a free loopback port: a fixed port can fall inside a range
 // Windows has reserved (`netsh interface ipv4 show excludedportrange`), where
 // the mapping is created but never answers.
-docker("run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD=test", "-e", "POSTGRES_DB=aino_test",
-    "-p", "127.0.0.1::5432", "postgres:16");
-
 let status = 1;
 try {
-    const port = docker("port", name, "5432/tcp").split(/\r?\n/)[0].split(":").pop();
+    docker("run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD=test", "-e", "POSTGRES_DB=aino_test",
+        "-p", "127.0.0.1::5432", "postgres:16",
+        "postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off");
+    // Docker can report no mapping immediately after run, even though the
+    // container is running. An empty URL port would silently target local 5432.
+    const port = await waitForPublishedPort(() => docker("port", name, "5432/tcp"));
+    console.log(`PostgreSQL test container ${name} is published on loopback port ${port}.`);
     const url = `postgres://postgres:test@127.0.0.1:${port}/aino_test`;
     const deadline = Date.now() + 60_000;
     for (;;) {
         // -h forces TCP: the image's init phase answers on the unix socket
         // before the server listens on the network port the tests use.
-        const ready = spawnSync("docker", ["exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "aino_test"]);
+        const ready = spawnSync("docker", ["exec", name, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "aino_test"], { timeout: 10_000 });
         if (ready.status === 0) break;
         if (Date.now() > deadline) throw new Error("postgres:16 did not become ready within 60s");
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -51,6 +59,6 @@ try {
     });
     status = run.status ?? 1;
 } finally {
-    spawnSync("docker", ["rm", "-f", name], { stdio: "ignore" });
+    spawnSync("docker", ["rm", "-f", name], { stdio: "ignore", timeout: 30_000 });
 }
 process.exit(status);

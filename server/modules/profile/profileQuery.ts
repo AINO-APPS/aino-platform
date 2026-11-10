@@ -20,9 +20,10 @@ const BASE_COLUMNS = [
     "u.id", "u.username", "u.full_name", "u.email", "u.avatar", "u.role",
     "u.org_id", "u.team_id", "u.department_id", "u.must_change_password",
     "t.name as team_name",
+    "COALESCE(o.project_ownership, FALSE) AS project_ownership",
 ].join(", ");
 
-const FROM = "FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1";
+const FROM = "FROM users u LEFT JOIN teams t ON u.team_id = t.id LEFT JOIN organizations o ON o.id = u.org_id WHERE u.id = $1";
 
 /**
  * The team's sprint config, not the tenant's agile feature: a team works in

@@ -1,33 +1,18 @@
-// Projects admin page (Stage 3).
-//
-// What this page does
-// ───────────────────
-//   • Lists every project in the org (active by default, with a toggle to
-//     include archived ones).
-//   • Lets manager+ users create a new project. The "key" is the Jira-style
-//     prefix — entirely user-defined; we validate 2–10 uppercase
-//     letters/digits/underscores starting with a letter, mirroring the DB
-//     CHECK constraint so the request fails client-side before hitting the
-//     API.
-//   • Lets the user edit name / description / colour / lead. The KEY is
-//     intentionally immutable post-creation (changing it would orphan every
-//     existing PROJ-N reference in branches, commits, history).
-//   • Archive / unarchive in one click. Delete is allowed only when the
-//     project has zero tasks (server enforces this too).
-//
-// There's no client-side router for /projects/:id yet — once you click a
-// project we just list its tasks inline. A dedicated detail page can come
-// later when we wire the Tasks page to filter by project.
-
+// Project administration, migration review, key management, and workflow settings.
 import { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
-import { getProjects, createProject, updateProject, archiveProject, deleteProject, getProjectTasks, getAssignableUsers } from "../api/tasks";
+import { getProjects, createProject, updateProject, archiveProject, deleteProject, getAssignableUsers } from "../api/tasks";
+import { getOrgTeams } from "../api/organization";
+import ProjectTasksPanel from "../components/tasks/ProjectTasksPanel";
+import useRealtimeEvent from "../hooks/useRealtimeEvent";
+import ProjectWorkflowSettings from "./ProjectWorkflowSettings";
+import { ProjectMigrationReviewLauncher } from "./ProjectMigrationReview";
 import { useToast } from "../components/common/Toast";
 import Pagination from "../components/common/Pagination";
 import {
   Plus,
+  Workflow,
   Archive,
   ArchiveRestore,
   Trash2,
@@ -58,13 +43,15 @@ const COLORS = [
 ];
 const EMPTY_PROJECTS: any[] = [];
 const EMPTY_USERS: any[] = [];
-const EMPTY_TASKS: any[] = [];
+const EMPTY_TEAMS: any[] = [];
 
 export default function Projects() {
   const { user } = useAuth() as any;
   const toast = useToast() as any;
   const queryClient = useQueryClient();
-  const canEdit = (ROLE_LEVELS[user?.role] || 1) >= 3; // manager+
+  useRealtimeEvent(["project_updated"], () => { void queryClient.invalidateQueries({ queryKey: ["admin", "projects"] }); });
+  const canCreate = (ROLE_LEVELS[user?.role] || 1) >= 2; // team lead+
+  const canUnarchive = ["super_admin", "hr_admin", "platform_admin"].includes(user?.role);
   // Delete is destructive — gated to super_admin and platform_admin
   // (both clear the server's requireRole('super_admin') check). Previously
   // only an exact "super_admin" string matched, which hid the trash icon
@@ -75,6 +62,7 @@ export default function Projects() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null); // project being edited
   const [selectedId, setSelectedId] = useState<any>(null);
+  const [workflowProject, setWorkflowProject] = useState<any>(null);
   // Pagination state for the projects grid. We use server-side pagination
   // so an org with hundreds of projects doesn't render them all at once.
   const [pageLimit, setPageLimit] = useState(12);
@@ -117,6 +105,10 @@ export default function Projects() {
     queryKey: ["admin", "assignable-users"],
     queryFn: async () => ((await getAssignableUsers()).data as any[]) || [],
   });
+  const { data: teams = EMPTY_TEAMS } = useQuery({
+    queryKey: ["admin", "project-teams"],
+    queryFn: async () => ((await getOrgTeams()).data as any[]) || [],
+  });
 
   function openCreate() {
     setEditing(null);
@@ -148,37 +140,7 @@ export default function Projects() {
       if (selectedId === p.id) setSelectedId(null);
       await queryClient.invalidateQueries({ queryKey: ["admin", "projects"] });
     } catch (e: any) {
-      // Server refuses (409 PROJECT_NOT_EMPTY) when tasks still belong
-      // to the project. Offer the super_admin a clear, second-step
-      // confirmation to force-detach the tasks and proceed. The tasks
-      // themselves are kept; only their issue key (project_id +
-      // task_number) is cleared.
       const data = e.response?.data;
-      if (e.response?.status === 409 && data?.code === "PROJECT_NOT_EMPTY") {
-        const n = data.task_count || "?";
-        const ok = confirm(
-          `"${p.name}" still contains ${n} task${n === 1 ? "" : "s"}.\n\n` +
-            `Force-delete will detach every task from this project — the tickets stay, ` +
-            `but they lose their ${p.key}-N issue key, and any GitHub branches/PRs that ` +
-            `mention those keys will no longer link back.\n\n` +
-            `Continue with force-delete?`,
-        );
-        if (!ok) return;
-        try {
-          const res = await deleteProject(p.id, { force: true } as any);
-          const detached = (res as any)?.data?.detached_tasks || n;
-          toast.success(
-            `Project deleted (detached ${detached} task${detached === 1 ? "" : "s"})`,
-          );
-          if (selectedId === p.id) setSelectedId(null);
-          await queryClient.invalidateQueries({
-            queryKey: ["admin", "projects"],
-          });
-        } catch (err2: any) {
-          toast.error(err2.response?.data?.error || "Failed to force-delete");
-        }
-        return;
-      }
       toast.error(data?.error || "Failed to delete");
     }
   }
@@ -203,18 +165,18 @@ export default function Projects() {
             />
             Show archived
           </label>
-          {canEdit && (
+          {canCreate && (
             <button style={styles.primaryBtn} onClick={openCreate}>
               <Plus size={16} /> New project
             </button>
           )}
         </div>
       </header>
-
+      <ProjectMigrationReviewLauncher role={user?.role} />
       {loading ? (
         <div style={styles.empty}>Loading…</div>
       ) : projects.length === 0 ? (
-        <EmptyState canEdit={canEdit} onCreate={openCreate} />
+        <EmptyState canCreate={canCreate} onCreate={openCreate} />
       ) : (
         <>
           <div style={styles.grid}>
@@ -222,13 +184,15 @@ export default function Projects() {
               <ProjectCard
                 key={p.id}
                 project={p}
-                canEdit={canEdit}
+                canEdit={p.capabilities?.canAdminister === true}
+                canUnarchive={canUnarchive}
                 canDelete={canDelete}
                 isSelected={selectedId === p.id}
                 onSelect={() =>
                   setSelectedId(selectedId === p.id ? null : p.id)
                 }
                 onEdit={() => openEdit(p)}
+                onWorkflow={() => setWorkflowProject(p)}
                 onArchive={() => onArchive(p)}
                 onDelete={() => onDelete(p)}
               />
@@ -246,17 +210,22 @@ export default function Projects() {
         </>
       )}
 
-      {selectedId && (
+      {selectedId && projects.some((project) => project.id === selectedId) && (
         <ProjectTasksPanel
-          projectId={selectedId}
+          project={projects.find((project) => project.id === selectedId)}
+          users={users}
+          teams={teams}
           onClose={() => setSelectedId(null)}
         />
       )}
+
+      {workflowProject && <ProjectWorkflowSettings project={workflowProject} onClose={() => setWorkflowProject(null)} />}
 
       {showForm && (
         <ProjectForm
           project={editing}
           users={users}
+          teams={teams}
           onClose={() => setShowForm(false)}
           onSaved={async () => {
             setShowForm(false);
@@ -273,10 +242,12 @@ export default function Projects() {
 interface ProjectCardProps {
   project: any;
   canEdit: boolean;
+  canUnarchive: boolean;
   canDelete: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onEdit: () => void;
+  onWorkflow: () => void;
   onArchive: () => void;
   onDelete: () => void;
 }
@@ -284,10 +255,12 @@ interface ProjectCardProps {
 function ProjectCard({
   project: p,
   canEdit,
+  canUnarchive,
   canDelete,
   isSelected,
   onSelect,
   onEdit,
+  onWorkflow,
   onArchive,
   onDelete,
 }: ProjectCardProps) {
@@ -307,6 +280,7 @@ function ProjectCard({
         </div>
         <div style={styles.cardBody}>
           <h3 style={styles.cardTitle}>{p.name}</h3>
+          {p.is_archived && <span className="badge">Archived project</span>}
           {p.description && <p style={styles.cardDesc}>{p.description}</p>}
           <div style={styles.cardMeta}>
             <span>
@@ -326,12 +300,18 @@ function ProjectCard({
           </div>
         </div>
       </button>
-      {canEdit && (
+      {(canEdit || p.capabilities?.canEditWorkflow) && (
         <div style={styles.cardActions}>
+          {p.capabilities?.canEditWorkflow && (
+            <button title="Edit project workflow" aria-label={`Edit ${p.name} workflow`} style={styles.iconBtn} onClick={onWorkflow}>
+              <Workflow size={14} />
+            </button>
+          )}
+          {canEdit && <>
           <button title="Edit" style={styles.iconBtn} onClick={onEdit}>
             <Edit3 size={14} />
           </button>
-          <button
+          {(p.capabilities?.canArchive === true || p.is_archived && canUnarchive) && <button
             title={p.is_archived ? "Unarchive" : "Archive"}
             style={styles.iconBtn}
             onClick={onArchive}
@@ -341,8 +321,8 @@ function ProjectCard({
             ) : (
               <Archive size={14} />
             )}
-          </button>
-          {canDelete && (
+          </button>}
+          {canDelete && p.has_had_tickets === false && (
             <button
               title="Delete"
               style={{ ...styles.iconBtn, color: "#ef4444" }}
@@ -351,6 +331,7 @@ function ProjectCard({
               <Trash2 size={14} />
             </button>
           )}
+          </>}
         </div>
       )}
     </div>
@@ -360,11 +341,12 @@ function ProjectCard({
 interface ProjectFormProps {
   project: any;
   users: any[];
+  teams: any[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-function ProjectForm({ project, users, onClose, onSaved }: ProjectFormProps) {
+function ProjectForm({ project, users, teams, onClose, onSaved }: ProjectFormProps) {
   const toast = useToast() as any;
   const isEdit = !!project;
   const [name, setName] = useState(project?.name || "");
@@ -372,6 +354,7 @@ function ProjectForm({ project, users, onClose, onSaved }: ProjectFormProps) {
   const [description, setDescription] = useState(project?.description || "");
   const [color, setColor] = useState(project?.color || COLORS[0]);
   const [leadId, setLeadId] = useState(project?.lead_user_id || "");
+  const [teamIds, setTeamIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const keyValid = useMemo(
@@ -398,6 +381,7 @@ function ProjectForm({ project, users, onClose, onSaved }: ProjectFormProps) {
       lead_user_id: leadId || null,
     };
     if (!isEdit) payload.key = keyValue.trim().toUpperCase();
+    if (!isEdit) payload.team_ids = teamIds.map(Number);
     try {
       setSaving(true);
       if (isEdit) await updateProject(project.id, payload);
@@ -467,6 +451,23 @@ function ProjectForm({ project, users, onClose, onSaved }: ProjectFormProps) {
                   Must start with a letter; only A–Z, 0–9, and underscores.
                 </small>
               )}
+              {!isEdit && (
+                <label style={styles.label}>
+                  <span>Grant member access to teams</span>
+                  <select
+                    style={styles.input}
+                    aria-label="Grant member access to teams"
+                    multiple
+                    value={teamIds}
+                    onChange={(event) => setTeamIds(Array.from(event.target.selectedOptions, (option) => option.value))}
+                  >
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                  <small style={styles.hint}>Hold Ctrl or Command to select more than one team.</small>
+                </label>
+              )}
             </label>
           )}
           <label style={styles.label}>
@@ -527,109 +528,12 @@ function ProjectForm({ project, users, onClose, onSaved }: ProjectFormProps) {
   );
 }
 
-interface ProjectTasksPanelProps {
-  projectId: any;
-  onClose: () => void;
-}
-
-function ProjectTasksPanel({ projectId, onClose }: ProjectTasksPanelProps) {
-  const [limit, setLimit] = useState(25);
-  const [offset, setOffset] = useState(0);
-
-  // Reset paging whenever we switch project or change page size.
-  useEffect(() => {
-    setOffset(0);
-  }, [projectId, limit]);
-
-  const { data: tasksData, isLoading: loading } = useQuery({
-    queryKey: ["admin", "project-tasks", projectId, limit, offset],
-    queryFn: async () => {
-      const d = (await getProjectTasks(projectId, { limit, offset } as any))
-        .data as any;
-      return {
-        tasks: (d?.tasks as any[]) || [],
-        total: d?.pagination?.total ?? (d?.tasks?.length || 0),
-      };
-    },
-  });
-  const tasks = tasksData?.tasks ?? EMPTY_TASKS;
-  const total = tasksData?.total ?? 0;
-
-  return (
-    <div style={styles.panel}>
-      <header style={styles.panelHeader}>
-        <strong>Tasks in this project</strong>
-        <button style={styles.iconBtn} onClick={onClose}>
-          <X size={14} />
-        </button>
-      </header>
-      {loading ? (
-        <div style={{ padding: 16 }}>Loading…</div>
-      ) : tasks.length === 0 ? (
-        <div style={{ padding: 16, color: "#9ca3af" }}>
-          No tasks yet. Create a task and assign it to this project.
-        </div>
-      ) : (
-        <>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Key</th>
-                <th style={styles.th}>Title</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Assignee</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => (
-                <tr key={t.id}>
-                  <td style={styles.tdKey}>
-                    {/* Issue keys link straight to the Tasks page with the
-                                            ticket detail modal pre-opened (see Tasks.jsx which
-                                            reads ?task=<id> on mount). */}
-                    <Link
-                      to={`/tasks?task=${t.id}`}
-                      style={styles.taskLink}
-                      title={`Open ${t.issue_key || `#${t.id}`}`}
-                    >
-                      <code>{t.issue_key || `#${t.id}`}</code>
-                    </Link>
-                  </td>
-                  <td style={styles.td}>
-                    <Link to={`/tasks?task=${t.id}`} style={styles.taskLink}>
-                      {t.title}
-                    </Link>
-                  </td>
-                  <td style={styles.td}>{t.workflow_state_key || "—"}</td>
-                  <td style={styles.td}>
-                    {t.assignee?.full_name || t.assignee?.username || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination
-            total={total}
-            limit={limit}
-            offset={offset}
-            onPageChange={setOffset}
-            onLimitChange={setLimit}
-            pageSizeOptions={[10, 25, 50, 100]}
-            compact
-            itemLabel="task"
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
 interface EmptyStateProps {
-  canEdit: boolean;
+  canCreate: boolean;
   onCreate: () => void;
 }
 
-function EmptyState({ canEdit, onCreate }: EmptyStateProps) {
+function EmptyState({ canCreate, onCreate }: EmptyStateProps) {
   return (
     <div style={styles.emptyState}>
       <Folder size={48} style={{ color: "#9ca3af" }} />
@@ -638,7 +542,7 @@ function EmptyState({ canEdit, onCreate }: EmptyStateProps) {
         Group related tasks under a project to get Jira-style issue keys like{" "}
         <code style={styles.code}>WEB-123</code>.
       </p>
-      {canEdit && (
+      {canCreate && (
         <button style={styles.primaryBtn} onClick={onCreate}>
           <Plus size={16} /> Create your first project
         </button>
@@ -848,40 +752,6 @@ const styles: Record<string, any> = {
     marginTop: 8,
   },
   form: { display: "flex", flexDirection: "column", gap: 14, padding: 16 },
-  panel: {
-    marginTop: 20,
-    border: "1px solid var(--border, #2a2f3a)",
-    borderRadius: 12,
-    background: "var(--card-bg, #1a1d24)",
-  },
-  panelHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "10px 14px",
-    borderBottom: "1px solid var(--border, #2a2f3a)",
-  },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: {
-    textAlign: "left",
-    padding: "8px 12px",
-    fontWeight: 600,
-    color: "var(--text-secondary, #9ca3af)",
-    borderBottom: "1px solid var(--border, #2a2f3a)",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  td: {
-    padding: "8px 12px",
-    borderBottom: "1px solid var(--border-subtle, #1f232b)",
-  },
-  tdKey: {
-    padding: "8px 12px",
-    borderBottom: "1px solid var(--border-subtle, #1f232b)",
-    fontFamily: "monospace",
-    fontSize: 12,
-  },
   code: {
     padding: "1px 5px",
     borderRadius: 4,
@@ -895,10 +765,5 @@ const styles: Record<string, any> = {
     background: "rgba(255,255,255,0.08)",
     fontFamily: "monospace",
     fontSize: 11,
-  },
-  taskLink: {
-    color: "var(--accent, #2383e2)",
-    textDecoration: "none",
-    cursor: "pointer",
   },
 };

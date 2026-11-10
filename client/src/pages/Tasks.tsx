@@ -2,7 +2,7 @@ import { BarChart3 as StatsIcon, AlertTriangle as GlyphAlertTriangle, Ban as Gly
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, getProjects, assignTaskToSprint } from "../api/tasks";
+import { getTasks, updateTaskStatus, deleteTask, carryForwardTasks, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, assignTaskToSprint } from "../api/tasks";
 import { getLocalToday } from "../api/client";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
@@ -44,7 +44,7 @@ import { useSprintStats } from "./tasks/hooks/useSprintStats";
 import { useSprintPlan } from "./tasks/hooks/useSprintPlan";
 import { useEpics } from "./tasks/hooks/useEpics";
 import { useTeamMode } from "./tasks/hooks/useTeamMode";
-import { useTeamScope } from "./tasks/hooks/useTeamScope";
+import { usePlanningScope } from "./tasks/hooks/usePlanningScope";
 import { useTeamSwitchNavigation } from "./tasks/hooks/useTeamSwitchNavigation";
 import { useSprintBoardActions } from "./tasks/hooks/useSprintBoardActions";
 import { useTaskQuickActions, useSummaryFilters, toggleLabelId } from "./tasks/hooks/useTaskQuickActions";
@@ -53,12 +53,14 @@ import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
 import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
 import TasksOverlays from "./tasks/TasksOverlays";
 import TasksConfirmDialogs from "./tasks/TasksConfirmDialogs";
+import { useTicketProjects } from "./tasks/hooks/useTicketProjects";
 
 import s from "./Tasks.module.css";
 
 const EMPTY: any[] = [];
 export default function Tasks() {
   const { user: currentUser } = useAuth() as any;
+  const projectOwnership = currentUser?.project_ownership === true;
   const { hasFeature } = useFeatures();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -91,25 +93,12 @@ export default function Tasks() {
     queryKey: ["tasks", "labels"],
     queryFn: async () => (await getTaskLabels()).data as any[],
   });
-  // Stage 3: project list powers the "Project" picker in backlog create and
-  // task edit. Active projects only — archived ones can't accept new tickets.
-  const { data: availableProjects = EMPTY } = useQuery({
-    queryKey: ["tasks", "projects"],
-    queryFn: async () => {
-      const r = await getProjects(false);
-      return Array.isArray(r.data) ? (r.data as any[]) : [];
-    },
-  });
-  // Always ask the backend — it knows about platform_admin / super_admin /
-  // hr_admin who can see every team's sprints, and will correctly return []
-  // for users with no team. Don't gate on currentUser.team_id: the cached
-  // profile may be stale (especially in the desktop app where the renderer
-  // doesn't auto-reload after a team is assigned).
+  const { availableProjects, projectsFetched, createProjects } = useTicketProjects(currentUser);
   const { data: availableSprints = EMPTY, isFetched: sprintsFetched } = useQuery({
     queryKey: ["tasks", "availableSprints"],
     // "Agile & Sprints" gate: skip the (server-403-gated) sprint lookup
     // entirely when the tenant's plan/feature-override disables agile.
-    enabled: hasFeature("agile"),
+    enabled: hasFeature("agile") && !projectOwnership,
     queryFn: async () => {
       try {
         return (await getAvailableSprints()).data as any[];
@@ -122,8 +111,8 @@ export default function Tasks() {
     },
   });
 
-  const sprintsLoaded = !hasFeature("agile") || sprintsFetched;
-  const team = useTeamScope({ currentUser, availableSprints, setSelectedSprintId, agileEnabled: hasFeature("agile") });
+  const team = usePlanningScope({ currentUser, projects: availableProjects, projectsLoaded: projectsFetched, availableSprints, setSelectedSprintId, agileEnabled: hasFeature("agile") });
+  const sprintsLoaded = projectOwnership ? team.currentSprintLoaded : !hasFeature("agile") || sprintsFetched;
   const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, effectiveTeamId, visibleSprints, teamScopeParams } = team;
   const teamVisibility = hasFeature("team_visibility");
 
@@ -200,6 +189,8 @@ export default function Tasks() {
     backlogFilters: filters.backlogFilters,
     /** Team scope from the admin switcher (team_id or unassigned). */
     scopeParams: teamScopeParams,
+    projectOwnership, createProjects,
+    createProjectUserKey: `${currentUser?.tenant_id}.${currentUser?.id}`,
     selectedSprintId,
     showConfirm,
     closeConfirm,
@@ -275,7 +266,7 @@ export default function Tasks() {
   });
 
   // Deep links to a specific task open its detail on arrival.
-  useTaskDeepLink(searchParams, detail.openTaskDetail);
+  useTaskDeepLink(searchParams, detail.openTaskDetail, location.pathname, navigate);
 
   // Expose the detail-opener globally so deep-linked components (e.g. Epic
   // child-ticket links inside the task detail modal) can swap the modal
@@ -325,7 +316,7 @@ export default function Tasks() {
   const handleDelete = (task: any) => setTaskToDelete(task);
 
   const lifecycle = useTicketLifecycle({
-    availableSprints, currentSprintId: team.currentSprintId, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
+    availableSprints: visibleSprints, currentSprintId: team.currentSprintId, selectedSprintId, activeTab, planOpen: tasksRoute.route.plan, showConfirm, closeConfirm,
     setError, fetchTasks, fetchBacklog: backlog.fetchBacklog, toast, onReplaced: detail.replaceTicket,
   });
 
@@ -436,10 +427,14 @@ export default function Tasks() {
           selectedTeamId={selectedTeamId}
           onTeamChange={(value) => setSelectedTeamId(value)}
           showTeamSwitcher={showTeamSwitcher}
+          projectOwnership={projectOwnership}
+          projects={availableProjects}
+          selectedProjectId={team.selectedProjectId}
+          onProjectChange={team.changeProject}
           onPlanSprint={sprintActions.planSprint}
         />
 
-        <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />
+        {!projectOwnership && <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />}
 
         {activeTab === "sprint" && (
           <SprintTab

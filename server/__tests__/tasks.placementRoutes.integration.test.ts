@@ -16,11 +16,29 @@ jest.mock("../middleware/auth", () => (req: any, _res: any, next: any) => {
     next();
 });
 jest.mock("../middleware/rbac", () => ({
-    loadUserContext: (req: any, _res: any, next: any) => {
+    loadUserContext: async (req: any, _res: any, next: any) => {
         req.userRole = req.get("x-test-role") || "employee";
-        req.userOrgId = 1;
-        req.userTeamId = 1;
+        const user = (await req.db.query(
+            "SELECT org_id, team_id FROM users WHERE id = $1",
+            [req.userId],
+        )).rows[0];
+        req.userOrgId = user?.org_id ?? 1;
+        req.userTeamId = user?.team_id ?? null;
+        req.userTeamIds = user?.org_id == null ? [] : (await req.db.query(
+            `SELECT team_id FROM (
+                SELECT team_id FROM users WHERE id = $1 AND org_id = $2 AND team_id IS NOT NULL
+                UNION
+                SELECT utm.team_id FROM user_team_memberships utm
+                JOIN teams t ON t.id = utm.team_id
+                WHERE utm.user_id = $1 AND t.org_id = $2
+            ) memberships ORDER BY team_id`,
+            [req.userId, req.userOrgId],
+        )).rows.map((row: any) => Number(row.team_id));
         req.roleLevel = req.userRole === "manager" || req.userRole === "super_admin" ? 2 : 1;
+        req.projectOwnership = (await req.db.query(
+            "SELECT project_ownership FROM organizations WHERE id = $1",
+            [req.userOrgId],
+        )).rows[0]?.project_ownership === true;
         next();
     },
     requireRole: () => (_req: any, _res: any, next: any) => next(),
@@ -54,8 +72,16 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
         await require("../platform/db/tenantSchema").initTenantSchema(query);
+        await pool.query("INSERT INTO organizations (id, name, slug) VALUES (9, 'Legacy memberships', 'legacy-memberships')");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (9, 9, 'Legacy')");
+        await pool.query(
+            "INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES (9, 'legacy', 'x', 'Legacy', 9, 9)",
+        );
         const migrations = await require("../platform/db/migrations").runTenantMigrations(query, { label: "placement_routes" });
         expect(migrations.failed).toEqual([]);
+        expect((await pool.query(
+            "SELECT user_id, team_id FROM user_team_memberships WHERE user_id = 9",
+        )).rows).toEqual([{ user_id: 9, team_id: 9 }]);
         await require("../platform/db/agileDefaults").seedAgileDefaults(query);
 
         const { makePoolQuery, makePoolTransaction } = require("../platform/db/pool");
@@ -74,6 +100,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         app.use("/api/projects", require("../routes/projects"));
         app.use("/api/manager", require("../routes/manager"));
         app.use("/api/notes", require("../routes/notes"));
+        app.use("/api/search", require("../routes/search"));
     }, 120_000);
 
     afterAll(async () => {
@@ -90,13 +117,185 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
         );
-        // seedAgileDefaults keys workflow states by org; re-seed for org 1.
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
     });
 
     async function row(id: number) {
         return (await pool.query("SELECT sprint_id, planned_date, due_date, pre_sprint_due_date FROM tasks WHERE id = $1", [id])).rows[0];
     }
+
+    test("ticket10 preview and project move agree, preserve the old key and leave the source sprint", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        await pool.query("UPDATE sprints SET project_id = $1 WHERE id = 10", [source.id]);
+        const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Queued', 'open', TRUE) RETURNING *", [source.id])).rows[0];
+        const to = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Destination queue', 'open', TRUE) RETURNING *", [target.id])).rows[0];
+        const ticket = (await pool.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date)
+            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
+        const before = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+        const { sendToUser } = require("../utils/ws");
+        sendToUser.mockClear();
+        const preview = await request(app).post(`/api/tasks/${ticket.id}/move-project/preview`).send({ project_id: target.id });
+        expect(preview.status).toBe(200);
+        expect(preview.body).toMatchObject({ target_project_id: target.id, key_format: "DEST-<number>", workflow_state: { id: to.id }, leaves_sprint: true });
+        expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(before);
+        expect(sendToUser).not.toHaveBeenCalled();
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-20", planned_date: "2026-11-10", team_id: 1 });
+        expect(sendToUser).toHaveBeenCalledWith(1, 1, "task_updated", { taskId: ticket.id, action: "updated" });
+        const alias = await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`);
+        expect(alias.status).toBe(200);
+        expect(alias.body).toMatchObject({ id: ticket.id, ticket_key: "DEST-1", key_alias: true });
+        expect((await request(app).get(`/api/tasks/${ticket.id}/history`)).body).toEqual(expect.arrayContaining([
+            expect.objectContaining({ field: "project", old_value: String(source.id), new_value: String(target.id) }),
+            expect.objectContaining({ field: "ticket_key", old_value: ticket.ticket_key, new_value: "DEST-1" }),
+        ]));
+    });
+
+    async function projectMoveFixture() {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const target = (await pool.query("INSERT INTO projects (org_id, key, name, origin_team_id) VALUES (1, 'DEST', 'Destination', 2) RETURNING *")).rows[0];
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category) VALUES (1, $1, 'source_review', 'Source review', 'in_review') RETURNING *", [source.id])).rows[0];
+        const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, team_id, project_id, workflow_state_id) VALUES ('Move fixture', 1, 1, 1, $1, $2) RETURNING *", [source.id, from.id])).rows[0];
+        return { source, target, ticket };
+    }
+
+    test.each(["category", "initial"])("ticket10 maps by %s when there is no matching active key", async (mapping) => {
+        const { target, ticket } = await projectMoveFixture();
+        await pool.query("DELETE FROM workflow_states WHERE project_id = $1", [target.id]);
+        const initial = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'waiting', 'Waiting', 'open', TRUE) RETURNING *", [target.id])).rows[0];
+        let expected = initial;
+        if (mapping === "category") {
+            const review = (await pool.query(`INSERT INTO workflow_states (org_id, project_id, key, name, category, sort_order) VALUES
+                (1, $1, 'later', 'Later review', 'in_review', 20), (1, $1, 'first', 'First review', 'in_review', 10) RETURNING *`, [target.id])).rows;
+            expected = review[1];
+        }
+        await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_active) VALUES (1, $1, 'source_review', 'Inactive match', 'in_review', FALSE)", [target.id]);
+        const preview = await request(app).post(`/api/tasks/${ticket.id}/move-project/preview`).send({ project_id: target.id });
+        expect(preview.status).toBe(200);
+        expect(preview.body).toMatchObject({ workflow_state: { id: expected.id }, leaves_sprint: false });
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task.workflow_state_id).toBe(expected.id);
+    });
+
+    test.each(["source viewer", "target viewer", "target missing grant", "source archived", "target archived", "foreign target", "same project"])(
+        "ticket10 preview and move both refuse %s without consuming a number", async (scenario) => {
+            const { source, target, ticket } = await projectMoveFixture();
+            if (scenario.endsWith("viewer")) {
+                await pool.query("DELETE FROM project_members WHERE project_id = $1", [scenario.startsWith("source") ? source.id : target.id]);
+                await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'viewer')", [scenario.startsWith("source") ? source.id : target.id]);
+            }
+            if (scenario === "target missing grant") await pool.query("DELETE FROM project_members WHERE project_id = $1", [target.id]);
+            if (scenario.endsWith("archived")) await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = $1", [scenario.startsWith("source") ? source.id : target.id]);
+            if (scenario === "foreign target") {
+                await pool.query("INSERT INTO organizations (id, name, slug) VALUES (3, 'Foreign', 'foreign')");
+                await pool.query("UPDATE projects SET org_id = 3 WHERE id = $1", [target.id]);
+            }
+            const counter = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+            const results = [];
+            for (const suffix of ["/preview", ""]) results.push(await request(app).post(`/api/tasks/${ticket.id}/move-project${suffix}`).send({ project_id: scenario === "same project" ? source.id : target.id }));
+            const code = scenario.includes("viewer") ? "READ_ONLY_ROLE" : scenario.includes("archived") ? "PROJECT_ARCHIVED"
+                : scenario === "foreign target" ? "PROJECT_NOT_FOUND" : scenario === "same project" ? "PROJECT_UNCHANGED" : "ACCESS_DENIED";
+            expect(results.map((result) => result.body.code)).toEqual([code, code]);
+            expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(counter);
+            expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).body.project_id).toBe(source.id);
+        },
+    );
+
+    test("ticket10 member capability and legacy transfer use the generated project without changing legacy team ownership after switch", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        const detail = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(detail.body.capabilities.can.canMoveProject).toEqual({ allowed: true });
+        const move = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 2 });
+        expect(move.status).toBe(200);
+        expect(move.body).toMatchObject({ transferred: true, from_team_id: 1, to_team_id: 2, cleared_sprint: null, task: { project_id: target.id, team_id: 1 } });
+        expect(move.body.task.workflow_state_id).not.toBe(ticket.workflow_state_id);
+        const back = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 1 });
+        expect(back.status).toBe(200);
+        expect(back.body.task.project_id).not.toBe(target.id);
+        expect(back.body.task.team_id).toBe(1);
+        await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        await pool.query("UPDATE project_members SET role = 'viewer' WHERE project_id = $1", [target.id]);
+        expect((await request(app).get(`/api/tasks/${ticket.id}/detail`)).body.capabilities.can.canMoveProject).toEqual({ allowed: false, reason: "READ_ONLY_ROLE" });
+    });
+
+    test("ticket10 a secondary-team member can move into its granted project", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        await pool.query("DELETE FROM project_members WHERE project_id = $1", [target.id]);
+        await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES ($1, 2, 'member')", [target.id]);
+        await pool.query("INSERT INTO user_team_memberships (user_id, team_id) VALUES (1, 2)");
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.status).toBe(200);
+        expect(move.body.task.project_id).toBe(target.id);
+    });
+
+    test("ticket10 failure writing history rolls back the move, sequence, alias and broadcast", async () => {
+        const { target, ticket } = await projectMoveFixture();
+        const counter = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
+        await pool.query(`CREATE FUNCTION refuse_move_history() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'history unavailable'; END $$;
+            CREATE TRIGGER refuse_move_history BEFORE INSERT ON task_history FOR EACH ROW EXECUTE FUNCTION refuse_move_history()`);
+        const { sendToUser } = require("../utils/ws");
+        sendToUser.mockClear();
+        try {
+            const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+            expect(move.status).toBe(500);
+            expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).body).toMatchObject({
+                id: ticket.id, ticket_key: ticket.ticket_key, project_id: ticket.project_id, key_alias: false,
+            });
+            expect((await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0]).toEqual(counter);
+            expect(sendToUser).not.toHaveBeenCalled();
+        } finally {
+            await pool.query("DROP TRIGGER refuse_move_history ON task_history; DROP FUNCTION refuse_move_history()");
+        }
+    });
+
+    test("ticket07 project viewers may comment but cannot edit or rank; archived tickets remain readable", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        const project = (await pool.query("SELECT id FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        await pool.query("DELETE FROM project_members WHERE project_id = $1", [project.id]);
+        await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'viewer')", [project.id]);
+        const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, project_id) VALUES ('Read only', 2, 1, $1) RETURNING *", [project.id])).rows[0];
+        const edit = await request(app).put(`/api/tasks/${ticket.id}`).send({ title: "Not allowed" });
+        expect(edit.status).toBe(403);
+        expect(edit.body.code).toBe("READ_ONLY_ROLE");
+        for (const path of ["/api/tasks", "/api/tasks/backlog"]) {
+            const create = await request(app).post(path).send({ title: "Viewer create", project_id: project.id });
+            expect(create.status).toBe(403);
+            expect(create.body.code).toBe("READ_ONLY_ROLE");
+        }
+        expect((await request(app).patch(`/api/tasks/${ticket.id}/rank`).send({})).body.code).toBe("READ_ONLY_ROLE");
+        expect((await request(app).post(`/api/tasks/${ticket.id}/comments`).send({ content: "A comment" })).status).toBe(200);
+        await pool.query("UPDATE project_members SET role = 'project_admin' WHERE project_id = $1 AND user_id = 1", [project.id]);
+        const administrator = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(administrator.status).toBe(200);
+        expect(administrator.body.capabilities.can.logWorkForOthers).toEqual({ allowed: true });
+        await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = $1", [project.id]);
+        const archivedCreate = await request(app).post("/api/tasks/backlog").send({ title: "Archived create", project_id: project.id });
+        expect(archivedCreate.body.code).toBe("PROJECT_ARCHIVED");
+        for (const [method, suffix, body] of [
+            ["put", "", { title: "Archived" }], ["post", "/timer/start", {}],
+            ["patch", "/block", { is_blocked: true }], ["patch", "/rank", {}],
+        ] as const) {
+            const result = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
+            expect(result.status).toBe(409);
+            expect(result.body.code).toBe("PROJECT_ARCHIVED");
+        }
+        const read = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+        expect(read.status).toBe(200);
+        expect(read.body.project.is_archived).toBe(true);
+        expect((await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`)).status).toBe(200);
+        const search = await request(app).get("/api/search").query({ q: ticket.ticket_key });
+        expect(search.body.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: ticket.id })]));
+        expect((await request(app).post(`/api/tasks/${ticket.id}/comments`).send({ content: "Still commenting" })).status).toBe(200);
+    });
 
     function expectTicketDecision(ticket: any) {
         expect(ticket).toMatchObject({
@@ -138,6 +337,289 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(await row(res.body.id)).toEqual({
             sprint_id: 10, planned_date: null, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20",
         });
+    });
+
+    test("a ticket created while ownership is off still returns its stored sprint-project key", async () => {
+        const res = await request(app)
+            .post("/api/tasks")
+            .send({ title: "Stored key", sprint_id: 10 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.ticket_key).toBeTruthy();
+        expect(res.body.issue_key).toBe(res.body.ticket_key);
+        expect(res.body.project_id).toBe((await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0].project_id);
+        expect((await pool.query("SELECT project_ownership FROM organizations WHERE id = 1")).rows[0].project_ownership).toBe(false);
+    });
+
+    test("opening a ticket by its current key or alias returns its current key and former keys", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        const ticket = (await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Key lookup', 1, 1, 1, $1, 17, 'ALPHA-17') RETURNING id`,
+            [project.id],
+        )).rows[0];
+        await pool.query(
+            "INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason) VALUES (1, 'OLD-17', $1, $2, 'rename')",
+            [ticket.id, project.id],
+        );
+
+        const current = await request(app).get("/api/tasks/by-key/ALPHA-17");
+        const former = await request(app).get("/api/tasks/by-key/OLD-17");
+        const searched = await request(app).get("/api/tasks/search").query({ q: "OLD-17" });
+        const detail = await request(app).get(`/api/tasks/${ticket.id}/detail`);
+
+        expect(current.status).toBe(200);
+        expect(current.body).toMatchObject({
+            id: ticket.id,
+            ticket_key: "ALPHA-17",
+            key_alias: false,
+            key_aliases: ["OLD-17"],
+        });
+        expect(former.status).toBe(200);
+        expect(former.body).toMatchObject({
+            id: ticket.id,
+            ticket_key: "ALPHA-17",
+            key_alias: true,
+            requested_key: "OLD-17",
+            key_aliases: ["OLD-17"],
+        });
+        expect(searched.body).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: ticket.id, key_aliases: ["OLD-17"] }),
+        ]));
+        expect(detail.body).toMatchObject({ id: ticket.id, key_aliases: ["OLD-17"] });
+    });
+
+    test("fetching by key hides unknown and invisible tickets as not found", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Private key', 2, 1, 2, $1, 18, 'ALPHA-18')`,
+            [project.id],
+        );
+
+        const unknown = await request(app).get("/api/tasks/by-key/ALPHA-999");
+        const invisible = await request(app).get("/api/tasks/by-key/ALPHA-18");
+
+        expect(unknown.status).toBe(404);
+        expect(invisible.status).toBe(404);
+        expect(invisible.body).toEqual({ error: "Task not found" });
+    });
+
+    test("code references that mention a former key resolve to its ticket", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'ALPHA', 'Alpha') RETURNING id",
+        )).rows[0];
+        const ticket = (await pool.query(
+            `INSERT INTO tasks (title, user_id, org_id, team_id, project_id, task_number, ticket_key)
+             VALUES ('Referenced ticket', 1, 1, 1, $1, 19, 'ALPHA-19') RETURNING id`,
+            [project.id],
+        )).rows[0];
+        await pool.query(
+            "INSERT INTO ticket_key_aliases (org_id, key, task_id, project_id, reason) VALUES (1, 'OLD-19', $1, $2, 'move')",
+            [ticket.id, project.id],
+        );
+
+        const { extractIssueKeys, resolveIssueKeys } = require("../routes/tasks/_helpers/issueKey");
+        const keys = extractIssueKeys("feature/OLD-19-link");
+        const linked = await resolveIssueKeys(keys, 1, {
+            query: (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]),
+        });
+        const search = await request(app).get("/api/search").query({ q: "OLD-19" });
+
+        expect(linked).toEqual([{ key: "OLD-19", task_id: ticket.id, is_alias: true }]);
+        expect(search.status).toBe(200);
+        expect(search.body.tasks).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                id: ticket.id,
+                ticket_key: "ALPHA-19",
+                key_aliases: ["OLD-19"],
+            }),
+        ]));
+    });
+
+    test("ticket creation honors a requested project, otherwise the team project", async () => {
+        const teamProject = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'ALPHA', 'Alpha', 1, FALSE) RETURNING id`,
+        )).rows[0].id;
+        const teamCreated = await request(app).post("/api/tasks").send({ title: "Team project" });
+        expect(teamCreated.status).toBe(200);
+        expect(teamCreated.body.project_id).toBe(teamProject);
+        expect(teamCreated.body.ticket_key).toBe("ALPHA-1");
+
+        const explicitProject = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'EXPLICIT', 'Explicit') RETURNING id",
+        )).rows[0].id;
+        const explicitCreated = await request(app).post("/api/tasks").send({
+            title: "Explicit project",
+            project_id: explicitProject,
+            sprint_id: 10,
+        });
+        expect(explicitCreated.status).toBe(200);
+        expect(explicitCreated.body.project_id).toBe(explicitProject);
+        expect(explicitCreated.body.ticket_key).toBe("EXPLICIT-1");
+    });
+
+    test("project ownership filters real PostgreSQL ticket lists and direct reads by grants or authorship", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        await pool.query("UPDATE users SET team_id = 2 WHERE id = 2");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 1, 'Gamma')");
+        const projects = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'PERSONAL', 'Personal grant', 1, FALSE),
+                    (1, 'TEAM', 'Team grant', 2, FALSE),
+                    (1, 'PRIVATE', 'No grant', 3, FALSE)
+             RETURNING id, origin_team_id`,
+        )).rows;
+        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        const personalProject = projectByTeam.get(1)!;
+        const teamProject = projectByTeam.get(2)!;
+        const privateProject = projectByTeam.get(3)!;
+
+        await pool.query(
+            `INSERT INTO project_members (project_id, user_id, role)
+             VALUES ($1, 1, 'viewer')`,
+            [personalProject],
+        );
+        await pool.query(
+            `INSERT INTO project_members (project_id, team_id, role)
+             VALUES ($1, 1, 'project_admin'), ($2, 1, 'member')`,
+            [personalProject, teamProject],
+        );
+        const { createProjectAccess } = require("../modules/tasks/tasks.projectAccess");
+        const access = createProjectAccess(
+            { query: (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]) },
+            { userId: 1, orgId: 1, orgRole: "employee", teamIds: [1] },
+        );
+        expect(await access.roleForProject(personalProject)).toBe("project_admin");
+
+        const stateId = (await pool.query(
+            "SELECT id FROM workflow_states WHERE org_id = 1 AND is_initial = TRUE ORDER BY id LIMIT 1",
+        )).rows[0].id;
+        const tickets = (await pool.query(
+            `INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, project_id, task_number, ticket_key, workflow_state_id)
+             VALUES ('Personal project ticket', 1, NULL, 1, 1, $1, 1, 'PERSONAL-1', $4),
+                    ('Team project ticket', 2, NULL, 1, 1, $2, 1, 'TEAM-1', $4),
+                    ('Private reporter ticket', 1, NULL, 1, 1, $3, 1, 'PRIVATE-1', $4),
+                    ('Private assigned ticket', 2, 1, 1, 1, $3, 2, 'PRIVATE-2', $4)
+             RETURNING id, title`,
+            [personalProject, teamProject, privateProject, stateId],
+        )).rows;
+        const ticketId = (title: string) => tickets.find((ticket: any) => ticket.title === title).id;
+
+        const list = await request(app).get("/api/tasks/backlog");
+        expect(list.status).toBe(200);
+        expect(list.body.tasks.map((ticket: any) => ticket.title)).toEqual(expect.arrayContaining([
+            "Personal project ticket",
+            "Team project ticket",
+            "Private reporter ticket",
+            "Private assigned ticket",
+        ]));
+
+        const projectScope = await request(app).get(`/api/tasks/backlog?project_id=${teamProject}`);
+        expect(projectScope.status).toBe(200);
+        expect(projectScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
+
+        const legacyTeamScope = await request(app).get("/api/tasks/backlog?team_id=2");
+        expect(legacyTeamScope.status).toBe(200);
+        expect(legacyTeamScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
+
+        const unassigned = await request(app).get("/api/tasks/backlog?unassigned=1");
+        expect(unassigned.status).toBe(200);
+        expect(unassigned.body.tasks).toEqual([]);
+
+        expect((await request(app).get(`/api/tasks/${ticketId("Personal project ticket")}/detail`)).status).toBe(200);
+        expect((await request(app).get(`/api/tasks/${ticketId("Private reporter ticket")}/detail`)).status).toBe(200);
+        expect((await request(app).get(`/api/tasks/${ticketId("Private assigned ticket")}/detail`)).status).toBe(200);
+        const outsider = await request(app)
+            .get(`/api/tasks/${ticketId("Personal project ticket")}/detail`)
+            .set("x-test-user", "2");
+        expect(outsider.status).toBe(403);
+        const admin = await request(app)
+            .get(`/api/tasks/${ticketId("Private reporter ticket")}/detail`)
+            .set("x-test-role", "hr_admin");
+        expect(admin.status).toBe(200);
+
+        await pool.query("UPDATE organizations SET project_ownership = FALSE WHERE id = 1");
+        const flagOff = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
+        expect(flagOff.status).toBe(200);
+        expect(flagOff.body.tasks.map((ticket: any) => ticket.title)).toEqual(expect.arrayContaining([
+            "Personal project ticket",
+            "Team project ticket",
+            "Private reporter ticket",
+            "Private assigned ticket",
+        ]));
+    });
+
+    test("project grants from every persisted team membership expose tickets across projects", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
+        await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 1, 'Gamma'), (4, 1, 'Delta')");
+        await pool.query("UPDATE users SET team_id = 4 WHERE id = 2");
+        await pool.query(
+            "INSERT INTO user_team_memberships (user_id, team_id) VALUES (1, 2), (1, 3)",
+        );
+        const projects = (await pool.query(
+            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
+             VALUES (1, 'ALPHA', 'Alpha project', 1, FALSE),
+                    (1, 'BETA', 'Beta project', 2, FALSE),
+                    (1, 'GAMMA', 'Gamma project', 3, FALSE)
+             RETURNING id, origin_team_id`,
+        )).rows;
+        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        await pool.query(
+            `INSERT INTO project_members (project_id, team_id, role)
+             VALUES ($1, 1, 'viewer'), ($2, 2, 'member'), ($3, 3, 'project_admin')`,
+            [projectByTeam.get(1), projectByTeam.get(2), projectByTeam.get(3)],
+        );
+        const stateId = (await pool.query(
+            "SELECT id FROM workflow_states WHERE org_id = 1 AND is_initial = TRUE ORDER BY id LIMIT 1",
+        )).rows[0].id;
+        await pool.query(
+            `INSERT INTO tasks (title, user_id, assigned_to, org_id, team_id, project_id, task_number, ticket_key, workflow_state_id)
+             VALUES ('Alpha grant ticket', 1, NULL, 1, 4, $1, 1, 'ALPHA-1', $4),
+                    ('Beta grant ticket', 1, NULL, 1, 4, $2, 1, 'BETA-1', $4),
+                    ('Gamma grant ticket', 1, NULL, 1, 4, $3, 1, 'GAMMA-1', $4)`,
+            [projectByTeam.get(1), projectByTeam.get(2), projectByTeam.get(3), stateId],
+        );
+
+        const memberList = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
+        expect(memberList.status).toBe(200);
+        expect(memberList.body.tasks.map((ticket: any) => ticket.title)).toEqual([
+            "Alpha grant ticket",
+            "Beta grant ticket",
+            "Gamma grant ticket",
+        ]);
+
+        const outsiderList = await request(app).get("/api/tasks/backlog").set("x-test-user", "2");
+        expect(outsiderList.status).toBe(200);
+        expect(outsiderList.body.tasks).toEqual([]);
+    });
+
+    test("a team transfer changes the project and key while preserving the previous key as an alias", async () => {
+        const created = await request(app).post("/api/tasks").send({ title: "Transfer me" });
+        expect(created.status).toBe(200);
+        const oldKey = created.body.ticket_key;
+
+        const transferred = await request(app)
+            .post(`/api/tasks/${created.body.id}/transfer`)
+            .set("x-test-role", "super_admin")
+            .send({ team_id: 2 });
+
+        expect(transferred.status).toBe(200);
+        expect(transferred.body.task.ticket_key).not.toBe(oldKey);
+        expect(transferred.body.task.issue_key).toBe(transferred.body.task.ticket_key);
+        expect((await pool.query(
+            "SELECT key, reason FROM ticket_key_aliases WHERE task_id = $1",
+            [created.body.id],
+        )).rows).toEqual([{ key: oldKey, reason: "move" }]);
+        expect((await pool.query(
+            "SELECT origin_team_id FROM projects WHERE id = $1",
+            [transferred.body.task.project_id],
+        )).rows[0].origin_team_id).toBe(2);
     });
 
     test("read surfaces return fresh capabilities for the requesting actor", async () => {
@@ -243,8 +725,11 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .toEqual({ allowed: false, reason: "CANCELLED_TERMINAL" });
     });
 
-    test("ticket mutation responses carry fresh decisions after every placement and state change", async () => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "Mutation capability" });
+    test("flag-off project workflow mutation responses carry fresh decisions after every placement and state change", async () => {
+        const project = (await pool.query(
+            "INSERT INTO projects (org_id, key, name) VALUES (1, 'MUT', 'Mutation workflow') RETURNING id",
+        )).rows[0];
+        const created = await request(app).post("/api/tasks/backlog").send({ title: "Mutation capability", project_id: project.id });
         expectTicketDecision(created.body);
 
         const edited = await request(app).put(`/api/tasks/${created.body.id}`).send({
@@ -257,8 +742,9 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const targetState = (await pool.query(
             `SELECT id FROM workflow_states
-             WHERE org_id = 1 AND category = 'in_progress' AND is_active = TRUE
+             WHERE org_id = 1 AND project_id = $1 AND category = 'in_progress' AND is_active = TRUE
              ORDER BY sort_order, id LIMIT 1`,
+            [created.body.project_id],
         )).rows[0].id;
         const status = await request(app).patch(`/api/tasks/${created.body.id}/status`)
             .send({ workflow_state_id: targetState });

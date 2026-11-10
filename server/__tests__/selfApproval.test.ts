@@ -82,7 +82,9 @@ function setupAuth(role: string) {
         .mockResolvedValueOnce({
             rows: [{ role, org_id: 1, team_id: null, department_id: null, manager_id: null, is_active: true }],
             rowCount: 1,
-        }); // loadUserContext
+        })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
+        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
 }
 
 function txSql(): string[] {

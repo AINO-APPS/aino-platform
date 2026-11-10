@@ -615,11 +615,11 @@ server/index.ts
   │   ├── /api/giphy           → routes/giphy.ts       (GIF picker proxy)
   │   ├── /api/me/status       → routes/status.ts      (status service v2)
   │   ├── /api/search          → routes/search.ts
-  │   ├── /api/service-desk    → routes/serviceDesk.ts (cross-tenant tickets → default tenant backlog)
+  │   ├── /api/service-desk    → routes/serviceDesk.ts (cross-tenant tickets → platform Service Desk project, General fallback)
   │   ├── /api/branding        → routes/branding.ts    (white-label: org logo, colors, email templates)
   │   ├── /api/custom-fields   → routes/customFields.ts
   │   ├── /api/compensation    → routes/compensation.ts (salary structures, payslips, payouts)
-  │   ├── /api/projects        → routes/projects.ts    (Jira-style PROJ-123 issue keys)
+  │   ├── /api/projects        → routes/projects.ts    (ticket ownership, roles, workflow, keys and migration switch-over)
   │   ├── /api/integrations    → routes/integrations.ts (per-org GitHub etc.)
   │   ├── /api/webhooks        → routes/webhooks.ts    (inbound, CSRF-exempt)
   │   ├── /api/public          → routes/public.ts      (unauthenticated share links, token-gated)

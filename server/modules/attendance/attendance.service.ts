@@ -262,11 +262,8 @@ export function createAttendanceService(deps: AttendanceDependencies) {
         },
 
         /**
-         * Time logged against tasks, grouped by local day.
-         *
-         * This is the timesheet's task-time view: a timer started from a task
-         * lands here once it stops, so the day's attendance and the day's task
-         * time are read from the same place.
+         * Time spent on tasks, grouped by the worklog's recorded day worked.
+         * The legacy timesheet envelope is unchanged.
          */
         getTaskTime,
 
@@ -587,5 +584,7 @@ async function assertManualDateUnlocked(
         );
     }
 }
+
+export { getWorklogDayAttendance, hasApprovedLeaveForDate } from './attendance.worklogEvidence';
 
 export type AttendanceService = ReturnType<typeof createAttendanceService>;

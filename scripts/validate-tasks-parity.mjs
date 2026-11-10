@@ -25,6 +25,8 @@
  *  11. A feature must not regress to a status this script cannot reason about.
  *  12. Every `shipped` owner_test must exist on disk (ticket 29). A feature with
  *      no owning test is a claim, not a guarantee — the build fails instead.
+ *  13. Manual worklogs ship on Android with web; temporary rollout waivers are closed.
+ *  14. Time tracking requires named behavioral owners, verified when their repo exists.
  *
  * Exit code 0 = valid. Exit code 1 = violations printed to stderr.
  */
@@ -54,9 +56,13 @@ const DECISION = /^D[0-9]+$/;
 const CLIENT_ROOTS = {
   web: root,
   desktop: root,
-  android: path.join(repoRoot, "aino-android"),
+  android: process.env.AINO_ANDROID_REPO
+    ? path.resolve(process.env.AINO_ANDROID_REPO) : path.join(repoRoot, "aino-android"),
   ios: path.join(repoRoot, "aino-ios"),
 };
+if (process.env.AINO_ANDROID_REPO && !fs.existsSync(path.join(CLIENT_ROOTS.android, "app", "src"))) {
+  throw new Error("AINO_ANDROID_REPO must name an existing Android checkout; native owners were not verified.");
+}
 
 /** True when the client's repository is checked out beside this one. */
 const clientRepoPresent = (client) => {
@@ -122,6 +128,24 @@ for (const feature of matrix.features ?? []) {
         );
       }
     }
+    if (label === "time-tracking-on-task" && entry.status === "shipped") {
+      check(Array.isArray(entry.owner_tests) && entry.owner_tests.length > 0,
+        `${label}/${client}: shipped manual worklogs require behavioral owners`);
+    }
+    if (entry.owner_tests !== undefined) {
+      check(Array.isArray(entry.owner_tests) && entry.owner_tests.length > 0, `${label}/${client}: behavioral owners must be a non-empty list`);
+      for (const owner of Array.isArray(entry.owner_tests) ? entry.owner_tests : []) {
+        check(typeof owner.path === "string" && typeof owner.name === "string" && owner.name.length > 0,
+          `${label}/${client}: behavioral owner requires path and named test`);
+        if (typeof owner.path !== "string" || typeof owner.name !== "string" || !clientRepoPresent(client)) continue;
+        const file = path.resolve(CLIENT_ROOTS[client], owner.path);
+        const source = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+        const name = owner.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const declaration = client === "android" ? new RegExp(`@Test\\s+fun\\s+${name}\\s*\\(`)
+          : new RegExp(`(?:test|it)(?:\\.each\\([\\s\\S]*?\\))?\\(\\s*['"\x60]${name}['"\x60]`);
+        check(declaration.test(source), `${label}/${client}: behavioral owner "${owner.path}" named test "${owner.name}" does not exist`);
+      }
+    }
     if (entry.status === "n/a") {
       check(typeof entry.waiver === "string" && entry.waiver.length > 20, `${label}/${client}: n/a requires waiver text explaining why`);
       check(Number.isInteger(entry.phase), `${label}/${client}: n/a requires a phase by which it resolves`);
@@ -137,6 +161,10 @@ for (const feature of matrix.features ?? []) {
         `${label}/${client}: web is shipped but ${client} is "${entry.status}" — ship it or waive it, do not let it drift`
       );
     }
+  }
+
+  if (feature.id === "time-tracking-on-task" && feature.web?.status === "shipped") {
+    check(feature.android?.status === "shipped", `${label}/android: manual worklogs must be shipped, not waived`);
   }
 
   // Rule 9 — desktop is the same bundle as web, so the statuses must agree.

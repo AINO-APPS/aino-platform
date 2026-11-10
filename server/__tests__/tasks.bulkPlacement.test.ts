@@ -59,11 +59,11 @@ const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
 const ticketA = {
     id: 10, title: "First", user_id: 1, assigned_to: null, org_id: 1, team_id: 1,
-    sprint_id: null, planned_date: null, due_date: "2026-11-03",
+    project_id: 1, sprint_id: null, planned_date: null, due_date: "2026-11-03",
 };
 const ticketB = {
     id: 11, title: "Second", user_id: 1, assigned_to: null, org_id: 1, team_id: 1,
-    sprint_id: null, planned_date: null, due_date: null,
+    project_id: 1, sprint_id: null, planned_date: null, due_date: null,
 };
 
 function authCookie() {
@@ -74,6 +74,12 @@ function authCookie() {
 function routeQueries(tasks: any[]) {
     mockQuery.mockImplementation(async (sql: string, params?: any[]) => {
         if (/FROM app_settings/.test(sql)) return { rows: [{ value: "false" }], rowCount: 1 };
+        if (/SELECT id, is_archived FROM projects WHERE id = ANY\(\$1::int\[\]\)/.test(sql)) {
+            return { rows: [{ id: 1, is_archived: false }], rowCount: 1 };
+        }
+        if (/SELECT pm\.user_id, pm\.team_id, pm\.role/.test(sql)) {
+            return { rows: [{ user_id: 1, team_id: null, role: "member" }], rowCount: 1 };
+        }
         if (/SELECT token_version FROM users/.test(sql)) return { rows: [{ token_version: 0 }], rowCount: 1 };
         if (/SELECT role, org_id, team_id/.test(sql)) {
             return {
@@ -86,8 +92,8 @@ function routeQueries(tasks: any[]) {
             const rows = tasks.filter((task) => wanted.includes(task.id));
             return { rows, rowCount: rows.length };
         }
-        if (/FROM sprints s JOIN teams t/.test(sql)) {
-            return { rows: [{ id: 50, team_id: 1, end_date: "2026-11-20", name: "Sprint 5" }], rowCount: 1 };
+        if (/FROM sprints s JOIN (teams|projects) t/.test(sql)) {
+            return { rows: [{ id: 50, team_id: 1, project_id: 1, org_id: 1, end_date: "2026-11-20", name: "Sprint 5" }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
     });

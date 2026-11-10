@@ -31,10 +31,12 @@ decisions.
 | [009](ADR-009-control-plane-vs-application-plane.md) | Control plane and application plane are separate hosts and realms | Accepted |
 | [011](ADR-011-realm-scoped-linked-principals.md) | One human may hold linked principals in separate realms | Accepted |
 | [012](ADR-012-default-tenant-has-no-data-privilege.md) | The default tenant has no data privilege | Accepted |
-| [013](ADR-013-ticket-team-ownership.md) | Tickets are owned by one team; membership is the visibility boundary | Accepted |
+| [013](ADR-013-ticket-team-ownership.md) | Tickets are owned by one team; membership is the visibility boundary | Superseded by 017 |
 | [014](ADR-014-workflow-transition-enforcement.md) | Workflow transitions are enforced server-side | Accepted |
 | [015](ADR-015-three-planning-containers.md) | Sprint, Scheduled and backlog are exclusive containers | Accepted |
 | [016](ADR-016-server-decides-ticket-capabilities.md) | The server decides Ticket capabilities; clients render them | Accepted |
+| [017](ADR-017-projects-own-tickets.md) | Projects own tickets; teams are groups of people | Accepted |
+| [018](ADR-018-project-types.md) | Project types replace the Scheduled container and automatic sprints | Accepted (Phase 3, not implemented here) |
 
 > 010 is reserved for the remaining GDAP-style JIT-access hardening. See
 > [`../PLATFORM_TENANT_SEPARATION_PLAN.md`](../PLATFORM_TENANT_SEPARATION_PLAN.md).

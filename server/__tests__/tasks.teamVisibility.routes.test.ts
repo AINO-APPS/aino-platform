@@ -67,20 +67,20 @@ const TASKS: Record<number, any> = {
         id: 1, org_id: ORG, user_id: 900, assigned_to: null, team_id: TEAM_A,
         sprint_id: null, workflow_state_id: 7, title: "Team A ticket", description: null,
         priority: "medium", completed_at: null, is_blocked: false, story_points: null,
-        work_item_type_id: null, project_id: null, task_number: null, created_at: "2026-10-01",
+        work_item_type_id: null, project_id: 301, task_number: null, created_at: "2026-10-01",
     },
     2: {
-        id: 2, org_id: ORG, user_id: 901, assigned_to: null, team_id: TEAM_B,
+        id: 2, org_id: ORG, user_id: 901, assigned_to: 900, team_id: TEAM_B,
         sprint_id: null, workflow_state_id: 7, title: "Team B ticket", description: null,
         priority: "medium", completed_at: null, is_blocked: false, story_points: null,
-        work_item_type_id: null, project_id: null, task_number: null, created_at: "2026-10-01",
+        work_item_type_id: null, project_id: 303, task_number: null, created_at: "2026-10-01",
     },
     // A legacy row with no owning team, created by user 2.
     3: {
         id: 3, org_id: ORG, user_id: 2, assigned_to: null, team_id: null,
         sprint_id: null, workflow_state_id: 7, title: "Unowned", description: null,
         priority: "medium", completed_at: null, is_blocked: false, story_points: null,
-        work_item_type_id: null, project_id: null, task_number: null, created_at: "2026-10-01",
+        work_item_type_id: null, project_id: 303, task_number: null, created_at: "2026-10-01",
     },
 };
 
@@ -120,6 +120,31 @@ function fixtureQuery(sql: string, params: unknown[] = []): { rows: any[]; rowCo
     }
     if (/^\s*SELECT .* FROM tasks t\b/i.test(text) && /WHERE/.test(text)) {
         return { rows: [], rowCount: 0 };
+    }
+    if (/SELECT DISTINCT p\.id/.test(text)) {
+        return { rows: [301, 302].map((id) => ({ id })), rowCount: 2 };
+    }
+    if (/SELECT id, is_archived FROM projects WHERE id = ANY\(\$1::int\[\]\)/.test(text)) {
+        const ids = params[0] as number[];
+        const rows = ids.map((id) => ({ id, is_archived: false }));
+        return { rows, rowCount: rows.length };
+    }
+    if (/SELECT id FROM projects WHERE org_id = \$1 AND origin_team_id = \$2/.test(text)) {
+        const projectId = Number(params[1]) === TEAM_A ? 301 : Number(params[1]) === TEAM_B ? 303 : null;
+        return { rows: projectId == null ? [] : [{ id: projectId }], rowCount: projectId == null ? 0 : 1 };
+    }
+    if (/^SELECT id FROM projects WHERE org_id = \$1$/.test(text)) {
+        return { rows: [301, 302, 303].map((id) => ({ id })), rowCount: 3 };
+    }
+    if (/SELECT pm\.user_id, pm\.team_id, pm\.role/.test(text)) {
+        const projectId = Number(params[0]);
+        const userId = Number(params[1]);
+        const grants = projectId === 301 && userId === 1
+            ? [{ user_id: 1, team_id: null, role: "viewer" }]
+            : projectId === 302 && Number((params[3] as number[])[0]) === TEAM_A
+                ? [{ user_id: null, team_id: TEAM_A, role: "member" }]
+                : [];
+        return { rows: grants, rowCount: grants.length };
     }
     match = text.match(/FROM users WHERE id = \$1/);
     if (/SELECT id, team_id FROM users WHERE id = ANY/.test(text)) {
@@ -170,6 +195,7 @@ function makeApp() {
     app.use((req: any, _res: any, next: any) => {
         const flag = req.header("x-flag") !== "off";
         req.tenant = { id: 1, plan: "enterprise", features: { team_visibility: flag, agile: true } };
+        req.projectOwnership = req.header("x-project-ownership") === "on";
         req.tenantId = 1;
         req.db = mockDb;
         req.log = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
@@ -216,6 +242,39 @@ describe("list visibility", () => {
         const list = queries.find((q) => /FROM tasks t/.test(q.sql));
         expect(list!.sql).toContain("t.team_id = $");
         expect(list!.sql).not.toContain("users WHERE team_id");
+    });
+
+    describe("project-owned list visibility", () => {
+        test("lists accessible projects and reporter/assignee tickets", async () => {
+            const res = await get("/api/tasks/backlog", asMember({ "x-project-ownership": "on" }));
+            expect(res.status).toBe(200);
+            const list = queries.find((q) => /FROM tasks t/.test(q.sql));
+            expect(list!.sql).toContain("t.project_id = ANY($");
+            expect(list!.sql).toContain("t.user_id = $");
+            expect(list!.sql).toContain("t.assigned_to = $");
+            expect(list!.params).toContainEqual([301, 302]);
+        });
+
+        test("legacy team scope maps to its generated project and rejects inaccessible teams", async () => {
+            const allowed = await get("/api/tasks/backlog?team_id=10", asMember({ "x-project-ownership": "on" }));
+            expect(allowed.status).toBe(200);
+            const allowedList = queries.find((q) => /FROM tasks t/.test(q.sql));
+            expect(allowedList!.sql).toContain("t.project_id = $");
+            expect(allowedList!.params).toContain(301);
+
+            queries = [];
+            const denied = await get("/api/tasks/backlog?team_id=20", asMember({ "x-project-ownership": "on" }));
+            expect(denied.status).toBe(200);
+            const deniedList = queries.find((q) => /FROM tasks t/.test(q.sql));
+            expect(deniedList!.sql).toContain("FALSE");
+        });
+
+        test("legacy Unassigned scope is empty", async () => {
+            const res = await get("/api/tasks/backlog?unassigned=1", asMember({ "x-project-ownership": "on" }));
+            expect(res.status).toBe(200);
+            const list = queries.find((q) => /FROM tasks t/.test(q.sql));
+            expect(list!.sql).toContain("FALSE");
+        });
     });
 
     test("flag off restores the creator-team predicate", async () => {
@@ -299,6 +358,42 @@ describe("the policy is applied to every ticket surface", () => {
     });
 });
 
+describe("project-owned direct ticket visibility", () => {
+    test("a project viewer and reporter/assignee can read; a user without access cannot", async () => {
+        const viewer = await get("/api/tasks/1/detail", asMember({ "x-project-ownership": "on" }));
+        expect(viewer.status).toBe(200);
+
+        const reporter = await get("/api/tasks/1/detail", asMember({
+            "x-project-ownership": "on", "x-user-id": "900",
+        }));
+        expect(reporter.status).toBe(200);
+
+        const assignee = await get("/api/tasks/2/detail", asMember({
+            "x-project-ownership": "on", "x-user-id": "900",
+        }));
+        expect(assignee.status).toBe(200);
+
+        const outsider = await get("/api/tasks/3/detail", asMember({ "x-project-ownership": "on" }));
+        expect(outsider.status).toBe(403);
+    });
+});
+
+describe("project-owned policy surfaces", () => {
+    test("search, dependency lookup, notes picker and export share the project predicate", async () => {
+        await get("/api/tasks/search?q=refund", asMember({ "x-project-ownership": "on" }));
+        await get("/api/tasks/lookup/quicksearch?q=ref", asMember({ "x-project-ownership": "on" }));
+        await get("/api/notes/search-tasks?q=ref", asMember({ "x-project-ownership": "on" }));
+        await get("/api/export/my-tasks", asMember({ "x-project-ownership": "on" }));
+
+        const searches = queries.filter((query) => /FROM tasks t/.test(query.sql));
+        expect(searches).toHaveLength(4);
+        for (const search of searches) {
+            expect(search.sql).toContain("t.project_id = ANY($");
+            expect(search.sql).toContain("t.user_id = $");
+        }
+    });
+});
+
 describe("detail and history", () => {
     test("a team member reads a ticket they did not create", async () => {
         const res = await get("/api/tasks/1/detail", asMember());
@@ -378,7 +473,7 @@ describe("sprint moves", () => {
             .set(asAdmin())
             .send({ sprint_id: 60 });
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a ticket may join its own team's sprint", async () => {
@@ -396,7 +491,7 @@ describe("sprint moves", () => {
             .set(asAdmin())
             .send({ sprint_id: 60 });
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a bulk move reports the cross-team ticket as skipped", async () => {
@@ -408,7 +503,7 @@ describe("sprint moves", () => {
         expect(res.status).toBe(200);
         expect(res.body.changed).toBe(0);
         expect(res.body.results[0].ok).toBe(false);
-        expect(res.body.results[0].error).toMatch(/another team/);
+        expect(res.body.results[0].error).toMatch(/own project/);
     });
 });
 

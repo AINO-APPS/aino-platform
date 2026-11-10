@@ -12984,7 +12984,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "GET /api/projects",
+        "summary": "List projects",
         "operationId": "get_api_projects",
         "parameters": [],
         "security": [
@@ -13001,7 +13001,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/ProjectList"
                 }
               }
             }
@@ -13062,7 +13062,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "POST /api/projects",
+        "summary": "Create a project with optional team grants",
         "operationId": "post_api_projects",
         "parameters": [
           {
@@ -13083,7 +13083,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13135,6 +13135,16 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
               }
             }
           }
@@ -13236,7 +13246,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "GET /api/projects/:id",
+        "summary": "Get a project and its project capabilities",
         "operationId": "get_api_projects_id",
         "parameters": [
           {
@@ -13262,7 +13272,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13323,7 +13333,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "PUT /api/projects/:id",
+        "summary": "Update a project",
         "operationId": "put_api_projects_id",
         "parameters": [
           {
@@ -13352,7 +13362,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -13415,7 +13425,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "PATCH /api/projects/:id/archive",
+        "summary": "Archive or restore a project",
         "operationId": "patch_api_projects_id_archive",
         "parameters": [
           {
@@ -13444,7 +13454,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Project"
                 }
               }
             }
@@ -14245,7 +14255,49 @@
         ],
         "summary": "GET /api/tasks",
         "operationId": "get_api_tasks",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -14321,7 +14373,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "POST /api/tasks",
+        "summary": "Create a dated ticket in a project",
         "operationId": "post_api_tasks",
         "parameters": [
           {
@@ -14342,7 +14394,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Task"
                 }
               }
             }
@@ -14368,11 +14420,35 @@
             }
           },
           "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "description": "READ_ONLY_ROLE: the actor must be a project member or project admin",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "archived": {
+                    "value": {
+                      "error": "This project is archived and its tickets are read-only.",
+                      "code": "PROJECT_ARCHIVED"
+                    }
+                  },
+                  "mismatch": {
+                    "value": {
+                      "error": "A ticket may only join a sprint in its own project.",
+                      "code": "SPRINT_PROJECT_MISMATCH"
+                    }
+                  }
                 }
               }
             }
@@ -14397,7 +14473,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              }
+            }
+          }
+        },
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/{id}": {
@@ -16089,7 +16176,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskHistoryEntry"
+                  }
                 }
               }
             }
@@ -16706,7 +16796,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/timer/start": {
@@ -16798,7 +16890,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/timer/stop": {
@@ -16890,7 +16984,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
       }
     },
     "/api/tasks/{id}/transfer": {
@@ -17261,15 +17357,27 @@
         "tags": [
           "sprints"
         ],
-        "summary": "List sprints for the current team",
+        "summary": "List project sprints; legacy team scope maps to its generated project when ownership is enabled",
         "operationId": "get_api_sprints",
         "parameters": [
           {
             "name": "team_id",
             "in": "query",
             "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -17323,6 +17431,108 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Create a sprint owned by the selected project; flag-off callers retain team ownership",
+        "operationId": "post_api_sprints",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Archived project is read-only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSprintRequest"
+              }
+            }
+          }
+        }
       }
     },
     "/api/tasks/available-sprints": {
@@ -17332,7 +17542,28 @@
         ],
         "summary": "GET /api/tasks/available-sprints",
         "operationId": "get_api_tasks_available_sprints",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -17412,7 +17643,49 @@
         ],
         "summary": "GET /api/tasks/backlog",
         "operationId": "get_api_tasks_backlog",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -17488,7 +17761,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "POST /api/tasks/backlog",
+        "summary": "Create a backlog ticket in a project",
         "operationId": "post_api_tasks_backlog",
         "parameters": [
           {
@@ -17509,7 +17782,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/Task"
                 }
               }
             }
@@ -17535,11 +17808,35 @@
             }
           },
           "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "description": "READ_ONLY_ROLE: the actor must be a project member or project admin",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "archived": {
+                    "value": {
+                      "error": "This project is archived and its tickets are read-only.",
+                      "code": "PROJECT_ARCHIVED"
+                    }
+                  },
+                  "mismatch": {
+                    "value": {
+                      "error": "A ticket may only join a sprint in its own project.",
+                      "code": "SPRINT_PROJECT_MISMATCH"
+                    }
+                  }
                 }
               }
             }
@@ -17564,7 +17861,18 @@
               }
             }
           }
-        }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTicketRequest"
+              }
+            }
+          }
+        },
+        "description": "Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back."
       }
     },
     "/api/tasks/bulk": {
@@ -17656,7 +17964,7 @@
         "tags": [
           "tasks"
         ],
-        "summary": "GET /api/tasks/by-key/:key",
+        "summary": "Resolve a current or former ticket key",
         "operationId": "get_api_tasks_by_key_key",
         "parameters": [
           {
@@ -17678,11 +17986,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Ticket resolved from its current key or a former key. key_alias indicates an alias lookup.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
+                  "$ref": "#/components/schemas/TaskByKey"
                 }
               }
             }
@@ -17709,6 +18017,16 @@
           },
           "403": {
             "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found or not visible to the current actor",
             "content": {
               "application/json": {
                 "schema": {
@@ -18335,7 +18653,18 @@
         ],
         "summary": "GET /api/tasks/lookup/quicksearch",
         "operationId": "get_api_tasks_lookup_quicksearch",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18408,14 +18737,56 @@
         }
       }
     },
-      "/api/tasks/scheduled": {
-    "get": {
+    "/api/tasks/scheduled": {
+      "get": {
         "tags": [
           "tasks"
         ],
         "summary": "GET /api/tasks/backlog",
         "operationId": "get_api_tasks_scheduled",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "unassigned",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "personal"
+              ]
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18487,8 +18858,8 @@
           }
         }
       }
-  },
-"/api/tasks/schedule-overlays": {
+    },
+    "/api/tasks/schedule-overlays": {
       "get": {
         "tags": [
           "tasks"
@@ -18575,7 +18946,18 @@
         ],
         "summary": "GET /api/tasks/search",
         "operationId": "get_api_tasks_search",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -19928,7 +20310,7 @@
         "tags": [
           "tracker"
         ],
-        "summary": "Time logged against tasks, grouped by local day",
+        "summary": "Time spent on tasks, grouped by recorded day worked",
         "operationId": "get_api_tracker_task_time",
         "parameters": [],
         "security": [
@@ -20716,6 +21098,2889 @@
           }
         }
       }
+    },
+    "/api/org/current": {
+      "get": {
+        "tags": [
+          "organization"
+        ],
+        "operationId": "get_api_org_current",
+        "summary": "Read current organization settings",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current organization, or null when unassigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OrgSettings"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/org/settings": {
+      "put": {
+        "tags": [
+          "organization"
+        ],
+        "operationId": "put_api_org_settings",
+        "summary": "Update organization settings (HR admin or above)",
+        "description": "service_desk_project_id must be an active project in this organization. Null clears the setting; omission preserves it.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, archived or foreign project"
+          },
+          "403": {
+            "description": "Organization admin permission required"
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/key": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Rename a project key atomically (project admin)",
+        "operationId": "post_api_projects_id_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectKeyRenameResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project-admin canRenameKey capability required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found in the actor's organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project key already in use or permanently reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectKeyRenameRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/key/preview": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Preview affected ticket count without writing (project admin)",
+        "operationId": "post_api_projects_id_key_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectKeyRenameResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project-admin canRenameKey capability required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found in the actor's organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Project key already in use or permanently reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectKeyRenameRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/members": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List project member grants",
+        "operationId": "get_api_projects_id_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Grant or update project access",
+        "operationId": "post_api_projects_id_members",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMemberWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/members/{memberId}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Remove project member access",
+        "operationId": "delete_api_projects_id_members_memberId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Change a project member role",
+        "operationId": "put_api_projects_id_members_memberId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMember"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRoleUpdate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-states": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Read a project's workflow states and transitions",
+        "operationId": "get_api_projects_id_workflow_states",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectWorkflow"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create a project workflow state",
+        "operationId": "post_api_projects_id_workflow_states",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Workflow state created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid workflow state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project workflow access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Workflow state key already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowStateWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-states/{stateId}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete an unused project workflow state",
+        "operationId": "delete_api_projects_id_workflow_states_stateId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update a project workflow state",
+        "operationId": "put_api_projects_id_workflow_states_stateId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowStatePatch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-states/reorder": {
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Reorder project workflow states",
+        "operationId": "put_api_projects_id_workflow_states_reorder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowReorder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}/workflow-transitions": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Read a project's allowed workflow transitions",
+        "operationId": "get_api_projects_id_workflow_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTransitions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Replace a project's allowed workflow transitions",
+        "operationId": "put_api_projects_id_workflow_transitions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTransitions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowTransitionWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/migration/review": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Review generated projects, grants and migration moves (web organization admin)",
+        "operationId": "get_api_projects_migration_review",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMigrationReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/migration/switch": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Publish every project key and enable ownership atomically once (web super_admin only)",
+        "operationId": "post_api_projects_migration_switch",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOwnershipState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/migration/switch-back": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Emergency restore team visibility; retain published keys (web platform_admin only)",
+        "operationId": "post_api_projects_migration_switch_back",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOwnershipState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Organization context not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/mine": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "List active projects where the actor can create tickets",
+        "operationId": "get_api_projects_mine",
+        "parameters": [],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProjectList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Returns only non-archived projects with canCreateTickets, resolved from the actor's effective personal/team role and organization-admin override."
+      }
+    },
+    "/api/service-desk/tickets": {
+      "post": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "post_api_service_desk_tickets",
+        "summary": "Submit a customer ticket",
+        "description": "Creates a keyed copy in the platform organization's Service Desk project, or General, in its initial workflow state. Returns 201 even if creating the copy fails; the failure is logged.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDeskTicketCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer ticket submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDeskTicket"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ticket input or missing tenant context"
+          }
+        }
+      }
+    },
+    "/api/service-desk/tickets/{id}": {
+      "delete": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "delete_api_service_desk_tickets_id",
+        "summary": "Delete a Service Desk ticket, retaining its platform copy",
+        "description": "Platform-tenant operators may delete a ticket; an owner may cancel their own open ticket. The copy moves to Cancelled and receives a service_desk_deleted system history note. A Done copy stays Done and receives only the note. The copy and its time/history are never deleted.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticket deleted; copy retained"
+          },
+          "400": {
+            "description": "Owner ticket no longer open"
+          },
+          "403": {
+            "description": "Not platform tenant or ticket owner"
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "service-desk"
+        ],
+        "operationId": "patch_api_service_desk_tickets_id",
+        "summary": "Update a Service Desk ticket",
+        "description": "Platform-tenant operators can update status. Open and acknowledged map to the initial state; in_progress maps to the first in_progress-category state; resolved and closed map to the first non-cancelled done-category state (sort_order then id). Sync is one way, bypasses transitions and records service_desk_sync history as a system actor. A cancelled copy is never synced again. Owners may only edit title, description and priority while open.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDeskTicketUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceDeskTicket"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid update or owner ticket no longer open"
+          },
+          "403": {
+            "description": "Not platform tenant or ticket owner"
+          },
+          "404": {
+            "description": "Ticket not found"
+          }
+        }
+      }
+    },
+    "/api/sprints/{id}/tasks": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Read the sprint project's tickets for the Plan view",
+        "operationId": "get_api_sprints_id_tasks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintTasksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sprints/active": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Read a project's active sprint; flag-off callers retain team scope",
+        "operationId": "get_api_sprints_active",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "description": "Limit ticket visibility to one project the actor can access.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveSprintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/estimates": {
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Set or clear original and remaining estimates",
+        "operationId": "patch_api_tasks_id_estimates",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estimates saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetEstimatesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ESTIMATE: invalid duration, fields or ticket identifier; nothing changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or WORKLOG_CANCELLED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket not found in this organization."
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Requires canEditEstimate (same rule as logWork). Setting original seeds an empty remaining only when remaining is omitted. History/audit and estimates commit atomically; task_updated emits after commit.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEstimatesRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/move-project": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "moveTaskProject",
+        "summary": "Move a ticket transactionally to another project",
+        "description": "Requires project ownership and member or project-admin in both active projects. Maps state by active key, first active category, then initial state. A move allocates a new key, aliases the old key, clears the source project's sprint and records history/audit; task_updated follows commit. Legacy team ownership is retained. A preview reserves no sequence and may become stale before confirmation.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMoveResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid id or unchanged project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or READ_ONLY_ROLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or same-org project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/move-project/preview": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "operationId": "previewTaskProjectMove",
+        "summary": "Preview a project move without writes",
+        "description": "Requires project ownership and member or project-admin in both active projects. Maps state by active key, first active category, then initial state. A move allocates a new key, aliases the old key, clears the source project's sprint and records history/audit; task_updated follows commit. Legacy team ownership is retained. A preview reserves no sequence and may become stale before confirmation.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMovePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid id or unchanged project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or READ_ONLY_ROLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or same-org project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/worklogs": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "List a ticket’s worklogs, author capabilities and computed time spent",
+        "operationId": "get_api_tasks_id_worklogs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskWorklogList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden, CSRF header missing, or feature unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Log work on a ticket",
+        "operationId": "post_api_tasks_id_worklogs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Worklog saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogWorkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DURATION or INVALID_WORKLOG: no work is saved. INVALID_ESTIMATE for invalid remaining choices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED, WORKLOG_CANCELLED or WORKLOG_FOR_OTHERS_DENIED: the viewer cannot log work or supplied an author without the behalf capability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Logs the viewer’s work, or a same-org author for this ticket project’s admin or an org admin (HR admin and above); done tickets are allowed. Project members and viewers cannot log for others. Archived projects refuse writes. Author and original logged-by are separate. History and audit are transactional; task_updated is emitted after commit. Attendance warnings are computed after saving against the saved author and day; failed checks never block or roll back the write. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogWorkRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}/worklogs/{worklogId}": {
+      "delete": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Soft-delete an authored worklog",
+        "operationId": "delete_api_tasks_id_worklogs_worklogId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worklogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worklog soft-deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteWorklogResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_WORKLOG: unsupported fields. INVALID_ESTIMATE for invalid remaining choices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED: only the author, this ticket project’s admin or an org admin can delete a writable worklog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or active worklog not found in this organization/ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "The author, this ticket project’s admin or an org admin can delete a visible worklog; project-role and archive guards still apply. Excluded from time spent and daily totals; preserved in history. Audit/history are transactional; task_updated is sent after commit. Remaining estimate choices are supported. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorklogRequest"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Correct an authored worklog",
+        "operationId": "patch_api_tasks_id_worklogs_worklogId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worklogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfHeader"
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Worklog corrected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogWorkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_DURATION or INVALID_WORKLOG; nothing is changed. INVALID_ESTIMATE for invalid remaining choices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required or session invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCESS_DENIED or WORKLOG_FOR_OTHERS_DENIED: only the author, this ticket project’s admin or an org admin can correct a writable worklog; any supplied author requires the behalf capability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ticket or active worklog not found in this organization/ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Accepts changed day worked, duration, start time, comment or author_id. Null clears start time/comment. The author, this ticket project’s admin or an org admin may edit; project-role and archive guards still apply. Changing author requires can.logWorkForOthers and keeps original logged-by. Done and Cancelled retain corrections. History/audit commit atomically and task_updated is sent after commit. Attendance warnings are recomputed after saving against the saved author/day and updated aggregate; failed checks never block or roll back corrections. Remaining mode auto/set/leave applies in the same transaction; set requires remaining_estimate (empty clears).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditWorklogRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -20939,6 +24204,12 @@
           },
           {
             "type": "object",
+            "properties": {
+              "project_ownership": {
+                "type": "boolean",
+                "description": "Organization switch selecting project-scoped Plan UI; independent of subscription feature flags."
+              }
+            },
             "additionalProperties": true
           }
         ]
@@ -21524,6 +24795,21 @@
               "null"
             ]
           },
+          "snippet": {
+            "type": "string"
+          },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "container": {
             "type": "string",
             "enum": [
@@ -21535,21 +24821,61 @@
           "capabilities": {
             "$ref": "#/components/schemas/TicketCapabilities"
           },
-          "snippet": {
-            "type": "string"
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "is_archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "is_archived"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
           "title",
           "description",
           "priority",
           "planned_date",
           "due_date",
           "sprint_id",
+          "snippet",
           "container",
           "capabilities",
-          "snippet"
+          "container",
+          "capabilities",
+          "container",
+          "capabilities"
         ],
         "additionalProperties": false
       },
@@ -21559,12 +24885,13 @@
           "id": {
             "type": "integer"
           },
+          "ticket_key": {
+            "type": "string",
+            "description": "Stored, org-unique ticket key. Never recomputed from a project's current key."
+          },
           "issue_key": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Canonical PROJ-123 reference. Stable across sprint moves."
+            "type": "string",
+            "description": "Legacy field retained for older clients; equal to ticket_key."
           },
           "title": {
             "type": "string"
@@ -21674,10 +25001,7 @@
             ]
           },
           "project_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           },
           "work_item_type_id": {
             "type": [
@@ -21697,12 +25021,12 @@
               "null"
             ],
             "minimum": 0,
-            "description": "Planned effort in minutes. Shown against logged_minutes."
+            "description": "Legacy alias of original_estimate_minutes."
           },
           "logged_minutes": {
             "type": "integer",
             "minimum": 0,
-            "description": "Minutes logged by timers started from this task. Rolls into the timesheet."
+            "description": "Legacy alias of time_spent_minutes, computed from non-deleted worklogs."
           },
           "assigned_to": {
             "type": [
@@ -21744,10 +25068,76 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Former ticket keys that still resolve to this ticket."
+          },
+          "key_alias": {
+            "type": "boolean",
+            "description": "True when the requested ticket key was a former key."
+          },
+          "requested_key": {
+            "type": "string",
+            "description": "The key used to fetch the ticket, which may be an alias."
+          },
+          "project": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "color": {
+                "type": "string"
+              },
+              "is_archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "is_archived"
+            ],
+            "additionalProperties": false
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Sum of non-deleted worklog minutes, computed on read; never stored."
+          },
+          "original_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
           }
         },
         "required": [
           "id",
+          "ticket_key",
+          "issue_key",
           "title",
           "priority",
           "workflow_state_id",
@@ -21758,6 +25148,7 @@
           "container",
           "capabilities",
           "team_id",
+          "project_id",
           "rank",
           "is_blocked"
         ],
@@ -21776,8 +25167,12 @@
               "ACCESS_DENIED",
               "SPRINT_FROZEN",
               "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
+              "CANCELLED_TERMINAL",
+              "READ_ONLY_ROLE",
+              "PROJECT_ARCHIVED",
+              "SPRINT_PROJECT_MISMATCH",
+              "WORKLOG_CANCELLED",
+              "WORKLOG_FOR_OTHERS_DENIED"
             ]
           }
         },
@@ -21802,8 +25197,10 @@
               "ACCESS_DENIED",
               "SPRINT_FROZEN",
               "IN_SPRINT",
-              "SPRINT_TEAM_MISMATCH",
-              "CANCELLED_TERMINAL"
+              "CANCELLED_TERMINAL",
+              "READ_ONLY_ROLE",
+              "PROJECT_ARCHIVED",
+              "SPRINT_PROJECT_MISMATCH"
             ]
           }
         },
@@ -21845,6 +25242,21 @@
               },
               "schedule": {
                 "$ref": "#/components/schemas/TicketCapability"
+              },
+              "comment": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "logWork": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "logWorkForOthers": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "canEditEstimate": {
+                "$ref": "#/components/schemas/TicketCapability"
+              },
+              "canMoveProject": {
+                "$ref": "#/components/schemas/TicketCapability"
               }
             },
             "required": [
@@ -21854,7 +25266,12 @@
               "transfer",
               "delete",
               "placeInSprint",
-              "schedule"
+              "schedule",
+              "comment",
+              "logWork",
+              "logWorkForOthers",
+              "canEditEstimate",
+              "canMoveProject"
             ],
             "additionalProperties": false
           }
@@ -21871,8 +25288,15 @@
           "id": {
             "type": "integer"
           },
-          "team_id": {
+          "project_id": {
             "type": "integer"
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."
           },
           "name": {
             "type": "string"
@@ -21951,6 +25375,7 @@
         },
         "required": [
           "id",
+          "project_id",
           "team_id",
           "name",
           "status",
@@ -22590,8 +26015,8 @@
           },
           "minutes": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Minutes added to the task by this stop."
+            "minimum": 1,
+            "description": "Minutes recorded as one worklog by this stop, rounded up to at least one."
           },
           "time": {
             "$ref": "#/components/schemas/TaskTimeSummary"
@@ -22741,6 +26166,1932 @@
           }
         },
         "additionalProperties": true
+      },
+      "ProjectRole": {
+        "type": "string",
+        "enum": [
+          "project_admin",
+          "member",
+          "viewer"
+        ]
+      },
+      "ProjectCapabilities": {
+        "type": "object",
+        "properties": {
+          "canAdminister": {
+            "type": "boolean"
+          },
+          "canCreateTickets": {
+            "type": "boolean"
+          },
+          "canManageMembers": {
+            "type": "boolean"
+          },
+          "canEditWorkflow": {
+            "type": "boolean"
+          },
+          "canRenameKey": {
+            "type": "boolean"
+          },
+          "canArchive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "canAdminister",
+          "canCreateTickets",
+          "canManageMembers",
+          "canEditWorkflow",
+          "canRenameKey",
+          "canArchive"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectKeyRenameRequest": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,9}$",
+            "minLength": 2,
+            "maxLength": 10
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectKeyRenameResult": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "old_key": {
+            "type": "string"
+          },
+          "new_key": {
+            "type": "string"
+          },
+          "affected_tickets": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "project_id",
+          "old_key",
+          "new_key",
+          "affected_tickets"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowCategory": {
+        "type": "string",
+        "enum": [
+          "open",
+          "in_progress",
+          "in_review",
+          "done"
+        ]
+      },
+      "WorkflowState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "category"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowStateList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkflowState"
+        }
+      },
+      "WorkflowStateWrite": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "category"
+        ],
+        "additionalProperties": true
+      },
+      "WorkflowStatePatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "category": {
+            "$ref": "#/components/schemas/WorkflowCategory"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          },
+          "wip_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_initial": {
+            "type": "boolean"
+          },
+          "is_terminal": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "WorkflowReorder": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "order"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransition": {
+        "type": "object",
+        "properties": {
+          "from_state_id": {
+            "type": "integer"
+          },
+          "to_state_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_state_id",
+          "to_state_id"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransitions": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          }
+        },
+        "required": [
+          "transitions"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowTransitionWrite": {
+        "type": "object",
+        "properties": {
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          }
+        },
+        "required": [
+          "transitions"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectWorkflow": {
+        "type": "object",
+        "properties": {
+          "workflowStates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowState"
+            }
+          },
+          "transitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTransition"
+            }
+          },
+          "canEditWorkflow": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workflowStates",
+          "transitions",
+          "canEditWorkflow"
+        ],
+        "additionalProperties": false
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "org_id": {
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": "string"
+          },
+          "lead_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lead_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lead_username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_count": {
+            "type": "integer"
+          },
+          "next_task_number": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "scrum",
+              "kanban",
+              "task_list"
+            ]
+          },
+          "origin_team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "key_published": {
+            "type": "boolean"
+          },
+          "is_general": {
+            "type": "boolean"
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "created_by": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ProjectCapabilities"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "capabilities"
+        ],
+        "additionalProperties": true
+      },
+      "ProjectMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          },
+          "granted_by": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "team_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "granted_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "team_id",
+          "role",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMemberList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectMember"
+        }
+      },
+      "ProjectPage": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "hasMore": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "limit",
+              "offset",
+              "total",
+              "hasMore"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "projects",
+          "pagination"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectList": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          {
+            "$ref": "#/components/schemas/ProjectPage"
+          }
+        ]
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,9}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "lead_user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "ProjectMemberWrite": {
+        "type": "object",
+        "properties": {
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "team"
+            ]
+          },
+          "subject_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject_id",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectRoleUpdate": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectOwnershipState": {
+        "type": "object",
+        "properties": {
+          "project_ownership": {
+            "type": "boolean"
+          },
+          "switched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "First publication timestamp; retained after emergency switch-back. Initial publication cannot be repeated."
+          }
+        },
+        "required": [
+          "project_ownership",
+          "switched_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationGrant": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectRole"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "team_id",
+          "role",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "key_published": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "scrum",
+              "kanban",
+              "task_list"
+            ]
+          },
+          "origin_team_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "is_general": {
+            "type": "boolean"
+          },
+          "ticket_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationGrant"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key",
+          "key_published",
+          "type",
+          "origin_team_id",
+          "is_general",
+          "ticket_count",
+          "grants"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationMove": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer"
+          },
+          "old_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "new_key": {
+            "type": "string",
+            "description": "Current key, including review-time renames."
+          },
+          "migration_key": {
+            "type": "string",
+            "description": "Original migration target key, preserved for audit."
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sprint_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "to_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "moved_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "task_id",
+          "old_key",
+          "new_key",
+          "migration_key",
+          "sprint_id",
+          "sprint_name",
+          "from_project_id",
+          "to_project_id",
+          "moved_at"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMigrationReview": {
+        "type": "object",
+        "properties": {
+          "project_ownership": {
+            "type": "boolean"
+          },
+          "switched_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationProject"
+            }
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMigrationMove"
+            }
+          }
+        },
+        "required": [
+          "project_ownership",
+          "switched_at",
+          "projects",
+          "moves"
+        ],
+        "additionalProperties": false
+      },
+      "CreateSprintRequest": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Selected project; omitted by legacy clients, which fall back to their team's generated project."
+          },
+          "team_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "goal": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "additionalProperties": false
+      },
+      "SprintResponse": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "$ref": "#/components/schemas/Sprint"
+          }
+        },
+        "required": [
+          "sprint"
+        ],
+        "additionalProperties": false
+      },
+      "ActiveSprintResponse": {
+        "type": "object",
+        "properties": {
+          "sprint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sprint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sprint"
+        ],
+        "additionalProperties": false
+      },
+      "SprintTasksResponse": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "additionalProperties": false
+      },
+      "TaskByKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "ticket_key": {
+            "type": "string"
+          },
+          "issue_key": {
+            "type": "string"
+          },
+          "key_aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "key_alias": {
+            "type": "boolean"
+          },
+          "requested_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ticket_key",
+          "issue_key",
+          "key_aliases",
+          "key_alias",
+          "requested_key"
+        ],
+        "additionalProperties": true
+      },
+      "OrgSettingsUpdate": {
+        "type": "object",
+        "properties": {
+          "service_desk_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Active project in the same organization; null selects General fallback."
+          }
+        },
+        "additionalProperties": true
+      },
+      "OrgSettings": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "service_desk_project_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "service_desk_project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "ServiceDeskTicketCreate": {
+        "type": "object",
+        "required": [
+          "ticket_type",
+          "title"
+        ],
+        "properties": {
+          "ticket_type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "feature_request",
+              "access_issue",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "default": "medium"
+          }
+        }
+      },
+      "ServiceDeskTicketUpdate": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "assigned_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "admin_notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ServiceDeskTicket": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "title",
+          "ticket_type",
+          "priority",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "tenant_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "ticket_type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "feature_request",
+              "access_issue",
+              "other"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "acknowledged",
+              "in_progress",
+              "resolved",
+              "closed"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "TaskHistoryEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "task_id",
+          "user_id",
+          "actor_type",
+          "action"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "task_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "actor_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "system"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "description": "Includes service_desk_sync and service_desk_deleted for system-authored Service Desk events."
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "old_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "new_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "TaskWorklogList": {
+        "type": "object",
+        "properties": {
+          "worklogs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskWorklog"
+            },
+            "description": "Newest day worked first, then newest created time and id."
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "original_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "worklogs",
+          "time_spent_minutes",
+          "original_estimate_minutes",
+          "remaining_estimate_minutes"
+        ],
+        "additionalProperties": false
+      },
+      "MyProjectList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Project"
+        }
+      },
+      "CreateTicketRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Web selection; legacy omission resolves from sprint, team, then General."
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Must belong to the resolved project."
+          },
+          "team_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Legacy compatibility hint, chosen explicitly by organization admins only."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "label_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "story_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "work_item_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workflow_state_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "parent_task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "acceptance_criteria": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "is_blocked": {
+            "type": "boolean"
+          },
+          "blocked_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "TaskWorklog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "task_id": {
+            "type": "integer"
+          },
+          "author_id": {
+            "type": "integer"
+          },
+          "logged_by_id": {
+            "type": "integer",
+            "description": "The original person who logged this work; unchanged by later corrections."
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "full_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "avatar": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "full_name",
+              "avatar"
+            ],
+            "additionalProperties": false
+          },
+          "logged_by": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "full_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "avatar": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "full_name",
+              "avatar"
+            ],
+            "additionalProperties": false
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Server-decided: the viewer is the worklog author, this ticket project’s admin or an org admin (HR admin and above). Project roles and archival still gate writes."
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Server-decided: the viewer is the worklog author, this ticket project’s admin or an org admin (HR admin and above). Project roles and archival still gate writes."
+          },
+          "day_worked": {
+            "type": "string",
+            "format": "date",
+            "description": "Recorded day worked; never rebucketed in the viewing timezone."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional local time of day (HH:mm:ss)."
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "author_id",
+          "logged_by_id",
+          "author",
+          "logged_by",
+          "canEdit",
+          "canDelete",
+          "day_worked",
+          "start_time",
+          "minutes",
+          "comment",
+          "created_at",
+          "updated_at",
+          "deleted_at"
+        ],
+        "additionalProperties": false
+      },
+      "LogWorkRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "day_worked",
+          "time_spent"
+        ],
+        "properties": {
+          "day_worked": {
+            "type": "string",
+            "format": "date"
+          },
+          "time_spent": {
+            "type": "string",
+            "description": "Positive duration in w/d/h/m units, with whitespace and decimals. A day uses org work_hours_per_day; a week is five working days. Rounded to whole minutes."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$",
+            "description": "Optional local start time (HH:mm or HH:mm:ss)."
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "author_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
+          },
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "WorklogTicketSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "time_spent_minutes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Legacy alias for time spent."
+          },
+          "estimated_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "original_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "remaining_estimate_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "time_spent_minutes",
+          "logged_minutes",
+          "estimated_minutes",
+          "original_estimate_minutes",
+          "remaining_estimate_minutes"
+        ],
+        "additionalProperties": false
+      },
+      "LogWorkResponse": {
+        "type": "object",
+        "properties": {
+          "worklog": {
+            "$ref": "#/components/schemas/TaskWorklog"
+          },
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ON_LEAVE",
+                "EXCEEDS_ATTENDANCE"
+              ]
+            },
+            "description": "Advisory checks after commit, never blocking the save. ON_LEAVE means approved leave on the author’s recorded day; EXCEEDS_ATTENDANCE means the author’s non-deleted day total across tickets exceeds attendance working minutes (excluding breaks). No attendance entries means no attendance-total warning. Failed warning reads are best-effort."
+          }
+        },
+        "required": [
+          "worklog",
+          "ticket",
+          "warnings"
+        ],
+        "additionalProperties": false
+      },
+      "EditWorklogRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "day_worked": {
+            "type": "string",
+            "format": "date"
+          },
+          "time_spent": {
+            "type": "string",
+            "description": "Positive duration in w/d/h/m units, with whitespace and decimals. A day uses org work_hours_per_day; a week is five working days. Rounded to whole minutes."
+          },
+          "start_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$",
+            "description": "Optional local start time (HH:mm or HH:mm:ss)."
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000
+          },
+          "author_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Optional person in the same organization. Any supplied author_id, including self, requires can.logWorkForOthers; otherwise 403 WORKLOG_FOR_OTHERS_DENIED. Omit to use the caller on create or keep the author on edit."
+          },
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        },
+        "minProperties": 1,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "DeleteWorklogRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "remaining_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "set",
+              "leave"
+            ],
+            "default": "auto",
+            "description": "Auto applies the effort delta, clamps at zero and preserves null; set replaces the forecast; leave preserves it."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "remaining_mode": {
+                  "const": "set"
+                }
+              },
+              "required": [
+                "remaining_mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "remaining_estimate"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "remaining_estimate"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "DeleteWorklogResponse": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          }
+        },
+        "required": [
+          "ticket"
+        ],
+        "additionalProperties": false
+      },
+      "SetEstimatesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "original_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          },
+          "remaining_estimate": {
+            "type": "string",
+            "description": "Duration using w/d/h/m and org working hours. Empty text clears; 0m means zero."
+          }
+        }
+      },
+      "SetEstimatesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ticket"
+        ],
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/WorklogTicketSummary"
+          }
+        }
+      },
+      "ProjectMoveRequest": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMovePreview": {
+        "type": "object",
+        "properties": {
+          "target_project_id": {
+            "type": "integer"
+          },
+          "key_format": {
+            "type": "string",
+            "description": "Target prefix and <number>, not a reserved ticket number.",
+            "examples": [
+              "DEST-<number>"
+            ]
+          },
+          "workflow_state": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "in_review",
+                  "done"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "category"
+            ],
+            "additionalProperties": false
+          },
+          "leaves_sprint": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "target_project_id",
+          "key_format",
+          "workflow_state",
+          "leaves_sprint"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectMoveResponse": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "moved": {
+            "const": true
+          },
+          "cleared_sprint": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "task",
+          "moved",
+          "cleared_sprint"
+        ],
+        "additionalProperties": false
       }
     }
   }

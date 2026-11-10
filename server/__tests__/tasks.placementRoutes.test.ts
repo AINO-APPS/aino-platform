@@ -53,6 +53,7 @@ const request = require("supertest");
 const TICKET = {
     id: 5, org_id: 1, team_id: 10, user_id: 1, assigned_to: null, sprint_id: null,
     planned_date: null, due_date: null, title: "Ticket", workflow_state_id: 7, priority: "medium",
+    project_id: 100, task_number: 1, ticket_key: "TEAM-1",
 };
 const SPRINT = { id: 50, team_id: 10, end_date: "2026-11-14", name: "S" };
 
@@ -66,6 +67,7 @@ function respond(sql: string, params: unknown[] = []) {
         return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
     }
     if (/INSERT INTO tasks/.test(text)) return { rows: [{ id: 5 }], rowCount: 1 };
+    if (/SELECT COALESCE\(/.test(text) && /origin_team_id/.test(text)) return { rows: [{ id: 100 }], rowCount: 1 };
     // The completed-sprint guard: no sprint in these fixtures is completed.
     if (/FROM sprints WHERE id = ANY/.test(text)) return { rows: [], rowCount: 0 };
     if (/FROM sprints/.test(text)) return { rows: Number(params[0]) === SPRINT.id ? [SPRINT] : [], rowCount: 1 };
@@ -212,13 +214,13 @@ describe("PATCH /:id/assign-sprint", () => {
         expect(lastPlacement()).toMatchObject({ target: { sprint: null } });
     });
 
-    test("maps a cross-team move to 409 SPRINT_TEAM_MISMATCH", async () => {
-        mockPlaceTickets.mockResolvedValue(refused("SPRINT_TEAM_MISMATCH"));
+    test("maps a cross-project move to 409 SPRINT_PROJECT_MISMATCH", async () => {
+        mockPlaceTickets.mockResolvedValue(refused("SPRINT_PROJECT_MISMATCH"));
 
         const res = await request(app).patch("/api/tasks/5/assign-sprint").send({ sprint_id: 50 });
 
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 
     test("a non-admin cannot target another team's sprint", async () => {
@@ -357,11 +359,11 @@ describe("PUT /:id", () => {
     });
 
     test("maps a placement refusal and writes nothing else", async () => {
-        mockPlaceTickets.mockResolvedValue(refused("SPRINT_TEAM_MISMATCH"));
+        mockPlaceTickets.mockResolvedValue(refused("SPRINT_PROJECT_MISMATCH"));
 
         const res = await request(app).put("/api/tasks/5").send({ sprint_id: 50, title: "Renamed" });
 
         expect(res.status).toBe(409);
-        expect(res.body.code).toBe("SPRINT_TEAM_MISMATCH");
+        expect(res.body.code).toBe("SPRINT_PROJECT_MISMATCH");
     });
 });

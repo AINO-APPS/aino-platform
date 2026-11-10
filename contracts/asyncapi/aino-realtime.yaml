@@ -56,6 +56,7 @@ channels:
           - $ref: '#/components/messages/NotificationsChangedEvent'
           - $ref: '#/components/messages/TaskAssignedEvent'
           - $ref: '#/components/messages/TaskUpdatedEvent'
+          - $ref: '#/components/messages/ProjectUpdatedEvent'
           - $ref: '#/components/messages/AttendanceUpdateEvent'
           - $ref: '#/components/messages/TeamAttendanceUpdateEvent'
           - $ref: '#/components/messages/LeaveUpdateEvent'
@@ -429,6 +430,8 @@ components:
                       is_blocked: { type: boolean }
                       blocked_reason: { type: [string, "null"] }
                       project_id: { type: [integer, "null"] }
+                      ticket_key: { type: [string, "null"] }
+                      issue_key: { type: [string, "null"], description: Legacy alias of ticket_key. }
                       rank: { type: [string, "null"] }
                       estimated_minutes: { type: [integer, "null"] }
                       logged_minutes: { type: integer }
@@ -446,6 +449,24 @@ components:
                     type: string
                     format: date-time
                     description: When the write happened. The later write wins per field.
+    ProjectUpdatedEvent:
+      name: project_updated
+      description: >-
+        Tenant-wide invalidation emitted after commit of a project key rename.
+        Boards, lists and open ticket details refetch stored keys. Do not derive
+        ticket keys from this frame. Only the project ID is broadcast: keys and
+        ticket counts remain in the authorized HTTP response, never this event.
+      payload:
+        type: object
+        required: [type, data]
+        properties:
+          type: { type: string, enum: [project_updated] }
+          data:
+            type: object
+            required: [project_id]
+            additionalProperties: false
+            properties:
+              project_id: { $ref: '#/components/schemas/PositiveId' }
     AttendanceUpdateEvent:
       summary: Sent to the acting user's own connections when their attendance changes.
       payload:

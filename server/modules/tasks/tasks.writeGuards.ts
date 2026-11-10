@@ -10,7 +10,7 @@ export function capabilityConflict(verdict: Capability, ticket: DecisionTicket, 
     if (verdict.allowed) return null;
     const foreign = actor.orgId != null && ticket.org_id != null && Number(ticket.org_id) !== Number(actor.orgId);
     return {
-        status: foreign ? 404 : verdict.reason === "ACCESS_DENIED" ? 403 : 409,
+        status: foreign ? 404 : ["ACCESS_DENIED", "READ_ONLY_ROLE", "WORKLOG_CANCELLED", "WORKLOG_FOR_OTHERS_DENIED"].includes(verdict.reason) ? 403 : 409,
         body: { error: foreign ? "Task not found" : CAPABILITY_DENIAL_MESSAGES[verdict.reason], code: verdict.reason },
     };
 }

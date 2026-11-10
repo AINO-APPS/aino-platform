@@ -9,6 +9,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const script = path.join(root, "scripts/validate-tasks-parity.mjs");
 const matrixPath = path.join(root, "contracts/tasks-parity.json");
 
+test("an explicitly selected Android checkout must exist instead of silently skipping native owners", () => {
+  assert.throws(() => execFileSync(process.execPath, [script], {
+    cwd: root,
+    env: { ...process.env, AINO_ANDROID_REPO: path.join(root, "contracts", "missing-android-checkout") },
+    stdio: "pipe",
+  }), error => {
+    assert.match(String(error.stderr), /AINO_ANDROID_REPO must name an existing Android checkout/);
+    return true;
+  });
+});
+
 const run = () => {
   try {
     const stdout = execFileSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
@@ -144,6 +155,39 @@ test("a sibling client's owner_test is only checked when that repo is present", 
   } else {
     assert.equal(result.code, 0, "an absent sibling repo cannot be verified and must not fail the gate");
   }
+});
+
+test("shipped time tracking requires named behavioral owners on web and Android", () => {
+  const result = withMatrix(matrix => {
+    const feature = matrix.features.find(feature => feature.id === "time-tracking-on-task");
+    delete feature.web.owner_tests;
+    delete feature.android.owner_tests;
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /time-tracking-on-task\/web: shipped manual worklogs require behavioral owners/);
+  assert.match(result.stderr, /time-tracking-on-task\/android: shipped manual worklogs require behavioral owners/);
+});
+
+test("time tracking rejects a behavioral owner whose named test is missing", () => {
+  const result = withMatrix(matrix => {
+    matrix.features.find(feature => feature.id === "time-tracking-on-task").web.owner_tests = [{
+      path: "client/src/pages/tasks/__tests__/Estimates.test.tsx",
+      name: "an owner test that does not exist",
+    }];
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /behavioral owner.*named test.*does not exist/);
+});
+
+test("manual time tracking cannot retain an Android rollout waiver once web ships", () => {
+  const result = withMatrix(matrix => {
+    matrix.features.find(feature => feature.id === "time-tracking-on-task").android = {
+      status: "waived",
+      waiver: "Temporary manual-worklogs rollout; native worklogs will ship later.",
+    };
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /time-tracking-on-task\/android: manual worklogs must be shipped/);
 });
 
 test("desktop is tracked as the web bundle, never an independent client", () => {

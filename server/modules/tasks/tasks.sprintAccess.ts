@@ -4,7 +4,7 @@
 // Reads require the same boundary as every other sprint surface: same org and,
 // for non-admins, the same team.
 
-import { canAccessSprint, type TaskActor } from "./tasks.policy";
+import { canReadProjectSprint, type TaskActor } from "./tasks.policy";
 import { findSprintWithTeam } from "./tasks.sprintRepository";
 
 interface SprintAccessOutcome {
@@ -22,7 +22,7 @@ async function loadSprintForActor(
         && Number(sprint.org_id) !== Number(actor.orgId))) {
         return { error: { status: 404, body: { error: "Sprint not found" } } };
     }
-    if (!canAccessSprint(sprint, actor)) {
+    if (!await canReadProjectSprint(sprint, actor)) {
         return { error: { status: 403, body: { error: "Access denied" } } };
     }
     return { sprint };
