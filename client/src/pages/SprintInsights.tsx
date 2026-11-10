@@ -34,8 +34,8 @@ export default function SprintInsights({ projectId }: { projectId?: number | nul
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const { data: sprintList = { sprints: EMPTY_SPRINTS, currentSprintId: null } } = useQuery({
-    queryKey: ["sprints", "list", projectId],
-    queryFn: async () => (await getSprints(projectId == null ? undefined : { project_id: projectId })).data as any,
+    queryKey: ["sprints", "list", projectId], enabled: projectId != null,
+    queryFn: async () => (await getSprints({ project_id: projectId! })).data as any,
   });
   const sprints: any[] = sprintList?.sprints || EMPTY_SPRINTS;
   const currentSprintId = sprintList?.currentSprintId ?? null;
@@ -144,7 +144,7 @@ export default function SprintInsights({ projectId }: { projectId?: number | nul
       </header>
 
       {!selectedId && (
-        <div className={s.empty}>Select a sprint to see insights.</div>
+        <div className={s.empty}>{projectId == null ? "Open Reports from a project to see its sprints." : "Select a sprint to see insights."}</div>
       )}
 
       {selectedId && (

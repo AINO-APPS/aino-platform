@@ -5,6 +5,7 @@ import { masterQuery } from "../db";
 import { validateSession } from "../services/authSessions";
 import { readAuthToken } from "../utils/cookie";
 import { verifyRealmToken, expectedRealm } from "../platform/realm";
+import { clientVersions } from "../modules/clientVersions/clientVersions";
 
 // ── Impersonation revocation cache ────────────────────────────────────────
 // Cache the per-request liveness check for an access-request row for 10s so
@@ -152,6 +153,17 @@ async function authMiddleware(req: any, res: Response, next: NextFunction): Prom
                 }
             } catch (e: any) {
                 logger.warn({ err: e.message }, "auth: failed to verify impersonation session");
+            }
+        }
+        if ((req as any).clientVersionObservation) {
+            try {
+                await clientVersions.observe({
+                    userId: req.userId, tenantId: req.tenantId, sessionId: req.sessionId,
+                    isPlatformUser: req.isPlatformUser, isImpersonated: req.isImpersonated,
+                    query: dbQuery,
+                }, (req as any).clientVersionObservation);
+            } catch (error) {
+                logger.warn({ err: error }, "Client version observation failed");
             }
         }
         next();

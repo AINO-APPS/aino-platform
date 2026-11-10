@@ -12,6 +12,11 @@ import { useFeatures } from "../../../FeaturesContext";
 import { planningTabs } from "./usePlanningSurface";
 import { LEGACY_TABS, landingTasksPath, sprintIdFrom, tasksViewPath, type TasksRoute, type TasksView } from "./useTasksRoute";
 
+function legacyTab(value: string | null): TasksView | undefined {
+    if (value === "schedule" || value === "scheduled") return "backlog";
+    return LEGACY_TABS.find(tab => tab === value);
+}
+
 interface RouteSyncOptions {
     planTabs?: TasksView[];
     route: TasksRoute;
@@ -36,8 +41,8 @@ export function useTasksRouteSync({
 }: RouteSyncOptions) {
     const { hasFeature } = useFeatures() as any;
     useEffect(() => {
-        const tabParam = searchParams.get("tab");
-        if (tabParam && LEGACY_TABS.some((tab) => tab === tabParam)) {
+        const tabParam = legacyTab(searchParams.get("tab"));
+        if (tabParam) {
             const next = new URLSearchParams(searchParams);
             next.delete("tab");
             const query = next.toString();
@@ -94,6 +99,7 @@ export function useTasksRouteSync({
 export function useSprintLanding({
     planTabs,
     pathname,
+    search = "",
     currentSprintId,
     sprintsLoaded = true,
     agileEnabled,
@@ -101,6 +107,7 @@ export function useSprintLanding({
 }: {
     planTabs?: TasksView[];
     pathname: string;
+    search?: string;
     currentSprintId: number | string | null;
     sprintsLoaded?: boolean;
     agileEnabled: boolean;
@@ -109,13 +116,13 @@ export function useSprintLanding({
     const applied = useRef(false);
 
     useEffect(() => {
-        if (applied.current || !sprintsLoaded) return;
+        if (applied.current || !sprintsLoaded || legacyTab(new URLSearchParams(search).get("tab"))) return;
         const { currentSprintId: current } = planningTabs({ agileEnabled, currentSprintId, planTabs });
         const target = planTabs && (pathname === "/tasks" || pathname === "/tasks/")
             ? tasksViewPath(planTabs[0]) : landingTasksPath(pathname, current);
         applied.current = true;
-        if (target !== pathname) navigate(target, { replace: true });
-    }, [pathname, currentSprintId, sprintsLoaded, agileEnabled, navigate, planTabs]);
+        if (target !== pathname) navigate(`${target}${search}`, { replace: true });
+    }, [pathname, search, currentSprintId, sprintsLoaded, agileEnabled, navigate, planTabs]);
 }
 
 /** Open the task named by `?task=` once, on arrival. */

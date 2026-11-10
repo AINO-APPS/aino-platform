@@ -10,6 +10,23 @@
   ],
   "features": [
     {
+      "id": "client-version-upgrade-readiness",
+      "name": "Bundled first-party API identity and global blocking reload/updater readiness (OFF/REPORT server only)",
+      "decision": "D59",
+      "phase": 3,
+      "web": { "status": "shipped", "owner_test": "client/src/__tests__/ClientUpgradeBoundary.test.tsx",
+        "owner_tests": [
+          { "path": "client/src/__tests__/clientVersions.test.ts", "name": "an unrelated API 426 becomes a global upgrade requirement even when the caller catches its error" },
+          { "path": "client/src/__tests__/firstPartyFetch.test.ts", "name": "signed-upload requests never receive cookies, authorization or first-party client headers" }
+        ] },
+      "desktop": { "status": "shipped", "owner_test": "desktop/tests/protocolUtils.test.js",
+        "owner_tests": [
+          { "path": "client/src/__tests__/ClientUpgradeBoundary.test.tsx", "name": "desktop automatically uses the existing updater and offers restart only after download" }
+        ] },
+      "android": { "status": "waived", "waiver": "Android ticket09 and installed release proof are independently owned. Shared public GET /api/client-versions returns off/report plus three semantic minimums; this platform ticket does not claim native completion." },
+      "ios": { "status": "waived", "waiver": "The scoped webview inherits bundled web headers and blocking reload. Native enforcement remains outside ticket09." }
+    },
+    {
       "id": "task-list-planning",
       "name": "Task list field filters and sorts, inclusive date calendar and capability-controlled date edits",
       "decision": "D56",

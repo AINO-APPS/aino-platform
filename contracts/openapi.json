@@ -61,6 +61,12 @@
       "name": "public"
     },
     {
+      "name": "client-versions"
+    },
+    {
+      "name": "client-version-adoption"
+    },
+    {
       "name": "health"
     }
   ],
@@ -75,6 +81,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -156,7 +168,14 @@
         ],
         "summary": "GET /api/auth/biometric",
         "operationId": "get_api_auth_biometric",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -247,6 +266,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -331,6 +356,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -415,6 +446,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -492,6 +529,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -586,6 +629,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -663,6 +712,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -747,6 +802,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -834,6 +895,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -918,6 +985,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1002,6 +1075,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1086,6 +1165,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1170,6 +1255,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1251,7 +1342,14 @@
         ],
         "summary": "GET /api/auth/mfa/status",
         "operationId": "get_api_auth_mfa_status",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -1334,6 +1432,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1418,6 +1522,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1502,6 +1612,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1586,6 +1702,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -1670,7 +1792,14 @@
         ],
         "summary": "Read registration mode",
         "operationId": "get_api_auth_registration_mode",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [],
         "responses": {
           "200": {
@@ -1746,6 +1875,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -1823,6 +1958,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -1904,7 +2045,14 @@
         ],
         "summary": "GET /api/auth/webauthn",
         "operationId": "get_api_auth_webauthn",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -1995,6 +2143,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2079,6 +2233,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -2156,6 +2316,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -2233,6 +2399,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2317,6 +2489,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2401,6 +2579,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2495,6 +2679,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2586,7 +2776,14 @@
         ],
         "summary": "GET /api/calendar",
         "operationId": "get_api_calendar",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -2667,6 +2864,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2759,6 +2962,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2849,6 +3058,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -2930,7 +3145,14 @@
         ],
         "summary": "GET /api/chat/blocked",
         "operationId": "get_api_chat_blocked",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -3010,7 +3232,14 @@
         ],
         "summary": "GET /api/chat/calls",
         "operationId": "get_api_chat_calls",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -3098,6 +3327,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3190,6 +3425,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3282,6 +3523,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3374,6 +3621,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3466,6 +3719,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3547,7 +3806,14 @@
         ],
         "summary": "GET /api/chat/calls/active",
         "operationId": "get_api_chat_calls_active",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -3630,6 +3896,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3714,6 +3986,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3798,6 +4076,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -3879,7 +4163,14 @@
         ],
         "summary": "GET /api/chat/conversations",
         "operationId": "get_api_chat_conversations",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -3960,6 +4251,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4052,6 +4349,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4141,6 +4444,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4233,6 +4542,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4325,6 +4640,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4414,6 +4735,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4506,6 +4833,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4595,6 +4928,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4685,6 +5024,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4777,6 +5122,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4866,6 +5217,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -4956,6 +5313,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5048,6 +5411,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5137,6 +5506,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5237,6 +5612,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5337,6 +5718,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5429,6 +5816,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5518,6 +5911,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5610,6 +6009,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5697,6 +6102,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5787,6 +6198,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5879,6 +6296,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -5979,6 +6402,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6071,6 +6500,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6160,6 +6595,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6252,6 +6693,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6344,6 +6791,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6460,6 +6913,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6552,6 +7011,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6644,6 +7109,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6728,6 +7199,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6809,7 +7286,14 @@
         ],
         "summary": "GET /api/chat/ice-config",
         "operationId": "get_api_chat_ice_config",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -6897,6 +7381,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -6989,6 +7479,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7081,6 +7577,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7162,7 +7664,14 @@
         ],
         "summary": "GET /api/chat/link-preview",
         "operationId": "get_api_chat_link_preview",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -7253,6 +7762,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7345,6 +7860,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7437,6 +7958,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7527,6 +8054,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7619,6 +8152,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7711,6 +8250,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7803,6 +8348,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7895,6 +8446,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -7987,6 +8544,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8079,6 +8642,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8168,6 +8737,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8260,6 +8835,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8341,7 +8922,14 @@
         ],
         "summary": "GET /api/chat/presence",
         "operationId": "get_api_chat_presence",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8421,7 +9009,14 @@
         ],
         "summary": "GET /api/chat/search",
         "operationId": "get_api_chat_search",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8501,7 +9096,14 @@
         ],
         "summary": "GET /api/chat/search-messages",
         "operationId": "get_api_chat_search_messages",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8581,7 +9183,14 @@
         ],
         "summary": "GET /api/chat/starred",
         "operationId": "get_api_chat_starred",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8672,6 +9281,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8762,6 +9377,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -8916,7 +9537,14 @@
         ],
         "summary": "GET /api/leaves",
         "operationId": "get_api_leaves",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -8997,6 +9625,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9089,6 +9723,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9181,6 +9821,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9273,6 +9919,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9365,6 +10017,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9457,6 +10115,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -9538,7 +10202,14 @@
         ],
         "summary": "GET /api/leaves/balance",
         "operationId": "get_api_leaves_balance",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9618,7 +10289,14 @@
         ],
         "summary": "GET /api/leaves/monthly-summary",
         "operationId": "get_api_leaves_monthly_summary",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9698,7 +10376,14 @@
         ],
         "summary": "GET /api/leaves/pending",
         "operationId": "get_api_leaves_pending",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9778,7 +10463,14 @@
         ],
         "summary": "GET /api/leaves/summary",
         "operationId": "get_api_leaves_summary",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9858,7 +10550,14 @@
         ],
         "summary": "Get effective presence",
         "operationId": "get_api_me_status",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -9939,6 +10638,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10033,6 +10738,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10117,6 +10828,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10198,7 +10915,14 @@
         ],
         "summary": "GET /api/meetings",
         "operationId": "get_api_meetings",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -10279,6 +11003,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10368,6 +11098,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10460,6 +11196,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10549,6 +11291,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10641,6 +11389,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10730,6 +11484,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10822,6 +11582,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -10912,6 +11678,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11001,6 +11773,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11091,6 +11869,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11191,6 +11975,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11275,6 +12065,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11375,6 +12171,12 @@
               "maximum": 100,
               "default": 50
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11467,6 +12269,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11559,6 +12367,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11640,7 +12454,14 @@
         ],
         "summary": "List active announcements",
         "operationId": "get_api_notifications_announcements",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -11731,6 +12552,12 @@
               "maximum": 168,
               "default": 24
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11815,6 +12642,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11909,6 +12742,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -11993,6 +12832,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12072,7 +12917,14 @@
         ],
         "summary": "Get current profile",
         "operationId": "get_api_profile",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -12153,6 +13005,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12247,6 +13105,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12329,6 +13193,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12413,6 +13283,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12497,6 +13373,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12579,6 +13461,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12660,7 +13548,14 @@
         ],
         "summary": "GET /api/profile/face-status",
         "operationId": "get_api_profile_face_status",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -12740,7 +13635,14 @@
         ],
         "summary": "GET /api/profile/notification-prefs",
         "operationId": "get_api_profile_notification_prefs",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -12821,6 +13723,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12905,6 +13813,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -12986,7 +13900,14 @@
         ],
         "summary": "List projects",
         "operationId": "get_api_projects",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -13067,6 +13988,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13169,6 +14096,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13256,6 +14189,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13346,6 +14285,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13445,6 +14390,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13534,6 +14485,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -13615,7 +14572,14 @@
         ],
         "summary": "GET /api/public/branding",
         "operationId": "get_api_public_branding",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [],
         "responses": {
           "200": {
@@ -13688,7 +14652,14 @@
         ],
         "summary": "GET /api/public/branding/logo",
         "operationId": "get_api_public_branding_logo",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [],
         "responses": {
           "200": {
@@ -13769,6 +14740,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [],
@@ -13843,7 +14820,14 @@
         ],
         "summary": "GET /api/public/plan-catalog",
         "operationId": "get_api_public_plan_catalog",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [],
         "responses": {
           "200": {
@@ -13925,6 +14909,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14006,7 +14996,14 @@
         ],
         "summary": "GET /api/sessions",
         "operationId": "get_api_sessions",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -14097,6 +15094,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14181,6 +15184,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14453,6 +15462,12 @@
               "minimum": 0,
               "default": 0
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14535,6 +15550,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14662,6 +15683,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14752,6 +15779,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14851,6 +15884,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -14941,6 +15980,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15033,6 +16078,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15135,6 +16186,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15224,6 +16281,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15313,6 +16376,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15403,6 +16472,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15503,6 +16578,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15601,6 +16682,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15690,6 +16777,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15780,6 +16873,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15880,6 +16979,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -15969,6 +17074,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16058,6 +17169,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16148,6 +17265,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16248,6 +17371,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16337,6 +17466,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16429,6 +17564,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16519,6 +17660,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16621,6 +17768,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16713,6 +17866,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16823,6 +17982,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -16912,6 +18077,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17006,6 +18177,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17100,6 +18277,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17194,6 +18377,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17286,6 +18475,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17367,7 +18562,14 @@
         ],
         "summary": "GET /api/tasks/assignable-users",
         "operationId": "get_api_tasks_assignable_users",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -17455,6 +18657,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17566,6 +18774,12 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17628,6 +18842,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17749,6 +18969,12 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17873,6 +19099,12 @@
                 "calendar"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -17955,6 +19187,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18074,6 +19312,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18163,6 +19407,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18257,6 +19507,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18338,7 +19594,14 @@
         ],
         "summary": "GET /api/tasks/epics",
         "operationId": "get_api_tasks_epics",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18418,7 +19681,14 @@
         ],
         "summary": "GET /api/tasks/labels",
         "operationId": "get_api_tasks_labels",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18499,6 +19769,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18591,6 +19867,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18681,6 +19963,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18762,7 +20050,14 @@
         ],
         "summary": "GET /api/tasks/labels/manage",
         "operationId": "get_api_tasks_labels_manage",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -18852,6 +20147,12 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -18974,6 +20275,12 @@
                 "personal"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19055,7 +20362,14 @@
         ],
         "summary": "GET /api/tasks/schedule-overlays",
         "operationId": "get_api_tasks_schedule_overlays",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -19145,6 +20459,12 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19226,7 +20546,14 @@
         ],
         "summary": "GET /api/tracker/analytics",
         "operationId": "get_api_tracker_analytics",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -19309,6 +20636,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19393,6 +20726,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19477,6 +20816,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19571,6 +20916,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19673,6 +21024,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19760,6 +21117,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -19841,7 +21204,14 @@
         ],
         "summary": "GET /api/tracker/history",
         "operationId": "get_api_tracker_history",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -19921,7 +21291,14 @@
         ],
         "summary": "GET /api/tracker/manual-entries",
         "operationId": "get_api_tracker_manual_entries",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20004,6 +21381,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -20096,6 +21479,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -20180,6 +21569,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -20261,7 +21656,14 @@
         ],
         "summary": "GET /api/tracker/overtime-requests",
         "operationId": "get_api_tracker_overtime_requests",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20341,7 +21743,14 @@
         ],
         "summary": "Get today's attendance status",
         "operationId": "get_api_tracker_status",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20421,7 +21830,14 @@
         ],
         "summary": "GET /api/tracker/task-summary",
         "operationId": "get_api_tracker_task_summary",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20501,7 +21917,14 @@
         ],
         "summary": "Time spent on tasks, grouped by recorded day worked",
         "operationId": "get_api_tracker_task_time",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20581,7 +22004,14 @@
         ],
         "summary": "GET /api/tracker/theme",
         "operationId": "get_api_tracker_theme",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20662,6 +22092,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -20743,7 +22179,14 @@
         ],
         "summary": "GET /api/tracker/weekly",
         "operationId": "get_api_tracker_weekly",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20823,7 +22266,14 @@
         ],
         "summary": "GET /api/tracker/widgets",
         "operationId": "get_api_tracker_widgets",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -20906,6 +22356,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -20987,7 +22443,14 @@
         ],
         "summary": "GET /api/user/preferences",
         "operationId": "get_api_user_preferences",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -21068,6 +22531,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21288,6 +22757,70 @@
         }
       }
     },
+    "/api/admin/client-versions": {
+      "get": {
+        "operationId": "getClientVersionAdoption",
+        "tags": [
+          "client-versions"
+        ],
+        "summary": "Read client adoption",
+        "description": "Tenantless platform administrator on the platform realm only. Distinct tenant-safe users per class/version in the last 30 days by authenticated request last-seen. Logout does not remove history.",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Adoption window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientVersionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Platform identity required"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ]
+      }
+    },
+    "/api/client-versions": {
+      "get": {
+        "operationId": "getClientVersions",
+        "tags": [
+          "client-versions"
+        ],
+        "summary": "Public platform-wide version configuration",
+        "description": "Available before authentication, tenant resolution and maintenance checks. No-store. OFF by default; only OFF/REPORT supported.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Mode and valid semantic minimums",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientVersionConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/org/current": {
       "get": {
         "tags": [
@@ -21321,7 +22854,15 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ]
       }
     },
     "/api/org/settings": {
@@ -21343,6 +22884,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "requestBody": {
@@ -21390,6 +22937,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21493,6 +23046,12 @@
               "minimum": 1
             },
             "description": "Scrum only; defaults to current active or paused sprint."
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21589,6 +23148,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21695,6 +23260,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21817,6 +23388,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -21936,6 +23513,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22026,6 +23609,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22136,6 +23725,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22234,6 +23829,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22333,6 +23934,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22423,6 +24030,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22543,6 +24156,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22641,6 +24260,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22743,6 +24368,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22842,6 +24473,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -22932,6 +24569,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23023,7 +24666,14 @@
         ],
         "summary": "Review generated projects, grants and migration moves (web organization admin)",
         "operationId": "get_api_projects_migration_review",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -23113,6 +24763,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23214,6 +24870,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23312,7 +24974,14 @@
         ],
         "summary": "List active projects where the actor can create tickets",
         "operationId": "get_api_projects_mine",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -23393,7 +25062,14 @@
         ],
         "summary": "Organization project type choices",
         "operationId": "getProjectTypes",
-        "parameters": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
+          }
+        ],
         "security": [
           {
             "cookieAuth": []
@@ -23436,6 +25112,12 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "requestBody": {
@@ -23492,6 +25174,12 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "responses": {
@@ -23535,6 +25223,12 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "requestBody": {
@@ -23585,6 +25279,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23686,6 +25386,12 @@
               "type": "integer",
               "minimum": 1
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23778,6 +25484,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -23894,6 +25606,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "requestBody": {
@@ -23998,6 +25716,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "requestBody": {
@@ -24093,6 +25817,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -24192,6 +25922,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -24282,6 +26018,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -24393,6 +26135,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -24512,6 +26260,12 @@
           },
           {
             "$ref": "#/components/parameters/CsrfHeader"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClient"
+          },
+          {
+            "$ref": "#/components/parameters/AinoClientVersion"
           }
         ],
         "security": [
@@ -24636,6 +26390,24 @@
             "WorkPulse"
           ]
         }
+      },
+      "AinoClient": {
+        "name": "X-AINO-Client",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "$ref": "#/components/schemas/ClientClass"
+        },
+        "description": "First-party client class; unknown clients are never gated."
+      },
+      "AinoClientVersion": {
+        "name": "X-AINO-Client-Version",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Android version name or the bundled web build semantic version (also for desktop). Missing/invalid versions report as 0."
       }
     },
     "schemas": {
@@ -29390,6 +31162,123 @@
           "stats"
         ],
         "additionalProperties": false
+      },
+      "ClientClass": {
+        "type": "string",
+        "enum": [
+          "android",
+          "desktop",
+          "web"
+        ]
+      },
+      "ClientVersionConfig": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "report"
+            ]
+          },
+          "minimums": {
+            "type": "object",
+            "properties": {
+              "android": {
+                "type": "string",
+                "description": "Semantic version, including optional prerelease/build metadata."
+              },
+              "desktop": {
+                "type": "string",
+                "description": "Semantic version, including optional prerelease/build metadata."
+              },
+              "web": {
+                "type": "string",
+                "description": "Semantic version, including optional prerelease/build metadata."
+              }
+            },
+            "required": [
+              "android",
+              "desktop",
+              "web"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "mode",
+          "minimums"
+        ],
+        "additionalProperties": false
+      },
+      "ClientVersionAdoption": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "$ref": "#/components/schemas/ClientClass"
+          },
+          "version": {
+            "type": "string",
+            "description": "Bundled version, or 0 for missing/invalid versions."
+          },
+          "users": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "client",
+          "version",
+          "users"
+        ],
+        "additionalProperties": false
+      },
+      "ClientVersionReport": {
+        "type": "object",
+        "properties": {
+          "window_days": {
+            "type": "integer",
+            "const": 30
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientVersionAdoption"
+            }
+          }
+        },
+        "required": [
+          "window_days",
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "ClientUpgradeRequired": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "CLIENT_UPGRADE_REQUIRED"
+          },
+          "client": {
+            "$ref": "#/components/schemas/ClientClass"
+          },
+          "min_version": {
+            "type": "string",
+            "description": "Semantic version, including optional prerelease/build metadata."
+          },
+          "current_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "client",
+          "min_version",
+          "current_version"
+        ],
+        "additionalProperties": false,
+        "description": "Future 426 payload. Ticket 09 never returns 426 or enables enforcement."
       }
     }
   }

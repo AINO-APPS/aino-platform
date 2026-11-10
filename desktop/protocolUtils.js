@@ -42,12 +42,16 @@ function isReadOnlyMethod(method) {
 function shouldApplyAppCsp(url, resourceType) {
     return resourceType === "mainFrame" && isAllowedAppNavigation(url);
 }
-function createProxyRequest(apiServer, request) {
+function createProxyRequest(apiServer, request, bundledWebVersion) {
     const source = new URL(request.url);
     const headers = new Headers(request.headers);
     headers.delete("host");
     headers.set("origin", "workpulse://app");
     headers.set("x-requested-with", "WorkPulse");
+    headers.set("x-aino-client", "desktop");
+    if (!headers.has("x-aino-client-version") && bundledWebVersion) {
+        headers.set("x-aino-client-version", bundledWebVersion);
+    }
     return {
         url: `${apiServer}${normalizeProtocolPath(source)}${source.search}`,
         init: {

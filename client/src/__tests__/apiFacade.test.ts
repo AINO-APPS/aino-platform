@@ -87,9 +87,12 @@ describe("domain request compatibility", () => {
         });
     });
 
-    test("keeps public notes anonymous on the global axios identity", () => {
-        getPublicNote("a/b");
-        expect(axiosGet).toHaveBeenCalledWith(`${baseURL}/public/notes/a%2Fb`);
+    test("keeps public notes anonymous while reporting the first-party bundled version", async () => {
+        await getPublicNote("a/b");
+        expect(axiosGet).toHaveBeenCalledWith(`${baseURL}/public/notes/a%2Fb`, {
+            withCredentials: false,
+            headers: { "X-AINO-Client": "web", "X-AINO-Client-Version": expect.stringMatching(/\+web\./) },
+        });
         expect(axiosInstance.get).not.toHaveBeenCalled();
     });
 });

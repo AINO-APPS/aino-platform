@@ -28,6 +28,17 @@ Contract test files run serially: generator/validator negative tests temporarily
 mutate shared contract inputs and restore them. Parallel files could read the
 temporary missing-field schema and fail fixture validation nondeterministically.
 
+### Client-version observation and upgrade readiness
+
+`client-versions.mjs` defines public `GET /api/client-versions` (OFF/REPORT and
+three semantic minimums), tenantless platform-admin `GET /api/admin/client-versions`
+(distinct users by class/version over authenticated last-seen in 30 days), the
+shared `X-AINO-Client` / `X-AINO-Client-Version` parameters, and the future
+`ClientUpgradeRequired` 426 model. Ticket 09 never returns 426 or enables
+enforcement; compatibility operations remain in the inventory. Generated web
+models include these contracts; generation remains platform-only. Operational
+defaults, migration and release boundaries are in [the operator guide](../docs/client-versions.md).
+
 ### Manual worklogs and estimates
 
 `GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,

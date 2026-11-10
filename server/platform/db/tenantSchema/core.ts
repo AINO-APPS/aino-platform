@@ -306,6 +306,9 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             id         TEXT PRIMARY KEY,
             user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             device     TEXT,
+            observed_client_class TEXT,
+            client_version TEXT,
+            client_version_seen_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     `);

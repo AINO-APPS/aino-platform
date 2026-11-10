@@ -19,7 +19,7 @@ setupProtocolHandling({
   electronSession: { webRequest: { onHeadersReceived: (callback) => { cspHandler = callback; } } },
 });
 const request = (method = "GET") => new Request("workpulse://app/uploads/clip.mp4?key=one", {
-  method, headers: { range: "bytes=0-1", accept: "video/mp4", authorization: "do-not-forward" },
+  method, headers: { range: "bytes=0-1", accept: "video/mp4", authorization: "do-not-forward", "X-AINO-Client": "desktop", "X-AINO-Client-Version": "3.0.80+web.abcdef012345" },
 });
 
 test("streams authorized upload ranges before the upstream body finishes", async () => {
@@ -33,7 +33,11 @@ test("streams authorized upload ranges before the upstream body finishes", async
     assert.equal(url, "https://api.example/uploads/clip.mp4?key=one");
     assert.equal(options.credentials, "include");
     assert.equal(options.redirect, "manual");
-    assert.deepEqual(options.headers, { origin: "workpulse://app", "x-requested-with": "WorkPulse", accept: "video/mp4", range: "bytes=0-1" });
+    assert.deepEqual(options.headers, {
+      origin: "workpulse://app", "x-requested-with": "WorkPulse",
+      "x-aino-client": "desktop", "x-aino-client-version": "3.0.80+web.abcdef012345",
+      accept: "video/mp4", range: "bytes=0-1",
+    });
     return upstream;
   };
   const result = await handler(request());
@@ -65,6 +69,17 @@ test("legacy signed redirects forward ranges but never auth or origin", async ()
   assert.equal(result.status, 206);
   assert.equal(result.headers.get("content-range"), "bytes 0-1/20");
   assert.equal(result.headers.get("content-type"), "video/mp4");
+});
+
+test("an opaque upload redirect fails safely instead of forwarding client/auth headers to an unknown origin", async () => {
+  let calls = 0;
+  fetchImpl = async () => {
+    calls++;
+    return { type: "opaqueredirect", status: 0, headers: new Headers() };
+  };
+  const result = await handler(request());
+  assert.equal(result.status, 502);
+  assert.equal(calls, 1);
 });
 
 test("HEAD retains upstream metadata with no body", async () => {
@@ -113,4 +128,19 @@ test("app CSP allows media without weakening script or object restrictions", () 
   assert.match(csp, /media-src 'self' workpulse:\/\/app blob: https:\/\/api\.example https:\/\/\*\.r2\.cloudflarestorage\.com;/);
   assert.match(csp, /object-src 'none';/);
   assert.doesNotMatch(csp, /'unsafe-eval'/);
+});
+
+test("API proxy preserves both identity headers and the future 426 payload for the renderer", async () => {
+  const body = { code: "CLIENT_UPGRADE_REQUIRED", client: "desktop", min_version: "3.0.80", current_version: "3.0.79" };
+  fetchImpl = async (url, options) => {
+    assert.equal(url, "https://api.example/api/calendar");
+    assert.equal(options.headers.get("X-AINO-Client"), "desktop");
+    assert.equal(options.headers.get("X-AINO-Client-Version"), "3.0.79+web.abcdef012345");
+    return new Response(JSON.stringify(body), { status: 426 });
+  };
+  const response = await handler(new Request("workpulse://app/api/calendar", {
+    headers: { "X-AINO-Client": "desktop", "X-AINO-Client-Version": "3.0.79+web.abcdef012345" },
+  }));
+  assert.equal(response.status, 426);
+  assert.deepEqual(await response.json(), body);
 });

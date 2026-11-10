@@ -35,12 +35,16 @@ export function shouldApplyAppCsp(url: string, resourceType: string): boolean {
   return resourceType === "mainFrame" && isAllowedAppNavigation(url);
 }
 
-export function createProxyRequest(apiServer: string, request: Request): { url: string; init: RequestInit & { bypassCustomProtocolHandlers: boolean } } {
+export function createProxyRequest(apiServer: string, request: Request, bundledWebVersion?: string): { url: string; init: RequestInit & { bypassCustomProtocolHandlers: boolean } } {
   const source = new URL(request.url);
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.set("origin", "workpulse://app");
   headers.set("x-requested-with", "WorkPulse");
+  headers.set("x-aino-client", "desktop");
+  if (!headers.has("x-aino-client-version") && bundledWebVersion) {
+    headers.set("x-aino-client-version", bundledWebVersion);
+  }
   return {
     url: `${apiServer}${normalizeProtocolPath(source)}${source.search}`,
     init: {

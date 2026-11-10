@@ -31,7 +31,9 @@ vi.mock("../../../api/tasks", () => ({
     getTaskDetail: vi.fn().mockResolvedValue({ data: {} }),
     getAvailableSprints: vi.fn(),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn().mockResolvedValue({ data: [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [{ id: 1, project_id: 10, name: "Sprint 1", status: "active", start_date: "2026-10-20", end_date: "2026-11-02" }], currentSprintId: 1 } }),
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     getTaskHistory: vi.fn().mockResolvedValue({ data: [] }),
     getTaskComments: vi.fn().mockResolvedValue({ data: [] }),
@@ -67,7 +69,7 @@ vi.mock("../../../hooks/useRealtimeEvent", () => ({ default: vi.fn() }));
 vi.mock("../hooks/useVisiblePoll", () => ({ useVisiblePoll: vi.fn() }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee" } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: true } }),
     hasTenantContext: () => true,
 }));
 

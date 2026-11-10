@@ -33,6 +33,14 @@ vi.mock("../../api/tasks", () => ({
 import SprintInsights from "../SprintInsights";
 
 describe("Sprint Insights selection", () => {
+    test("a standalone report never falls back to a team-scoped sprint list without a project", async () => {
+        vi.mocked(getSprints).mockClear();
+        render(<QueryClientProvider client={new QueryClient()}>
+            <MemoryRouter><SprintInsights /></MemoryRouter>
+        </QueryClientProvider>);
+        expect(screen.getByText("Open Reports from a project to see its sprints.")).toBeInTheDocument();
+        expect(getSprints).not.toHaveBeenCalled();
+    });
     test.each(["planned", "completed"])("no current sprint stays unselected with %s listed first", async (firstStatus) => {
         const sprints = firstStatus === "planned" ? noCurrentSprint.data.sprints : [...noCurrentSprint.data.sprints].reverse();
         vi.mocked(getSprints).mockResolvedValueOnce({ data: { ...noCurrentSprint.data, sprints } } as any);
@@ -41,7 +49,7 @@ describe("Sprint Insights selection", () => {
         render(
             <QueryClientProvider client={client}>
                 <MemoryRouter>
-                    <SprintInsights />
+                    <SprintInsights projectId={10} />
                 </MemoryRouter>
             </QueryClientProvider>,
         );
@@ -63,7 +71,7 @@ describe("Sprint Insights selection", () => {
         render(
             <QueryClientProvider client={client}>
                 <MemoryRouter initialEntries={["/?sprint_id=20"]}>
-                    <SprintInsights />
+                    <SprintInsights projectId={10} />
                 </MemoryRouter>
             </QueryClientProvider>,
         );
@@ -77,7 +85,7 @@ describe("Sprint Insights selection", () => {
         render(
             <QueryClientProvider client={client}>
                 <MemoryRouter>
-                    <SprintInsights />
+                    <SprintInsights projectId={10} />
                 </MemoryRouter>
             </QueryClientProvider>,
         );

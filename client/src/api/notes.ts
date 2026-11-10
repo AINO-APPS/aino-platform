@@ -1,5 +1,7 @@
 import axios from "axios";
 import API, { baseURL, type AnyData, type Params } from "./client";
+import { clientHeaders } from "./clientIdentity";
+import { inspectClientUpgrade } from "./clientUpgrade";
 
 // Notes
 export const getNotes = () => API.get("/notes");
@@ -44,8 +46,16 @@ export const revokeNoteShare = (pageId: string) =>
     API.delete(`/notes/share/${encodeURIComponent(pageId)}`);
 // Public read-only note viewer â€” uses a separate axios instance with no
 // CSRF header / no credentials, so it works anonymously.
-export const getPublicNote = (token: string) =>
-    axios.get(`${baseURL}/public/notes/${encodeURIComponent(token)}`);
+export const getPublicNote = async (token: string) => {
+    try {
+        return await axios.get(`${baseURL}/public/notes/${encodeURIComponent(token)}`, {
+            withCredentials: false, headers: clientHeaders(),
+        });
+    } catch (error: any) {
+        await inspectClientUpgrade(error.response);
+        throw error;
+    }
+};
 
 // Calendar
 export const getCalendarEvents = (from?: string, to?: string) =>

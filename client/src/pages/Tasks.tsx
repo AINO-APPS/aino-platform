@@ -2,7 +2,7 @@ import SprintInsights from "./SprintInsights";
 import React, { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { getTasks, updateTaskStatus, deleteTask, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, getAvailableSprints, assignTaskToSprint } from "../api/tasks";
+import { getTasks, updateTaskStatus, deleteTask, getAssignableUsers, getTaskLabels, addTaskComment, updateTaskComment, getTaskDetail, assignTaskToSprint } from "../api/tasks";
 import { useAgileConfig } from "../AgileConfigContext";
 import { useFeatures } from "../FeaturesContext";
 import ConfirmDialog from "../components/common/ConfirmDialog";
@@ -55,6 +55,15 @@ import s from "./Tasks.module.css";
 
 const EMPTY: any[] = [];
 export default function Tasks() {
+  const { user } = useAuth() as any;
+  if (user?.project_ownership !== true) return <section className="card">
+    <h2>Project planning is not available yet</h2>
+    <p>Your organization’s project migration must be completed before using this version of planning. Contact your administrator.</p>
+  </section>;
+  return <ProjectTasks />;
+}
+
+function ProjectTasks() {
   const { user: currentUser } = useAuth() as any;
   const projectOwnership = currentUser?.project_ownership === true;
   const { hasFeature } = useFeatures();
@@ -87,25 +96,8 @@ export default function Tasks() {
     queryFn: async () => (await getTaskLabels()).data as any[],
   });
   const { availableProjects, projectsFetched, createProjects } = useTicketProjects(currentUser);
-  const { data: availableSprints = EMPTY, isFetched: sprintsFetched } = useQuery({
-    queryKey: ["tasks", "availableSprints"],
-    // "Agile & Sprints" gate: skip the (server-403-gated) sprint lookup
-    // entirely when the tenant's plan/feature-override disables agile.
-    enabled: hasFeature("agile") && !projectOwnership,
-    queryFn: async () => {
-      try {
-        return (await getAvailableSprints()).data as any[];
-      } catch (err: any) {
-        // Mid-session feature toggle → treat the feature-gate 403 as "no
-        // sprints" instead of a retryable error.
-        if (err?.response?.status === 403) return [] as any[];
-        throw err;
-      }
-    },
-  });
-
-  const team = usePlanningScope({ currentUser, projects: availableProjects, projectsLoaded: projectsFetched, availableSprints, setSelectedSprintId, agileEnabled: hasFeature("agile") });
-  const sprintsLoaded = projectOwnership ? team.currentSprintLoaded : !hasFeature("agile") || sprintsFetched;
+  const team = usePlanningScope({ currentUser, projects: availableProjects, projectsLoaded: projectsFetched, availableSprints: EMPTY, setSelectedSprintId, agileEnabled: hasFeature("agile") });
+  const sprintsLoaded = team.currentSprintLoaded;
   const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
   const teamVisibility = hasFeature("team_visibility");
 
@@ -223,6 +215,7 @@ export default function Tasks() {
   useSprintLanding({
     planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
     pathname: location.pathname,
+    search: location.search,
     currentSprintId: team.currentSprintId, sprintsLoaded: sprintsLoaded && team.currentSprintLoaded && (!showTeamSwitcher || selectedTeamId !== null),
     agileEnabled: hasFeature("agile"),
     navigate,
@@ -461,7 +454,7 @@ export default function Tasks() {
             bulkBar={
               <BacklogBulkBar
                 bulk={backlog.bulk} tasks={backlog.backlogTasks}
-                availableSprints={availableSprints}
+                availableSprints={visibleSprints}
                 assignableUsers={assignableUsers}
                 onOfferUndo={offerUndo}
                 onConfirmCancel={lifecycle.confirmBulkCancel}
