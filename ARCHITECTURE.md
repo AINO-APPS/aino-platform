@@ -940,13 +940,13 @@ All jobs iterate every active tenant via `forEachTenant()` (per-tenant error iso
 | **autoClockOut** | 5 min | Closes open sessions that rolled past local midnight — inserts `clock_out` at 23:59:59 of the session's own local day (per user timezone), batched to protect the pool |
 | **cleanupTokens** | 1 hour | Deletes expired/used password reset tokens |
 | **stale-call-sweep** | 5 sec | Force-ends calls stuck `ringing` > 60s (→ missed) or `answered` > 12h (→ ended); dismisses ring UI/push and clears in-call presence so abandoned calls can't pin users as "busy" |
-| **sprint-lifecycle** | 1 hour | Auto-creates/starts/completes sprints for teams in auto mode + rolls over incomplete tickets |
 | **inspector-prune** | 24 hours | Removes synthetic Platform Inspector users with no audit activity in 30 days |
 | **retention-cleanup** | 24 hours | Purges audit/session logs past the retention policy; hard-deletes soft-deleted tenants past the cleanup window |
 | **chat-media-pipeline** | on demand | Durable, retryable chat media processing (prepare → transform → upload → finalize) |
 
 When Redis + BullMQ are available: jobs run as distributed BullMQ scheduled jobs (safe for multi-instance).
 When Redis is unavailable: falls back to `setInterval` (single-instance mode).
+Sprints are managed explicitly within Scrum projects; there is no automatic sprint lifecycle job (ADR-018).
 
 ### Redis Caching Layer
 

@@ -22,7 +22,6 @@ const QUEUE_NAMES = [
     "inspector-prune",
     "retention-cleanup",
     "stale-call-sweep",
-    "sprint-lifecycle",
     "due-date-reminders",
     "chat-media-pipeline",
 ] as const;

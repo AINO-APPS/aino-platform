@@ -122,13 +122,13 @@ postgresDescribe("start date routes (PostgreSQL)", () => {
     });
 
     test("legacy schedule shims edit sprint ticket dates without leaving its sprint or clearing its deadline", async () => {
-        const created = await request(app).post("/api/tasks").send({ title: "Sprint dates", sprint_id: 10, start_date: "2026-11-09" });
+        const created = await request(app).post("/api/tasks").send({ title: "Sprint dates", sprint_id: 10, start_date: "2026-11-09", due_date: "2026-11-20" });
         expect(created.body).toMatchObject({ sprint_id: 10, start_date: "2026-11-09" });
         const scheduled = await request(app).patch(`/api/tasks/${created.body.id}/schedule`).send({ date: "2026-11-11" });
         expect(scheduled.status).toBe(200);
-        expect(scheduled.body).toMatchObject({ sprint_id: 10, start_date: "2026-11-11", planned_date: "2026-11-11", due_date: "2026-11-14" });
+        expect(scheduled.body).toMatchObject({ sprint_id: 10, start_date: "2026-11-11", planned_date: "2026-11-11", due_date: "2026-11-20" });
         const cleared = await request(app).patch(`/api/tasks/${created.body.id}/unschedule`).send({});
-        expect(cleared.body).toMatchObject({ sprint_id: 10, start_date: null, planned_date: null, due_date: "2026-11-14" });
+        expect(cleared.body).toMatchObject({ sprint_id: 10, start_date: null, planned_date: null, due_date: "2026-11-20" });
         const history = await request(app).get(`/api/tasks/${created.body.id}/history`);
         expect(history.body.filter((h: any) => h.field === "start_date")).toHaveLength(3);
         expect(history.body.filter((h: any) => ["scheduled", "unscheduled", "removed_from_sprint"].includes(h.action))).toEqual([]);

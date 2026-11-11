@@ -156,6 +156,9 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query(`INSERT INTO tasks (id, user_id, org_id, team_id, project_id, sprint_id, title) VALUES
             (1, 1, 1, 1, 10, NULL, 'One backlog'), (2, 1, 1, 1, 20, NULL, 'Two backlog'),
             (3, 1, 1, 1, 10, 100, 'One board'), (4, 1, 1, 1, 20, 200, 'Two board')`);
+        await pool.query(`UPDATE tasks t SET workflow_state_id = (
+            SELECT id FROM workflow_states WHERE project_id = t.project_id AND is_initial = TRUE LIMIT 1
+        )`);
         const backlog = await request(app).get("/api/tasks/backlog?project_id=20");
         expect(backlog.status).toBe(200);
         expect(backlog.body.tasks.map((task: any) => task.id)).toEqual([2]);
@@ -204,6 +207,9 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
             VALUES (100, 1, 10, 'Keep sprint', '2026-11-01', '2026-11-14')`);
         await pool.query(`INSERT INTO tasks (id, user_id, org_id, team_id, project_id, sprint_id, title)
             VALUES (1, 1, 1, 1, 10, 100, 'Keep ticket')`);
+        await pool.query(`UPDATE tasks SET workflow_state_id = (
+            SELECT id FROM workflow_states WHERE project_id = 10 AND is_initial = TRUE LIMIT 1
+        ) WHERE id = 1`);
         const refused = await request(app).delete("/api/organization/teams/1").set("x-legacy", "1").set("x-role", "super_admin");
         expect(refused.status).toBe(409);
         const deleted = await request(app).delete("/api/organization/teams/1").set("x-role", "super_admin");
@@ -250,7 +256,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
             (101, 10, 1, 'Next', '2026-11-15', '2026-11-28', 'planned'),
             (200, 20, NULL, 'Other project', '2026-11-15', '2026-11-28', 'planned')`);
         const states = (await pool.query(
-            "SELECT id, key, is_terminal FROM workflow_states WHERE org_id = 1",
+            "SELECT id, key, is_terminal FROM workflow_states WHERE org_id = 1 AND project_id = 10",
         )).rows;
         const openStateId = Number(states.find((state: any) => !state.is_terminal && state.key !== "cancelled")!.id);
         const doneStateId = Number(states.find((state: any) => state.is_terminal && state.key !== "cancelled")!.id);
@@ -264,7 +270,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
             terminal: boolean;
             subtask?: boolean;
             parentId?: number;
-            points: number;
+            points?: number;
         }) => Number((await pool.query(
             `INSERT INTO tasks
                 (user_id, org_id, team_id, project_id, sprint_id, workflow_state_id, work_item_type_id, parent_task_id, title, story_points)
@@ -275,23 +281,23 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
                 input.subtask ? subtaskTypeId : taskTypeId,
                 input.parentId ?? null,
                 input.title,
-                input.points,
+                input.points ?? null,
             ],
         )).rows[0].id);
         const terminalParent = await addTicket({ title: "Done parent with open work", terminal: true, points: 5 });
         const openSubtask = await addTicket({
-            title: "Open subtask", terminal: false, subtask: true, parentId: terminalParent, points: 2,
+            title: "Open subtask", terminal: false, subtask: true, parentId: terminalParent,
         });
         const doneSubtask = await addTicket({
-            title: "Done subtask", terminal: true, subtask: true, parentId: terminalParent, points: 1,
+            title: "Done subtask", terminal: true, subtask: true, parentId: terminalParent,
         });
         const openParent = await addTicket({ title: "Open parent", terminal: false, points: 3 });
         const doneSibling = await addTicket({
-            title: "Done sibling", terminal: true, subtask: true, parentId: openParent, points: 2,
+            title: "Done sibling", terminal: true, subtask: true, parentId: openParent,
         });
         const finishedParent = await addTicket({ title: "Finished parent", terminal: true, points: 8 });
         const finishedSubtask = await addTicket({
-            title: "Finished subtask", terminal: true, subtask: true, parentId: finishedParent, points: 1,
+            title: "Finished subtask", terminal: true, subtask: true, parentId: finishedParent,
         });
 
         const dateBounds = (await pool.query(
@@ -311,10 +317,10 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
                 { id: openParent, title: "Open parent" },
             ],
             movingSubtasks: 3,
-            movingPoints: 13,
+            movingPoints: 8,
             staying: expect.arrayContaining([
-                { id: finishedParent, title: "Finished parent", story_points: 8, completed: true },
-                { id: finishedSubtask, title: "Finished subtask", story_points: 1, completed: true },
+                expect.objectContaining({ id: finishedParent, title: "Finished parent", story_points: "8.00", completed: true }),
+                expect.objectContaining({ id: finishedSubtask, title: "Finished subtask", story_points: null, completed: true }),
             ]),
             newSprint: {
                 start_date: dateBounds.start_date,
@@ -324,6 +330,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(preview.body.moving.map((ticket: any) => ticket.id)).toEqual([
             terminalParent, openSubtask, doneSubtask, openParent, doneSibling,
         ]);
+        expect(preview.body.staying.map((ticket: any) => ticket.id)).toEqual([finishedParent, finishedSubtask]);
 
         const completed = await request(app).post("/api/sprints/100/complete").send({ rolloverTo: "new" });
         expect(completed.status).toBe(200);

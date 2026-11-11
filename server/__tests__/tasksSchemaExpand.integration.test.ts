@@ -7,6 +7,7 @@ import type { QueryFn } from "../types/domain";
 import type { SchemaQuery } from "../platform/db/schemaTypes";
 import { installPgTypeParsers } from "../platform/db/pgTypes";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
+import { seedLegacyAgileFixture } from "../test-support/legacyAgileFixture";
 
 // Production registers the DATE-as-string parser when platform/db/pool.ts
 // loads; this suite builds its own Pool, so it must register it too.
@@ -88,8 +89,7 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
     }
 
     async function seedDefaults(query: SchemaQuery & QueryFn): Promise<void> {
-        const { seedAgileDefaults } = require("../platform/db/agileDefaults");
-        await seedAgileDefaults(query);
+        await seedLegacyAgileFixture(query);
     }
 
     async function applyExistingMigrations(query: SchemaQuery & QueryFn): Promise<string[]> {

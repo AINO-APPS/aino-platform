@@ -65,6 +65,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
             INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
                 (${ALICE}, 'alice', 'x', 'Alice', 1, ${ALPHA}),
                 (${BOB}, 'bob', 'x', 'Bob', 1, ${BETA})`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(`
             INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES
                 (${ALPHA_PLANNED}, ${ALPHA}, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned'),
@@ -169,7 +170,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
 
     test.each([
         ["no planned day lands in the backlog", null],
-        ["a planned day lands in Scheduled", "2026-11-05"],
+        ["a legacy planned day is retained as metadata", "2026-11-05"],
     ])("leaving a sprint keeps the ticket due date; %s", async (_label, plannedDay) => {
         const id = await ticket({
             sprint_id: ALPHA_PLANNED, planned_date: plannedDay, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20",
@@ -246,6 +247,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
     test("refuses a sprint that is not in the actor's org", async () => {
         await pool.query("INSERT INTO organizations (id, name, slug) VALUES (2, 'Other', 'other')");
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 2, 'Gamma')");
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 2");
         await pool.query("INSERT INTO sprints (id, team_id, name, start_date, end_date) VALUES (30, 3, 'G', '2026-11-01', '2026-11-14')");
         const id = await ticket({ team_id: null });
 
@@ -471,6 +473,7 @@ postgresDescribe("ticket placement on PostgreSQL", () => {
         test("refuses a sprint outside the actor's org and re-times nothing", async () => {
             await pool.query("INSERT INTO organizations (id, name, slug) VALUES (2, 'Other', 'other')");
             await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 2, 'Gamma')");
+            await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 2");
             await pool.query("INSERT INTO sprints (id, team_id, name, start_date, end_date) VALUES (30, 3, 'G', '2026-11-01', '2026-11-14')");
             const foreign = (await pool.query(
                 "INSERT INTO tasks (user_id, title, org_id, team_id, sprint_id, due_date) VALUES ($1, 'F', 2, 3, 30, '2026-11-14') RETURNING id",

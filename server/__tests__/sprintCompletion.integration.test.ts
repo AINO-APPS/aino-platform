@@ -95,7 +95,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
 
     beforeEach(() => effects.changed.mockReset());
 
-    test("concurrent completions claim once and carry tickets using the target sprint end date", async () => {
+    test("concurrent completions claim once and carry tickets without changing their due dates", async () => {
         const id = await ticket({
             sprintId: 10,
             workflowStateId: openStateId,
@@ -123,7 +123,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         )).rows[0];
         expect(moved).toMatchObject({
             sprint_id: 11,
-            due_date: "2026-11-28",
+            due_date: "2026-11-14",
             pre_sprint_due_date: "2026-12-10",
             carried_over_from_sprint_id: 10,
         });

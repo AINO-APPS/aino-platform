@@ -150,7 +150,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(sendToUser).not.toHaveBeenCalled();
         const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
         expect(move.status).toBe(200);
-        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-20", planned_date: "2026-11-10", team_id: 1 });
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-14", start_date: "2026-11-10", planned_date: "2026-11-10", team_id: 1 });
         expect(sendToUser).toHaveBeenCalledWith(1, 1, "task_updated", { taskId: ticket.id, action: "updated" });
         const alias = await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`);
         expect(alias.status).toBe(200);
@@ -320,7 +320,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         });
     }
 
-    test("creating straight into a sprint remembers the own due date and sets no planned day", async () => {
+    test("creating straight into a sprint keeps its own due date without saved-date bookkeeping", async () => {
         const res = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, due_date: "2026-11-20" });
 
         expect(res.status).toBe(200);
@@ -340,7 +340,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             },
         });
         expect(await row(res.body.id)).toEqual({
-            sprint_id: 10, planned_date: null, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20",
+            sprint_id: 10, planned_date: null, due_date: "2026-11-20", pre_sprint_due_date: null,
         });
     });
 
@@ -593,7 +593,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const memberList = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
         expect(memberList.status).toBe(200);
-        expect(memberList.body.tasks.map((ticket: any) => ticket.title)).toEqual([
+        expect(memberList.body.tasks.map((ticket: any) => ticket.title).sort()).toEqual([
             "Alpha grant ticket",
             "Beta grant ticket",
             "Gamma grant ticket",
