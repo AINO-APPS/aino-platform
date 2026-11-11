@@ -57,7 +57,9 @@ project ticket, with a filter and sort for key, title, type, status, assignee,
 priority, start date and due date. Dates do not determine list membership.
 **Board** reuses the project-wide workflow board.
 
-**Calendar** shows open tickets on every day of their inclusive start-to-due
+**Calendar** has **Month** and **Week** views. Week runs Monday to Sunday,
+including weeks crossing month/year boundaries; arrows and Today retain the
+selected view. Both show open tickets on every day of their inclusive start-to-due
 span. A single date shows on that day; work with neither date stays in the
 Undated side list. Drag a ticket to shift its dates together (the duration is
 preserved), or drag undated work onto a day to set both dates. **Edit dates**
@@ -77,12 +79,15 @@ parent, not individual subtasks: sprint/backlog placement moves the whole family
 atomically, preserving dates and recording history for each ticket. Boards keep
 subtasks as individual cards labelled with the parent's key.
 
+Web/desktop and Android parent detail offer **Add subtask** whenever the server
+allows it, including before the first subtask exists. A member can add a title;
+the server assigns the Subtask type and inherits the parent's project and sprint.
+Cancelled parents, archived projects and read-only roles cannot add subtasks.
 Parent detail separates **own** time/remaining estimate from totals **including
 subtasks**, and shows done/total subtask counts. Deleted worklogs do not contribute.
 Subtask detail links back to the parent. Subtasks have no story points; sprint
 capacity, baselines, burndown and velocity count ordinary parent points only.
-These nested views and effort summaries ship on web/desktop; Android is a separate
-slice.
+These nested views and effort summaries also ship on Android.
 
 ## Keys, moves and archive
 
@@ -120,8 +125,10 @@ The origin team is a compatibility mapping, not an ownership relationship.
 
 1. A super admin opens **Review project migration** at `/projects`
    (`GET /api/projects/migration/review`).
-2. Review generated keys, types, ticket counts, grants and migration moves;
-   rename unpublished keys as needed.
+2. Review generated keys, types, ticket counts, grants, migration moves and
+   **Hierarchy repairs**; rename unpublished keys as needed. Hierarchy records
+   show original before/after parent, type, project, sprint and points, alongside
+   any later correction. They remain available after key renames or ticket removal.
 3. **Switch to projects** (`POST /api/projects/migration/switch`) publishes keys,
    enables `project_ownership` and audits the one-time switch atomically.
    Repeated or concurrent switches return 409.
@@ -134,6 +141,15 @@ This does not unpublish keys or permit a second initial publication.
 Rollback restores team authorization, not old workflow state IDs: migrated
 tickets continue using their project workflow; genuine legacy template states
 retain their org graph.
+
+Migration `0034_recover_hierarchy_leaves.sql` corrects eligible leaf links cleared
+by `0031` using its stored snapshots, not guessed relationships. It seeds no new
+ownership state and never rewrites an original repair or history row. Leaves
+inherit the current parent's sprint and lose story points on conversion.
+Missing evidence, cross-project links, non-leaves and subsequent human hierarchy/
+placement/points edits are not overwritten. Such original repairs remain visible
+for administrator review, including ambiguous historical sprint edits. Replays
+do not repeat corrections.
 
 Older clients retain `team_id`, `issue_key` (equal to `ticket_key`), team scope
 parameters and `/tasks/:id/transfer` until the Phase 3 client-version gate.

@@ -128,6 +128,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+        if (work_item_type_id != null && work_item_type_id !== "" && !witRow) {
+            return res.status(400).json({ error: "Invalid or inactive work_item_type" });
+        }
         const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
@@ -428,6 +431,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 newWitId = null;
             } else {
                 newWitRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+                if (!newWitRow) {
+                    const stored = await getHierarchyType(req.db!, work_item_type_id, req.userOrgId ?? null, false);
+                    if (stored && String(stored.id) === String(task.work_item_type_id)) newWitRow = stored;
+                }
                 if (!newWitRow) return res.status(400).json({ error: 'Invalid work_item_type' });
                 newWitId = newWitRow.id;
             }
@@ -517,7 +524,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             );
             await recordHierarchyHistory(client, id, req.userId!, "parent", hierarchy.current.parent_task_id, newParentTaskId);
             if (String(hierarchy.current.work_item_type_id ?? "") !== String(newWitId ?? "")) {
-                const oldType = await getHierarchyType(client, hierarchy.current.work_item_type_id, req.userOrgId ?? null);
+                const oldType = await getHierarchyType(client, hierarchy.current.work_item_type_id, req.userOrgId ?? null, false);
                 const newType = await getHierarchyType(client, newWitId, req.userOrgId ?? null);
                 await recordHierarchyHistory(client, id, req.userId!, "work_item_type", oldType?.name, newType?.name);
             }

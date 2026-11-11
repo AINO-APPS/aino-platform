@@ -1,5 +1,5 @@
-// Backlog endpoints — the backlog is `sprint_id IS NULL` with no planned day;
-// a due date is a deadline and never moves a ticket out of the backlog.
+// Backlog endpoints — the backlog is `sprint_id IS NULL`; dates are fields,
+// never membership rules. Scheduled is retained only as a compatibility read.
 //   GET   /backlog
 //   GET   /scheduled
 //   POST  /backlog
@@ -289,6 +289,9 @@ async function createBacklogTicket(req: Request, res: Response) {
         // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+        if (work_item_type_id != null && work_item_type_id !== "" && !witRow) {
+            return res.status(400).json({ error: "Invalid or inactive work_item_type" });
+        }
         const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));

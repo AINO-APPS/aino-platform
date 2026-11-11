@@ -2,6 +2,8 @@ import type { PlacementDb as TasksDb } from "./tasks.placementRepository";
 import { acquirePlacementLifecycleLock } from "./tasks.placementRepository";
 import * as repo from "./tasks.hierarchyRepository";
 import { canReadProjectTask, type TaskActor } from "./tasks.policy";
+import { ticketActionConflict } from "./tasks.writeGuards";
+import type { Conflict } from "./tasks.workflowRules";
 export const getHierarchyType = repo.findHierarchyType;
 export const getHierarchyTicket = repo.findHierarchyTicket;
 export const recordHierarchyHistory = repo.recordHierarchyHistory;
@@ -9,6 +11,10 @@ export const getTicketSubtasks = repo.findHierarchySubtasks;
 
 export class HierarchyRefused extends Error {
     readonly code = "INVALID_HIERARCHY";
+}
+
+export class HierarchyCapabilityRefused extends Error {
+    constructor(readonly conflict: Conflict) { super(conflict.body.error); }
 }
 
 export function assertSubtaskTypeMutation(existing: { is_subtask?: boolean }, changes: Record<string, unknown>, deleting = false) {
@@ -68,7 +74,11 @@ export async function assertTicketHierarchy(db: TasksDb, change: Partial<Hierarc
     await acquirePlacementLifecycleLock(db, change.org_id);
     const current = change.id == null ? null : await repo.findHierarchyTicket(db, change.id, change.org_id);
     const ticket = { ...current, ...change };
-    const type = ticket.work_item_type_id == null ? null : await repo.findHierarchyType(db, ticket.work_item_type_id, change.org_id);
+    const type = ticket.work_item_type_id == null ? null : await repo.findHierarchyType(
+        db, ticket.work_item_type_id, change.org_id, false);
+    if (type?.is_active === false && String(current?.work_item_type_id ?? "") !== String(type.id)) {
+        throw new HierarchyRefused("A newly selected ticket type must be active.");
+    }
     ticket.is_epic = type?.is_epic === true;
     ticket.is_subtask = type?.is_subtask === true;
     const parentId = hierarchyParentId(ticket.parent_task_id);
@@ -81,6 +91,11 @@ export async function assertTicketHierarchy(db: TasksDb, change: Partial<Hierarc
     }
     const violation = hierarchyViolation(ticket, parent);
     if (violation) throw new HierarchyRefused(violation);
+    if (ticket.is_subtask && parent && actor && (!current || !current.is_subtask
+        || Number(current.parent_task_id) !== Number(parentId))) {
+        const conflict = await ticketActionConflict(db, actor, parent, "canAddSubtask");
+        if (conflict) throw new HierarchyCapabilityRefused(conflict);
+    }
     if (ticket.id != null) {
         for (const child of await repo.findHierarchyChildren(db, ticket.id)) {
             const childViolation = hierarchyViolation(cascadeProject && child.is_subtask

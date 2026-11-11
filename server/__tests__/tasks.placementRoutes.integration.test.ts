@@ -304,7 +304,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
     function expectTicketDecision(ticket: any) {
         expect(ticket).toMatchObject({
-            container: expect.stringMatching(/^(sprint|scheduled|backlog)$/),
+            container: expect.stringMatching(/^(sprint|board|backlog)$/),
             capabilities: {
                 transitions: expect.any(Array),
                 can: {

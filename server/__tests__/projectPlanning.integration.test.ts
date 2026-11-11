@@ -70,6 +70,44 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
     });
 
+    test.each(["project", "compatibility"])("%s Scrum backlog includes dated migrated work and never serializes Scheduled", async mode => {
+        const dated = (await request(app).post("/api/tasks/backlog").send({
+            title: "Dated migration", project_id: 10, start_date: "2026-11-09", due_date: "2026-11-12",
+        }).expect(200)).body;
+        // Expanded production rows retain this legacy storage until ticket 11.
+        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
+        const headers = mode === "compatibility" ? { "x-legacy": "1" } : {};
+        const backlog = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
+        const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
+        expect({
+            ids: backlog.body.tasks.map((task: any) => task.id),
+            container: detail.body.container,
+        }).toEqual({ ids: [dated.id], container: "backlog" });
+        expect(backlog.body.tasks[0]).toMatchObject({
+            start_date: "2026-11-09", planned_date: "2026-11-09", container: "backlog",
+        });
+        const scheduled = await request(app).get("/api/tasks/scheduled?team_id=1").set(headers).expect(200);
+        expect(scheduled.body.tasks).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: dated.id, container: "backlog" }),
+        ]));
+    });
+
+    test.each([
+        ["kanban", false, "board"], ["kanban", true, "backlog"], ["task_list", false, "board"],
+    ])("%s backlog setting %s determines dated ticket containers in both ownership modes", async (type, backlog, expected) => {
+        await pool.query("UPDATE projects SET type = $1, kanban_backlog_enabled = $2 WHERE id = 10", [type, backlog]);
+        const dated = (await request(app).post("/api/tasks/backlog").send({
+            title: "Dated project work", project_id: 10, start_date: "2026-11-09",
+        }).expect(200)).body;
+        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
+        for (const headers of [{}, { "x-legacy": "1" }]) {
+            const read = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
+            expect(read.body.tasks).toEqual([expect.objectContaining({ id: dated.id, container: expected })]);
+            const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
+            expect(detail.body.container).toBe(expected);
+        }
+    });
+
     test("my projects picker includes only active projects where the actor can create tickets", async () => {
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES (30, 1, 'viewer')");
         await pool.query("UPDATE projects SET is_archived = TRUE WHERE id = 20");

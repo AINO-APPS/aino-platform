@@ -1,4 +1,6 @@
 import API from "./client";
+import type { HierarchyRepair } from "../types/generated/tasks";
+export type { HierarchyRepair, HierarchyRepairValue } from "../types/generated/tasks";
 
 export interface MigrationProject {
   id: number;
@@ -21,6 +23,7 @@ export interface MigrationReview {
     sprint_id: number | null;
     sprint_name: string | null;
   }[];
+  hierarchy_repairs: HierarchyRepair[];
 }
 export const getMigrationReview = () => API.get<MigrationReview>("/projects/migration/review");
 export const switchToProjects = () => API.post("/projects/migration/switch");

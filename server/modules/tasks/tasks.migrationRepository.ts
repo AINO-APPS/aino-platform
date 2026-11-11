@@ -26,7 +26,22 @@ export async function readMigrationReview(db: ProjectAccessRepositoryDb, orgId: 
          LEFT JOIN sprints s ON s.id = m.sprint_id
          WHERE t.org_id = $1 ORDER BY m.task_id`, [orgId],
     )).rows;
-    return { ...org, projects, moves };
+    const hierarchy_repairs = (await db.query(
+        `SELECT r.task_id, t.ticket_key, r.stage, r.reason, r.repaired_at,
+            json_build_object('parent_task_id', r.before_value->'parent_task_id',
+                'work_item_type_id', r.before_value->'work_item_type_id', 'project_id', r.before_value->'project_id',
+                'sprint_id', r.before_value->'sprint_id', 'story_points', r.before_value->'story_points') AS before,
+            json_build_object('parent_task_id', r.after_value->'parent_task_id',
+                'work_item_type_id', r.after_value->'work_item_type_id', 'project_id', r.after_value->'project_id',
+                'sprint_id', r.after_value->'sprint_id', 'story_points', r.after_value->'story_points') AS after
+         FROM (
+            SELECT *, 'original' AS stage FROM task_hierarchy_repairs WHERE org_id = $1
+            UNION ALL
+            SELECT *, 'correction' AS stage FROM task_hierarchy_repair_corrections WHERE org_id = $1
+         ) r LEFT JOIN tasks t ON t.id = r.task_id AND t.org_id = $1
+         ORDER BY r.repaired_at, CASE r.stage WHEN 'original' THEN 0 ELSE 1 END, r.task_id`, [orgId],
+    )).rows;
+    return { ...org, projects, moves, hierarchy_repairs };
 }
 
 export async function beginReviewSnapshot(db: ProjectAccessRepositoryDb) {

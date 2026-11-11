@@ -66,7 +66,7 @@ const workflows = [
 ] as const;
 const containers = [
     ["backlog", null, null, false],
-    ["scheduled", null, "2026-11-03", false],
+    ["backlog", null, "2026-11-03", false],
     ["sprint", 10, "2026-11-03", false],
     ["sprint", 11, null, false],
     ["sprint", 12, null, false],
@@ -300,7 +300,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                         })),
                         can: {
                             edit: write,
-                            canAddSubtask: write,
+                            canAddSubtask: !write.allowed ? write : stateId === 105 ? denied("CANCELLED_TERMINAL") : allowed,
                             logWork: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             logWorkForOthers: !['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? denied('WORKLOG_FOR_OTHERS_DENIED')
                                 : !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,

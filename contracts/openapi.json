@@ -15608,7 +15608,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15837,7 +15837,7 @@
             }
           },
           "409": {
-            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16136,7 +16136,7 @@
             }
           },
           "409": {
-            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17718,7 +17718,7 @@
             }
           },
           "409": {
-            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19245,7 +19245,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25676,7 +25676,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25786,7 +25786,7 @@
             }
           },
           "409": {
-            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "PROJECT_ARCHIVED or WORKFLOW_NOT_FOUND INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25895,7 +25895,7 @@
             }
           },
           "409": {
-            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement.",
+            "description": "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
             "content": {
               "application/json": {
                 "schema": {
@@ -27212,9 +27212,10 @@
             "type": "string",
             "enum": [
               "sprint",
-              "scheduled",
-              "backlog"
-            ]
+              "backlog",
+              "board"
+            ],
+            "description": "Project-type membership, independent of dates. Scheduled survives only as a legacy date-filtered read, never a container."
           },
           "capabilities": {
             "$ref": "#/components/schemas/TicketCapabilities"
@@ -27381,9 +27382,10 @@
             "type": "string",
             "enum": [
               "sprint",
-              "scheduled",
-              "backlog"
-            ]
+              "backlog",
+              "board"
+            ],
+            "description": "Project-type membership, independent of dates. Scheduled survives only as a legacy date-filtered read, never a container."
           },
           "capabilities": {
             "$ref": "#/components/schemas/TicketCapabilities"
@@ -29693,13 +29695,21 @@
             "items": {
               "$ref": "#/components/schemas/ProjectMigrationMove"
             }
+          },
+          "hierarchy_repairs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HierarchyRepair"
+            },
+            "description": "Organization-scoped immutable original repairs and additive corrections, oldest first; retained even if a ticket was later removed. Web organization super-admin/platform-admin review only."
           }
         },
         "required": [
           "project_ownership",
           "switched_at",
           "projects",
-          "moves"
+          "moves",
+          "hierarchy_repairs"
         ],
         "additionalProperties": false
       },
@@ -30881,6 +30891,96 @@
             "type": "boolean"
           }
         },
+        "additionalProperties": false
+      },
+      "HierarchyRepairValue": {
+        "type": "object",
+        "properties": {
+          "parent_task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "work_item_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sprint_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "story_points": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "parent_task_id",
+          "work_item_type_id",
+          "project_id",
+          "sprint_id",
+          "story_points"
+        ],
+        "additionalProperties": false
+      },
+      "HierarchyRepairStage": {
+        "type": "string",
+        "enum": [
+          "original",
+          "correction"
+        ]
+      },
+      "HierarchyRepair": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer"
+          },
+          "ticket_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/HierarchyRepairStage"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "repaired_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "before": {
+            "$ref": "#/components/schemas/HierarchyRepairValue"
+          },
+          "after": {
+            "$ref": "#/components/schemas/HierarchyRepairValue"
+          }
+        },
+        "required": [
+          "task_id",
+          "ticket_key",
+          "stage",
+          "reason",
+          "repaired_at",
+          "before",
+          "after"
+        ],
         "additionalProperties": false
       },
       "TicketSummary": {

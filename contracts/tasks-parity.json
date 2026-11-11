@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-04",
+  "updated": "2026-11-11",
   "spec": "docs/TASKS_DESIGN_SPEC.md",
   "clients": [
     "web",
@@ -28,7 +28,7 @@
     },
     {
       "id": "task-list-planning",
-      "name": "Task list field filters and sorts, inclusive date calendar and capability-controlled date edits",
+      "name": "Task list field filters and sorts, inclusive month/week calendar and capability-controlled date edits",
       "decision": "D56",
       "phase": 3,
       "web": {
@@ -37,6 +37,8 @@
         "owner_tests": [
           { "path": "client/src/pages/tasks/__tests__/taskListViews.test.tsx", "name": "every list field forwards its filter and sort, and a second sort reverses direction" },
           { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "dragging shifts a span together and dates undated work, without changing project or workflow" },
+          { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "week view uses Monday-to-Sunday bounds across a year boundary with inclusive spans, overlays and undated work" },
+          { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "week drag and keyboard edits share month date validation and keep the undated tray" },
           { "path": "client/src/pages/tasks/__tests__/tasksPageWiring.test.tsx", "name": "Task list %s route renders its real project-scoped surface" }
         ]
       },
@@ -60,7 +62,12 @@
       "phase": 3,
       "web": { "status": "shipped", "owner_test": "client/src/components/agile/__tests__/SubtasksPanel.test.tsx" },
       "desktop": { "status": "shipped", "owner_test": "client/src/components/agile/__tests__/SubtasksPanel.test.tsx" },
-      "android": { "status": "waived", "waiver": "Server and shared web detail expansion ships first; native subtask detail is implemented by the corresponding Android ticket before version enforcement." },
+      "android": { "status": "shipped", "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/SubtaskDetailUiTest.kt",
+        "owner_tests": [
+          { "path": "app/src/test/java/app/aino/mobile/feature/tasks/SubtaskDetailUiTest.kt", "name": "parentWithNoChildrenOffersAddSubtaskFromTheServerCapability" },
+          { "path": "app/src/test/java/app/aino/mobile/feature/tasks/SubtaskCreationHttpTest.kt", "name": "createUsesTheParentHttpEndpointAndRefreshesItsInheritedSubtaskEvenWithNoPriorChildren" },
+          { "path": "app/src/test/java/app/aino/mobile/feature/tasks/SubtaskCreationHttpTest.kt", "name": "staleCancellationRefusalKeepsTheDraftExplainsTheErrorAndRefreshesCapabilities" }
+        ] },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits the shared ticket detail add/open controls." }
     },
     {
@@ -1277,7 +1284,7 @@
     },
     {
       "id": "project-migration-review",
-      "name": "ADR-017 generated-project review and one-time ownership publication with emergency rollback",
+      "name": "ADR-017 generated-project and immutable hierarchy repair review, with one-time ownership publication",
       "decision": "D45",
       "phase": 2,
       "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },

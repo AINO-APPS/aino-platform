@@ -1,6 +1,7 @@
 import { projectTypePolicy, type TypedProject } from "./tasks.projectTypes";
 import type { LifecycleDb } from "./tasks.workflowRules";
 import { PLANNING_PARENT_SQL } from "./tasks.hierarchyRepository";
+import { acquirePlacementLifecycleLock } from "./tasks.placementRepository";
 
 export interface BoardProject extends TypedProject {
     id: number;
@@ -80,6 +81,7 @@ export async function targetBoardOccupancy(db: LifecycleDb, project: BoardProjec
 }
 
 export async function lockBoardWrite(db: LifecycleDb, projectId: number, taskId: number, orgId: number | null) {
+    await acquirePlacementLifecycleLock(db, orgId);
     await db.query("SELECT id FROM projects WHERE id = $1 AND org_id = $2 FOR UPDATE", [projectId, orgId]);
     return (await db.query("SELECT * FROM tasks WHERE id = $1 AND org_id = $2 FOR UPDATE", [taskId, orgId])).rows[0];
 }

@@ -62,6 +62,34 @@ test("non-admins cannot load review data and previously published orgs cannot sw
   expect(screen.queryByRole("button", { name: "Switch to projects" })).not.toBeInTheDocument();
 });
 
+test("super-admin review shows hierarchy repair details and keeps original repairs beside their corrections", async () => {
+  api.get.mockResolvedValue({ data: {
+    project_ownership: true, switched_at: "2026-11-04T10:00:00Z", projects: [], moves: [],
+    hierarchy_repairs: [
+      { task_id: 100, ticket_key: "ENG-1", stage: "original", reason: "Cleared legacy parent",
+        repaired_at: "2026-11-09T10:00:00Z",
+        before: { parent_task_id: 42, work_item_type_id: 3, project_id: 10, sprint_id: null, story_points: null },
+        after: { parent_task_id: null, work_item_type_id: 3, project_id: 10, sprint_id: null, story_points: null } },
+      { task_id: 100, ticket_key: "ENG-1", stage: "correction", reason: "Recovered eligible leaf",
+        repaired_at: "2026-11-11T10:00:00Z",
+        before: { parent_task_id: null, work_item_type_id: 3, project_id: 10, sprint_id: null, story_points: null },
+        after: { parent_task_id: 42, work_item_type_id: 9, project_id: 10, sprint_id: 7, story_points: null } },
+    ],
+  } });
+  show();
+  const section = await screen.findByRole("region", { name: "Hierarchy repairs" });
+  expect(section).toHaveTextContent("Cleared legacy parent");
+  expect(section).toHaveTextContent("Recovered eligible leaf");
+  expect(section).toHaveTextContent("Original repair");
+  expect(section).toHaveTextContent("Follow-up correction");
+  expect(section).toHaveTextContent("Parent #42");
+  expect(section).toHaveTextContent("Type #9");
+  expect(section).toHaveTextContent("Sprint #7");
+  expect(section.querySelectorAll("tbody tr")).toHaveLength(2);
+  expect(section.querySelectorAll("time")).toHaveLength(2);
+  expect(api.post).not.toHaveBeenCalled();
+});
+
 test("platform admins confirm emergency rollback and failed writes preserve the review with an error", async () => {
   api.get.mockResolvedValue({ data: {
     project_ownership: true, switched_at: "2026-11-04T10:00:00Z", projects: [], moves: [],
