@@ -3,6 +3,10 @@ export function applyProjectTypeContract(paths, schemas) {
     const array = name => ({ type: 'array', items: ref(name) });
     schemas.ProjectType = { type: 'string', enum: ['scrum', 'kanban', 'task_list'] };
     schemas.PlanTab = { type: 'string', enum: ['backlog', 'sprint', 'reports', 'board', 'list', 'calendar'] };
+    for (const name of ['Task', 'SearchTask']) {
+        schemas[name].properties.container = { type: 'string', enum: ['sprint', 'backlog', 'board'],
+            description: 'Project-type membership, independent of dates. Scheduled survives only as a legacy date-filtered read, never a container.' };
+    }
     schemas.ProjectTypeOptions = { type: 'object', properties: { availableTypes: array('ProjectType'), defaultType: ref('ProjectType') }, required: ['availableTypes', 'defaultType'], additionalProperties: false };
     schemas.ProjectCapabilities.properties.canChangeType = { type: 'boolean', description: 'Project admin of a non-archived project. Allowed destinations are in changeableTypes.' };
     schemas.ProjectCapabilities.required.push('canChangeType');

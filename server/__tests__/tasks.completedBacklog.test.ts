@@ -51,12 +51,11 @@ describe("completed work leaves the backlog", () => {
         expect(revealed.whereSql).not.toContain("t.completed_at IS NULL");
     });
 
-    test("a planned day leaves the backlog for Scheduled; a due date does not", () => {
+    test("no start, legacy planned or due date changes backlog membership", () => {
         const open = backlog(false);
         expect(open.whereSql).not.toContain("t.date IS NULL");
-        expect(open.whereSql).toContain("t.planned_date IS NULL");
-        // The bug: a ticket created from the Backlog with a due date used to
-        // move to Scheduled and disappear from the list it was created in.
+        expect(open.whereSql).not.toContain("t.planned_date");
+        expect(open.whereSql).not.toContain("t.start_date");
         expect(open.whereSql).not.toContain("t.due_date");
     });
 

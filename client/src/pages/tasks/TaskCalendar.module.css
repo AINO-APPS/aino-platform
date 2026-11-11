@@ -1,6 +1,12 @@
 .nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .nav button, .nav input { border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--card-bg); color: var(--text-primary); font: inherit; }
 .nav button { cursor: pointer; }
+.mode { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-secondary); }
+.mode button { border-color: transparent; background: transparent; }
+.mode button[aria-pressed="true"] { background: var(--card-bg); border-color: var(--border); color: var(--primary); font-weight: 700; }
+.nav button:focus-visible, .nav input:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.range { padding: 12px 24px; color: var(--text-secondary); font: 12px var(--font-mono, monospace); border-bottom: 1px solid var(--border); }
+.week .day { min-height: 360px; }
 .legend { display: flex; gap: 18px; padding: 14px 24px; flex-wrap: wrap; font-size: 12px; border-bottom: 1px solid var(--border); }
 .legend label { display: flex; align-items: center; gap: 6px; }
 .legend span { margin-left: auto; color: var(--text-secondary); }

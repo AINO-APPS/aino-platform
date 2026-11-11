@@ -14,7 +14,9 @@ export interface PlacementDb {
  * Serialize placement and sprint lifecycle work within an organization before
  * either path takes task or sprint row locks.
  */
-export async function acquirePlacementLifecycleLock(db: PlacementDb, orgId: number | null): Promise<void> {
+export async function acquirePlacementLifecycleLock(
+    db: { query(sql: string, params?: unknown[]): Promise<unknown> }, orgId: number | null,
+): Promise<void> {
     await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
         `aino:ticket-placement:${orgId == null ? "null" : String(orgId)}`,
     ]);

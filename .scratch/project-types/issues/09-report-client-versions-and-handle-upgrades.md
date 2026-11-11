@@ -166,3 +166,142 @@ bundled web/desktop metadata parity. No production database was used.
   updater/restart and browser reload proof; independently approved ownership
   rollout and report/enforce/removal steps. No push, tag, release, deployment,
   gate configuration, ownership switch or Android change was performed.
+
+### Phase 3 two-axis review corrections (2026-11-11)
+
+Scope is **all Phase 3 changes since Phase 2**, not only ticket09. This evidence
+does not resolve ticket09 or authorize publication, rollout or enforcement.
+Clean fix worktrees/branches were created from the verified platform integration
+`feb4ac65681453d55269981afd185732c7469c45` and Android integration
+`71a3bda5eba2c250265d0d7a396217532526d281`. Neither integration worktree nor
+unrelated main-worktree changes were edited. All eight findings were confirmed;
+none was treated as a false positive.
+
+1. **Standards / reciprocal row locks — confirmed and fixed.** Deterministic
+   real-PG execution of the actual placement and board-lock helpers reproduced
+   a rejected move from a deadlock, rather than a synthetic SQL model. Status
+   writes now acquire the same organization placement/lifecycle advisory lock
+   before any row lock. Tracing the shared protocol also reproduced the same
+   directly coupled key-rename/project-move deadlock; key renames join that
+   protocol. Both helper concurrency cases pass. Additional real HTTP
+   status/key-rename versus move-project races exercise the complete routers:
+   project moves succeed and stale status may refuse with 409, never deadlock 500.
+2. **Standards / inactive Epic classification — confirmed and fixed.** After
+   authorized deactivation, an unrelated Epic title edit returned 409, while
+   parenting a childless Epic under another Epic incorrectly returned 200.
+   Stored types now retain their hierarchy level even when inactive. Full edit
+   payloads resubmitting the existing type ID/key also work; only a genuinely
+   new type selection must be active. Real HTTP regressions cover both outcomes,
+   unchanged ID/key resubmission, new selection refusal and preserved history.
+3. **Spec / dated Scrum backlog — confirmed and fixed, not a compatibility-only
+   false positive.** Migrated rows retaining `planned_date` were absent from
+   `GET /tasks/backlog?project_id=…` and serialized `container: scheduled` through
+   detail/capabilities in **both** project and compatibility ownership modes.
+   Backlog membership no longer filters any date. Containers follow the project
+   type/initial-state backlog setting, never dates; the legacy Scheduled read
+   remains a date-filtered compatibility shim, not a container. HTTP coverage
+   includes Scrum plus Kanban backlog on/off and Task list across both modes.
+   Legacy team-based authorization/placement remains intact until ticket11.
+4. **Spec / migration leaf links — confirmed after ordered-chain tracing.**
+   No migration after 0031 recovered the ordinary eligible leaves it cleared;
+   the full chain through 0033 left the seeded Story #3 parentless. Historical
+   0031 is unchanged. Additive `0034_recover_hierarchy_leaves.sql` uses its
+   immutable repair snapshots to recover eligible same-project ordinary leaves
+   as Subtasks and inherit the current parent's sprint, recording separate
+   corrections and system history. Original repair rows/history are preserved.
+   It never guesses missing links or overwrites later human hierarchy,
+   placement or points edits. Proven same-transaction 0032 automatic-retirement
+   history is recognized by matching migration timestamps; ambiguous older
+   split-migration placement history stays untouched for administrator review.
+   Real-PG fixtures cover epic children, ordinary leaves, deeper chains,
+   non-leaves, cross-project links, epics with parents, invalid Subtasks,
+   self-links, human edits and active/planned/completed automatic sprints.
+   Fresh ordered-chain and already-applied-0031 upgrade paths both run the full
+   migration runner twice, then replay 0034 directly with identical results.
+5. **Spec / Android Add subtask — confirmed and fixed.** RED reproduced the
+   missing capability decoder and absent Add subtask on a zero-child parent.
+   The native detail now renders the server decision independently of the Epic
+   feature, including before the first child. A title-only parent-subtask POST
+   leaves type/project/sprint inheritance to the server. Creation prevents
+   duplicate submissions, refreshes parent progress, and preserves drafts and
+   standard reasons on stale refusals. Decoder, actual MockWebServer
+   HTTP/ViewModel and Compose create/open/navigation tests cover this seam;
+   endpoint coverage and native contract fixtures are updated.
+6. **Spec / Cancelled parent creation — confirmed and fixed.** RED returned
+   `canAddSubtask: true` and 200 from all three subtask create routes after parent
+   cancellation. Capability and transactional create/conversion guards now
+   share `CANCELLED_TERMINAL`. HTTP regressions check denial, no inserted child
+   and unchanged parent history, including compatibility ownership mode.
+7. **Spec / hierarchy-repairs review — confirmed and fixed.** The authorized
+   Phase 2 review API had no reader and the UI had no section. Its existing
+   web-admin endpoint now returns organization-scoped original and correction
+   records with whitelisted before/after fields, reasons and timestamps. Deleted
+   tickets retain records; renames update only the current displayed key.
+   Authorization, tenant isolation, immutable history, generated wire models,
+   OpenAPI and the accessible review UI are covered. Review never changes an
+   ownership switch; administration remains web-only.
+8. **Spec / week calendar — confirmed and fixed.** RED could not find a Week
+   control. Month and Monday-to-Sunday Week now share inclusive spans, paged
+   reads, undated tray, overlays, drag shifts and keyboard date edits.
+   Accessible pressed-state controls, Today and week navigation use existing
+   design tokens. Tests cover year boundaries, spans, single dates, overlays,
+   toggles, drag, validation and unchanged month behavior.
+
+Validation uses only the existing `test:pg` runner's fresh loopback-only
+PostgreSQL containers and isolated per-suite databases. No application `.env`
+database, production service, new dependency install, push, tag, release,
+deployment, gate change or ownership switch was used.
+
+#### Validation and remaining release gates
+
+- RED commands used the real PostgreSQL runner for the lock, Epic, backlog,
+  Cancelled-parent, migration-chain and authorized-review seams; Vitest for
+  missing review/week UI; and native Gradle decoder/Compose tests for Add subtask.
+  Targeted GREEN runs covered each finding before broader validation.
+- Full web suite: **1,084 tests / 159 files passed**, zero failures/skips, using
+  two workers and the established 15s/20s test/hook timeouts. Client typecheck
+  passed. Browser and Electron renderer builds and both SPA integrity checks
+  passed; version-metadata checks **2 passed**.
+- Contracts **92 passed**; generated models are current. Explicit native-owner
+  parity verification against the fix checkout also passed. Contract unit tests
+  run without a native-repo override because their absent-sibling fixture
+  intentionally tests that condition; native-owner verification is separate.
+- Desktop typecheck and **45 tests** passed. Edge router **11 tests** passed.
+  Server typecheck, dependency layering, build, **34** tenant SQL asset shipping,
+  baseline verification, all platform/native guardrails and whitespace checks
+  passed. Android endpoint parity is **272/539 proven**, 234 waived,
+  3 client-retired, 32 pending, **zero unmatched**; all 85 realtime types match.
+- Latest complete server CI:
+  `cd server; npm run test:pg -- --runInBand --silent --ci --coverage .` —
+  **2,536 tests / 212 suites passed**, **zero failures/skips**, **1 snapshot
+  passed**. This enabled **all 24 PostgreSQL-gated suites**, including the new
+  ordered leaf-recovery suite and complete HTTP concurrency regressions, rather
+  than running only a proxy subset. Both disposable-port safety helper tests
+  passed. The broader loop updated obsolete Scheduled/Cancelled expectations
+  and exact query fixtures; real HTTP regressions remain the behavior oracle.
+- Android final CI:
+  `gradlew.bat --no-daemon testPlayDebugUnitTest lintPlayDebug assemblePlayDebug
+  testDirectDebugUnitTest assembleDirectDebug --max-workers=2 --console=plain`
+  passed. Play: **1,451 tests / 223 suites**; Direct: **1,458 tests / 223 suites**;
+  both **zero failures/errors/skips**. Lint: **zero errors / 208 warnings**
+  (unchanged warning baseline). Both debug APKs assembled and remain in the
+  fix checkout's build outputs. The final run explicitly selected this
+  platform checkout's contract fixtures with `AINO_PLATFORM_CONTRACT_FIXTURES`;
+  committed native fixtures also carry the matching Add-subtask decision.
+- An initial broad native run exposed the fixture helper's implicit ancestor-
+  checkout lookup, now removed: default tests use committed checkout-local
+  resources unless an explicit platform fixture override is supplied. That run
+  also had an undetailed packaging failure. Isolated `packagePlayDebug
+  --stacktrace` passed without source/config changes, and the complete final
+  CI rerun passed both assemblies. No tests were skipped or suppressed.
+- Android implementation is committed as
+  `f8a38145ad6cc62ec55ff8b16c7d953b993513a5`; merging its current
+  `integration/project-types` returned **Already up to date**. Both fix branches
+  retain their respective reviewed integration bases. The platform fix commit
+  is identified in the final handoff.
+
+Ticket09 remains **claimed**, not resolved. Android/desktop publication,
+installed-client request-header and blocking-426/update/restart proof, browser
+reload proof, and explicit operator approval remain release acceptance work.
+The gate stays OFF intentionally. No ticket10 enforcement or ticket11 contract/
+destructive removal is implemented or authorized here.

@@ -18,7 +18,7 @@ export type Capability = { allowed: true } | { allowed: false; reason: Capabilit
 export type TicketAction = "edit" | "changeState" | "cancel" | "transfer" | "delete" | "placeInSprint" | "schedule"
     | "comment" | "logWork" | "logWorkForOthers" | "canEditEstimate" | "canMoveProject" | "canAddSubtask";
 export interface TicketDecision {
-    container: "sprint" | "scheduled" | "backlog";
+    container: "sprint" | "board" | "backlog";
     capabilities: {
         transitions: Array<Capability & { to: number }>;
         can: Record<TicketAction, Capability>;
@@ -38,7 +38,7 @@ export interface TicketDecisionContext {
     lifecyclesByProject?: Map<number, LifecycleContext>;
     sprints: Map<number, SprintLike>;
     ownerTeams: Map<number, number | null>;
-    projects?: Map<number, { role: string | null; archived: boolean; type?: ProjectType }>;
+    projects?: Map<number, { role: string | null; archived: boolean; type?: ProjectType; kanban_backlog_enabled?: boolean }>;
     /** Undefined is a general action; null is a requested but unavailable destination. */
     targetSprint?: SprintLike | null;
     subtaskIds?: Set<number>;
@@ -61,8 +61,8 @@ export async function loadTicketDecisionContext(
     const sprints = new Map(sprintRows.map((sprint) => [Number(sprint.id), sprint]));
     const owners = actor.teamVisibility ? [] : await findDecisionOwners(db,
         [...new Set(tickets.flatMap((ticket) => ticket.user_id == null ? [] : [Number(ticket.user_id)]))], actor.orgId);
-    const projects = new Map<number, { role: string | null; archived: boolean; type?: ProjectType }>();
-    if (actor.projectOwnership) {
+    const projects: NonNullable<TicketDecisionContext["projects"]> = new Map();
+    {
         const projectIds = [...new Set(tickets.flatMap((ticket) => ticket.project_id == null ? [] : [Number(ticket.project_id)]))];
         if (projectIds.length) {
             const rows = await findDecisionProjects(db, projectIds, actor.orgId);
@@ -71,6 +71,7 @@ export async function loadTicketDecisionContext(
                     role: isOrgAdmin(actor.role) ? "project_admin" : await actor.projectAccess?.roleForProject(Number(project.id)) ?? null,
                     archived: project.is_archived === true,
                     type: project.type,
+                    kanban_backlog_enabled: project.kanban_backlog_enabled,
                 });
             }));
         }
@@ -146,18 +147,20 @@ export function decideTicket(actor: TaskActor, ticket: DecisionTicket, context: 
         : null;
     const placeInSprint = !edit.allowed ? edit
         : followsParent ? deny("SUBTASK_FOLLOWS_PARENT")
-        : project && !projectTypePolicy(project).hasSprints ? deny("PROJECT_HAS_NO_SPRINTS")
+        : actor.projectOwnership && project && !projectTypePolicy(project).hasSprints ? deny("PROJECT_HAS_NO_SPRINTS")
         : context.targetSprint !== undefined && !(actor.projectOwnership
             ? context.targetSprint !== null
             : canAccessSprint(context.targetSprint, actor)) ? deny("ACCESS_DENIED")
         : sprintRefusal ? deny(sprintRefusal) : allow;
     return {
-        container: ticket.sprint_id != null ? "sprint" : ticket.planned_date != null ? "scheduled" : "backlog",
+        container: projectTypePolicy(project ?? {}).hasSprints ? ticket.sprint_id != null ? "sprint" : "backlog"
+            : projectTypePolicy(project ?? {}).hasBacklog && current?.is_initial ? "backlog" : "board",
         capabilities: {
             transitions,
             can: {
                 edit,
-                canAddSubtask: !edit.allowed ? edit : followsParent || context.epicIds?.has(Number(ticket.id)) ? deny("INVALID_HIERARCHY") : allow,
+                canAddSubtask: !edit.allowed ? edit : terminal ? deny("CANCELLED_TERMINAL")
+                    : followsParent || context.epicIds?.has(Number(ticket.id)) ? deny("INVALID_HIERARCHY") : allow,
                 logWork: !edit.allowed ? edit : terminal ? deny("WORKLOG_CANCELLED") : allow,
                 logWorkForOthers: actor.projectOwnership && !edit.allowed ? edit
                     : !(isOrgAdmin(actor.role) || actor.projectOwnership && project?.role === "project_admin") ? deny("WORKLOG_FOR_OTHERS_DENIED")

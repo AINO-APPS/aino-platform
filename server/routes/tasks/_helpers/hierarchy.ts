@@ -1,8 +1,12 @@
 import type { Request, Response } from "express";
-import { HierarchyRefused, hierarchyParentId, hierarchyViolation, getHierarchyTicket, getHierarchyType } from "../../../modules/tasks/tasks.hierarchy";
+import { HierarchyCapabilityRefused, HierarchyRefused, hierarchyParentId, hierarchyViolation, getHierarchyTicket, getHierarchyType } from "../../../modules/tasks/tasks.hierarchy";
 const { loadAccessibleTask } = require("./access");
 
 export function sendHierarchyRefusal(res: Response, error: unknown): boolean {
+    if (error instanceof HierarchyCapabilityRefused) {
+        res.status(error.conflict.status).json(error.conflict.body);
+        return true;
+    }
     if (!(error instanceof HierarchyRefused)) return false;
     res.status(409).json({ code: error.code, error: error.message });
     return true;

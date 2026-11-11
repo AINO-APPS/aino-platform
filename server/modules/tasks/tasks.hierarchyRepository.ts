@@ -14,10 +14,10 @@ export async function findHierarchyTicket(db: TasksDb, id: number, orgId: number
     )).rows[0];
 }
 
-export async function findHierarchyType(db: TasksDb, id: unknown, orgId: number | null) {
+export async function findHierarchyType(db: TasksDb, id: unknown, orgId: number | null, activeOnly = true) {
     return (await db.query(
         `SELECT * FROM work_item_types WHERE org_id IS NOT DISTINCT FROM $2
-         AND (id::text = $1 OR key = $1) AND is_active = TRUE`,
+         AND (id::text = $1 OR key = $1)${activeOnly ? " AND is_active = TRUE" : ""}`,
         [String(id), orgId],
     )).rows[0];
 }

@@ -16,7 +16,7 @@ export async function findDecisionSubtasks(db: LifecycleDb, ids: number[], orgId
 
 export async function findDecisionProjects(db: LifecycleDb, ids: number[], orgId: number | null) {
     if (!ids.length) return [];
-    return (await db.query("SELECT id, is_archived, type FROM projects WHERE id = ANY($1::int[]) AND org_id = $2",
+    return (await db.query("SELECT id, is_archived, type, kanban_backlog_enabled FROM projects WHERE id = ANY($1::int[]) AND org_id = $2",
         [ids, orgId])).rows;
 }
 

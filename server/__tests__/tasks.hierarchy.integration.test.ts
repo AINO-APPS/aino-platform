@@ -11,7 +11,7 @@ jest.mock("../middleware/rbac", () => ({
     loadUserContext: async (req: any, _res: any, next: any) => {
         req.userOrgId = 1; req.userTeamId = req.userId === 2 ? 2 : 1; req.userTeamIds = [req.userTeamId];
         req.userRole = req.get("x-test-role") || "employee"; req.roleLevel = 1;
-        req.projectOwnership = true; next();
+        req.projectOwnership = req.get("x-test-legacy") !== "1"; next();
     },
     requireRole: () => (_req: any, _res: any, next: any) => next(),
     requireSameOrg: (_req: any, _res: any, next: any) => next(),
@@ -35,6 +35,7 @@ jest.setTimeout(30_000);
     let app: any;
     let projectId: number;
     let otherProjectId: number;
+    let transactionProbe: ((req: any, client: any, sql: string, values?: unknown[]) => Promise<any>) | undefined;
     const request = require("supertest");
     const create = (body: any) => request(app).post("/api/tasks/backlog").send({ title: "Work", project_id: projectId, ...body });
 
@@ -49,7 +50,10 @@ jest.setTimeout(30_000);
         const express = require("express");
         app = express(); app.use(express.json());
         app.use((req: any, _res: any, next: any) => {
-            req.db = { query: makePoolQuery(pool), transaction: makePoolTransaction(pool) };
+            const transaction = makePoolTransaction(pool);
+            req.db = { query: makePoolQuery(pool), transaction: (run: any) => transaction((client: any, context: any) =>
+                run(transactionProbe ? { query: (sql: string, values?: unknown[]) =>
+                    transactionProbe!(req, client, sql, values) } : client, context)) };
             req.tenant = { id: 1, plan: "enterprise", features: { team_visibility: true, agile: true } };
             req.tenantId = 1;
             req.log = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
@@ -64,6 +68,7 @@ jest.setTimeout(30_000);
     }, 120_000);
     afterAll(async () => { await pool?.end(); await database?.drop(); });
     beforeEach(async () => {
+        transactionProbe = undefined;
         await pool.query("TRUNCATE audit_logs, task_history, tasks, sprints, users, teams, organizations RESTART IDENTITY CASCADE");
         await pool.query("INSERT INTO organizations (id, name, slug, project_ownership) VALUES (1, 'Hierarchy', 'hierarchy', TRUE)");
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
@@ -119,6 +124,163 @@ jest.setTimeout(30_000);
         expect(subtaskType).toMatchObject({ key: "subtask", name: "Subtask" });
         const summary = await request(app).get(`/api/tasks/${parent.body.id}/children`);
         expect(summary.body.children).toHaveLength(3);
+    });
+
+    test.each(["status", "key rename"])("a project move and %s lock cannot deadlock on the same ticket", async operation => {
+        const parent = (await create({ work_item_type_id: "task" })).body;
+        const moving = await pool.connect();
+        const changing = await pool.connect();
+        let releaseMove!: () => void;
+        let ticketLocked!: () => void;
+        const paused = new Promise<void>(resolve => { ticketLocked = resolve; });
+        const resume = new Promise<void>(resolve => { releaseMove = resolve; });
+        const { moveTicketProject } = require("../modules/tasks/tasks.placement");
+        const { lockBoardWrite } = require("../modules/tasks/tasks.boardRepository");
+        try {
+            await moving.query("BEGIN");
+            await changing.query("BEGIN");
+            await moving.query("SET LOCAL deadlock_timeout = '100ms'");
+            const pid = Number((await changing.query("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+            const move = moveTicketProject({
+                db: { query: async (sql: string, params: unknown[]) => {
+                    const result = await moving.query(sql, params);
+                    if (sql.includes("FROM tasks") && sql.includes("FOR UPDATE")) {
+                        ticketLocked();
+                        await resume;
+                    }
+                    return result;
+                } },
+                actor: { userId: 1, orgId: 1 },
+                ticketActor: { userId: 1, orgId: 1, role: "super_admin", projectOwnership: true },
+                afterCommit: () => undefined, effects: { changed: async () => undefined },
+            }, parent.id, otherProjectId).then(async (result: any) => {
+                await moving.query("COMMIT");
+                return result;
+            }, async (error: Error) => { await moving.query("ROLLBACK"); throw error; });
+            await Promise.race([paused, move.then(() => { throw new Error("Move completed before taking its ticket lock"); })]);
+            const write = operation === "status" ? lockBoardWrite(changing, projectId, parent.id, 1)
+                : require("../modules/tasks/tasks.projectKey").changeProjectKey({
+                    query: changing.query.bind(changing),
+                    transaction: async (run: (client: any) => Promise<unknown>) => run(changing),
+                }, { userId: 1, orgId: 1, orgRole: "super_admin", teamIds: [] }, projectId, "SAFE", false);
+            const status = write
+                .then(async (result: any) => { await changing.query("COMMIT"); return result; },
+                    async (error: Error) => { await changing.query("ROLLBACK"); throw error; });
+            // Wait for a real database lock, not a timing-dependent sleep.
+            const deadline = Date.now() + 5000;
+            while (!(await pool.query("SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked", [pid])).rows[0].blocked) {
+                if (Date.now() > deadline) throw new Error("Status writer did not reach its lock");
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            releaseMove();
+            const results = await Promise.allSettled([move, status]);
+            expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
+            expect(results[0]).toMatchObject({ value: { ok: true, task: { project_id: otherProjectId } } });
+        } finally {
+            releaseMove();
+            await moving.query("ROLLBACK"); await changing.query("ROLLBACK");
+            moving.release(); changing.release();
+        }
+    });
+
+    test.each(["status", "key rename"])("concurrent move-project and %s HTTP requests never return a deadlock 500", async operation => {
+        const parent = (await create({ work_item_type_id: "task" })).body;
+        const state = (await pool.query("SELECT id FROM workflow_states WHERE project_id = 10 AND key = 'in_progress'")).rows[0].id;
+        let release!: () => void;
+        let locked!: () => void;
+        let writerStarted!: () => void;
+        const paused = new Promise<void>(resolve => { locked = resolve; });
+        const resume = new Promise<void>(resolve => { release = resolve; });
+        const started = new Promise<void>(resolve => { writerStarted = resolve; });
+        let writerPid = 0;
+        transactionProbe = async (req, client, sql, values) => {
+            if (req.get("x-test-call") === "writer" && !writerPid) {
+                writerPid = Number((await client.query("SELECT pg_backend_pid() AS pid")).rows[0].pid);
+                writerStarted();
+            }
+            const result = await client.query(sql, values);
+            if (req.get("x-test-call") === "move" && sql.includes("FROM tasks") && sql.includes("FOR UPDATE")) {
+                locked();
+                await resume;
+            }
+            return result;
+        };
+        const move = request(app).post(`/api/tasks/${parent.id}/move-project`)
+            .set("x-test-call", "move").send({ project_id: otherProjectId }).then((response: any) => response);
+        try {
+            await Promise.race([paused, move.then((response: any) => {
+                throw new Error(`Move completed before its lock: HTTP ${response.status}`);
+            })]);
+            const write = (operation === "status"
+                ? request(app).patch(`/api/tasks/${parent.id}/status`).send({ workflow_state_id: state })
+                : request(app).post("/api/projects/10/key").send({ key: "SAFE" }))
+                .set("x-test-call", "writer").set("x-test-role", "super_admin").then((response: any) => response);
+            await Promise.race([started, write.then((response: any) => {
+                throw new Error(`Writer completed before its transaction: HTTP ${response.status}`);
+            })]);
+            const deadline = Date.now() + 5000;
+            while (!(await pool.query("SELECT cardinality(pg_blocking_pids($1)) > 0 AS blocked", [writerPid])).rows[0].blocked) {
+                if (Date.now() > deadline) throw new Error("HTTP writer did not reach its lock");
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+            release();
+            const [moved, written] = await Promise.all([move, write]);
+            expect(moved).toMatchObject({ status: 200 });
+            expect([200, 409]).toContain(written.status);
+            const detail = await request(app).get(`/api/tasks/${parent.id}/detail`);
+            expect(detail).toMatchObject({ status: 200, body: { project_id: otherProjectId } });
+        } finally {
+            release();
+            await move;
+            transactionProbe = undefined;
+        }
+    });
+
+    test("deactivating an Epic type preserves its stored hierarchy on unrelated edits and parent changes", async () => {
+        const epic = (await create({ work_item_type_id: "epic" })).body;
+        const leafEpic = (await create({ work_item_type_id: "epic" })).body;
+        await create({ work_item_type_id: "story", parent_task_id: epic.id });
+        const types = (await request(app).get("/api/agile/work-item-types")).body;
+        const epicType = types.find((type: any) => type.key === "epic");
+        await request(app).put(`/api/agile/work-item-types/${epicType.id}`)
+            .set("x-test-role", "super_admin").send({ is_active: false }).expect(200);
+        const edit = await request(app).put(`/api/tasks/${epic.id}`).send({ title: "Still an epic" });
+        const fullEdit = await request(app).put(`/api/tasks/${epic.id}`).send({
+            title: "Still an inactive epic", work_item_type_id: epicType.id,
+        });
+        const sameKeyEdit = await request(app).put(`/api/tasks/${leafEpic.id}`).send({ work_item_type_id: "epic" });
+        const invalidParent = await request(app).patch(`/api/tasks/${leafEpic.id}/parent`).send({ parent_task_id: epic.id });
+        expect([edit.status, fullEdit.status, sameKeyEdit.status, invalidParent.status]).toEqual([200, 200, 200, 409]);
+        expect(invalidParent).toMatchObject({ status: 409, body: { code: "INVALID_HIERARCHY" } });
+        expect(invalidParent.body.error).toMatch(/epic cannot have a parent/i);
+        await create({ work_item_type_id: epicType.id }).expect(400);
+        const ordinary = (await create({ work_item_type_id: "task" })).body;
+        await request(app).put(`/api/tasks/${ordinary.id}`).send({ work_item_type_id: epicType.id }).expect(400);
+        const detail = await request(app).get(`/api/tasks/${leafEpic.id}/detail`);
+        expect(detail.body.parent_task_id).toBeNull();
+    });
+
+    test.each(["project", "compatibility"])("%s Cancelled parents deny Add subtask and all create routes without changing history or children", async mode => {
+        const parent = (await create({ work_item_type_id: "task" })).body;
+        const headers = mode === "compatibility" ? { "x-test-legacy": "1" } : {};
+        await request(app).delete(`/api/tasks/${parent.id}`).expect(200);
+        const detail = await request(app).get(`/api/tasks/${parent.id}/detail`).set(headers).expect(200);
+        const before = (await request(app).get(`/api/tasks/${parent.id}/history`)).body;
+        const writes = [];
+        for (const route of [`/api/tasks/${parent.id}/subtasks`, "/api/tasks", "/api/tasks/backlog"]) {
+            writes.push(await request(app).post(route).set(headers).send({
+                title: "Not allowed", work_item_type_id: "subtask", parent_task_id: parent.id,
+            }));
+        }
+        expect({
+            capability: detail.body.capabilities.can.canAddSubtask,
+            responses: writes.map(response => ({ status: response.status, code: response.body.code })),
+        }).toEqual({
+            capability: { allowed: false, reason: "CANCELLED_TERMINAL" },
+            responses: Array(3).fill({ status: 409, code: "CANCELLED_TERMINAL" }),
+        });
+        expect((await request(app).get(`/api/tasks/${parent.id}/children`)).body.children).toEqual([]);
+        expect((await request(app).get(`/api/tasks/${parent.id}/history`)).body).toEqual(before);
     });
 
     test("parent and type edits enforce both sides, reject cycles, and commit history only for legal changes", async () => {

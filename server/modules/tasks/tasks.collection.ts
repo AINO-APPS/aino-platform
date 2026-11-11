@@ -18,10 +18,8 @@ export type { TaskVisibility };
  *  - `calendar` — open date spans overlapping a range, or undated open work.
  *
  * Compatibility collection scopes remain for older callers until retirement:
- * a sprint wins over a day, and a day wins over the backlog.
- *  - `backlog`   — no sprint, no planned day. A due date is a deadline, not a
- *                  container: it never moves a ticket out of the backlog.
- *  - `scheduled` — no sprint, a planned day (the Scheduled tab).
+ *  - `backlog`   — no sprint; dates never decide membership.
+ *  - `scheduled` — no sprint, a start date (a legacy date-filtered read only).
  *  - `board`     — one sprint.
  *  - `schedule`  — the legacy day/range lookup used by the planner and calendar.
  *
@@ -36,7 +34,6 @@ export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled"
 export const SCHEDULED_HISTORY_DAYS = 30;
 
 const UNSPRINTED = "t.sprint_id IS NULL";
-const UNPLANNED = "t.planned_date IS NULL";
 
 function isoDaysBefore(iso: string, days: number): string {
     const d = new Date(`${iso}T00:00:00Z`);
@@ -167,10 +164,7 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
         }
     } else if (input.scope === "backlog") {
         conditions.push(PLANNING_PARENT_SQL);
-        // The collapsed Completed section lists every finished unsprinted
-        // ticket, dated or not; the open list is unplanned only.
-        if (input.filters?.completedOnly || input.filters?.completed === "completed") conditions.push(UNSPRINTED);
-        else conditions.push(UNSPRINTED, UNPLANNED);
+        conditions.push(UNSPRINTED);
     } else if (input.scope === "scheduled") {
         conditions.push(UNSPRINTED, "t.start_date IS NOT NULL");
         if (input.today) {
