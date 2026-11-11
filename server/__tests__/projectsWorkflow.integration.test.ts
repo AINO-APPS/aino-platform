@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
+import { seedLegacyAgileFixture } from "../test-support/legacyAgileFixture";
 
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
 const postgresDescribe = databaseUrl ? describe : describe.skip;
@@ -23,7 +24,7 @@ postgresDescribe("projects own their workflows (PostgreSQL migration seam)", () 
         for (const file of fs.readdirSync(migrationsDir).filter((name) => /^\d{4}_.*\.sql$/.test(name) && name < "0021_").sort()) {
             await query(fs.readFileSync(path.join(migrationsDir, file), "utf8"));
         }
-        await require("../platform/db/agileDefaults").seedAgileDefaults(query);
+        await seedLegacyAgileFixture(query);
         await query(`INSERT INTO projects (id, org_id, key, name, type) VALUES
             (100, 1, 'ONE', 'One', 'kanban'), (101, 1, 'TWO', 'Two', 'kanban')`);
         await query(`INSERT INTO workflow_states

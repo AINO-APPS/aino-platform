@@ -7,8 +7,7 @@ import { assertLifecycleMove, loadLifecycleContext } from "../modules/tasks/task
 import { findFrozenSprintIds } from "../modules/tasks/tasks.sprintLifecycle";
 import { placeTickets, transferTicket } from "../modules/tasks/tasks.placement";
 import { ticketActionConflict } from "../modules/tasks/tasks.writeGuards";
-import { buildSprintBoardColumns } from "../modules/tasks/tasks.board";
-import { findSprintBoardCounts } from "../modules/tasks/tasks.sprintRepository";
+import { buildProjectBoardColumns, readProjectBoard } from "../modules/tasks/tasks.board";
 import { createProjectAccess } from "../modules/tasks/tasks.projectAccess";
 
 installPgTypeParsers();
@@ -232,6 +231,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                 ],
                 can: {
                     edit: { allowed: true },
+                    canAddSubtask: { allowed: true },
                     logWork: { allowed: true },
                     logWorkForOthers: denied('WORKLOG_FOR_OTHERS_DENIED'),
                     canEditEstimate: { allowed: true },
@@ -300,6 +300,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                         })),
                         can: {
                             edit: write,
+                            canAddSubtask: write,
                             logWork: !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
                             logWorkForOthers: !['super_admin', 'hr_admin', 'platform_admin'].includes(role) ? denied('WORKLOG_FOR_OTHERS_DENIED')
                                 : !write.allowed ? write : stateId === 105 ? denied('WORKLOG_CANCELLED') : allowed,
@@ -316,7 +317,7 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
                     },
                 });
                 expect(decideTicket(actor, tickets[index], context)).toEqual(decisions[index]);
-                for (const action of ["edit", "logWork", "logWorkForOthers", "canEditEstimate", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
+                for (const action of ["edit", "canAddSubtask", "logWork", "logWorkForOthers", "canEditEstimate", "changeState", "cancel", "delete", "transfer", "placeInSprint", "schedule"] as const) {
                     const verdict = decisions[index].capabilities.can[action];
                     const conflict = await ticketActionConflict(pool, actor, tickets[index], action, context);
                     expect(conflict?.body.code ?? null).toBe(verdict.allowed ? null : verdict.reason);
@@ -441,32 +442,49 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         }
     });
 
-    test("WIP capacity never disables a ticket transition, but the write guard still checks it", async () => {
-        await pool.query(`INSERT INTO org_agile_settings (org_id, enable_wip_limits) VALUES (1, TRUE)
-            ON CONFLICT (org_id) DO UPDATE SET enable_wip_limits = TRUE`);
+    async function wipFixture(client: import("pg").PoolClient) {
+        const project = (await client.query(`INSERT INTO projects (org_id, key, name, type, enable_wip_limits)
+            VALUES (1, 'WIP', 'WIP project', 'kanban', TRUE) RETURNING *`)).rows[0];
+        const states = (await client.query("SELECT * FROM workflow_states WHERE project_id = $1", [project.id])).rows;
+        const source = states.find((state) => state.key === "todo")!;
+        const target = states.find((state) => state.key === "progress")!;
+        const cancelled = states.find((state) => state.key === "cancelled")!;
+        const tickets = (await client.query(`INSERT INTO tasks
+            (title, user_id, org_id, team_id, project_id, workflow_state_id)
+            VALUES ('Waiting', 2, 1, 1, $1, $2), ('Fills column', 2, 1, 1, $1, $3),
+                   ('Cancelled', 2, 1, 1, $1, $4) RETURNING *`,
+        [project.id, source.id, target.id, cancelled.id])).rows;
+        return { project, source, target, cancelled, tickets, states };
+    }
+
+    test("project WIP capacity never disables a capability, but the write guard still checks it", async () => {
+        const client = await pool.connect();
         try {
-            const tickets = (await pool.query(`INSERT INTO tasks
-                (title, user_id, org_id, team_id, workflow_state_id)
-                VALUES ('Waiting', 2, 1, 1, 101), ('Fills column', 2, 1, 1, 102) RETURNING *`)).rows;
-            const lifecycle = await loadLifecycleContext(pool, 1, null);
-            const context = await loadTicketDecisionContext(pool, member, tickets, { lifecycle });
-            await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
-            const withoutWip = await loadTicketDecisionContext(pool, member, tickets);
+            await client.query("BEGIN");
+            const { project, target, cancelled, tickets, states } = await wipFixture(client);
+            const stateId = (key: string) => states.find((state) => state.key === key)!.id;
+            const lifecycle = await loadLifecycleContext(client, 1, project.id);
+            const context = await loadTicketDecisionContext(client, member, tickets, { lifecycle });
+            await client.query("UPDATE projects SET enable_wip_limits = FALSE WHERE id = $1", [project.id]);
+            const withoutWip = await loadTicketDecisionContext(client, member, tickets);
             expect(decideTickets(member, tickets, context)).toEqual(decideTickets(member, tickets, withoutWip));
             expect(decideTicket(member, tickets[0], context).capabilities.transitions).toEqual([
-                { to: 102, allowed: true },
-                { to: 103, allowed: false, reason: "INVALID_TRANSITION" },
-                { to: 104, allowed: false, reason: "INVALID_TRANSITION" },
-                { to: 105, allowed: true },
-                { to: 106, allowed: false, reason: "INVALID_TRANSITION" },
+                { to: target.id, allowed: true },
+                { to: stateId("review"), allowed: false, reason: "INVALID_TRANSITION" },
+                { to: stateId("done"), allowed: false, reason: "INVALID_TRANSITION" },
+                { to: cancelled.id, allowed: true },
+                { to: stateId("testing"), allowed: false, reason: "INVALID_TRANSITION" },
             ]);
-            expect(await assertLifecycleMove(pool, 1, tickets[0], lifecycle.stateById.get(102), lifecycle, member))
+            await client.query("UPDATE projects SET enable_wip_limits = TRUE WHERE id = $1", [project.id]);
+            expect(await assertLifecycleMove(client, 1, tickets[0], lifecycle.stateById.get(target.id), lifecycle, member))
                 .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
-            expect(await assertLifecycleMove(pool, 1, tickets[0], withoutWip.lifecycle.stateById.get(102),
+            await client.query("UPDATE projects SET enable_wip_limits = FALSE WHERE id = $1", [project.id]);
+            expect(await assertLifecycleMove(client, 1, tickets[0], withoutWip.lifecycle.stateById.get(target.id),
                 withoutWip.lifecycle, member)).toBeNull();
-            expect(await assertLifecycleMove(pool, 1, tickets[1], lifecycle.stateById.get(102), lifecycle, member)).toBeNull();
+            expect(await assertLifecycleMove(client, 1, tickets[1], lifecycle.stateById.get(target.id), lifecycle, member)).toBeNull();
         } finally {
-            await pool.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
+            await client.query("ROLLBACK");
+            client.release();
         }
     });
 
@@ -474,33 +492,26 @@ postgresDescribe("ticket capabilities on PostgreSQL", () => {
         const client = await pool.connect();
         try {
             await client.query("BEGIN");
-            await client.query("UPDATE workflow_states SET is_active = TRUE, sort_order = 8, wip_limit = 1 WHERE id = 107");
-            await client.query(`INSERT INTO workflow_transitions (org_id, from_state_id, to_state_id)
-                VALUES (1, 106, 107) ON CONFLICT (from_state_id, to_state_id) DO NOTHING`);
-            await client.query(`INSERT INTO org_agile_settings (org_id, enable_wip_limits) VALUES (1, TRUE)
-                ON CONFLICT (org_id) DO UPDATE SET enable_wip_limits = TRUE`);
-            const tickets = (await client.query(`INSERT INTO tasks
-                (title, user_id, org_id, team_id, workflow_state_id, sprint_id)
-                VALUES ('Board source', 2, 1, 1, 106, 11),
-                       ('Board target', 2, 1, 1, 107, NULL),
-                       ('Board cancelled', 2, 1, 1, 105, 11)
-                RETURNING *`)).rows;
-            const lifecycle = await loadLifecycleContext(client, 1, null);
-            const columns = buildSprintBoardColumns(lifecycle, await findSprintBoardCounts(client, 1));
-            const targetColumn = columns.find((column) => column.stateId === 107);
-            expect(targetColumn).toEqual({ stateId: 107, count: 1, limit: 1, accepting: false });
-            expect(columns.some((column) => column.stateId === 105)).toBe(false);
-            expect(await assertLifecycleMove(client, 1, tickets[0], lifecycle.stateById.get(107), lifecycle, member))
+            const { project, target, cancelled, tickets } = await wipFixture(client);
+            const lifecycle = await loadLifecycleContext(client, 1, project.id);
+            const board = await readProjectBoard(client, { userId: 1, orgId: 1, orgRole: "super_admin" }, project.id);
+            const columns = buildProjectBoardColumns(lifecycle, project, board.tickets);
+            const targetColumn = columns.find((column) => column.stateId === target.id);
+            expect(targetColumn).toMatchObject({ stateId: target.id, count: 1, limit: 1, accepting: false });
+            expect(columns.some((column) => column.stateId === cancelled.id)).toBe(false);
+            expect(board.tickets.map((ticket) => ticket.id).sort()).toEqual([tickets[0].id, tickets[1].id].sort());
+            expect(await assertLifecycleMove(client, 1, tickets[0], lifecycle.stateById.get(target.id), lifecycle, member))
                 .toMatchObject({ status: 409, body: { code: "WIP_EXCEEDED" } });
 
-            await client.query("UPDATE org_agile_settings SET enable_wip_limits = FALSE WHERE org_id = 1");
-            const disabledLifecycle = await loadLifecycleContext(client, 1, null);
-            const disabledColumns = buildSprintBoardColumns(
+            await client.query("UPDATE projects SET enable_wip_limits = FALSE WHERE id = $1", [project.id]);
+            const disabledLifecycle = await loadLifecycleContext(client, 1, project.id);
+            const disabledColumns = buildProjectBoardColumns(
                 disabledLifecycle,
-                await findSprintBoardCounts(client, 1),
+                project,
+                board.tickets,
             );
-            expect(disabledColumns.find((column) => column.stateId === 107)?.accepting).toBe(true);
-            expect(await assertLifecycleMove(client, 1, tickets[0], disabledLifecycle.stateById.get(107), disabledLifecycle, member))
+            expect(disabledColumns.find((column) => column.stateId === target.id)?.accepting).toBe(true);
+            expect(await assertLifecycleMove(client, 1, tickets[0], disabledLifecycle.stateById.get(target.id), disabledLifecycle, member))
                 .toBeNull();
         } finally {
             await client.query("ROLLBACK");

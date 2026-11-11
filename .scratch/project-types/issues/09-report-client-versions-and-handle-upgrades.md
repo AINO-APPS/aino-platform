@@ -106,3 +106,63 @@ bundled web/desktop metadata parity. No production database was used.
 3. Verify ownership rollout separately. Only after client releases and explicit
    operator approval may REPORT be enabled. Ticket 10 owns enforcement; ticket
    11 owns destructive retirement. Whole ticket 09 is not closed here.
+
+### Release validation (separate bounded repair, 2026-11-11)
+
+- Isolated branch `fix/project-types-release-validation` starts at the confirmed
+  integration merge `16e68bd61bb6cc13395e77c3ec3ba7511299c837`. This repairs
+  prerequisite release checks; it does not resolve ticket 09 or change its claim.
+- Merged the latest `integration/project-types` before completion: already up
+  to date at that same tip. Post-merge original server suites: **108 passed**;
+  affected client suites: **30 passed**; all guardrails passed again.
+- RED: `cd server; npm test -- --runInBand sprints.routes.test.ts
+  tasks.workflowLifecycle.routes.test.ts tasks.teamVisibility.routes.test.ts
+  metrics.jobs.test.ts` reproduced **17 failed / 108 tests**. The two named
+  client suites reproduced **3 failed / 23 tests**.
+- Causes: new Scrum guards consumed old positional sprint fixtures; PUT's
+  transactional hierarchy read had no fixture row; the project-read capability
+  fixture omitted the newly selected project type. Corrected fixtures retain
+  refusal, lifecycle, authorization, audit and transaction assertions. PUT now
+  also asserts the resulting state. The real runtime defect was the metrics
+  collector still polling the removed `sprint-lifecycle` queue; that entry and
+  its obsolete architecture documentation are removed.
+- Client fixtures now use server-provided project tabs, keep Sprint visible
+  without a current sprint, and exclude Scheduled. Added seven cases covering
+  Kanban/Task list palette access and server tabs surviving feature loss.
+- PostgreSQL RED: all **23 suites / 491 tests** actually ran:
+  **305 passed, 186 failed, zero skipped**. Eight suites exposed stale fixtures:
+  sprints under non-Scrum defaults, board tickets without project workflow
+  states, missing `canAddSubtask` expectations, org-wide rather than project WIP,
+  due-date rewriting/restoration, subtask story points, ordering outside the
+  visibility contract, and today's seeder used against pre-expansion schemas.
+  Historical schema fixtures now seed historical defaults independently;
+  migration, rerun and fresh/upgraded convergence checks remain intact.
+- Final full server CI: `cd server; npm run test:pg -- --runInBand --ci
+  --coverage .` — **2521 passed / 211 suites, zero failed, zero skipped**;
+  **1 snapshot passed**. This includes **491 PostgreSQL tests / all 23 suites**,
+  not just the previously verified `clientVersions` suite. Both Docker port
+  safety helper tests also pass.
+- The remaining 22 PostgreSQL suites covered are: `projectBoard`,
+  `projectPlanning`, `projectTypes`, `projectTypesPlanningMigration`,
+  `projectsAccess`, `projectsKeyRename`, `projectsMigration`, `projectsOwnership`,
+  `projectsWorkflow`, `serviceDeskProject`, `sprintCompletion`,
+  `tasks.capabilities`, `tasks.estimateMigration`, `tasks.hierarchy`,
+  `tasks.placement`, `tasks.placementRoutes`, `tasks.startDates`,
+  `tasks.worklogMigration`, `tasks.worklogRoutes`, `tasksHierarchyExpand`,
+  `tasksSchemaExpand`, and `tasksStartDateExpand`.
+- Isolation: the existing `test:pg` runner created fresh loopback-only
+  `postgres:16` containers and each suite created its own disposable database.
+  Docker was initially stopped; the existing Docker Desktop runtime was started
+  and readiness verified. Test containers were removed after each run. No
+  application/production database was queried or mutated.
+- Full client: `npm test -- --maxWorkers=2 --testTimeout=15000
+  --hookTimeout=20000` — **1081 passed / 159 files, zero failed or skipped**.
+  Desktop: **45 passed**. Contracts: **91 passed**. Build-version checks:
+  **2 passed**. Server/client/desktop types, server layering, all guardrails,
+  server build, migration shipping/baseline verification, browser and Electron
+  renderer builds, SPA integrity and whitespace checks pass.
+- Remaining gaps are release proof, not suppressed test failures: the separate
+  Android slice and released-client header/426 evidence; installed desktop
+  updater/restart and browser reload proof; independently approved ownership
+  rollout and report/enforce/removal steps. No push, tag, release, deployment,
+  gate configuration, ownership switch or Android change was performed.

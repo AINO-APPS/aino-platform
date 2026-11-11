@@ -176,6 +176,15 @@ function routeQueries() {
             const task = tasksById[Number(params[0])];
             return task ? rows([{ ...task }]) : rows([]);
         }
+        if (/FROM tasks t LEFT JOIN work_item_types w/.test(text) && /WHERE t.id = \$1/.test(text)) {
+            const task = tasksById[Number(params[0])];
+            return task ? rows([{ ...task, is_epic: false, is_subtask: false }]) : rows([]);
+        }
+        if (/UPDATE tasks SET title = \$1/.test(text)) {
+            const task = tasksById[Number(params[14])];
+            if (task) task.workflow_state_id = Number(params[7]);
+            return rows([]);
+        }
         if (/INSERT INTO task_history/.test(text)) return rows([]);
 
         // People
@@ -344,6 +353,7 @@ describe("PUT /api/tasks/:id applies the same graph", () => {
         const res = await send("put", "/api/tasks/77", 1, { workflow_state_id: target });
 
         expect(res.status).toBe(200);
+        expect(tasksById[77].workflow_state_id).toBe(target);
     });
 
     test.each([

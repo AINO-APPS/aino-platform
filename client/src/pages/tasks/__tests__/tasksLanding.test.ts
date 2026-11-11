@@ -1,10 +1,10 @@
 /**
- * Landing on Tasks follows the selected team's sprint state.
+ * Legacy landing paths keep working; project planning tabs come from the server.
  *
  * An active sprint means the board is where the work is, so the bare `/tasks`
  * entry opens the sprint Board — not the Plan split view, which is only an
  * explicit "Plan sprint" action. With no active sprint the team lands on the
- * Backlog and Scheduled holds dated work.
+ * Backlog. Dates never create a separate planning container.
  *
  * Explicit views (a bookmark, a shared link, a chosen tab) are honoured.
  */
@@ -40,21 +40,30 @@ describe("Tasks landing view", () => {
     });
 });
 
-describe("tabs follow the selected team's sprint state", () => {
+describe("planning tabs stay stable and follow the server's project response", () => {
     const active = { id: 12, status: "active", team_id: 3 };
-    const planned = { id: 13, status: "planned", team_id: 3 };
-
     test("an active sprint shows Sprint and Backlog, and no Scheduled", () => {
-        // Scheduled is the alternative to the board, not a companion (ADR-015).
         expect(planningTabs({ agileEnabled: true, currentSprintId: active.id })).toEqual({
             tabs: ["sprint", "backlog", "service-desk"],
             currentSprintId: 12,
         });
     });
 
-    test("no active sprint hides Sprint; Backlog and Scheduled remain", () => {
+    test("no active sprint keeps Sprint and Backlog, without Scheduled", () => {
         expect(planningTabs({ agileEnabled: true, currentSprintId: null })).toEqual({
-            tabs: ["backlog", "scheduled", "service-desk"],
+            tabs: ["sprint", "backlog", "service-desk"],
+            currentSprintId: null,
+        });
+    });
+
+    test.each([
+        ["backlog", "sprint", "reports"],
+        ["board"],
+        ["board", "backlog"],
+        ["list", "board", "calendar"],
+    ] as const)("server tabs %j survive feature loss and an absent sprint", (...tabs) => {
+        expect(planningTabs({ agileEnabled: false, currentSprintId: null, planTabs: [...tabs] })).toEqual({
+            tabs,
             currentSprintId: null,
         });
     });
