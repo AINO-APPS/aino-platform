@@ -305,3 +305,88 @@ installed-client request-header and blocking-426/update/restart proof, browser
 reload proof, and explicit operator approval remain release acceptance work.
 The gate stays OFF intentionally. No ticket10 enforcement or ticket11 contract/
 destructive removal is implemented or authorized here.
+
+### Publication preflight blocked on a production restore point (2026-11-11)
+
+Ticket remains **claimed**, not resolved. Publication stopped before a source
+push, PR, tag, version bump, production deployment or database operation.
+
+- Clean release branches `release/project-types-09` were created in isolated
+  platform/native worktrees from reviewed integration tips
+  `54f4511424d95a109e171465cf431d2f85021937` and
+  `7d1180bb1c91f51ef65adad0af8e0ae0ef64a0b3`. Fetching and merging current
+  defaults returned **Already up to date** in both: platform `origin/master`
+  `7d483048011aaa0f898aa4f126135e24f750e1db`, Android `origin/main`
+  `6caa765fb09e87f9ea46c9ebf319b170008fe3c0`.
+- **Concrete safety blocker:** production Postgres volume instance
+  `2f366dc6-26dd-4f3c-bba8-a5ca162980c3` has **no backups and no backup
+  schedules**. The read-only Railway GraphQL queries
+  `volumeInstanceBackupList` and `volumeInstanceBackupScheduleList` both
+  returned `[]` at approximately **2026-11-11 06:24 UTC**. The existing
+  `db-backup.yml` workflow also has no recorded runs. No database contents,
+  credentials, ownership switches or backup operations were accessed.
+- This is not a schema-only deployment: pending migration
+  `0032_project_types_scrum_planning.sql` restores due dates, clears saved
+  pre-sprint dates, moves tickets, closes automatic sprints and **deletes
+  planned automatic sprints**. `0031` and `0034` also repair hierarchy data.
+  Their disposable-Postgres validation is recorded above, but is not a
+  production restore point. The optional-backup operator decision in
+  `docs/PRE_PUSH_DEPLOYMENT_RUNBOOK.md` section 1.4 explicitly describes the
+  different **2026-08-27 migration-squash** deployment; it is not treated as
+  approval to run these new data migrations without recovery evidence.
+- **Unblock:** the operator must create/confirm a recoverable backup covering
+  the production master and every tenant database (for example a Railway
+  snapshot of the shared Postgres volume), with its ID/timestamp and recovery
+  scope recorded before release resumes. Do not waive this check, run direct
+  production SQL, or invoke the dump workflow on the operator's behalf.
+- Production project `c19393be-ed82-43e5-b227-c1b8bc056743`, environment
+  `c3c5b681-4b08-4eff-aec2-24089ebde1d9`, still runs the **previous Phase 2**
+  platform commit `7d483048011aaa0f898aa4f126135e24f750e1db`:
+  web deployment `109dfbbc-addd-4d0e-9e29-6bf222938d73` **SUCCESS**;
+  realtime `83db0dfa-f130-462a-a330-7697c84ff859` **SUCCESS**;
+  worker `6065861f-f068-4a2d-9931-97b7c78c8d7c` **SUCCESS**.
+  These are not Phase 3 deployment evidence.
+- Baseline HTTP checks: `https://next.aino.org.in/readyz` returned 200 JSON
+  ready/web, `/healthz` returned 200 JSON ok/web, `/api/health` returned 200
+  JSON ok, and the realtime Railway domain's `/readyz` returned 200 JSON
+  ready/realtime. `/api/client-versions` currently returns the SPA HTML
+  fallback, **not the required public version JSON**. HTTP 200 alone does not
+  prove that the Phase 3 API exists.
+- Restricted read-back of only the four non-secret client-version variables
+  found `CLIENT_VERSION_MODE` and all three `CLIENT_VERSION_MIN_*` values
+  **unset on web, realtime and worker**. Configuration was not changed; the
+  reviewed Phase 3 defaults remain OFF/`0.0.0`. Public OFF/minimum verification
+  must still be repeated after an actual Phase 3 deploy; it is not claimed
+  from the old API's HTML response. REPORT approval remains separate.
+- Latest published releases and live updater pointers are unchanged:
+  [desktop v3.0.79](https://github.com/AINO-APPS/aino-platform/releases/tag/v3.0.79)
+  at `969d7a22e753c1d2a0a2bbd696619b8ef80f2cfd`, and
+  [Android android-v0.27.17](https://github.com/AINO-APPS/aino-android/releases/tag/android-v0.27.17)
+  at `6caa765fb09e87f9ea46c9ebf319b170008fe3c0`.
+  `https://cdn.aino.org.in/desktop/latest.json` returns
+  `{"version":"3.0.79","tag":"v3.0.79"}`; Android's `android/latest.json`
+  returns `0.27.17` and its matching versioned direct APK URL.
+  Recheck collisions before choosing proposed `3.0.80` / `0.27.18`
+  (`versionCode 27018`) on resumption.
+- No new release assets, signed APK/AAB, desktop manifests, installed-client
+  header/426/update/restart proof or physical-device acceptance were verified
+  in this blocked attempt. No Play Store upload is claimed.
+- Next implementation frontier remains ticket **10 after 09 is resolved**;
+  ticket **11** additionally requires enforcement, all-organization ownership
+  switch-over and its other recorded prerequisites. Both files are untouched;
+  no compatibility endpoint or gate setting was removed or enabled.
+- Cleanup is deliberately conservative while publication is blocked. The new
+  clean worktrees remain at
+  `D:\Learnings\WorkPulse-Split\.worktrees\project-types-09-release` and
+  `D:\Learnings\WorkPulse-Split\.worktrees\project-types-09-android-release`;
+  both local release branches are retained. The explicitly permitted
+  `git -c core.longpaths=true worktree remove` attempts, without force, returned
+  **not a working tree** for both existing residue directories
+  `D:\Learnings\WorkPulse-Split\.worktrees\project-types-09-android` and
+  `D:\Learnings\WorkPulse-Split\.worktrees\project-types-review-fixes-android`.
+  Their remaining files were not manually deleted. No other worktree, branch
+  or user-dirty checkout was modified.
+- Documentation-only precommit validation: all `npm run check:guardrails`
+  checks and `git diff --check` passed. The tracker commit is retained locally
+  and fast-forward merged into the clean platform integration; no remote
+  documentation PR or production-triggering push is needed for this blocker.
