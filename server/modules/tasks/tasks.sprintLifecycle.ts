@@ -1,4 +1,5 @@
 import { findSprintStatusInOrg } from "./tasks.sprintRepository";
+import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
 
 /**
  * Sprint lifecycle rules.
@@ -43,6 +44,9 @@ export interface CarryoverTask {
     title?: string;
     story_points?: number | null;
     completed?: boolean;
+    is_terminal?: boolean;
+    is_subtask?: boolean;
+    parent_task_id?: number | string | null;
 }
 
 /** Database port for the sprint lifecycle queries. */
@@ -62,34 +66,74 @@ export async function findFrozenSprintIds(db: SprintDb, sprintIds: number[]): Pr
 export interface CarryoverPlan {
     /** Unfinished work that will move. */
     moving: CarryoverTask[];
+    /** Non-subtask tickets that will move. */
+    movingParents: CarryoverTask[];
+    /** Number of subtasks that move with their parent. */
+    movingSubtasks: number;
     /** Finished work that stays with the closed sprint. */
     staying: CarryoverTask[];
-    /** Where the unfinished work goes: a sprint id, or "backlog". */
-    target: number | string | "backlog";
+    /** Where unfinished work goes: a sprint id, "new", or "backlog". */
+    target: number | string | "new" | "backlog";
     movingPoints: number;
 }
 
 /**
  * Decide what happens when a sprint completes.
  *
- * The default target is the next planned sprint, otherwise the backlog. Done
- * items always stay with the sprint they finished in and are never carried.
+ * The default target is the next planned sprint, otherwise the backlog. A
+ * parent with open subtasks moves with all subtasks; other terminal tickets stay.
  */
 export function planCarryover(
     tasks: CarryoverTask[],
     nextPlannedSprintId: number | string | null,
-    override?: number | string | "backlog" | null,
+    override?: number | string | "new" | "next" | "backlog" | null,
 ): CarryoverPlan {
-    const moving = tasks.filter((task) => !task.completed);
-    const staying = tasks.filter((task) => task.completed);
-    const target = override ?? nextPlannedSprintId ?? "backlog";
+    const isTerminal = (task: CarryoverTask) => task.is_terminal ?? task.completed ?? false;
+    const openSubtaskParents = new Set(
+        tasks
+            .filter((task) => task.is_subtask && !isTerminal(task) && task.parent_task_id != null)
+            .map((task) => String(task.parent_task_id)),
+    );
+    const movingParents = tasks.filter((task) =>
+        !task.is_subtask && (!isTerminal(task) || openSubtaskParents.has(String(task.id))),
+    );
+    const movingParentIds = new Set(movingParents.map((task) => String(task.id)));
+    const moving = tasks.filter((task) => task.is_subtask
+        ? task.parent_task_id != null && movingParentIds.has(String(task.parent_task_id))
+        : movingParentIds.has(String(task.id)));
+    const movingIds = new Set(moving.map((task) => String(task.id)));
+    const staying = tasks.filter((task) => !movingIds.has(String(task.id)));
+    const target = override === "new" ? "new"
+        : override === "backlog" ? "backlog"
+        : (override == null || override === "next") ? nextPlannedSprintId ?? "backlog"
+        : override;
 
     return {
         moving,
+        movingParents,
+        movingSubtasks: moving.filter((task) => task.is_subtask).length,
         staying,
         target,
         movingPoints: moving.reduce((sum, task) => sum + (Number(task.story_points) || 0), 0),
     };
+}
+
+export function sprintDurationDays(startDate: unknown, endDate: unknown): number | null {
+    const asDate = (value: unknown) => {
+        const text = value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? "").slice(0, 10);
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+        if (!match) return null;
+        const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+        return date.toISOString().slice(0, 10) === text ? date : null;
+    };
+    const start = asDate(startDate);
+    const end = asDate(endDate);
+    if (!start || !end || end < start) return null;
+    return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
+export function carryoverSprintName(sourceName: string, sourceId: number | string): string {
+    return `Next after ${sourceName} (${sourceId})`.slice(0, 100);
 }
 
 /** Longest time a sprint may stay paused. */
@@ -152,7 +196,7 @@ export async function activateSprint(
         "UPDATE sprints SET status = 'active', started_at = COALESCE(started_at, NOW()) WHERE id = $1",
         [sprintId],
     );
-    const tasks = (await db.query("SELECT id, story_points FROM tasks WHERE sprint_id = $1", [sprintId])).rows;
+    const tasks = (await db.query(`SELECT t.id, t.story_points FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`, [sprintId])).rows;
     const baseline = commit(tasks as Array<{ id: number; story_points: number | null }>);
     await db.query(
         "INSERT INTO sprint_baselines (sprint_id, committed_points, committed_task_ids, reason) VALUES ($1, $2, $3::jsonb, 'start')",

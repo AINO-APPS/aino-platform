@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { getSprintCompletionPreview } from "../../api/tasks";
+import {
+    getSprintCompletionPreview,
+    type SprintCompletionPreview,
+    type SprintCompletionTarget,
+} from "../../api/tasks";
 import s from "./SprintCompletionDialog.module.css";
 
 interface SprintCompletionDialogProps {
     sprintId: number | string;
     sprintName: string;
     onCancel: () => void;
-    onConfirm: (target: number | string | "backlog") => void;
+    onConfirm: (target: SprintCompletionTarget) => void;
+    busy?: boolean;
+    error?: string;
 }
 
 /**
@@ -21,21 +27,35 @@ export default function SprintCompletionDialog({
     sprintName,
     onCancel,
     onConfirm,
+    busy = false,
+    error,
 }: SprintCompletionDialogProps) {
-    const [preview, setPreview] = useState<any>(null);
-    const [target, setTarget] = useState<number | string | "backlog">("backlog");
+    const [preview, setPreview] = useState<SprintCompletionPreview | null>(null);
+    const [target, setTarget] = useState<SprintCompletionTarget>("backlog");
     const [loading, setLoading] = useState(true);
+    const [targetLoading, setTargetLoading] = useState(false);
+    const [previewError, setPreviewError] = useState(false);
+    const supportsNewSprint = preview?.supportsNewSprint === true;
 
     useEffect(() => {
         let cancelled = false;
+        setLoading(true);
+        setPreview(null);
+        setTarget("backlog");
+        setPreviewError(false);
         getSprintCompletionPreview(sprintId)
             .then((res) => {
                 if (cancelled) return;
                 setPreview(res.data);
-                setTarget(res.data?.defaultTarget ?? "backlog");
+                setTarget(res.data?.supportsNewSprint === true
+                    ? res.data.selectedTarget ?? (res.data.defaultTarget === "backlog" ? "backlog" : "next")
+                    : res.data?.defaultTarget ?? "backlog");
             })
             .catch(() => {
-                if (!cancelled) setPreview(null);
+                if (!cancelled) {
+                    setPreview(null);
+                    setPreviewError(true);
+                }
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -44,6 +64,32 @@ export default function SprintCompletionDialog({
             cancelled = true;
         };
     }, [sprintId]);
+
+    useEffect(() => {
+        if (!supportsNewSprint || typeof target !== "string"
+            || !["next", "new", "backlog"].includes(target)) return;
+        let cancelled = false;
+        setTargetLoading(true);
+        setPreviewError(false);
+        getSprintCompletionPreview(sprintId, target)
+            .then((res) => {
+                if (!cancelled) setPreview(res.data);
+            })
+            .catch(() => {
+                if (!cancelled) setPreviewError(true);
+            })
+            .finally(() => {
+                if (!cancelled) setTargetLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [sprintId, target, supportsNewSprint]);
+
+    const movingParents = preview?.movingParents ?? preview?.moving ?? [];
+    const movingSummary = supportsNewSprint
+        ? `${movingParents.length} parents · ${preview.movingSubtasks ?? 0} subtasks · ${preview.movingPoints} pts`
+        : `${preview?.moving.length ?? 0} · ${preview?.movingPoints ?? 0} pts`;
 
     return (
         <div className={s["backdrop"]} role="presentation" onClick={onCancel}>
@@ -59,18 +105,22 @@ export default function SprintCompletionDialog({
                 </h2>
 
                 {loading && <p className={s["muted"]}>Working out what moves…</p>}
+                {!loading && previewError && (
+                    <p className={s["muted"]}>Could not load the server preview. Try again before completing.</p>
+                )}
+                {error && <p className={s["muted"]} role="alert">{error}</p>}
 
                 {!loading && preview && (
                     <>
                         <section className={s["section"]}>
                             <h3 className={s["section-title"]}>
-                                Moves ({preview.moving.length} · {preview.movingPoints} pts)
+                                Moves ({movingSummary})
                             </h3>
                             <ul className={s["list"]}>
-                                {preview.moving.map((task: any) => (
+                                {movingParents.map((task) => (
                                     <li key={task.id}>{task.title}</li>
                                 ))}
-                                {preview.moving.length === 0 && (
+                                {movingParents.length === 0 && (
                                     <li className={s["muted"]}>Nothing to carry over.</li>
                                 )}
                             </ul>
@@ -95,29 +145,43 @@ export default function SprintCompletionDialog({
                             <select
                                 value={String(target)}
                                 onChange={(event) => {
-                                    const value = event.target.value;
-                                    setTarget(value === "backlog" ? "backlog" : value);
+                                    setTarget(event.target.value);
                                 }}
                             >
-                                <option value="backlog">Backlog</option>
-                                {preview.defaultTarget !== "backlog" && (
-                                    <option value={String(preview.defaultTarget)}>
-                                        Next planned sprint
-                                    </option>
+                                {supportsNewSprint ? (
+                                    <>
+                                        <option value="next" disabled={!preview.hasNext}>
+                                            Next planned sprint{preview.nextPlannedSprint ? ` — ${preview.nextPlannedSprint.name}` : ""}
+                                        </option>
+                                        <option value="new">New planned sprint</option>
+                                        <option value="backlog">Backlog</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="backlog">Backlog</option>
+                                        {preview.defaultTarget !== "backlog" && (
+                                            <option value={String(preview.defaultTarget)}>Next planned sprint</option>
+                                        )}
+                                    </>
                                 )}
                             </select>
                         </label>
+                        {target === "new" && preview.newSprint && (
+                            <p className={s["muted"]}>
+                                {preview.newSprint.name}: {preview.newSprint.start_date} – {preview.newSprint.end_date}
+                            </p>
+                        )}
                     </>
                 )}
 
                 <div className={s["actions"]}>
-                    <button type="button" className="btn btn-secondary" onClick={onCancel}>
+                    <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={busy}>
                         Cancel
                     </button>
                     <button
                         type="button"
                         className="btn btn-primary"
-                        disabled={loading}
+                        disabled={loading || targetLoading || previewError || !preview || busy}
                         onClick={() => onConfirm(target)}
                     >
                         Complete sprint

@@ -55,6 +55,7 @@ postgresDescribe("migration review and switch-over HTTP (PostgreSQL)", () => {
     });
     afterAll(async () => { await pool?.end(); await database?.drop(); });
     beforeEach(async () => {
+        await pool.query("TRUNCATE task_hierarchy_repairs, task_hierarchy_repair_corrections");
         await pool.query("TRUNCATE organizations RESTART IDENTITY CASCADE");
         await pool.query("INSERT INTO organizations (id, name, slug) VALUES (1, 'Org', 'org'), (2, 'Other', 'other')");
         await pool.query("INSERT INTO users (id, username, password, full_name, org_id) VALUES (1, 'admin', 'x', 'Admin', 1)");
@@ -81,6 +82,34 @@ postgresDescribe("migration review and switch-over HTTP (PostgreSQL)", () => {
         const other = await request(app).get("/api/projects/migration/review").set("x-test-org", "2");
         expect(other.body.projects.some((project: any) => project.id === 10)).toBe(false);
         expect(other.body.moves).toEqual([]);
+    });
+    test("super-admin review exposes immutable hierarchy repairs and corrections, including deleted work, only in its organization", async () => {
+        await pool.query(`INSERT INTO task_hierarchy_repairs (task_id, org_id, reason, before_value, after_value) VALUES
+            (100, 1, 'Cleared legacy parent', '{"parent_task_id":42,"work_item_type_id":3,"project_id":10,"sprint_id":null}',
+                '{"parent_task_id":null,"work_item_type_id":3,"project_id":10,"sprint_id":null}'),
+            (999, 1, 'Deleted ticket repair', '{"parent_task_id":42}', '{"parent_task_id":null}'),
+            (200, 2, 'Other organization secret', '{}', '{}')`);
+        await pool.query(`INSERT INTO task_hierarchy_repair_corrections (task_id, org_id, reason, before_value, after_value) VALUES
+            (100, 1, 'Recovered as Subtask', '{"parent_task_id":null,"work_item_type_id":3,"sprint_id":null}',
+                '{"parent_task_id":42,"work_item_type_id":9,"sprint_id":7}')`);
+        const review = await request(app).get("/api/projects/migration/review").expect(200);
+        expect(review.body.hierarchy_repairs).toEqual([
+            expect.objectContaining({ task_id: 100, ticket_key: "ENG-1", stage: "original", reason: "Cleared legacy parent",
+                before: expect.objectContaining({ parent_task_id: 42 }), after: expect.objectContaining({ parent_task_id: null }) }),
+            expect.objectContaining({ task_id: 999, ticket_key: null, stage: "original", reason: "Deleted ticket repair" }),
+            expect.objectContaining({ task_id: 100, stage: "correction", reason: "Recovered as Subtask",
+                after: expect.objectContaining({ parent_task_id: 42, work_item_type_id: 9, sprint_id: 7 }) }),
+        ]);
+        await request(app).post("/api/projects/10/key").send({ key: "NEW" }).expect(200);
+        const renamed = await request(app).get("/api/projects/migration/review").expect(200);
+        expect(renamed.body.hierarchy_repairs[0]).toMatchObject({
+            ticket_key: "NEW-1", before: { parent_task_id: 42 }, after: { parent_task_id: null },
+        });
+        const other = await request(app).get("/api/projects/migration/review").set("x-test-org", "2").expect(200);
+        expect(other.body.hierarchy_repairs).toEqual([expect.objectContaining({ task_id: 200 })]);
+        for (const role of ["employee", "team_lead", "manager", "hr_admin"]) {
+            await request(app).get("/api/projects/migration/review").set("x-test-role", role).expect(403);
+        }
     });
     test("switch publishes all keys atomically, is audited and remains one-time after emergency rollback", async () => {
         expect((await request(app).post("/api/projects/10/key").send({ key: "PRE" })).status).toBe(200);

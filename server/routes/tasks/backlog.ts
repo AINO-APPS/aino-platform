@@ -1,5 +1,5 @@
-// Backlog endpoints — the backlog is `sprint_id IS NULL` with no planned day;
-// a due date is a deadline and never moves a ticket out of the backlog.
+// Backlog endpoints — the backlog is `sprint_id IS NULL`; dates are fields,
+// never membership rules. Scheduled is retained only as a compatibility read.
 //   GET   /backlog
 //   GET   /scheduled
 //   POST  /backlog
@@ -9,6 +9,8 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { TransactionContext } from "../../types/domain";
+import { assertTicketHierarchy, hierarchyParentId } from "../../modules/tasks/tasks.hierarchy";
+import { prepareHierarchyCreate, sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
@@ -21,6 +23,9 @@ const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { getLocalToday } = require('../../utils/timezone');
+const { resolveTicketDates, setTicketStartDate, editTicketStartDate } = require('../../modules/tasks/tasks.dates');
+const { broadcastTaskUpdated } = require('./_helpers/statusEvents');
+const { diffTask } = require('../../modules/tasks/tasks.deltas');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
@@ -31,7 +36,7 @@ const {
     resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
-const { enrichTasks } = require('./_helpers/enrich');
+const { enrichTasks, enrichPlanningTasks } = require('./_helpers/enrich');
 const { syncLabels } = require('./_helpers/labels');
 const {
     validateStoryPoints,
@@ -65,7 +70,7 @@ async function resolveCompletedSince(
     return sprintStart < requested ? sprintStart : requested;
 }
 
-const router = express.Router();
+const router = Object.assign(express.Router(), { createBacklogTicket });
 
 // ─── Backlog: Get all backlog items ───────────────────────────────────────
 //
@@ -161,7 +166,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const total = countRes.rows[0]?.total ?? tasks.length;
         const completedCount = completedCountRes.rows[0]?.total ?? 0;
 
-        const enriched = await enrichTasks(tasks, req.db, taskActorFromRequest(req));
+        const enriched = await enrichPlanningTasks(tasks, req.db, taskActorFromRequest(req));
         const summary: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> } = { total, byStatus: {}, byPriority: { high: 0, medium: 0, low: 0 } };
         for (const t of enriched) {
             const key = t.workflow_state_key;
@@ -217,8 +222,9 @@ router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Respon
 });
 
 // ─── Backlog: Create a backlog item (no date) ─────────────────────────────
-router.post('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
+async function createBacklogTicket(req: Request, res: Response) {
     try {
+        if (!await prepareHierarchyCreate(req, res)) return;
         const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
@@ -238,8 +244,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
             assignedTo = assigned_to;
         }
 
-        let validDueDate = null;
-        if (due_date && /^\d{4}-\d{2}-\d{2}$/.test(due_date)) validDueDate = due_date;
+        const dates = resolveTicketDates({}, req.body);
+        if (dates.error) return res.status(400).json({ error: dates.error });
+        const validDueDate = dates.dueDate;
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
@@ -247,9 +254,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // tenant's "Agile & Sprints" flag is off (plan default or feature
         // override) silently ignore any sprint_id so a stale client can't
         // sneak a backlog ticket into a sprint.
-        const { isFeatureEnabled } = require('../../utils/planCatalog');
-        const agileOn = isFeatureEnabled((req as any).tenant, 'agile');
-        if (sprint_id && agileOn) {
+        if (sprint_id) {
             const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id, orgId: req.userOrgId || null, actorTeamId: req.userTeamId ?? null,
@@ -284,6 +289,9 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // Agile fields
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+        if (work_item_type_id != null && work_item_type_id !== "" && !witRow) {
+            return res.status(400).json({ error: "Invalid or inactive work_item_type" });
+        }
         const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
@@ -291,14 +299,7 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
-        let parentTaskId = null;
-        if (parent_task_id) {
-            const parentNum = parseInt(parent_task_id, 10);
-            if (!isNaN(parentNum)) {
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (parent && parent.org_id === req.userOrgId) parentTaskId = parent.id;
-            }
-        }
+        const parentTaskId = hierarchyParentId(parent_task_id);
 
         // Bug #1 (Stage 2): atomic INSERT + labels + history (see crud.js POST).
         // Stage 3: when a project is assigned, reserve the next task_number
@@ -308,6 +309,10 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
         // placement in the same transaction (ADR-015), so its own due date is
         // remembered exactly as for any other sprint entry.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const hierarchy = await assertTicketHierarchy(client, {
+                org_id: req.userOrgId ?? null, project_id: validProjectId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId, story_points: sp,
+            }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -338,9 +343,12 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
+            if (parentTaskId != null) await logHistory(newId, req.userId, 'updated', 'parent', null, parentTaskId, client, req.db);
+            await setTicketStartDate(client, { id: newId }, dates.startDate, req.userId);
             if (validSprintId) {
                 placedOrThrow(await placeTickets(
-                    placementContext(req, client, afterCommit, { notify: false }), [newId], { sprint: validSprintId },
+                    { ...placementContext(req, client, afterCommit, { notify: false }),
+                        creatingSubtaskOf: hierarchy.ticket.is_subtask ? parentTaskId! : undefined }, [newId], { sprint: validSprintId },
                 ));
             }
             return newId;
@@ -356,13 +364,16 @@ router.post('/backlog', auth, loadUserContext, async (req: Request, res: Respons
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating backlog item:');
         res.status(500).json({ error: 'Failed to create backlog item' });
     }
-});
+}
+router.post('/backlog', auth, loadUserContext, createBacklogTicket);
 
-// ─── Move backlog item to a specific date (schedule it) ───────────────────
+// ─── Legacy shim: set start date without placement ───────────────────────
 router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -374,22 +385,25 @@ router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: R
 
         const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
         if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
-        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "schedule");
+        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
         if (refusal) return res.status(refusal.status).json(refusal.body);
 
-        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
-            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], { day: date })));
-
-        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
+        const dates = resolveTicketDates(task, { start_date: date });
+        if (dates.error) return res.status(400).json({ error: dates.error });
+        const updated = await (req.db as DbLike).transaction(async (client) =>
+            editTicketStartDate(client, task.id, date, req.userId));
+        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
+        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error scheduling task:');
         res.status(500).json({ error: 'Failed to schedule task' });
     }
 });
 
-// ─── Move a dated task back to backlog (clears planned and due date) ─────
+// ─── Legacy shim: clear start date only ──────────────────────────────────
 router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -399,14 +413,13 @@ router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res:
         const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
         if (refusal) return res.status(refusal.status).json(refusal.body);
 
-        // The planned day is the container, so clearing it returns the ticket
-        // to the backlog; its own due date (a deadline) is left alone.
-        const placed = await (req.db as DbLike).transaction(async (client, { afterCommit }) =>
-            placedOrThrow(await placeTickets(placementContext(req, client, afterCommit), [task.id], 'backlog')));
-
-        const enriched = await enrichTasks([placed.task], req.db, taskActorFromRequest(req));
+        const updated = await (req.db as DbLike).transaction(async (client) =>
+            editTicketStartDate(client, task.id, null, req.userId));
+        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
+        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
         res.json(enriched[0]);
     } catch (err) {
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error unscheduling task:');
         res.status(500).json({ error: 'Failed to move task to backlog' });

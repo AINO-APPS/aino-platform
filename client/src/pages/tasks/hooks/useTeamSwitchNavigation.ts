@@ -9,12 +9,14 @@ import { useEffect, useRef } from "react";
  * backlog. Non-surface views (Service Desk) are left alone.
  */
 export function useTeamSwitchNavigation({
+    planTabs,
     selectedTeamId,
     currentSprintId,
     currentSprintLoaded = true,
     activeTab,
     goToView,
 }: {
+    planTabs?: string[];
     selectedTeamId: unknown;
     currentSprintId: number | string | null;
     currentSprintLoaded?: boolean;
@@ -31,7 +33,11 @@ export function useTeamSwitchNavigation({
         }
         if (before === selectedTeamId || !currentSprintLoaded) return;
         previous.current = selectedTeamId;
-        if (!["sprint", "backlog", "scheduled"].includes(activeTab)) return;
+        if (planTabs) {
+            if (activeTab !== "service-desk") goToView(planTabs[0]);
+            return;
+        }
+        if (!["sprint", "backlog"].includes(activeTab)) return;
         if (currentSprintId != null) goToView("sprint", currentSprintId);
         else if (activeTab === "sprint") goToView("backlog");
         // eslint-disable-next-line react-hooks/exhaustive-deps

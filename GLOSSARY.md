@@ -2,65 +2,86 @@
 
 The vocabulary used across the Tasks/Plan area. Storage names are noted where
 they differ from user-facing terms. See `docs/adr/` for the decisions behind them.
+Current terminology follows ADR-017 to ADR-020.
 
 ## Project
 
-The container that owns tickets: it gives them their ticket key, board, backlog,
-workflow and visibility. Every ticket belongs to exactly one project. See
-[ADR-017](docs/adr/ADR-017-projects-own-tickets.md).
+The container that owns tickets: it gives them their ticket key, board, backlog
+and workflow, and decides who may see them. Every ticket belongs to exactly one
+project. See [ADR-017](docs/adr/ADR-017-projects-own-tickets.md).
+
+**Avoid:** "team" for the owner of a ticket.
 
 ## Project type
 
-A stored project classification: `scrum`, `kanban` or `task_list`. Phase 2 records
-the type; type-specific planning behaviour is deferred to Phase 3.
+How a project plans its work, chosen when it is created
+([ADR-018](docs/adr/ADR-018-project-types.md)):
+
+- **Scrum** — a backlog planned into sprints, with a sprint board and sprint reports.
+- **Kanban** — one continuous board, no sprints.
+- **Task list** — a plain ticketing project worked from a list, board or calendar
+  by start and due dates; for teams that do not run agile.
+
+**Avoid:** "scheduled tasks" for Task list projects; "agile project" for Kanban.
 
 ## Project role
 
-A project grant to a user or team: **project admin** (settings, workflow and
-members), **member** (create, edit, transition, plan, move and log work), or
-**viewer** (read and comment). The highest applicable grant wins.
+What a person may do in one project: **project admin** (settings, workflow,
+automation, members), **member** (create, edit, move, log work) or **viewer**
+(read and comment). Granted to a user or to a whole team.
+
+**Avoid:** "role" alone, which means the org-wide role (employee to super admin).
 
 ## Ticket
 
-A unit of work owned by one project. Also called a task or work item in the
-codebase; the database table is `tasks`. One ticket has one stored ticket key,
-one workflow state, and either one sprint or no sprint.
+A unit of work, owned by one project. Also called a task or work item in the
+codebase; the database table is `tasks`. One ticket has one ticket key, one
+workflow state, and at most one sprint (only in Scrum projects).
 
 **Avoid:** using "issue" for anything other than an external tracker item.
 
+## Ticket hierarchy
+
+Three fixed levels: **Epic** → Story, Task or Bug → **Subtask**. A subtask lives in
+its parent's project and sprint and never moves on its own; its time counts
+toward its parent.
+
+**Avoid:** "child task" for a subtask; "parent" for an epic's relationship to its
+stories (say "in the epic").
+
 ## Ticket key
 
-A ticket's stored human-readable identifier: a project key and a number, such
-as `PLT-123`. Unique within an org and never reused. `issue_key` remains a legacy
-API field with the same value.
+A ticket's human-readable identifier: its project's key and a number, e.g.
+`PLT-123`. Unique within the org and never reused.
+
+**Avoid:** "issue key", "ticket number".
 
 ## Key alias
 
-A former ticket key retained permanently after a project rename or ticket move.
-It still resolves to the same ticket.
+A ticket key the ticket used to have, before its project's key was renamed or the
+ticket moved project. It still opens the ticket, forever.
 
 ## Archived project
 
-A read-only project hidden from create and move pickers. Its tickets and keys
-remain readable, searchable and open for comments.
+A project closed to new work: read-only and hidden from pickers, with its tickets
+and keys kept.
+
+**Avoid:** "deleted project".
 
 ## Service Desk project
 
-The active project chosen in org settings for Service Desk copies. `General` is
-the fallback when no project is configured.
+The project an org chooses to receive the copies of its Service Desk tickets.
 
 ## Team
 
-A group of people that can receive role grants on any number of projects.
-Teams are never tied to one project and do not own tickets or sprints. Legacy
-team ownership remains binding until an org enables `project_ownership`; see
-[ADR-013](docs/adr/ADR-013-ticket-team-ownership.md).
+A group of people. Teams can be given access to projects and assigned work in
+them, but a team does not own tickets or sprints.
 
 ## Workflow state
 
-The single status of a ticket. Configurable per project, initially copied from
-the organization's workflow template. Typical states are New, In Progress,
-In Review, Done and Cancelled.
+The single status of a ticket (`tasks.workflow_state_id`). Org-configurable,
+seeded as New, In Progress, In Review, Done and Cancelled. Formerly `tasks.status`,
+which no longer exists.
 
 **Avoid:** "column" as a synonym for status.
 
@@ -79,7 +100,7 @@ An allowed move from one workflow state to another, recorded in
 ## Capability
 
 What the current user may do to a ticket right now, given its workflow state,
-container, project role and archive state. Decided by the server and sent with the
+sprint, project and the user's role. Decided by the server and sent with the
 ticket; clients render it and never derive it.
 
 **Avoid:** "permission" for the per-ticket answer (a permission is a role's
@@ -87,65 +108,50 @@ standing grant); calling the container or column WIP status a capability.
 
 ## Backlog
 
-The set of tickets with no sprint **and no planned day** (`sprint_id IS NULL
-AND planned_date IS NULL`). Backlog is a view, not a workflow state and not a
-board column. The three planning containers are mutually exclusive: a sprint
-wins over a planned day, and a planned day wins over the backlog — a ticket
-planned onto a day and in no sprint belongs to **Scheduled**, not the backlog.
-A **due date** is a deadline, not a container: it never moves a ticket out of
-the backlog (ADR-015, amended 2026-10-29).
+The ordered list of a Scrum project's open tickets that are in no sprint. A
+view, not a workflow state and not a board column. Dates never move a ticket in
+or out of it.
 
 **Avoid:** "Backlog" as the name of a status.
 
-## Planned day
+## Start date
 
-The day a ticket is planned onto (`tasks.planned_date`). It is what puts an
-unsprinted ticket in **Scheduled**. A ticket in a sprint keeps a planned day it
-already had but cannot be given a new one.
+The day work on a ticket is expected to begin. A field, never a container.
 
-**Avoid:** "scheduled date" or "date" when the due date might be meant.
+**Avoid:** "planned day", "scheduled date"; "Scheduled" as a place a ticket lives.
 
 ## Due date
 
-The ticket's deadline (`tasks.due_date`). Never a container. While a ticket is in
-a sprint its due date is the sprint's end date; its own deadline is remembered
-and given back when it leaves.
+The ticket's deadline. Never a container, and never changed by joining or leaving
+a sprint.
 
 ## Placement
 
-Moving a ticket between the three planning containers (sprint, Scheduled,
-backlog), together with the due-date bookkeeping that goes with it. A project
-move that takes a ticket out of its source project's sprint is also a placement;
-it replaces team transfer.
+Moving a ticket between a sprint and the backlog, or between sprints. A project
+move that takes a ticket out of its sprint is also a placement. Placement never
+changes start or due dates.
 
 **Avoid:** "assign" for sprint membership; assignment means the assignee.
 
 ## Sprint
 
-A time-boxed container owned by one project. While `project_ownership` is off,
-the existing team-based visibility and placement rules remain in force. A
-ticket is in at most one sprint. The board shows exactly one sprint at a time.
-Sprint lifecycle: planned, active, paused, completed.
+A time-boxed container owned by one Scrum project. A ticket is in at most one
+sprint. The board shows exactly one sprint at a time. Sprint lifecycle: planned,
+active, paused, completed.
 
 ## Current sprint
 
-The one sprint a project lands on: its active sprint, otherwise its paused sprint,
-otherwise none. Planned and completed sprints are never current. Decided by the
-server.
-
-**Avoid:** "active sprint" when a paused sprint would also qualify.
-
-## Scope baseline
-
-What a sprint committed to when it started (`sprint_baselines`). Scope change
+The one sprint a Scrum project lands on: its active sprint, otherwise its paused
+sprint, otherwise none. Planned and completed sprints are never current. Decided
+by the What a sprint committed to when it started (`sprint_baselines`). Scope change
 is the difference between the sprint's current tickets and the latest baseline,
 worked out when it is read; moving a ticket does not record a new baseline.
 
 ## Board
 
-The view of one project's sprint, with one column per active state in that
-project's workflow. Backlog is not a column. Cancelled has no column.
-
+A project's column view of its open work: the selected sprint in a Scrum project,
+or the project's open work in Kanban and Task list projects. One column per active
+workflow state.
 ## Column
 
 A board lane representing exactly one workflow state. Columns do not mix states.
@@ -163,13 +169,53 @@ by `DELETE FROM tasks`), excluded from the board and open backlog, and
 irreversible in the current model. Done must be reopened before it can be
 cancelled.
 
+## Unassigned
+
+The admin-only bucket for legacy tickets whose owning team could not be
+
 ## Worklog
 
-A record of time spent on a ticket, attributed to the person who did the work
-and the day worked. The person recording it may be a different authorized
-person. Correcting or deleting an entry preserves its history.
+One entry of time someone spent on a ticket: the day worked, the time spent and
+an optional comment. The only way time is recorded against a ticket. See
+[ADR-019](docs/adr/ADR-019-manual-worklogs.md).
+Timesheet
 
-## Timesheet
+People's worklogs laid out by day, for a period. A report, never an approval.
 
-A person's worklogs collected over a period. It reports work already recorded;
-it is not a ticket container or a separate time-entry source.
+## 
+**Avoid:** "timer", "time entry" (attendance owns that term), "effort log".
+
+## Time spent
+
+The sum of a ticket's worklogs. Never entered directly.
+
+**Avoid:** "logged minutes", "actual".
+
+## Original estimate
+
+How much time the ticket was expected to take before work began.
+
+## Remaining estimate
+
+How much time is still expected to be needed. By default each worklog reduces it
+by its time spent; the person logging may set it instead or leave it alone.
+
+**Avoid:** "remaining" as estimate minus time spent; the two can differ.
+
+## Code reference
+
+A branch, commit or pull request linked to a ticket because it mentions the
+ticket key. Shown on the ticket's Development panel.
+
+**Avoid:** "git ref" in user-facing text.
+
+## Smart commit
+
+A command in a commit message, after a ticket key, that acts on that ticket:
+add a comment, log work or make a transition.
+
+## Automation rule
+
+A project setting that makes a transition when a code reference changes, e.g.
+pull request opened moves the ticket to In Review.
+determined during backfill (`tasks.team_id IS NULL`). Not a team and not a state.

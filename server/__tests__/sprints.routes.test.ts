@@ -80,6 +80,19 @@ function setupAuth(role = "team_lead", extra: Record<string, any> = {}) {
         .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // loadProjectOwnership
 }
 
+function setupScrumProjectRead() {
+    mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 20 }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [{ id: 20, type: "scrum" }], rowCount: 1 });
+}
+
+function setupSprintRead(sprint: Record<string, unknown>) {
+    mockQuery
+        .mockResolvedValueOnce({ rows: [{ project_id: 20 }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [{ id: 20, type: "scrum" }], rowCount: 1 })
+        .mockResolvedValueOnce({ rows: [{ project_id: 20, ...sprint }], rowCount: 1 });
+}
+
 describe("API sprint routes", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
@@ -88,7 +101,7 @@ describe("API sprint routes", () => {
 
     describe("GET /api/sprints/:id/board", () => {
         const sprint = {
-            id: 10, team_id: 1, name: "Sprint 10", status: "active",
+            id: 10, team_id: 1, project_id: 10, name: "Sprint 10", status: "active",
             start_date: "2026-11-01", end_date: "2026-11-14", org_id: 1,
             team_name: "Alpha",
         };
@@ -133,7 +146,7 @@ describe("API sprint routes", () => {
                 if (/FROM workflow_transitions/.test(sql)) {
                     return { rows: [{ from_state_id: 101, to_state_id: 102 }, { from_state_id: 101, to_state_id: 103 }], rowCount: 2 };
                 }
-                if (/FROM org_agile_settings/.test(sql)) {
+                if (/SELECT enable_wip_limits FROM projects/.test(sql)) {
                     return { rows: [{ enable_wip_limits: options.wipEnabled ?? true }], rowCount: 1 };
                 }
                 if (/FROM tasks t/.test(sql) && /workflow_state_key/.test(sql)) {
@@ -176,7 +189,7 @@ describe("API sprint routes", () => {
                 String(sql).includes("active.key = 'cancelled'"))).toBe(true);
         });
 
-        test("accepts tickets when org WIP limits are disabled, even at the configured limit", async () => {
+        test("accepts tickets when project WIP limits are disabled, even at the configured limit", async () => {
             setupBoardReads({ wipEnabled: false });
 
             const res = await request(app).get("/api/sprints/10/board").set("Cookie", authCookie());
@@ -238,6 +251,7 @@ describe("API sprint routes", () => {
 
     test("returns 400 for duplicate sprint name in team", async () => {
         setupAuth("team_lead");
+        setupScrumProjectRead();
         mockQuery.mockResolvedValueOnce({ rows: [{ id: 5 }], rowCount: 1 }); // dup check
         const res = await request(app)
             .post("/api/sprints")
@@ -249,6 +263,7 @@ describe("API sprint routes", () => {
 
     test("creates sprint with valid data", async () => {
         setupAuth("team_lead");
+        setupScrumProjectRead();
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // dup check — no dup
             .mockResolvedValueOnce({ rows: [{ id: 20 }], rowCount: 1 }) // team's project
@@ -321,6 +336,7 @@ describe("GET /api/sprints", () => {
 
     test("an org admin gets the current sprint for the requested team", async () => {
         setupAuth("super_admin");
+        setupScrumProjectRead();
         mockQuery.mockResolvedValueOnce({
             rows: [{ id: 31, status: "paused", team_id: 7 }],
             rowCount: 1,
@@ -359,16 +375,15 @@ describe("DELETE /api/sprints/:id", () => {
 
     test("places sprint members and deletes the sprint on the transaction client", async () => {
         setupAuth();
-        mockQuery.mockResolvedValueOnce({
-            rows: [{ id: 1, team_id: 1, status: "active", name: "Sprint 1" }],
-            rowCount: 1,
-        });
+        setupSprintRead({ id: 1, team_id: 1, status: "active", name: "Sprint 1" });
         const before = {
             id: 42,
             org_id: 1,
             team_id: 1,
+            project_id: 20,
             sprint_id: 1,
             planned_date: "2026-03-04",
+            start_date: "2026-03-04",
             due_date: "2026-03-14",
             pre_sprint_due_date: "2026-02-20",
         };
@@ -388,7 +403,7 @@ describe("DELETE /api/sprints/:id", () => {
             }
             if (normalized.startsWith("UPDATE tasks SET sprint_id = NULL")) {
                 return {
-                    rows: [{ ...before, sprint_id: null, due_date: before.pre_sprint_due_date, pre_sprint_due_date: null }],
+                    rows: [{ ...before, sprint_id: null, pre_sprint_due_date: null }],
                     rowCount: 1,
                 };
             }
@@ -404,13 +419,16 @@ describe("DELETE /api/sprints/:id", () => {
         expect(mockTransaction).toHaveBeenCalledTimes(1);
         expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).startsWith("DELETE FROM sprints s"))).toBe(true);
         expect(mockQuery.mock.calls.some(([sql]) => String(sql).startsWith("DELETE FROM sprints"))).toBe(false);
-        expect(mockTxClient.query.mock.calls.filter(([sql]) => String(sql).startsWith("INSERT INTO task_history"))).toHaveLength(2);
+        const history = mockTxClient.query.mock.calls.filter(([sql]) => String(sql).startsWith("INSERT INTO task_history"));
+        expect(history.map(([, params]) => params)).toEqual([
+            [42, 1, "updated", "sprint", "Sprint 1", "none"],
+        ]);
         expect(emitTaskUpdated).toHaveBeenCalledWith(
             null,
             42,
             "updated",
             expect.any(Array),
-            expect.objectContaining({ fields: expect.objectContaining({ sprint_id: null, due_date: "2026-02-20" }) }),
+            expect.objectContaining({ fields: { sprint_id: null } }),
         );
     });
 });
@@ -429,10 +447,7 @@ describe("PUT /api/sprints/:id", () => {
      */
     test("refuses to change a completed sprint", async () => {
         setupAuth();
-        mockQuery.mockResolvedValueOnce({
-            rows: [{ id: 1, team_id: 1, status: "completed", name: "Sprint 1" }],
-            rowCount: 1,
-        });
+        setupSprintRead({ id: 1, team_id: 1, status: "completed", name: "Sprint 1" });
 
         const res = await request(app)
             .put("/api/sprints/1")
@@ -446,11 +461,8 @@ describe("PUT /api/sprints/:id", () => {
 
     test("still allows editing a planned sprint", async () => {
         setupAuth();
+        setupSprintRead({ id: 1, team_id: 1, status: "planned", name: "Sprint 1" });
         mockQuery
-            .mockResolvedValueOnce({
-                rows: [{ id: 1, team_id: 1, status: "planned", name: "Sprint 1" }],
-                rowCount: 1,
-            })
             .mockResolvedValueOnce({ rows: [], rowCount: 1 })
             .mockResolvedValueOnce({
                 rows: [{ id: 1, team_id: 1, status: "planned", name: "Renamed" }],
@@ -471,10 +483,11 @@ describe("PUT /api/sprints/:id", () => {
     });
 });
 
-describe("sprint end-date retiming", () => {
+describe("sprint end-date edits", () => {
     const sprint = {
         id: 1,
         team_id: 1,
+        project_id: 20,
         status: "active",
         name: "Sprint 1",
         end_date: "2026-11-10",
@@ -543,12 +556,12 @@ describe("sprint end-date retiming", () => {
         return { rows, history, updatedSprint: { ...updatedSprint, end_date: newEnd } };
     }
 
-    test("editing the end date retimes only matching ticket deadlines in the same commit", async () => {
+    test("editing the end date does not change ticket due dates", async () => {
         setupAuth();
         setupCommittedTransaction();
         const { rows, history, updatedSprint } = setupRetimeQueries(sprint, "2026-11-12");
+        setupSprintRead(sprint);
         mockQuery
-            .mockResolvedValueOnce({ rows: [sprint], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [updatedSprint], rowCount: 1 });
 
@@ -563,28 +576,19 @@ describe("sprint end-date retiming", () => {
         const txSql = mockTxClient.query.mock.calls.map(([sql]) => String(sql).replace(/\s+/g, " ").trim());
         const gate = txSql.findIndex((sql) => sql.includes("pg_advisory_xact_lock"));
         const sprintRead = txSql.findIndex((sql) => sql.startsWith("SELECT s.status FROM sprints s"));
-        const memberLock = txSql.findIndex((sql) => sql.startsWith("SELECT t.* FROM tasks t"));
         const sprintUpdateIndex = txSql.findIndex((sql) => sql.startsWith("UPDATE sprints s SET"));
         expect(gate).toBeGreaterThanOrEqual(0);
         expect(gate).toBeLessThan(sprintRead);
-        expect(sprintRead).toBeLessThan(memberLock);
-        expect(memberLock).toBeLessThan(sprintUpdateIndex);
+        expect(sprintRead).toBeLessThan(sprintUpdateIndex);
         const sprintUpdate = ([sql]: unknown[]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET");
         expect(mockTxClient.query.mock.calls.some(sprintUpdate)).toBe(true);
         expect(mockQuery.mock.calls.some(sprintUpdate)).toBe(false);
-        expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-12", "2026-11-08"]);
-        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-12"]);
-        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
-        expect(emitTaskUpdated).toHaveBeenCalledWith(
-            null,
-            41,
-            "updated",
-            expect.any(Array),
-            expect.objectContaining({ fields: { due_date: "2026-11-12" } }),
-        );
+        expect(rows.map((ticket) => ticket.due_date)).toEqual(["2026-11-10", "2026-11-08"]);
+        expect(history).toEqual([]);
+        expect(emitTaskUpdated).not.toHaveBeenCalled();
     });
 
-    test("resuming a sprint retimes due dates with the end-date update", async () => {
+    test("resuming a sprint shifts its end without changing ticket due dates", async () => {
         setupAuth();
         setupCommittedTransaction();
         const resumedSprint = {
@@ -593,8 +597,8 @@ describe("sprint end-date retiming", () => {
             paused_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
         };
         const { rows, history, updatedSprint } = setupRetimeQueries(resumedSprint, "2026-11-13");
+        setupSprintRead(resumedSprint);
         mockQuery
-            .mockResolvedValueOnce({ rows: [resumedSprint], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
             .mockResolvedValueOnce({ rows: [updatedSprint], rowCount: 1 });
@@ -607,10 +611,10 @@ describe("sprint end-date retiming", () => {
         expect(res.status).toBe(200);
         expect(mockTransaction).toHaveBeenCalledTimes(1);
         expect(mockTxClient.query.mock.calls.some(([sql]) => String(sql).replace(/\s+/g, " ").trim().startsWith("UPDATE sprints s SET status = 'active'"))).toBe(true);
-        expect(rows[0].due_date).toBe("2026-11-13");
+        expect(rows[0].due_date).toBe("2026-11-10");
         expect(rows[1].due_date).toBe("2026-11-08");
-        expect(history).toContainEqual([41, 1, "updated", "due_date", "2026-11-10", "2026-11-13"]);
-        expect(emitTaskUpdated).toHaveBeenCalledTimes(1);
+        expect(history).toEqual([]);
+        expect(emitTaskUpdated).not.toHaveBeenCalled();
     });
 });
 describe("POST /api/sprints/:id/start", () => {
@@ -621,13 +625,13 @@ describe("POST /api/sprints/:id/start", () => {
     });
 
     /**
-     * One active sprint per team. Starting a second one used to silently
+     * One active sprint per Scrum project. Starting a second one used to silently
      * complete the running sprint, stranding its unfinished tickets without
      * the completion/rollover prompt. It is now refused.
      */
-    test("refuses to start a sprint while the team already has an active one", async () => {
+    test("refuses to start a sprint while the project already has an active one", async () => {
         setupAuth();
-        mockQuery.mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 });
+        setupSprintRead({ id: 2, team_id: 1, status: "planned", name: "Sprint 2" });
         mockTxClient.query
             .mockResolvedValueOnce({ rows: [], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ status: "planned" }], rowCount: 1 })
@@ -647,7 +651,7 @@ describe("POST /api/sprints/:id/start", () => {
     });
 });
 
-describe("one active sprint per team on every activation path", () => {
+describe("one active sprint per project on every activation path", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
         mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
@@ -656,8 +660,8 @@ describe("one active sprint per team on every activation path", () => {
 
     test("PUT status=active is refused while another sprint runs", async () => {
         setupAuth();
+        setupSprintRead({ id: 2, team_id: 1, status: "planned", name: "Sprint 2" });
         mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "planned", name: "Sprint 2" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
 
         const res = await request(app)
@@ -673,8 +677,8 @@ describe("one active sprint per team on every activation path", () => {
 
     test("resume is refused while another sprint runs", async () => {
         setupAuth();
+        setupSprintRead({ id: 2, team_id: 1, status: "paused", name: "Sprint 2", end_date: "2026-11-01" });
         mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: 2, team_id: 1, status: "paused", name: "Sprint 2", end_date: "2026-11-01" }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 1, name: "Sprint 1" }], rowCount: 1 });
 
         const res = await request(app)

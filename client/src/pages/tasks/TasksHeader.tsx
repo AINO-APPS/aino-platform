@@ -1,3 +1,4 @@
+import { projectTypeLabel } from "../../components/tasks/ProjectTypeControl";
 import { Run as GlyphRun, Plus as GlyphPlus, X as GlyphX } from "../../constants/icons";
 import React from "react";
 import { PRIORITIES, COLUMNS } from "./constants";
@@ -14,9 +15,6 @@ import s from "./TasksHeader.module.css";
 interface TasksHeaderProps {
     activeTab: string;
     setActiveTab: (tab: string) => void;
-    date?: string;
-    setDate?: (d: string) => void;
-    isToday?: boolean;
     selectedSprintId: number | null;
     setSelectedSprintId: (id: number | null) => void;
     backlogTasks: any[];
@@ -64,9 +62,6 @@ interface TasksHeaderProps {
 export default function TasksHeader({
     activeTab,
     setActiveTab,
-    date,
-    setDate,
-    isToday,
     selectedSprintId,
     setSelectedSprintId,
     backlogTasks,
@@ -110,6 +105,10 @@ export default function TasksHeader({
     const { assignableUsers, orgLabels, availableSprints, currentUser, currentSprintId } =
         useTaskCtx() as any;
     const { hasFeature } = useFeatures() as any;
+    const selectedProject = projects.find((project) => project.id === selectedProjectId);
+    const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
+    const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
+    const datedProjectView = projectOwnership && (activeTab === "list" || activeTab === "calendar");
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
@@ -196,20 +195,38 @@ export default function TasksHeader({
                                 <span className="page-icon">
                                     {activeTab === "service-desk" ? (
                                         <Headset size={18} style={{ verticalAlign: "middle" }} />
-                                    ) : activeTab === "scheduled" ? (
+                                    ) : activeTab === "calendar" ? (
                                         <CalendarDays size={18} style={{ verticalAlign: "middle" }} />
+                                    ) : activeTab === "reports" ? (
+                                        <BarChart3 size={18} style={{ verticalAlign: "middle" }} />
                                     ) : (
                                         <Package size={18} style={{ verticalAlign: "middle" }} />
                                     )}
                                 </span>{" "}
-                                {activeTab === "service-desk" ? "Service Desk" : activeTab === "scheduled" ? "Scheduled" : "Backlog"}
+                                {activeTab === "service-desk"
+                                    ? "Service Desk"
+                                    : activeTab === "list"
+                                      ? "List"
+                                    : activeTab === "calendar"
+                                      ? "Calendar"
+                                    : activeTab === "reports"
+                                      ? "Reports"
+                                      : activeTab === "board"
+                                        ? "Board"
+                                        : "Backlog"}
                             </h2>
                             <p>
                                 {activeTab === "service-desk"
                                     ? "Report bugs, request features, or raise access issues"
-                                    : activeTab === "scheduled"
-                                      ? "Tickets planned onto a day, with no sprint — overdue first"
-                                      : "Tickets with no sprint and no day planned, waiting to be picked up"}
+                                    : datedProjectView
+                                      ? `${teamName} — ${activeTab === "list" ? "every ticket, sorted your way" : "plan open work by start and due dates"}`
+                                    : activeTab === "reports"
+                                      ? "Sprint insights and project delivery reports"
+                                      : projectBoard
+                                        ? activeTab === "board"
+                                            ? "Project-wide workflow, without sprint boundaries"
+                                            : "Initial-state tickets waiting to join the board"
+                                        : "Tickets not assigned to a sprint yet, waiting to be picked up"}
                             </p>
                         </>
                     )}
@@ -224,11 +241,11 @@ export default function TasksHeader({
                             onChange={(event) => onProjectChange?.(Number(event.target.value))}
                             className={s["date-input"]}
                             aria-label="Project"
-                            title="Show a project's sprint, backlog and scheduled tickets"
+                            title="Show a project's planning views"
                         >
                             {selectedProjectId == null && <option value="" disabled>Select a project</option>}
                             {projects.map((project) => (
-                                <option key={project.id} value={project.id}>{project.key} — {project.name}</option>
+                                <option key={project.id} value={project.id}>{project.key} — {project.name} · {projectTypeLabel(project.type)}</option>
                             ))}
                         </select>
                     )}
@@ -241,7 +258,7 @@ export default function TasksHeader({
                             }}
                             className={s["date-input"]}
                             aria-label="Team"
-                            title="Show another team's sprint, backlog and scheduled tickets"
+                            title="Show another team's planning views"
                         >
                             {selectedTeamId == null && <option value="" disabled>Select a team</option>}
                             {teams.map((team: any) => (
@@ -256,7 +273,8 @@ export default function TasksHeader({
                     <PlanningTabs
                         activeTab={activeTab}
                         setActiveTab={setActiveTab}
-                        agileEnabled={hasFeature("agile")}
+                        planTabs={projectOwnership ? selectedProject?.planTabs : undefined}
+                        agileEnabled={hasSprints}
                         backlogCount={backlogTasks.length}
                         currentSprintId={currentSprintId}
                         setSelectedSprintId={setSelectedSprintId}
@@ -267,7 +285,7 @@ export default function TasksHeader({
               is intentionally NOT linked from here — it lives only inside
               Admin → Structure → Agile Config so it doesn't leak through to
               team members from the tasks page. */}
-                    {hasFeature("agile") && (
+                    {hasSprints && (
                         <Link
                             to="/sprint-insights"
                             className={`btn btn-secondary btn-sm ${s["add-task-toggle"]}`}
@@ -283,7 +301,7 @@ export default function TasksHeader({
                     )}
 
                     {/* Sprint select (when multiple sprints) */}
-                    {hasFeature("agile") && activeTab === "sprint" && availableSprints.length > 1 && (
+                    {hasSprints && activeTab === "sprint" && availableSprints.length > 1 && (
                         <select
                             value={selectedSprintId || ""}
                             onChange={(e) => setSelectedSprintId(Number(e.target.value))}
@@ -297,7 +315,7 @@ export default function TasksHeader({
                         </select>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["filter-toggle-btn"]} ${filterCount > 0 ? s["has-filters"] : ""}`}
                             onClick={() => setFiltersOpen((o) => !o)}
@@ -310,7 +328,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab !== "service-desk" && (
+                    {activeTab !== "service-desk" && !datedProjectView && (
                         <button
                             className={`btn btn-secondary ${s["density-toggle"]}`}
                             onClick={() =>
@@ -329,7 +347,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {activeTab === "backlog" && (
+                    {activeTab === "backlog" && hasSprints && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={() => setBacklogFormOpen((o) => !o)}
@@ -340,7 +358,7 @@ export default function TasksHeader({
 
                     {/* The Plan split view (backlog beside a sprint) is a
                         Backlog action, as in Jira — never the landing view. */}
-                    {hasFeature("agile") && activeTab === "backlog" && onPlanSprint && (
+                    {hasSprints && activeTab === "backlog" && onPlanSprint && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]}`}
                             onClick={onPlanSprint}
@@ -351,7 +369,7 @@ export default function TasksHeader({
                         </button>
                     )}
 
-                    {hasFeature("agile") && activeTab === "sprint" && selectedSprintId && (
+                    {hasSprints && activeTab === "sprint" && selectedSprintId && (
                         <button
                             className={`btn btn-secondary ${s["add-task-toggle"]} ${s[""]}`}
                             onClick={() => {
@@ -452,7 +470,7 @@ export default function TasksHeader({
                                                 >
                                                     {pri.icon} {pri.label}
                                                 </span>
-                                                {task.planned_date ? (
+                                                {task.due_date ? (
                                                     <span className={s["global-search-date"]}>
                                                         <CalendarDays
                                                             size={11}
@@ -461,7 +479,7 @@ export default function TasksHeader({
                                                                 verticalAlign: "middle",
                                                             }}
                                                         />
-                                                        {task.planned_date}
+                                                        Due {formatDate(task.due_date)}
                                                     </span>
                                                 ) : (
                                                     <span className={s["global-search-date"]}>
@@ -500,7 +518,7 @@ export default function TasksHeader({
             )}
 
             {/* Filter Bar */}
-            {filtersOpen && activeTab !== "service-desk" && (
+            {filtersOpen && activeTab !== "service-desk" && !projectBoard && !datedProjectView && (
                 <div className={s["filter-bar"]}>
                     <div className={s["filter-row"]}>
                         <div className={s["filter-group"]}>
@@ -549,7 +567,7 @@ export default function TasksHeader({
                                 ))}
                             </select>
                         </div>
-                        {(activeTab === "sprint" || activeTab === "scheduled") && (
+                        {activeTab === "sprint" && (
                             <div className={s["filter-group"]}>
                                 <label>Status</label>
                                 <select

@@ -74,4 +74,15 @@ describe("calendar maths", () => {
         expect(plannedDay({ id: 1, planned_date: "2026-10-25" })).toBe("2026-10-25");
         expect(plannedDay({ id: 1 })).toBeNull();
     });
+
+    test("start dates take precedence while omitted dates retain legacy compatibility", () => {
+        const groups = groupByDay([
+            { id: 1, start_date: "2026-10-26", planned_date: "2026-10-25" },
+            { id: 2, start_date: null, planned_date: "2026-10-25" },
+            { id: 3, planned_date: "2026-10-25" },
+        ]);
+        expect(groups.get("2026-10-26")?.map((task) => task.id)).toEqual([1]);
+        expect(groups.get("2026-10-25")?.map((task) => task.id)).toEqual([3]);
+        expect(groups.size).toBe(2);
+    });
 });

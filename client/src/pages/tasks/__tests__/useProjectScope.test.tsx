@@ -31,3 +31,13 @@ test("selecting a project scopes backlog requests and the board sprint, and pers
     const again = renderHook(() => useProjectScope(options), { wrapper });
     await waitFor(() => expect(again.result.current.selectedProjectId).toBe(2));
 });
+
+test("server sprint capability survives agile loss and non-Scrum stops sprint requests", async () => {
+    const options = { projects: [{ id: 1, hasSprints: true }, { id: 2, hasSprints: false }], enabled: true, agileEnabled: false, userKey: "1:5", setSelectedSprintId: vi.fn() };
+    const { result } = renderHook(() => useProjectScope(options), { wrapper });
+    await waitFor(() => expect(result.current.currentSprintId).toBe(10));
+    act(() => result.current.changeProject(2));
+    await waitFor(() => expect(result.current.currentSprintLoaded).toBe(true));
+    expect(result.current.currentSprintId).toBeNull();
+    expect(getSprints).toHaveBeenCalledTimes(1);
+});

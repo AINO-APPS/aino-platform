@@ -56,3 +56,15 @@ test("builds a constrained API proxy request", () => {
   assert.equal(proxy.init.headers.get("origin"), "workpulse://app");
   assert.equal(createProxyRequest("https://api.example", new Request("workpulse://app/api/tasks", { method: "POST" })).init.cache, "no-store");
 });
+
+test("the API proxy identifies desktop and forwards the bundled WEB version, not the shell version", () => {
+  const version = "3.0.80+web.abcdef012345";
+  const request = new Request("workpulse://app/api/calendar", {
+    headers: { "X-AINO-Client": "web", "X-AINO-Client-Version": version },
+  });
+  const proxy = createProxyRequest("https://api.example", request, "3.0.79+web.old");
+  assert.equal(proxy.init.headers.get("X-AINO-Client"), "desktop");
+  assert.equal(proxy.init.headers.get("X-AINO-Client-Version"), version);
+  const fallback = createProxyRequest("https://api.example", new Request("workpulse://app/api/calendar"), version);
+  assert.equal(fallback.init.headers.get("X-AINO-Client-Version"), version);
+});

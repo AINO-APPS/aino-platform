@@ -35,6 +35,7 @@
       "workflow_state_name": "To Do",
       "workflow_state_category": "open",
       "planned_date": null,
+      "start_date": null,
       "due_date": null,
       "completed_at": null,
       "sprint_id": 10,
@@ -84,6 +85,9 @@
             "allowed": true
           },
           "canMoveProject": {
+            "allowed": true
+          },
+          "canAddSubtask": {
             "allowed": true
           }
         }

@@ -6,6 +6,7 @@
  * live next to the rules they serve.
  */
 import { findDefaultTicketProject } from "./tasks.repository";
+import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
 
 /**
  * Scheduled container: unsprinted tickets carrying a planned day.
@@ -15,7 +16,7 @@ import { findDefaultTicketProject } from "./tasks.repository";
  */
 export async function listScheduledTasks(db: SprintDb, whereSql: string, params: unknown[]) {
     return (await db.query(
-        `SELECT t.* FROM tasks t WHERE ${whereSql} ORDER BY COALESCE(t.planned_date, t.due_date) ASC LIMIT 1000`,
+        `SELECT t.* FROM tasks t WHERE ${whereSql} ORDER BY COALESCE(t.start_date, t.due_date) ASC LIMIT 1000`,
         params,
     )).rows;
 }
@@ -158,27 +159,40 @@ export async function insertBaseline(
 /** The id and points of every task in a sprint, for scope deltas. */
 export async function findSprintTaskPoints(db: SprintDb, sprintId: unknown) {
     return (await db.query(
-        "SELECT id, story_points FROM tasks WHERE sprint_id = $1",
+        `SELECT t.id, t.story_points FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`,
         [sprintId],
     )).rows;
 }
 
-/** Tasks in a sprint with the completion flag the carryover plan reads. */
+export async function findSprintReportTasks(db: SprintDb, sprintId: number) {
+    return (await db.query(
+        `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
+                t.story_points, t.assigned_to, t.is_blocked, t.completed_at, t.priority
+         FROM tasks t WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}`, [sprintId],
+    )).rows;
+}
+
+/** Sprint members with workflow terminality and hierarchy for carryover planning. */
 export async function findSprintCarryoverTasks(db: SprintDb, sprintId: unknown, orgId: number | null) {
     return (await db.query(
-        `SELECT t.id, t.title, t.story_points, (t.completed_at IS NOT NULL) AS completed
+        `SELECT t.id, t.title, CASE WHEN ${SPRINT_POINT_TICKET_SQL} THEN t.story_points ELSE NULL END AS story_points, t.parent_task_id,
+                COALESCE(w.is_subtask, FALSE) AS is_subtask,
+                COALESCE(ws.is_terminal, FALSE) AS is_terminal,
+                COALESCE(ws.is_terminal, FALSE) AS completed
            FROM tasks t
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
+           LEFT JOIN work_item_types w ON w.id = t.work_item_type_id
+           LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE t.sprint_id = $1
             AND t.org_id IS NOT DISTINCT FROM $2
             AND tm.org_id IS NOT DISTINCT FROM $2
-          ORDER BY t.created_at ASC`,
+          ORDER BY t.id ASC`,
         [sprintId, orgId],
     )).rows;
 }
 
-/** The next planned sprint for a team, excluding the one being completed. */
+/** The next planned sprint for a project, or legacy team scope, excluding the source. */
 export async function findNextPlannedSprint(
     db: SprintDb,
     teamId: unknown,
@@ -187,16 +201,42 @@ export async function findNextPlannedSprint(
     projectId?: number,
 ) {
     return (await db.query(
-        `SELECT s.id FROM sprints s
+        `SELECT s.id, s.name, s.start_date, s.end_date, s.status FROM sprints s
            JOIN projects tm ON tm.id = s.project_id
           WHERE ${projectId == null ? "s.team_id" : "s.project_id"} = $1
             AND s.status = 'planned'
             AND s.id <> $2
             AND tm.org_id IS NOT DISTINCT FROM $3
-          ORDER BY s.start_date ASC
+          ORDER BY s.start_date ASC, s.id ASC
           LIMIT 1`,
         [projectId ?? teamId, excludeSprintId, orgId],
     )).rows[0] || null;
+}
+
+export async function findCarryoverSprintDateRange(db: SprintDb, durationDays: number) {
+    return (await db.query(
+        `SELECT to_char(CURRENT_DATE + 1, 'YYYY-MM-DD') AS start_date,
+                to_char(CURRENT_DATE + $1::int, 'YYYY-MM-DD') AS end_date`,
+        [durationDays],
+    )).rows[0];
+}
+
+export async function createCarryoverSprint(
+    db: SprintDb,
+    projectId: number,
+    orgId: number | null,
+    name: string,
+    startDate: string,
+    endDate: string,
+) {
+    return (await db.query(
+        `INSERT INTO sprints (project_id, name, start_date, end_date, goal, status)
+         SELECT p.id, $3, $4, $5, NULL, 'planned'
+           FROM projects p
+          WHERE p.id = $1 AND p.org_id IS NOT DISTINCT FROM $2
+         RETURNING *`,
+        [projectId, orgId, name, startDate, endDate],
+    )).rows[0] ?? null;
 }
 
 /**
@@ -228,7 +268,7 @@ export async function findSprintBurndownInputs(db: SprintDb, sprintId: number, o
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1
+          WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}
             AND t.org_id IS NOT DISTINCT FROM $2
             AND tm.org_id IS NOT DISTINCT FROM $2`,
         [sprintId, orgId],
@@ -336,7 +376,7 @@ export async function findRolloverTarget(
     projectId?: number,
 ): Promise<any | null> {
     return (await db.query(
-        `SELECT s.id, s.name, s.status, s.end_date
+        `SELECT s.id, s.name, s.status, s.start_date, s.end_date, s.project_id
            FROM sprints s
            JOIN projects tm ON tm.id = s.project_id
           WHERE s.id = $1
@@ -349,10 +389,14 @@ export async function findRolloverTarget(
 
 export async function lockSprintCompletionMembers(db: SprintDb, sprintId: number, orgId: number | null): Promise<any[]> {
     return (await db.query(
-        `SELECT t.id, COALESCE(ws.is_terminal, FALSE) AS is_terminal
+        `SELECT t.id, t.title, CASE WHEN ${SPRINT_POINT_TICKET_SQL} THEN t.story_points ELSE NULL END AS story_points, t.parent_task_id,
+                COALESCE(w.is_subtask, FALSE) AS is_subtask,
+                COALESCE(ws.is_terminal, FALSE) AS is_terminal,
+                COALESCE(ws.is_terminal, FALSE) AS completed
            FROM tasks t
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
+           LEFT JOIN work_item_types w ON w.id = t.work_item_type_id
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE t.sprint_id = $1
             AND t.org_id IS NOT DISTINCT FROM $2
@@ -372,7 +416,7 @@ export async function findSprintCompletionVelocity(db: SprintDb, sprintId: numbe
            JOIN sprints s ON s.id = t.sprint_id
            JOIN projects tm ON tm.id = s.project_id
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE t.sprint_id = $1
+          WHERE t.sprint_id = $1 AND ${SPRINT_POINT_TICKET_SQL}
             AND t.org_id IS NOT DISTINCT FROM $2
             AND tm.org_id IS NOT DISTINCT FROM $2`,
         [sprintId, orgId],

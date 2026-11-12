@@ -40,6 +40,13 @@ async function seedAgileDefaults(q: SchemaQuery): Promise<void> {
             );
         }
 
+        // Existing organizations need the new type too, not only new settings rows.
+        await q(`
+            INSERT INTO work_item_types (org_id, key, name, icon, color, is_default, is_epic, is_subtask, sort_order)
+            SELECT id, 'subtask', 'Subtask', 'ListTodo', '#64748b', FALSE, FALSE, TRUE, 5 FROM organizations
+            ON CONFLICT (org_id, key) DO NOTHING
+        `);
+
         // 3. Default workflow states (one per category — matches legacy COLUMNS)
         const defaultStates = [
             { key: 'pending', name: 'New', category: 'open', color: '#6b7280', sort_order: 1, is_initial: true, is_terminal: false },

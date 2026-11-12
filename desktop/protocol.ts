@@ -2,6 +2,7 @@ import { net, protocol, type Session } from "electron";
 import fs from "fs";
 import path from "path";
 import { createProxyRequest, normalizeProtocolPath, resolveClientFile, shouldApplyAppCsp } from "./protocolUtils";
+import { readBundledWebVersion } from "./clientVersion";
 
 // ─── MIME type lookup ───
 const MIME_TYPES: Record<string, string> = {
@@ -36,6 +37,7 @@ function getMimeType(filePath: string): string {
 export interface ProtocolOptions { apiServer: string; clientDist: string; r2OriginPattern: string; electronSession: Session }
 
 export function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electronSession }: ProtocolOptions): void {
+const bundledWebVersion = readBundledWebVersion(clientDist);
 // Content Security Policy — restrict what can run in the renderer.
 // NOTE: `frame-src` must allow https://embed.diagrams.net so the
 // draw.io diagram editor (loaded as an <iframe> inside the notes
@@ -131,7 +133,10 @@ protocol.handle("workpulse", async (request) => {
       const headers: Record<string, string> = {
         origin: "workpulse://app",
         "x-requested-with": "WorkPulse",
+        "x-aino-client": "desktop",
       };
+      const version = request.headers.get("x-aino-client-version") || bundledWebVersion;
+      if (version) headers["x-aino-client-version"] = version;
       const accept = request.headers.get("accept");
       if (accept) headers["accept"] = accept;
       // <video>/<audio> attachments seek with byte ranges; pass them through
@@ -165,23 +170,9 @@ protocol.handle("workpulse", async (request) => {
           bypassCustomProtocolHandlers: true,
         });
       } else if (resp.type === "opaqueredirect" || resp.status === 0) {
-        // Per the Fetch spec, `redirect: "manual"` may surface the 302 as an
-        // OPAQUE redirect: status 0, no readable headers, no Location. We
-        // then can't drive the second hop ourselves, so repeat hop 1 and let
-        // the network stack follow the chain. The important part — not
-        // handing a *redirected* Response straight back to protocol.handle,
-        // which Chromium rejects — is preserved by the re-wrap below.
-        followed = true;
-        resp = await net.fetch(
-          `${apiServer}${pathname}${url.search || ""}`,
-          {
-            method: request.method,
-            headers,
-            credentials: "include",
-            redirect: "follow",
-            bypassCustomProtocolHandlers: true,
-          },
-        );
+        // Without Location we cannot strip credentials/client identity on the
+        // signed hop. Current servers stream desktop uploads without redirects.
+        return new Response(request.method === "HEAD" ? null : "Upload redirect unavailable", { status: 502 });
       }
 
       console.log(
@@ -225,7 +216,7 @@ protocol.handle("workpulse", async (request) => {
   if (pathname.startsWith("/api/") || pathname.startsWith("/api\\")) {
     try {
       // Read-only requests retain normal HTTP caching; mutations bypass it.
-      const proxy = createProxyRequest(apiServer, request);
+      const proxy = createProxyRequest(apiServer, request, bundledWebVersion);
       const targetUrl = proxy.url;
       const fetchOpts = proxy.init;
 

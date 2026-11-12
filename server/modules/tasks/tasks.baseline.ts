@@ -7,9 +7,11 @@
  * baseline.
  */
 
+import { countsForSprint, type PointTicket } from "./tasks.points";
+
 export type BaselineReason = "start" | "scope_add" | "scope_remove";
 
-export interface BaselineTask {
+export interface BaselineTask extends PointTicket {
     id: number | string;
     story_points?: number | null;
 }
@@ -33,6 +35,7 @@ function points(tasks: BaselineTask[]): number {
 
 /** The baseline captured when a sprint starts. */
 export function captureBaseline(tasks: BaselineTask[]): Baseline {
+    tasks = tasks.filter(countsForSprint);
     return {
         committed_points: points(tasks),
         committed_task_ids: tasks.map((task) => task.id),
@@ -49,6 +52,7 @@ export function scopeDelta(
     baseline: Baseline | null | undefined,
     current: BaselineTask[],
 ): ScopeDelta {
+    current = current.filter(countsForSprint);
     if (!baseline) {
         return { addedPoints: 0, removedPoints: 0, addedCount: 0, removedCount: 0 };
     }

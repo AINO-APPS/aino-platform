@@ -43,6 +43,7 @@ interface TaskCardProps {
     onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     task: any;
     sprintMode?: boolean;
+    sprintEndDate?: string | null;
     onOpenDetail: (task: Task) => void;
     onOpenComments: (id: number | string) => void;
     /** HTML5 drag. Omitted on the board, where @dnd-kit owns dragging. */
@@ -53,7 +54,7 @@ interface TaskCardProps {
 }
 
 /**
- * The board and schedule card.
+ * The sprint board card.
  *
  * The shared Plan anatomy (see TaskCardParts): key and priority, the title,
  * then status, due, labels and the assignee avatar. Blocked and overdue stay
@@ -62,6 +63,7 @@ interface TaskCardProps {
 export default function TaskCard({
     task,
     sprintMode,
+    sprintEndDate,
     onOpenDetail,
     onOpenComments,
     onDragStart,
@@ -133,6 +135,7 @@ export default function TaskCard({
         >
             <CardBody
                 task={task}
+                sprintEndDate={sprintEndDate}
                 status={status}
                 compact={compact}
                 showStatus={!sprintMode}

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getMigrationReview, switchBackToTeams, switchToProjects, type MigrationProject } from "../api/projectMigration";
 import { renameProjectKey } from "../api/tasks";
 import styles from "./ProjectMigrationReview.module.css";
+import HierarchyRepairsReview from "./HierarchyRepairsReview";
 
 export function ProjectMigrationReviewLauncher({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
@@ -71,6 +72,7 @@ export default function ProjectMigrationReview({ role }: { role: string }) {
         </table>
         {review.data.moves.length === 0 && <p>No tickets were moved between projects.</p>}
       </div>
+      <HierarchyRepairsReview repairs={review.data.hierarchy_repairs ?? []} />
       <footer className={styles.footer}>
         <p>{review.data.switched_at
           ? "Keys have been published. The initial switch cannot be repeated, even after an emergency rollback."

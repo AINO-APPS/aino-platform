@@ -7,6 +7,7 @@ const {
     findSprintsByIds,
     findProjectsByIds,
     findWorkflowStatesByIds,
+    findHierarchyMetadata,
 } = require("../../../modules/tasks/tasks.enrich");
 const { findTicketKeyAliasesByTaskIds } = require("../../../modules/tasks/tasks.repository");
 const { loadTicketDecisionContext, decideTickets } = require("../../../modules/tasks/tasks.capabilities");
@@ -14,6 +15,8 @@ const { loadLifecycleContext } = require("../../../modules/tasks/tasks.workflow"
 const { getTimeSpent } = require("../../../modules/tasks/tasks.worklogs");
 import type { TaskActor } from "../../../modules/tasks/tasks.policy";
 import type { LifecycleContext } from "../../../modules/tasks/tasks.workflow";
+import { getTicketSubtasks } from "../../../modules/tasks/tasks.hierarchy";
+import { canReadProjectTask } from "../../../modules/tasks/tasks.policy";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -45,11 +48,12 @@ async function enrichTasks(
     if (!tasks.length) return [];
     const taskIds = tasks.map(t => t.id);
 
-    const [labelsMap, commentMap, aliasRows, timeSpent] = await Promise.all([
+    const [labelsMap, commentMap, aliasRows, timeSpent, hierarchy] = await Promise.all([
         getLabelsForTasks(taskIds, db),
         getCommentCounts(taskIds, db),
         findTicketKeyAliasesByTaskIds(db, taskIds),
         getTimeSpent(db, taskIds, actor.orgId),
+        findHierarchyMetadata(db, taskIds),
     ]);
 
     const assigneeIds = [...new Set(tasks.map(t => t.assigned_to).filter(Boolean))];
@@ -81,6 +85,7 @@ async function enrichTasks(
     const stateMap: Record<number, any> = {};
     for (const s of stateRows) stateMap[s.id] = s;
     const aliasesByTaskId: Record<number, string[]> = {};
+    const hierarchyById = new Map<number, any>(hierarchy.map((row: any) => [Number(row.id), row]));
     for (const alias of aliasRows) {
         if (!aliasesByTaskId[alias.task_id]) aliasesByTaskId[alias.task_id] = [];
         aliasesByTaskId[alias.task_id].push(alias.key);
@@ -92,6 +97,11 @@ async function enrichTasks(
         const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
             ...t,
+            is_subtask: hierarchyById.get(Number(t.id))?.is_subtask ?? false,
+            is_epic: hierarchyById.get(Number(t.id))?.is_epic ?? false,
+            parent_key: hierarchyById.get(Number(t.id))?.parent_key ?? null,
+            start_date: t.start_date ?? null,
+            planned_date: t.start_date ?? null,
             time_spent_minutes: timeSpent[t.id] ?? 0,
             logged_minutes: timeSpent[t.id] ?? 0,
             estimated_minutes: t.original_estimate_minutes ?? null,
@@ -129,6 +139,8 @@ async function enrichTaskSummaries(
     const enriched = await enrichTasks(tasks, db, actor, lifecycle);
     return tasks.map((task, index) => ({
         ...task,
+        start_date: enriched[index].start_date,
+        planned_date: enriched[index].planned_date,
         time_spent_minutes: enriched[index].time_spent_minutes,
         logged_minutes: enriched[index].logged_minutes,
         estimated_minutes: enriched[index].estimated_minutes,
@@ -140,7 +152,21 @@ async function enrichTaskSummaries(
         issue_key: enriched[index].issue_key,
         key_aliases: enriched[index].key_aliases,
         project: enriched[index].project,
+        is_subtask: enriched[index].is_subtask,
+        is_epic: enriched[index].is_epic,
+        parent_key: enriched[index].parent_key,
     }));
 }
 
-export = { enrichTasks, enrichTaskSummaries, getLabelsForTasks, getCommentCounts };
+async function enrichPlanningTasks(tasks: any[], db: DbLike, actor: TaskActor, lifecycle?: LifecycleContext) {
+    const rows = await getTicketSubtasks(db, tasks.map(task => Number(task.id)), actor.orgId);
+    const visible = await Promise.all(rows.map(row => canReadProjectTask(row, actor)));
+    const children = await enrichTasks(rows.filter((_row, index) => visible[index]), db, actor, lifecycle);
+    const parents = await enrichTasks(tasks, db, actor, lifecycle);
+    return parents.map(parent => ({
+        ...parent, subtasks: children.filter(child => Number(child.parent_task_id) === Number(parent.id)
+            && Number(child.project_id) === Number(parent.project_id)),
+    }));
+}
+
+export = { enrichTasks, enrichPlanningTasks, enrichTaskSummaries, getLabelsForTasks, getCommentCounts };

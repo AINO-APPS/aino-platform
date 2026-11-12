@@ -55,24 +55,21 @@ describe("server capability rendering (web and desktop)", () => {
                 can: {
                     ...ticket.capabilities.can,
                     edit: { allowed: false, reason: "ACCESS_DENIED" },
-                    schedule: { allowed: false, reason: "IN_SPRINT" },
                     placeInSprint: { allowed: false, reason: "SPRINT_FROZEN" },
                 },
             },
         };
         const props = {
             workflowStates: [],
-            scheduleTaskId: null, scheduleDate: "", setScheduleTaskId: vi.fn(), setScheduleDate: vi.fn(),
-            onOpenDetail: vi.fn(), onScheduleTask: vi.fn(), onInlineEdit: vi.fn(), onAddToSprint: vi.fn(),
+            onOpenDetail: vi.fn(), onInlineEdit: vi.fn(), onAddToSprint: vi.fn(),
         };
         const { rerender } = render(<BacklogCard task={denied} {...props} />);
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toHaveAttribute("title", "This ticket is in a sprint. Move it out before scheduling a day.");
+        expect(screen.queryByRole("button", { name: "Schedule to a day" })).toBeNull();
         fireEvent.click(screen.getByRole("button", { name: `Actions for ${ticket.ticket_key}` }));
         expect(screen.getByRole("menuitem", { name: "Add to sprint" })).toBeDisabled();
         expect(screen.getByRole("menuitem", { name: "Edit title" })).toBeDisabled();
         rerender(<BacklogCard task={{ ...ticket, capabilities: undefined }} {...props} />);
-        expect(screen.getByRole("button", { name: "Schedule to a day" })).toBeDisabled();
+        expect(screen.queryByRole("button", { name: "Schedule to a day" })).toBeNull();
         expect(screen.getByRole("menuitem", { name: "Add to sprint" })).toBeDisabled();
     });
 
@@ -94,17 +91,16 @@ describe("server capability rendering (web and desktop)", () => {
         );
     });
 
-    test("detail edit, cancel and transfer follow can and fail closed for an older payload", () => {
+    test("detail edit and cancel follow capabilities; legacy team transfer never returns", () => {
         const props = { onEdit: vi.fn(), onCancel: vi.fn(), onReplaced: vi.fn(), onError: vi.fn() };
         const { rerender } = render(<TicketDetailActions task={ticket} {...props} />);
         expect(screen.getByRole("button", { name: "Edit" })).not.toBeDisabled();
         expect(screen.getByRole("button", { name: "Cancel ticket" })).not.toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toHaveAttribute("title", "You do not have permission to do this.");
+        expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
         rerender(<TicketDetailActions task={{ ...ticket, capabilities: undefined }} {...props} />);
         expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Cancel ticket" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Transfer to team" })).toBeDisabled();
+        expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
     });
 
     test("the shared card menu renders the same fixture transitions as detail", () => {

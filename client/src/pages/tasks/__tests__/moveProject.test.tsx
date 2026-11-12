@@ -23,6 +23,7 @@ test("the project move action is hidden without the server capability", () => {
     expect(screen.queryByRole("button", { name: "Move to project" })).toBeNull();
     rerender(<TicketDetailActions task={{ ...task, capabilities: { can: { canMoveProject: { allowed: false } } } }} {...props} />);
     expect(screen.queryByRole("button", { name: "Move to project" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Transfer to team" })).toBeNull();
 });
 
 test("the dialog loads creatable projects, previews consequences and confirms the move", async () => {

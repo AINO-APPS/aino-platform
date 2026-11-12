@@ -93,7 +93,7 @@ export async function listTasksForDate(
         `SELECT t.*, ws.key AS workflow_state_key, ws.category AS workflow_state_category
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
-          WHERE (t.user_id = $1 OR t.assigned_to = $1) AND t.planned_date = $2
+          WHERE (t.user_id = $1 OR t.assigned_to = $1) AND t.start_date = $2
           ORDER BY t.priority DESC, t.created_at ASC`,
         [userId, date],
     )).rows;

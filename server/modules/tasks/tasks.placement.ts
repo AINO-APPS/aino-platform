@@ -1,18 +1,17 @@
 /**
- * Ticket placement: the one module that moves tickets between the three
- * planning containers (sprint, Scheduled, backlog) — ADR-015.
+ * Ticket placement: the one module that moves tickets between planning
+ * containers. Current project types use sprint/backlog/board placement; the
+ * legacy Scheduled target remains for compatibility until ticket 11.
  *
- * Every write to `sprint_id`, `planned_date`, and the due-date bookkeeping
- * that goes with sprint membership (`due_date` ↔ `pre_sprint_due_date`) goes
- * through here, so the rules live in one place instead of in every route
- * (architecture review 2026-11-01; `.scratch/ticket-placement/spec.md`).
- * SQL lives in `tasks.placementRepository.ts`.
+ * Every write to `sprint_id`, `planned_date`, and legacy
+ * `pre_sprint_due_date` cleanup goes through here, so placement rules live in
+ * one place instead of in every route. Ticket due dates are independent of
+ * sprint membership. SQL lives in `tasks.placementRepository.ts`.
  *
  * Targets: "leave the sprint" and "back to the backlog" are two targets, not
  * one. Leaving a sprint (unassign, sprint completion or deletion, transfer)
- * keeps a planned day the ticket already had, so it lands in Scheduled — the
- * sprint only outranked the day. "Back to the backlog" is the user's explicit
- * request to clear both.
+ * keeps legacy planned-date metadata when leaving a sprint. "Back to the
+ * backlog" is the user's explicit request to clear it too.
  *
  * Callers pass an open transaction. History and audit are written inside it;
  * realtime and notifications are handed to `effects` only after COMMIT, so a
@@ -31,6 +30,8 @@ import { decideTicket, loadTicketDecisionContext } from "./tasks.capabilities";
 import { CAPABILITY_DENIAL_MESSAGES } from "./tasks.denialMessages";
 import { placementRefusal } from "./tasks.placementRules";
 import type { PlacementTarget } from "./tasks.placementRules";
+import { assertTicketHierarchy, getHierarchyTicket, getTicketSubtasks } from "./tasks.hierarchy";
+import { findDecisionSubtasks } from "./tasks.capabilitiesRepository";
 export { placementRefusal, type PlacementTarget } from "./tasks.placementRules";
 
 export type { PlacementDb } from "./tasks.placementRepository";
@@ -63,6 +64,10 @@ export interface PlacementContext {
     /** Present for user writes; sprint lifecycle maintenance is a system operation. */
     ticketActor?: TaskActor;
     projectOwnership?: boolean;
+    /** Only the atomic create path may place a newly created subtask. */
+    creatingSubtaskOf?: number;
+    /** A lifecycle operation may move a subtask together with its locked parent. */
+    cascadeParentIds?: Set<number>;
 }
 
 export type PlacementRefusalCode =
@@ -78,7 +83,8 @@ export type PlacementRefusalCode =
     | "TEAM_UNCHANGED"
     | "PROJECT_NOT_FOUND"
     | "PROJECT_UNCHANGED"
-    | "WORKFLOW_NOT_FOUND";
+    | "WORKFLOW_NOT_FOUND"
+    | "SUBTASK_FOLLOWS_PARENT";
 
 export type PlacementResult =
     | { id: number; ok: true; task: any }
@@ -127,7 +133,8 @@ export async function placeTickets(
     await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
     const ids = [...new Set(ticketIds.map(Number))];
     const projectOwnership = ctx.projectOwnership ?? ctx.ticketActor?.projectOwnership ?? false;
-    const tickets = new Map((await repo.lockTickets(ctx.db, ids, ctx.actor.orgId)).map((row) => [Number(row.id), row]));
+    const subtasks = await getTicketSubtasks(ctx.db, ids, ctx.actor.orgId);
+    const tickets = new Map((await repo.lockTickets(ctx.db, [...new Set([...ids, ...subtasks.map(row => Number(row.id))])], ctx.actor.orgId)).map((row) => [Number(row.id), row]));
 
     const targetSprintId = joinsSprint(target) ? Number(target.sprint) : null;
     const sprints = await lockSprints(ctx, [targetSprintId, ...[...tickets.values()].map((t) => t.sprint_id)]);
@@ -141,14 +148,20 @@ export async function placeTickets(
         context.sprints = sprints;
         if (targetSprintId != null) context.targetSprint = targetSprint;
     }
+    const subtaskIds = context?.subtaskIds ?? new Set((await findDecisionSubtasks(ctx.db, ids, ctx.actor.orgId)).map((row) => Number(row.id)));
 
     const decisions = ids.map((id) => {
         const before = tickets.get(id);
         const action = plansDay(target) ? "schedule" : joinsSprint(target) ? "placeInSprint" : "edit";
+        const creatingSubtask = ctx.creatingSubtaskOf != null && Number(before?.parent_task_id) === ctx.creatingSubtaskOf;
+        const cascadingSubtask = before?.parent_task_id != null
+            && ctx.cascadeParentIds?.has(Number(before.parent_task_id)) === true
+            && ids.includes(Number(before.parent_task_id));
+        if (creatingSubtask) context?.subtaskIds?.delete(id);
         const verdict = before && context && ctx.ticketActor
             ? decideTicket(ctx.ticketActor, before, context).capabilities.can[action] : null;
-        const code = !before ? "NOT_FOUND" : verdict
-            ? verdict.allowed ? null : verdict.reason
+        const code = !before ? "NOT_FOUND" : verdict && !verdict.allowed ? verdict.reason
+            : subtaskIds.has(id) && !creatingSubtask && !cascadingSubtask ? "SUBTASK_FOLLOWS_PARENT" : verdict ? null
             : placementRefusal(before, target, targetSprint, sprints, projectOwnership);
         return { id, before, code };
     });
@@ -159,13 +172,14 @@ export async function placeTickets(
             results.push(refused(id, code as PlacementRefusalCode));
             continue;
         }
-        if (alreadyThere(before, target)) {
-            results.push({ id, ok: true, task: before });
-            continue;
+        let parentAfter = before;
+        for (const ticket of [before, ...subtasks.filter(row => Number(row.parent_task_id) === id).map(row => tickets.get(Number(row.id)))]) {
+            if (alreadyThere(ticket, target)) continue;
+            const after = await write(ctx.db, Number(ticket.id), ticket, target, targetSprint, projectOwnership);
+            await record(ctx, "place", ticket, after, historyFor(ticket, after, sprints));
+            if (Number(ticket.id) === id) parentAfter = after;
         }
-        const after = await write(ctx.db, id, before, target, targetSprint, projectOwnership);
-        await record(ctx, "place", before, after, historyFor(before, after, sprints));
-        results.push({ id, ok: true, task: after });
+        results.push({ id, ok: true, task: parentAfter });
     }
     return results;
 }
@@ -205,6 +219,13 @@ export interface ProjectMovePreview {
 
 type MoveContext = PlacementContext & { ticketActor: TaskActor };
 
+async function mappedMoveState(ctx: MoveContext, before: any, projectId: number) {
+    const { source, states } = await repo.findMoveStates(ctx.db, before.workflow_state_id, projectId, ctx.actor.orgId);
+    return states.find((candidate) => source && candidate.key === source.key)
+        ?? states.find((candidate) => source && candidate.category === source.category)
+        ?? states.find((candidate) => candidate.is_initial);
+}
+
 /** Preview and write share the same validation and deterministic mapping. */
 async function prepareProjectMove(ctx: MoveContext, before: any, projectId: number, lock: boolean) {
     const id = Number(before.id);
@@ -223,11 +244,18 @@ async function prepareProjectMove(ctx: MoveContext, before: any, projectId: numb
         if (role !== "member" && role !== "project_admin") return refusedTransfer(id, role ? "READ_ONLY_ROLE" : "ACCESS_DENIED");
         if (project.is_archived) return refusedTransfer(id, "PROJECT_ARCHIVED");
     }
-    const { source: oldState, states } = await repo.findMoveStates(ctx.db, before.workflow_state_id, projectId, ctx.actor.orgId);
-    const state = states.find((candidate) => oldState && candidate.key === oldState.key)
-        ?? states.find((candidate) => oldState && candidate.category === oldState.category)
-        ?? states.find((candidate) => candidate.is_initial);
+    const hierarchyTicket = await getHierarchyTicket(ctx.db, id, ctx.actor.orgId);
+    if (hierarchyTicket?.is_subtask) return refusedTransfer(id, "SUBTASK_FOLLOWS_PARENT");
+    await assertTicketHierarchy(ctx.db, { id, org_id: ctx.actor.orgId, project_id: projectId }, undefined, true);
+    const state = await mappedMoveState(ctx, before, projectId);
     if (!state) return refusedTransfer(id, "WORKFLOW_NOT_FOUND");
+    const subtasks = await getTicketSubtasks(ctx.db, [id], ctx.actor.orgId);
+    const children = [];
+    for (const child of lock ? await repo.lockTickets(ctx.db, subtasks.map(row => Number(row.id)), ctx.actor.orgId) : subtasks) {
+        const childState = await mappedMoveState(ctx, child, projectId);
+        if (!childState) return refusedTransfer(id, "WORKFLOW_NOT_FOUND");
+        children.push({ before: child, stateId: Number(childState.id) });
+    }
     const sprints = new Map((await repo.lockSprints(ctx.db,
         before.sprint_id == null ? [] : [Number(before.sprint_id)], ctx.actor.orgId, lock))
         .map((sprint) => [Number(sprint.id), sprint]));
@@ -238,7 +266,7 @@ async function prepareProjectMove(ctx: MoveContext, before: any, projectId: numb
         workflow_state: { id: Number(state.id), key: state.key, name: state.name, category: state.category },
         leaves_sprint: clearedSprint !== null,
     };
-    return { ok: true as const, target, preview, clearedSprint, sprints };
+    return { ok: true as const, target, preview, clearedSprint, sprints, children };
 }
 
 export async function previewProjectMove(ctx: MoveContext, ticketId: number, projectId: number) {
@@ -259,15 +287,27 @@ export async function moveTicketProject(
     if (!before) return refusedTransfer(ticketId, "NOT_FOUND");
     const prepared = await prepareProjectMove(ctx, before, projectId, true);
     if (!prepared.ok) return prepared;
-    const { target, preview, clearedSprint, sprints } = prepared;
+    const { target, preview, clearedSprint, sprints, children } = prepared;
+    const after = await writeProjectMove(ctx, before, projectId, target.key, preview.workflow_state.id, sprints, options);
+    for (const child of children) {
+        await writeProjectMove(ctx, child.before, projectId, target.key, child.stateId, sprints, options);
+    }
+    return { id: ticketId, ok: true, task: after, oldTeamId: before.team_id ?? null, clearedSprint };
+}
+
+async function writeProjectMove(
+    ctx: MoveContext, before: any, projectId: number, projectKey: string, stateId: number,
+    sprints: Map<number, any>, options: { legacyTeamId?: number },
+) {
+    const ticketId = Number(before.id);
     const number = await repo.reserveProjectTicketNumber(ctx.db, projectId);
-    const key = `${target.key}-${number}`;
+    const key = `${projectKey}-${number}`;
     if (before.ticket_key && before.org_id != null) {
         await repo.insertTicketKeyAlias(ctx.db, Number(before.org_id), before.ticket_key, ticketId, before.project_id, "move");
     }
     // Project moves deliberately leave legacy team ownership untouched.
-    const after = await repo.setProject(ctx.db, ticketId, projectId, number, key, preview.workflow_state.id,
-        clearedSprint !== null, ctx.ticketActor.projectOwnership ? undefined : options.legacyTeamId);
+    const after = await repo.setProject(ctx.db, ticketId, projectId, number, key, stateId,
+        before.sprint_id != null, ctx.ticketActor.projectOwnership ? undefined : options.legacyTeamId);
     const history: HistoryRow[] = [
         { action: "transferred", field: "project", from: String(before.project_id), to: String(projectId) },
         { action: "transferred", field: "ticket_key", from: before.ticket_key, to: key },
@@ -276,29 +316,17 @@ export async function moveTicketProject(
     if (!same(before.workflow_state_id, after.workflow_state_id)) history.push({ action: "updated", field: "workflow_state", from: before.workflow_state_id == null ? null : String(before.workflow_state_id), to: String(after.workflow_state_id) });
     if (!same(before.team_id, after.team_id)) history.push({ action: "transferred", field: "team", from: before.team_id == null ? null : String(before.team_id), to: String(after.team_id) });
     await record(ctx, options.legacyTeamId == null ? "move_project" : "transfer", before, after, history);
-    return { id: ticketId, ok: true, task: after, oldTeamId: before.team_id ?? null, clearedSprint };
+    return after;
 }
 
-/**
- * A sprint's end date moved: members whose due date is still the old end take
- * the new one (ADR-015, amended 2026-11-01). A due date someone edited by hand
- * inside the sprint is theirs and stays. Returns how many tickets moved; a
- * sprint outside the actor's org moves nothing.
- */
+/** A sprint end date is not a ticket due date. Kept as a legacy no-op seam. */
 export async function retimeSprintDueDates(
-    ctx: PlacementContext,
-    sprintId: number,
-    oldEnd: string,
-    newEnd: string,
+    _ctx: PlacementContext,
+    _sprintId: number,
+    _oldEnd: string,
+    _newEnd: string,
 ): Promise<number> {
-    if (oldEnd === newEnd) return 0;
-    await repo.acquirePlacementLifecycleLock(ctx.db, ctx.actor.orgId);
-    const members = await repo.lockSprintMembersDueOn(ctx.db, sprintId, oldEnd, ctx.actor.orgId);
-    for (const before of members) {
-        const after = await repo.setDueDate(ctx.db, Number(before.id), newEnd);
-        await record(ctx, "place", before, after, historyFor(before, after, new Map()));
-    }
-    return members.length;
+    return 0;
 }
 
 function joinsSprint(target: PlacementTarget): target is { sprint: number } {

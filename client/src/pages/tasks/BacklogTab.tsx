@@ -37,6 +37,8 @@ import BacklogCard from "./BacklogCard";
 import QuickAdd from "./QuickAdd";
 import CreateProjectPicker from "./CreateProjectPicker";
 import s from "./BacklogTab.module.css";
+import PlanningSubtasks from "./PlanningSubtasks";
+import { planningFamilies } from "./planningHierarchy";
 
 function getPriority(p: string | undefined): PriorityOption {
     return PRIORITIES.find((pr) => pr.value === p) || PRIORITIES[1];
@@ -99,16 +101,11 @@ interface BacklogTabProps {
     /** "Updated by <name>" flashes keyed by task id, from realtime deltas. */
     attribution?: Record<string, { name: string }>;
     bulkBar: React.ReactNode;
-    scheduleTaskId: number | string | null;
-    setScheduleTaskId: (v: number | string | null) => void;
-    scheduleDate: string;
-    setScheduleDate: (v: string) => void;
     filterPriority: string;
     summaryAllActive: boolean;
     error: string;
     onHandleAddBacklog: (e: React.FormEvent) => void;
     onOpenDetail: (task: any) => void;
-    onScheduleTask: (id: number | string, title: string) => void;
     /** Move a backlog ticket into a sprint (the backlog's own planning action). */
     onAddToSprint?: (task: any) => void;
     onHandleSummaryTotal: () => void;
@@ -174,16 +171,11 @@ export default function BacklogTab({
     selection,
     attribution,
     bulkBar,
-    scheduleTaskId,
-    setScheduleTaskId,
-    scheduleDate,
-    setScheduleDate,
     filterPriority,
     summaryAllActive,
     error,
     onHandleAddBacklog,
     onOpenDetail,
-    onScheduleTask,
     onAddToSprint,
     onHandleSummaryTotal,
     onHandleSummaryPriority,
@@ -440,8 +432,7 @@ export default function BacklogTab({
                             </div>
                             <p>Backlog is empty</p>
                             <span>
-                                Create a ticket to organize work that doesn't have a scheduled
-                                date yet.
+                                Create a ticket for work that is not in a sprint yet.
                             </span>
                         </div>
                     )}
@@ -458,17 +449,13 @@ export default function BacklogTab({
                             itemLabel="ticket"
                         />
                     )}
-                    {sortedBacklogTasks.map((task) => (
+                    {planningFamilies(sortedBacklogTasks).map(({ task, subtasks }) => (
+                        <React.Fragment key={task.id}>
                         <BacklogCard
                             key={task.id}
                             task={task}
                             workflowStates={workflowStates}
-                            scheduleTaskId={scheduleTaskId}
-                            scheduleDate={scheduleDate}
-                            setScheduleTaskId={setScheduleTaskId}
-                            setScheduleDate={setScheduleDate}
                             onOpenDetail={onOpenDetail}
-                            onScheduleTask={onScheduleTask}
                             onAddToSprint={
                                 availableSprints?.length ? onAddToSprint : undefined
                             }
@@ -477,6 +464,8 @@ export default function BacklogTab({
                             selection={selection}
                             attribution={attribution?.[String(task.id)] ?? null}
                         />
+                        <PlanningSubtasks parent={task} subtasks={subtasks} onOpenDetail={onOpenDetail} />
+                        </React.Fragment>
                     ))}
                     <div className="sr-only" role="status" aria-live="polite">
                         {reorderAnnouncement}

@@ -25,30 +25,39 @@ Each project picks a **type** when it is created:
 - **Task list:** list, board and calendar views driven by **start date** and
   **due date**.
 
-Sprints exist only in Scrum projects. The Scheduled container, `planned_date` as a
-container, and automatic sprints (`sprint_mode = auto`) are removed. Dates are
-fields and never decide where a ticket lives. Joining a sprint no longer changes a
-ticket's due date. The board shows the sprint's end date beside it instead.
+Sprints exist only in Scrum projects. Scrum's Backlog, Sprint and Reports tabs are
+stable regardless of whether a current sprint exists; the empty Sprint view points
+members to Backlog. The Scheduled container, `planned_date` as a container, and
+automatic sprints (`sprint_mode = auto`) are retired. Dates are fields and never
+decide where a ticket lives. Joining or leaving a sprint, moving between sprints,
+and editing a sprint's end date never changes a ticket's due date. The sprint board
+shows the sprint end date beside each ticket's own due date.
 
-When a sprint completes, its unfinished tickets go to the next planned sprint, a
-new sprint created during completion, or the backlog. The default is the next
-planned sprint if one exists, otherwise the backlog, and the preview and the
-server apply the same default. A parent counts as unfinished while any of its
-subtasks is open, and subtasks always move with thei Tickets that are in a sprint
-  get back the due date saved in `pre_sprint_due_date`, and that column and the
-  re-timing of due dates (ADR-015, amended 2026-11-01) are removed.
-- The sprint scheduler is removed.
-- Android has native Scheduled and timer screens, so the endpoints are removed in
-  three steps. First, an Android release that no longer uses them. Then a
-  minimum-client-version gate, where the server answers `426` to builds that are
-  too old. Only then are the endpoint
+Migration 0032 restores `pre_sprint_due_date` only when the current due date still
+equals the sprint end date, records that restoration in history, and preserves a
+hand-edited due date. The legacy saved-date value is then cleared. Active and
+paused automatic sprints are completed and their open tickets return to Backlog;
+planned automatic sprints are removed after their tickets return to Backlog;
+completed automatic sprints remain as history. A Scrum project whose sprint
+history is entirely automatic becomes Kanban with Backlog disabled.
 
-- The `agile` feature flag stops gating the tasks area. It may still decide which
-  project types an organization can create.
-- `tasks.collection.ts` and `tasks.placement.ts` shrink to sprint ⇄ backlog moves.
-- Existing `planned_date` values become start dates.
-- What happens to `pre_sprint_due_date` is still open.
-- The sprint scheduler is removed.
+The hourly sprint scheduler and current web controls for Scheduled planning,
+carry-forward and automatic sprint configuration are removed. Legacy Scheduled
+endpoints remain as a compatibility shim until ticket 11. The migration resets
+existing team automatic-sprint settings to manual.
+
+When a sprint completes, its unfinished tickets go to the selected rollover
+target or the backlog. Project-type capabilities and ordered Plan tabs come from
+the server; clients render that decision without deriving type rules.
+
+### Project-type lifecycle
+
+Project admins may change a non-archived project's type. Leaving Scrum is
+refused with `PROJECT_HAS_OPEN_SPRINTS` while any sprint is planned, active or
+paused; completed history is retained. The `agile` feature controls only creation
+and change destinations (Task list only without it). Existing Scrum and Kanban
+projects keep working after feature loss. Project responses carry ordered Plan
+tabs and type capabilities; clients render that decision without deriving it.
 
 ## Alternatives considered
 

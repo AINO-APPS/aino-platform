@@ -36,7 +36,9 @@ vi.mock("../../../api/tasks", () => ({
         data: [{ id: 1, name: "Sprint 1", start_date: "2026-10-20", end_date: "2026-11-02", status: "active" }],
     }),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn().mockResolvedValue({ data: [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [{ id: 1, project_id: 10, name: "Sprint 1", status: "active", start_date: "2026-10-20", end_date: "2026-11-02" }], currentSprintId: 1 } }),
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     getTaskHistory: vi.fn().mockResolvedValue({ data: [] }),
     getTaskComments: vi.fn().mockResolvedValue({ data: [] }),
@@ -80,9 +82,7 @@ vi.mock("../../../hooks/useRealtimeEvent", () => ({ default: vi.fn() }));
 vi.mock("../hooks/useVisiblePoll", () => ({ useVisiblePoll: vi.fn() }));
 
 vi.mock("../../../AuthContext", () => ({
-    // This scenario lives on the Sprint tab, which a team only gets when it has
-    // sprint config.
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", team_sprint_enabled: true } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: true } }),
     hasTenantContext: () => true,
 }));
 
@@ -134,6 +134,7 @@ const TICKET = {
     priority: "high",
     workflow_state_key: "pending",
     story_points: 3,
+    due_date: "2026-10-25",
 };
 
 /** Server state: the ticket's sprint membership. */
@@ -202,9 +203,14 @@ describe("sprint membership from the detail panel on the Plan view", () => {
         );
         expect(sprintPicker).toBeTruthy();
         fireEvent.change(sprintPicker!, { target: { value: "1" } });
+        expect(screen.getByLabelText("Due date")).toHaveValue("2026-10-25");
         fireEvent.click(screen.getByRole("button", { name: /^Save/i }));
 
         await waitFor(() => expect(updateTask).toHaveBeenCalled(), { timeout: 5000 });
+        expect(updateTask).toHaveBeenCalledWith(
+            7,
+            expect.objectContaining({ due_date: "2026-10-25" }),
+        );
         await waitFor(() => expect(sprintIdOfTicket).toBe(1), { timeout: 5000 });
 
         // The backlog must have been reloaded after the move, not just the sprint.

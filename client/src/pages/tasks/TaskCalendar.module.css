@@ -1,0 +1,45 @@
+.nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nav button, .nav input { border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--card-bg); color: var(--text-primary); font: inherit; }
+.nav button { cursor: pointer; }
+.mode { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-secondary); }
+.mode button { border-color: transparent; background: transparent; }
+.mode button[aria-pressed="true"] { background: var(--card-bg); border-color: var(--border); color: var(--primary); font-weight: 700; }
+.nav button:focus-visible, .nav input:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.range { padding: 12px 24px; color: var(--text-secondary); font: 12px var(--font-mono, monospace); border-bottom: 1px solid var(--border); }
+.week .day { min-height: 360px; }
+.legend { display: flex; gap: 18px; padding: 14px 24px; flex-wrap: wrap; font-size: 12px; border-bottom: 1px solid var(--border); }
+.legend label { display: flex; align-items: center; gap: 6px; }
+.legend span { margin-left: auto; color: var(--text-secondary); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; }
+.gridScroll { overflow-x: auto; }
+.weekdays, .grid { display: grid; grid-template-columns: repeat(7, minmax(100px, 1fr)); min-width: 700px; }
+.weekdays { background: var(--bg-secondary); text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.weekdays span { padding: 12px 0; }
+.day { min-height: 132px; border-right: 1px solid var(--border); border-top: 1px solid var(--border); padding: 8px; }
+.day time { display: inline-flex; align-items: center; justify-content: center; width: 25px; height: 25px; margin-bottom: 6px; font: 12px var(--font-mono, monospace); color: var(--text-secondary); }
+.today time { background: var(--primary); color: var(--on-accent); border-radius: 50%; font-weight: 700; }
+.outside { background: var(--bg-secondary); }
+.outside time { opacity: .65; }
+.ticket { border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: 5px; background: var(--card-bg); padding: 7px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 4px; }
+.ticket[draggable="true"] { cursor: grab; }
+.ticket[draggable="true"]:active { cursor: grabbing; }
+.ticket button { min-width: 0; font-size: 12px; padding: 0; line-height: 1.4; }
+.ticket .edit { background: none; border: 0; text-align: left; color: var(--text-secondary); font-size: 10px; cursor: pointer; margin-top: 3px; }
+.ticket .edit:disabled { opacity: .5; cursor: default; }
+.editor { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; padding: 18px 24px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+.editor strong { align-self: center; font: 12px var(--font-mono, monospace); }
+.editor label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; }
+.editor input { padding: 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--card-bg); font: inherit; }
+.error, .notice { padding: 12px 24px; font-size: 13px; }
+.error { color: var(--danger); }
+.notice { color: var(--success); }
+.overlay { display: block; font-size: 10px; line-height: 1.4; color: var(--text-secondary); padding: 3px 5px; margin-bottom: 4px; background: var(--bg-secondary); border-left: 2px solid var(--text-secondary); }
+.overlay[data-type="leave"] { border-color: var(--warning); }
+.overlay[data-type="holidays"] { border-color: var(--success); }
+.overlay[data-type="meetings"] { border-color: var(--primary); }
+.tray { background: var(--bg-secondary); padding: 20px 14px; border-left: 1px solid var(--border); }
+.tray h3 { margin: 8px 0; font-size: 18px; letter-spacing: -.03em; }
+.tray h3 span { color: var(--text-secondary); font-size: 12px; }
+.tray p { color: var(--text-secondary); font-size: 12px; line-height: 1.6; margin-bottom: 20px; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .tray { border-left: 0; border-top: 1px solid var(--border); } }
+@media (prefers-reduced-motion: no-preference) { .ticket { transition: box-shadow .15s, border-color .15s; } .ticket:hover { border-color: var(--primary); box-shadow: 0 2px 6px #0001; } }

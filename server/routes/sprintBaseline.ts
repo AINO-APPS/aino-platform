@@ -1,3 +1,4 @@
+import { requireScrumSprint } from "./_helpers/projectSprint";
 // Sprint scope baselines.
 //   GET  /api/sprints/:id/baseline  — the latest baseline plus the scope delta
 //   POST /api/sprints/:id/baseline  — re-record after an explicit scope change
@@ -9,7 +10,7 @@ import type { Request, Response } from "express";
 import { sprintManagementRole } from "./_helpers/sprintRole";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
-const { requireTenant, requireFeature } = require("../middleware/tenant");
+const { requireTenant } = require("../middleware/tenant");
 const {
     captureBaseline,
     scopeDelta,
@@ -26,7 +27,7 @@ const { canManageSprint } = require("../modules/tasks/tasks.sprintProjects");
 const router = express.Router();
 // Same gate as /api/sprints: this is part of the Agile bundle, so a tenant
 // with Agile disabled must not reach it.
-router.use(requireTenant, requireFeature("agile"));
+router.use(requireTenant);
 
 async function loadSprint(req: Request, res: Response) {
     const sprint = await findSprintInOrg(req.db!, req.params.id, req.userOrgId);
@@ -45,7 +46,7 @@ async function sprintTasks(req: Request, sprintId: unknown) {
     return findSprintTaskPoints(req.db!, sprintId);
 }
 
-router.get("/:id/baseline", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/baseline", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const sprint = await loadSprint(req, res);
         if (!sprint) return;
@@ -63,7 +64,7 @@ router.get("/:id/baseline", auth, loadUserContext, async (req: Request, res: Res
     }
 });
 
-router.post("/:id/baseline", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.post("/:id/baseline", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const sprint = await loadSprint(req, res);
         if (!sprint) return;

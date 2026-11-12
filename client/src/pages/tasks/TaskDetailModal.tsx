@@ -1,4 +1,5 @@
-import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, X, Package, CalendarDays, Save, Pencil, MessageSquare, Clock, Trash2, Folder } from "../../constants/icons";
+import { startDateOf } from "./dates";
+import { Plus as ActivityPlus, ArrowLeftRight as ActivitySwap, Edit as ActivityEdit, Calendar as ActivityCalendar, MessageSquare as ActivityMessage, Trash2 as ActivityDelete, type IconComponent, X, Save, Pencil, MessageSquare, Clock, Trash2, Folder, Package } from "../../constants/icons";
 import React, { useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
@@ -16,6 +17,7 @@ import {
     WorkItemTypePicker,
 } from "../../components/agile/AgilePickers";
 import AcceptanceCriteria from "../../components/agile/AcceptanceCriteria";
+import SubtasksPanel from "../../components/agile/SubtasksPanel";
 import {
     BlockerControl,
     DependenciesPanel,
@@ -46,17 +48,6 @@ interface TaskDetailModalProps {
     onAddComment: (...args: any[]) => void;
     onEditComment: (...args: any[]) => void;
     onDeleteComment: (...args: any[]) => void;
-    onSchedule: (
-        id: number | string,
-        title: string,
-        onClose: () => void,
-        plannedDate: string,
-    ) => void;
-    onUnschedule: (
-        id: number | string,
-        title: string,
-        onClose: () => void,
-    ) => void;
     onStatusChange: (task: any, col: any) => void;
     showConfirm?: (...args: any[]) => void;
     closeConfirm?: (...args: any[]) => void;
@@ -83,8 +74,6 @@ export default function TaskDetailModal({
     onAddComment,
     onEditComment,
     onDeleteComment,
-    onSchedule,
-    onUnschedule,
     onStatusChange,
     showConfirm,
     closeConfirm,
@@ -152,13 +141,14 @@ export default function TaskDetailModal({
     const [editPriority, setEditPriority] = useState("medium");
     const [editAssignedTo, setEditAssignedTo] = useState("");
     const [editDueDate, setEditDueDate] = useState("");
-    const [editPlannedDate, setEditPlannedDate] = useState("");
+    const [editStartDate, setEditStartDate] = useState("");
     const [editSprintId, setEditSprintId] = useState<number | string>("");
     const [editLabels, setEditLabels] = useState<Array<number | string>>([]);
     const [editLabelDropdownOpen, setEditLabelDropdownOpen] = useState(false);
     const [editStoryPoints, setEditStoryPoints] = useState<any>(null);
     const [editWorkItemType, setEditWorkItemType] = useState<any>("");
     const [editProjectId, setEditProjectId] = useState<string | number>("");
+    const editingSubtask = detailTask?.is_subtask || typeById[editWorkItemType]?.is_subtask;
 
     // Initialise edit fields from detailTask whenever edit mode is entered.
     useEffect(() => {
@@ -168,7 +158,7 @@ export default function TaskDetailModal({
             setEditPriority(detailTask.priority || "medium");
             setEditAssignedTo(String(detailTask.assigned_to || ""));
             setEditDueDate(detailTask.due_date || "");
-            setEditPlannedDate(detailTask.planned_date || "");
+            setEditStartDate(startDateOf(detailTask) || "");
             setEditSprintId(detailTask.sprint_id || "");
             setEditLabels(detailTask.labels?.map((l: any) => l.id) || []);
             setEditLabelDropdownOpen(false);
@@ -185,7 +175,7 @@ export default function TaskDetailModal({
             priority: editPriority,
             assignedTo: editAssignedTo,
             dueDate: editDueDate,
-            plannedDate: editPlannedDate,
+            startDate: editStartDate,
             sprintId: editSprintId,
             labels: editLabels,
             storyPoints: editStoryPoints,
@@ -208,11 +198,7 @@ export default function TaskDetailModal({
     const dueFmt = formatDueDate(detailTask.due_date);
     const overdue =
         isDueOverdue(detailTask.due_date) && !detailTask.completed_at;
-    // `planned_date` is the scheduling field; `date` is the legacy column the
-    // server still mirrors it into until the contract migration lands.
-    const plannedDate = detailTask.planned_date || null;
-    // A task is "backlog" only if it has neither a scheduled date nor a sprint
-    // assignment. Sprint tickets without a daily-planner date are NOT backlog.
+    const startDate = startDateOf(detailTask);
     const isBacklogItem = detailTask.container === "backlog";
 
     return (
@@ -356,22 +342,22 @@ export default function TaskDetailModal({
                                     </select>
                                 </div>
                                 <div className={s["form-extra-group"]}>
-                                    <label htmlFor="task-planned-date">
-                                        Planned date
+                                    <label htmlFor="task-start-date">
+                                        Start date
                                     </label>
                                     <input
-                                        id="task-planned-date"
-                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
+                                        id="task-start-date"
+                                        {...decisionProps(actionDecision(detailTask, "edit"))}
                                         type="date"
-                                        value={editPlannedDate}
-                                        onChange={(e) => setEditPlannedDate(e.target.value)}
-                                        aria-describedby="task-planned-date-hint"
+                                        value={editStartDate}
+                                        onChange={(e) => setEditStartDate(e.target.value)}
+                                        aria-describedby="task-start-date-hint"
                                     />
                                     <small
-                                        id="task-planned-date-hint"
+                                        id="task-start-date-hint"
                                         className={s["form-extra-hint"]}
                                     >
-                                        The planned day places unsprinted work in Scheduled.
+                                        When work is expected to begin. Dates never change placement.
                                     </small>
                                 </div>
                                 <div className={s["form-extra-group"]}>
@@ -380,6 +366,7 @@ export default function TaskDetailModal({
                                         id="task-due-date"
                                         type="date"
                                         value={editDueDate}
+                                        min={editStartDate || undefined}
                                         onChange={(e) => setEditDueDate(e.target.value)}
                                         aria-describedby="task-due-date-hint"
                                     />
@@ -395,17 +382,7 @@ export default function TaskDetailModal({
                                     {...decisionProps(actionDecision(detailTask, "placeInSprint"))}
                                     sprints={availableSprints}
                                     selected={editSprintId as any}
-                                    onChange={(id: any) => {
-                                        setEditSprintId(id as any);
-                                        if (!id) {
-                                            setEditDueDate("");
-                                        } else {
-                                            const sp = availableSprints.find(
-                                                (sp: any) => sp.id === id,
-                                            );
-                                            if (sp) setEditDueDate(sp.end_date);
-                                        }
-                                    }}
+                                    onChange={(id: any) => setEditSprintId(id as any)}
                                 />
                                 <LabelSelector
                                     labels={orgLabels}
@@ -418,7 +395,7 @@ export default function TaskDetailModal({
                                     <label>Type</label>
                                     <WorkItemTypePicker
                                         value={editWorkItemType}
-                                        onChange={setEditWorkItemType}
+                                        onChange={(value) => { setEditWorkItemType(value); if (value != null && typeById[value]?.is_subtask) setEditStoryPoints(null); }}
                                     />
                                 </div>
                                 {availableProjects && availableProjects.length > 0 && (
@@ -475,7 +452,7 @@ export default function TaskDetailModal({
                                     </div>
                                 )}
                             </div>
-                            <div
+                            {!editingSubtask && <div
                                 style={{
                                     display: "flex",
                                     alignItems: "center",
@@ -487,61 +464,18 @@ export default function TaskDetailModal({
                                     value={editStoryPoints}
                                     onChange={setEditStoryPoints}
                                 />
-                            </div>
-                            <div className={s["detail-edit-buttons"]}>
-                                {detailTask.container !== "scheduled" ? (
-                                    <button
-                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() =>
-                                            onSchedule(
-                                                detailTask.id,
-                                                detailTask.title,
-                                                onClose,
-                                                editPlannedDate,
-                                            )
-                                        }
-                                    >
-                                        <CalendarDays
-                                            size={13}
-                                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                                        />
-                                        Schedule to Day
-                                    </button>
-                                ) : (
-                                    <button
-                                        {...decisionProps(actionDecision(detailTask, "schedule"))}
-                                        className="btn btn-secondary btn-sm"
-                                        onClick={() =>
-                                            onUnschedule(detailTask.id, detailTask.title, onClose)
-                                        }
-                                    >
-                                        <Package
-                                            size={13}
-                                            style={{ marginRight: 4, verticalAlign: "middle" }}
-                                        />
-                                        Move to Backlog
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Pass 2 editors — only available while editing the ticket so
-                  the read-only view stays clean and changes are clustered with
-                  other edits. Clicking Save Changes closes edit mode (parent
-                  refresh re-fetches detail), so any saves done here also persist. */}
+                            </div>}
                             <BlockerControl
                                 task={detailTask}
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
                             <AcceptanceCriteria taskId={detailTask.id} />
-                            {/* Epics show their child tickets; everything else shows its
-                  parent + dependencies. The panel decides what to render
-                  based on the work item type's is_epic flag. */}
-                            <ParentChildPanel
+                           <ParentChildPanel
                                 task={detailTask}
                                 onOpenTask={swapToTask}
                                 onChanged={() => fetchTasks && fetchTasks()}
                             />
+                            <SubtasksPanel task={detailTask} onOpenTask={swapToTask} onChanged={() => fetchTasks?.()} />
                             {!isEpic && <DependenciesPanel task={detailTask} />}
                             <CustomFieldsEditor
                                 taskId={detailTask.id}
@@ -558,6 +492,8 @@ export default function TaskDetailModal({
                             customValues={customValues}
                             currentUser={currentUser}
                             onStatusChange={onStatusChange}
+                            onOpenTask={swapToTask}
+                            onHierarchyChanged={() => { fetchTasks?.(); getTaskDetail(detailTask.id).then(result => onReplaced?.(result.data)).catch(() => {}); }}
                             activity={
                                 <div className={s["detail-comments"]}>
                                     <div className={s["detail-tab-switcher"]}>

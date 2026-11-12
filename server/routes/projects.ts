@@ -1,3 +1,4 @@
+import { availableProjectTypes } from "../modules/tasks/tasks.projectTypes";
 // Project CRUD — Stage 3.
 //
 //   GET    /api/projects             — list (active by default; `?include_archived=1`)
@@ -12,7 +13,10 @@ import express from "express";
 import type { Request, Response } from "express";
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole } = require("../middleware/rbac");
-const { requireTenant, requireFeature } = require("../middleware/tenant");
+const { requireTenant } = require("../middleware/tenant");
+import { isFeatureEnabled } from "../utils/planCatalog";
+import { changeProjectType, projectPlanningResponse, ProjectTypeError, validateNewProjectType } from "../modules/tasks/tasks.projectTypeLifecycle";
+import { projectSprintStatuses } from "../modules/tasks/tasks.projectTypeRepository";
 const { logAction } = require("../utils/audit");
 const { enrichTasks } = require("./tasks/_helpers/enrich");
 const { taskActorFromRequest, isOrgAdmin } = require("../modules/tasks/tasks.policy");
@@ -31,11 +35,9 @@ import {
 } from "../modules/tasks/tasks.projectAccessRepository";
 
 const router = express.Router();
-// Projects are part of the Agile feature bundle — same gate as /api/agile
-// and /api/sprints. Without this, a Standard-plan tenant could create
-// projects through the API even though the UI hides the section.
-router.use(requireTenant, requireFeature("agile"));
+router.use(requireTenant);
 router.use("/migration", require("./projectMigration"));
+router.use(require("./projectBoard"));
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -60,18 +62,19 @@ function projectAccessForRequest(req: Request) {
 
 async function addProjectCapabilities(req: Request, project: any): Promise<any> {
     const capabilities = await projectAccessForRequest(req).capabilities(Number(project.id), project.is_archived);
-    return { ...project, capabilities };
+    const statuses = await projectSprintStatuses(req.db!, [Number(project.id)]);
+    return projectPlanningResponse(project, capabilities, isFeatureEnabled((req.tenant ?? null) as any, "agile"), statuses.get(Number(project.id)) ?? []);
 }
 
 async function addCapabilitiesToProjects(req: Request, projects: any[]): Promise<any[]> {
     const access = projectAccessForRequest(req);
     const byProject = await access.capabilitiesForProjects(projects.map((project) => Number(project.id)));
-    return projects.map((project) => ({
-        ...project,
-        capabilities: project.is_archived
-            ? { ...(byProject.get(Number(project.id)) ?? projectCapabilities(null)), canCreateTickets: false, canEditWorkflow: false, canRenameKey: false, canArchive: false }
+    const statuses = await projectSprintStatuses(req.db!, projects.map((project) => Number(project.id)));
+    return projects.map((project) => projectPlanningResponse(project,
+        project.is_archived
+            ? { ...(byProject.get(Number(project.id)) ?? projectCapabilities(null)), canCreateTickets: false, canEditWorkflow: false, canRenameKey: false, canArchive: false, canChangeType: false }
             : byProject.get(Number(project.id)) ?? projectCapabilities(null),
-    }));
+        isFeatureEnabled((req.tenant ?? null) as any, "agile"), statuses.get(Number(project.id)) ?? []));
 }
 
 function memberRole(value: unknown): "project_admin" | "member" | "viewer" | null {
@@ -81,6 +84,14 @@ function memberRole(value: unknown): "project_admin" | "member" | "viewer" | nul
 }
 
 function sendProjectAccessError(res: Response, err: unknown): boolean {
+    if ((err as any)?.code === "23514" && (err as any)?.message === "PROJECT_HAS_OPEN_SPRINTS") {
+        res.status(409).json({ error: "Complete or remove every planned, active or paused sprint before leaving Scrum.", code: "PROJECT_HAS_OPEN_SPRINTS" });
+        return true;
+    }
+    if (err instanceof ProjectTypeError) {
+        res.status(err.status).json({ error: err.message, code: err.code });
+        return true;
+    }
     if (!(err instanceof ProjectAccessRepositoryError)) return false;
     if (err.code === "PROJECT_NOT_FOUND") {
         res.status(404).json({ error: err.message, code: err.code });
@@ -91,6 +102,11 @@ function sendProjectAccessError(res: Response, err: unknown): boolean {
     }
     return true;
 }
+
+router.get("/types", auth, loadUserContext, (req: Request, res: Response) => {
+    const agile = isFeatureEnabled((req.tenant ?? null) as any, "agile");
+    res.json({ availableTypes: availableProjectTypes(agile), defaultType: agile ? "scrum" : "task_list" });
+});
 
 // ─── List projects in the requester's org ─────────────────────────────────
 router.get("/mine", auth, loadUserContext, async (req: Request, res: Response) => {
@@ -175,6 +191,7 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
     try {
         if (!req.userOrgId) return res.status(400).json({ error: "Organization required" });
         const { key, name, description, color, lead_user_id, team_ids } = req.body || {};
+        const type = validateNewProjectType(req.body?.type, isFeatureEnabled((req.tenant ?? null) as any, "agile"));
         if (!name || !name.trim()) return res.status(400).json({ error: "Project name is required" });
         if (!key || !KEY_RE.test(String(key))) {
             return res.status(400).json({
@@ -205,12 +222,10 @@ router.post("/", auth, loadUserContext, requireRole("team_lead"), async (req: Re
             color: validColor,
             leadUserId: validLead,
             teamIds: (team_ids ?? []).map(Number),
+            type,
         });
         logAction(req, "create", "project", inserted.id, { key: upperKey, name: inserted.name });
-        res.json({
-            ...inserted,
-            capabilities: projectCapabilities("project_admin"),
-        });
+        res.json(projectPlanningResponse(inserted, projectCapabilities("project_admin"), isFeatureEnabled((req.tenant ?? null) as any, "agile"), []));
     } catch (err) {
         if (sendProjectAccessError(res, err)) return;
         if ((err as any)?.code === "23505") {
@@ -396,16 +411,27 @@ router.put("/:id", auth, loadUserContext, async (req: Request, res: Response) =>
                 }
             }
         }
-        const updated = (await req.db!.query(
+        const updated = await req.db!.transaction!(async (client: any) => {
+            if (req.body?.type !== undefined) {
+                await changeProjectType({ query: client.query.bind(client), transaction: async (fn) => fn(client) }, {
+                    userId: Number(req.userId), orgId: req.userOrgId ?? null, orgRole: req.userRole ?? null,
+                    teamIds: (req as any).userTeamIds ?? (req.userTeamId == null ? [] : [Number(req.userTeamId)]),
+                }, id, req.body.type, isFeatureEnabled((req.tenant ?? null) as any, "agile"));
+            }
+            return (await client.query(
             `UPDATE projects
                 SET name = $1, description = $2, color = $3, lead_user_id = $4, updated_at = NOW()
               WHERE id = $5
               RETURNING *`,
             [newName, newDesc, newColor, newLead, id]
         )).rows[0];
+        });
+        try { broadcast(req.tenantId == null ? null : Number(req.tenantId), "project_updated", { project_id: id }); }
+        catch (err) { req.log.error({ err }, "Project committed but realtime delivery failed"); }
         logAction(req, "update", "project", id, { name: newName });
         res.json(await addProjectCapabilities(req, updated));
     } catch (err) {
+        if (sendProjectAccessError(res, err)) return;
         req.log.error({ err }, "Failed to update project");
         res.status(500).json({ error: "Failed to update project" });
     }

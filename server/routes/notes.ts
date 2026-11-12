@@ -9,6 +9,7 @@ const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
 const { findLinkedTask, insertNoteTicket } = require("../modules/tasks/tasks.notes");
+const { setTicketStartDate } = require("../modules/tasks/tasks.dates");
 const { loadUserContext } = require("../middleware/rbac");
 const noteTickets = require("./notes/_helpers/tickets");
 
@@ -297,7 +298,7 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
             `SELECT t.*, ws.key AS status FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
-               AND (t.planned_date = $2 OR (t.completed_at >= $3 AND t.completed_at <= $4))
+               AND (t.start_date = $2 OR (t.completed_at >= $3 AND t.completed_at <= $4))
              ORDER BY t.completed_at DESC NULLS LAST, t.created_at DESC
              LIMIT 30`,
             [req.userId, dateStr, startOfDay.toISOString(), endOfDay.toISOString()],
@@ -395,7 +396,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Recent tasks (last 2 weeks)
         const tasks = (await req.db!.query(
-            `SELECT t.*, ws.key AS status, t.planned_date AS date
+            `SELECT t.*, ws.key AS status, t.start_date AS date
              FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
@@ -551,15 +552,15 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
             if (sprint) sprintId = sprint.id;
         }
 
-        // Created with no container, then placed in the same transaction: into
-        // the active sprint (no planned day — the sprint wins), else onto today.
+        // A note ticket starts today, independently of its optional sprint.
         const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) => {
             const id = await insertNoteTicket(client, {
                 userId: req.userId!, orgId: userRow?.org_id || null, teamId: userRow?.team_id || null, title: title.trim(),
             });
+            const dated = await setTicketStartDate(client, { id }, dateStr, req.userId!);
+            if (!sprintId) return dated;
             return placedOrThrow(await placeTickets(
-                placementContext(req, client, afterCommit, { notify: false, orgId: userRow?.org_id ?? null }), [id],
-                sprintId ? { sprint: sprintId } : { day: dateStr },
+                placementContext(req, client, afterCommit, { notify: false, orgId: userRow?.org_id ?? null }), [id], { sprint: sprintId },
             )).task;
         });
         const task = await noteTickets.convertedTask(placed, req);

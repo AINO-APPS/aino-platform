@@ -53,15 +53,22 @@ export const deleteTaskWorklog = (id: number | string, worklogId: number, input:
     API.delete<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/worklogs/${worklogId}`, { data: input });
 
 // Tasks
-export const getTasks = (date?: string, filters?: Params, signal?: AbortSignal) => {
+export const getTasks = <T = any>(date?: string, filters?: Params, signal?: AbortSignal) => {
     const params: Params = { ...filters };
     if (date !== undefined) {
         params.date = date;
     }
-    return API.get("/tasks", { params, signal });
+    return API.get<T>("/tasks", { params, signal });
 };
 export const addTask = (data: AnyData) => API.post("/tasks", data);
+export const getProjectTypes = () => API.get<import("../types/generated/tasks").ProjectTypeOptions>("/projects/types");
 export const getMyProjects = () => API.get("/projects/mine");
+export const getProjectBoard = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/projects/${id}/board`, { signal });
+export const getProjectBacklog = (id: number | string, signal?: AbortSignal) =>
+    API.get(`/projects/${id}/backlog`, { signal });
+export const updateProjectBoardSettings = (id: number | string, data: { enable_wip_limits?: boolean; kanban_backlog_enabled?: boolean }) =>
+    API.patch(`/projects/${id}/board-settings`, data);
 export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);
@@ -210,8 +217,37 @@ export const bulkTaskAction = (data: {
 }) => API.post("/tasks/bulk", data);
 export const getTaskByKey = (key: string) => API.get(`/tasks/by-key/${encodeURIComponent(key)}`);
 export const getEpics = () => API.get("/tasks/epics");
-export const getSprintCompletionPreview = (id: number | string) =>
-    API.get(`/sprints/${id}/completion-preview`);
+export type SprintCompletionTarget = "next" | "new" | "backlog" | number | string;
+export interface SprintCarryoverTicket {
+    id: number | string;
+    title?: string;
+    story_points?: number | null;
+    parent_task_id?: number | string | null;
+}
+export interface SprintCompletionPreview {
+    supportsNewSprint?: boolean;
+    sprint: { id: number | string; name: string; status: string; start_date?: string | null; end_date?: string | null };
+    defaultTarget: number | string | "backlog";
+    defaultTargetType?: "next" | "backlog";
+    selectedTarget?: "next" | "new" | "backlog";
+    hasNext?: boolean;
+    nextPlannedSprint?: {
+        id: number | string;
+        name: string;
+        start_date?: string | null;
+        end_date?: string | null;
+    } | null;
+    moving: SprintCarryoverTicket[];
+    movingParents?: SprintCarryoverTicket[];
+    movingSubtasks?: number;
+    staying: SprintCarryoverTicket[];
+    movingPoints: number;
+    newSprint?: { name: string; start_date: string; end_date: string } | null;
+}
+export const getSprintCompletionPreview = (id: number | string, rolloverTo?: SprintCompletionTarget) =>
+    API.get<SprintCompletionPreview>(`/sprints/${id}/completion-preview`, {
+        params: rolloverTo == null ? undefined : { rolloverTo },
+    });
 export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
 export const getScheduleOverlays = (from: string, to: string) =>
     API.get("/tasks/schedule-overlays", { params: { from, to } });
@@ -232,7 +268,7 @@ export const getSprintBoard = (id: number | string, signal?: AbortSignal) =>
     API.get(`/sprints/${id}/board`, { signal });
 export const getSprintStats = (id: number | string) => API.get(`/sprints/${id}/stats`);
 export const startSprint = (id: number | string) => API.post(`/sprints/${id}/start`);
-export const completeSprint = (id: number | string, rolloverTo?: number | string) =>
+export const completeSprint = (id: number | string, rolloverTo?: SprintCompletionTarget) =>
     API.post(`/sprints/${id}/complete`, { rolloverTo });
 export const pauseSprint = (id: number | string) => API.post(`/sprints/${id}/pause`);
 export const resumeSprint = (id: number | string) => API.post(`/sprints/${id}/resume`);
@@ -271,6 +307,7 @@ export const setTaskBlocker = (
 export const quicksearchTasks = (q: string) =>
     API.get("/tasks/lookup/quicksearch", { params: { q } });
 export const getTaskChildren = (id: number | string) => API.get(`/tasks/${id}/children`);
+export const createTaskSubtask = (id: number | string, data: { title: string }) => API.post(`/tasks/${id}/subtasks`, data);
 export const getTaskParent = (id: number | string) => API.get(`/tasks/${id}/parent`);
 export const setTaskParent = (id: number | string, parent_task_id: number | string | null) =>
     API.patch(`/tasks/${id}/parent`, { parent_task_id });

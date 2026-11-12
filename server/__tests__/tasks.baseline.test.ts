@@ -10,6 +10,15 @@ const tasks = [
 ];
 
 describe("sprint scope baseline", () => {
+    test("subtasks never add committed points or scope, even with legacy points", () => {
+        const scope = [...tasks, { id: 3, story_points: 99, is_subtask: true }];
+        expect(captureBaseline(scope)).toEqual({
+            committed_points: 8, committed_task_ids: [1, 2], reason: "start",
+        });
+        expect(scopeDelta(captureBaseline(tasks), scope)).toEqual({
+            addedPoints: 0, removedPoints: 0, addedCount: 0, removedCount: 0,
+        });
+    });
     test("starting a sprint records committed points and the task set", () => {
         expect(captureBaseline(tasks)).toEqual({
             committed_points: 8,

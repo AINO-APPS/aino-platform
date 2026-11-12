@@ -19,7 +19,7 @@ import { notifyUser } from "../../realtime/fanout";
 
 type EffectsDb = TasksDb;
 
-const DELTA_FIELDS = ["sprint_id", "planned_date", "due_date", "team_id", "project_id", "ticket_key", "workflow_state_id"] as const;
+const DELTA_FIELDS = ["sprint_id", "due_date", "team_id", "project_id", "ticket_key", "workflow_state_id"] as const;
 
 /**
  * `db` must be a non-transactional handle (the request's tenant DB): effects

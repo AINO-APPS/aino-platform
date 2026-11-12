@@ -35,9 +35,11 @@ interface BoardPointerDrag {
 }
 
 interface KanbanBoardProps {
+    onStatusChange?: (task: any, target: { id: string; label: string }) => void;
     tasks: any[];
     columns: BoardColumn[];
     sprintMode?: boolean;
+    sprintEndDate?: string | null;
     /** Pointer drag (mouse and touch). Without it, cards are not draggable. */
     drag?: BoardPointerDrag;
     onOpenDetail: (task: any) => void;
@@ -121,9 +123,11 @@ function DroppableColumn({
 }
 
 export default function KanbanBoard({
+    onStatusChange,
     tasks,
     columns,
     sprintMode,
+    sprintEndDate,
     drag,
     onOpenDetail,
     onOpenComments,
@@ -301,8 +305,10 @@ export default function KanbanBoard({
                                                 <TaskCard
                                                     task={task}
                                                     sprintMode={sprintMode}
+                                                    sprintEndDate={sprintEndDate}
                                                     onOpenDetail={onOpenDetail}
                                                     onOpenComments={onOpenComments}
+                                                    onStatusChange={onStatusChange}
                                                     attribution={attribution?.[String(task.id)] ?? null}
                                                 />
                                             </div>
@@ -321,6 +327,7 @@ export default function KanbanBoard({
                         <TaskCard
                             task={overlayTask}
                             sprintMode={sprintMode}
+                            sprintEndDate={sprintEndDate}
                             onOpenDetail={() => {}}
                             onOpenComments={() => {}}
                         />

@@ -1,4 +1,5 @@
 import React from "react";
+import { startDateOf } from "./dates";
 import { CalendarDays } from "../../constants/icons";
 import { formatDueDate, getAvatarUrl, isDueOverdue } from "./utils";
 import s from "./TaskDetailModal.module.css";
@@ -22,37 +23,35 @@ function Avatar({ user }: { user: any }) {
 /**
  * The task's metadata grid.
  *
- * Planned date and due date are deliberately separate fields with separate
- * explanations: the planned date is when the work is scheduled, the due date is
+ * Start date and due date are deliberately separate fields with separate
+ * explanations: the start date is when work is expected to begin, the due date is
  * the deadline that drives overdue warnings and reminders.
  */
 export default function TaskMetaGrid({ task, availableSprints }: TaskMetaGridProps) {
     const dueFmt = formatDueDate(task.due_date);
     const overdue = isDueOverdue(task.due_date) && !task.completed_at;
-    // `planned_date` is the scheduling field; `date` is the legacy column the
-    // server still mirrors it into until the contract migration lands.
-    const plannedDate = task.planned_date || null;
+    const startDate = startDateOf(task);
     const sprintName = availableSprints.find((sp: any) => sp.id === task.sprint_id)?.name;
 
     return (
         <div className={s["detail-meta-grid"]}>
             <div className={s["detail-meta-item"]}>
-                <span className={s["detail-meta-label"]}>Planned date</span>
+                <span className={s["detail-meta-label"]}>Start date</span>
                 <span className={s["detail-meta-value"]}>
-                    {plannedDate ? (
+                    {startDate ? (
                         <>
                             <CalendarDays
                                 size={12}
                                 style={{ marginRight: 3, verticalAlign: "middle" }}
                             />
-                            {plannedDate}
+                            {startDate}
                         </>
                     ) : (
-                        <span className={s["detail-meta-empty"]}>Not scheduled</span>
+                        <span className={s["detail-meta-empty"]}>No start date</span>
                     )}
                 </span>
                 <span className={s["detail-meta-hint"]}>
-                    When this is scheduled to be worked on. Does not remove it from the
+                    When work is expected to begin. Does not remove it from the
                     backlog.
                 </span>
             </div>

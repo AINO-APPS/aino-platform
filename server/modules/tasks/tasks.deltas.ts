@@ -15,6 +15,7 @@ export const DELTA_FIELDS = [
     "assigned_to",
     "due_date",
     "planned_date",
+    "start_date",
     "sprint_id",
     "story_points",
     "work_item_type_id",
@@ -78,8 +79,9 @@ export function diffTask(
     const fields: Partial<Record<DeltaField, unknown>> = {};
     for (const field of DELTA_FIELDS) {
         if (!FIELD_SET.has(field)) continue;
-        const oldValue = field === "issue_key" ? before?.ticket_key : before?.[field];
-        const newValue = field === "issue_key" ? after.ticket_key : after[field];
+        const source = field === "issue_key" ? "ticket_key" : field === "planned_date" ? "start_date" : field;
+        const oldValue = before?.[source];
+        const newValue = after[source];
         if (!same(oldValue, newValue)) {
             fields[field] = newValue ?? null;
         }

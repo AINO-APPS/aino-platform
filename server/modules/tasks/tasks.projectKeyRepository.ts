@@ -1,6 +1,8 @@
 import type { ProjectAccessRepositoryDb } from "./tasks.projectAccessRepository";
+import { acquirePlacementLifecycleLock } from "./tasks.placementRepository";
 
 export async function lockProjectKey(db: ProjectAccessRepositoryDb, projectId: number, orgId: number) {
+    await acquirePlacementLifecycleLock(db, orgId);
     return (await db.query(
         "SELECT id, key, key_published, is_archived FROM projects WHERE id = $1 AND org_id = $2 FOR UPDATE",
         [projectId, orgId],

@@ -4,10 +4,12 @@ WORKDIR /app/client
 COPY client/package*.json ./
 RUN npm ci --cache /tmp/npm-cache-frontend
 COPY client/ ./
+COPY desktop/package.json /app/desktop/package.json
 # Railway supplies service variables to Docker builds as build arguments. Vite
 # reads this value at compile time, so it must be declared and promoted to ENV
 # before `npm run build`; setting it only at container runtime is too late.
 ARG VITE_CONSOLE_HOST
+ARG RAILWAY_GIT_COMMIT_SHA
 ENV VITE_CONSOLE_HOST=${VITE_CONSOLE_HOST}
 RUN npm run build
 

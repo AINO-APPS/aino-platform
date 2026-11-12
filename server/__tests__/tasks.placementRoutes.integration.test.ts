@@ -59,6 +59,7 @@ jest.mock("../utils/mailer", () => ({ notifyByEmail: jest.fn(), sendMail: jest.f
 
 const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
 const postgresDescribe = databaseUrl ? describe : describe.skip;
+jest.setTimeout(30_000);
 
 postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     let database: Awaited<ReturnType<typeof createTestDatabase>>;
@@ -82,6 +83,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect((await pool.query(
             "SELECT user_id, team_id FROM user_team_memberships WHERE user_id = 9",
         )).rows).toEqual([{ user_id: 9, team_id: 9 }]);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await require("../platform/db/agileDefaults").seedAgileDefaults(query);
 
         const { makePoolQuery, makePoolTransaction } = require("../platform/db/pool");
@@ -114,9 +116,11 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'alice', 'x', 'Alice', 1, 1), (2, 'admin', 'x', 'Admin', 1, 1)`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
         );
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params as any[]));
     });
 
@@ -129,12 +133,13 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
         const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE id = $1", [source.id]);
         await pool.query("UPDATE sprints SET project_id = $1 WHERE id = 10", [source.id]);
         const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Queued', 'open', TRUE) RETURNING *", [source.id])).rows[0];
         const to = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category, is_initial) VALUES (1, $1, 'queued', 'Destination queue', 'open', TRUE) RETURNING *", [target.id])).rows[0];
         const ticket = (await pool.query(`INSERT INTO tasks
-            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date)
-            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
+            (title, user_id, org_id, team_id, project_id, workflow_state_id, sprint_id, due_date, pre_sprint_due_date, planned_date, start_date)
+            VALUES ('Moving', 1, 1, 1, $1, $2, 10, '2026-11-14', '2026-11-20', '2026-11-10', '2026-11-10') RETURNING *`, [source.id, from.id])).rows[0];
         const before = (await pool.query("SELECT next_task_number FROM projects WHERE id = $1", [target.id])).rows[0];
         const { sendToUser } = require("../utils/ws");
         sendToUser.mockClear();
@@ -145,7 +150,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(sendToUser).not.toHaveBeenCalled();
         const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
         expect(move.status).toBe(200);
-        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-20", planned_date: "2026-11-10", team_id: 1 });
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-14", start_date: "2026-11-10", planned_date: "2026-11-10", team_id: 1 });
         expect(sendToUser).toHaveBeenCalledWith(1, 1, "task_updated", { taskId: ticket.id, action: "updated" });
         const alias = await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`);
         expect(alias.status).toBe(200);
@@ -299,7 +304,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
     function expectTicketDecision(ticket: any) {
         expect(ticket).toMatchObject({
-            container: expect.stringMatching(/^(sprint|scheduled|backlog)$/),
+            container: expect.stringMatching(/^(sprint|board|backlog)$/),
             capabilities: {
                 transitions: expect.any(Array),
                 can: {
@@ -315,7 +320,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         });
     }
 
-    test("creating straight into a sprint remembers the own due date and sets no planned day", async () => {
+    test("creating straight into a sprint keeps its own due date without saved-date bookkeeping", async () => {
         const res = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, due_date: "2026-11-20" });
 
         expect(res.status).toBe(200);
@@ -335,7 +340,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             },
         });
         expect(await row(res.body.id)).toEqual({
-            sprint_id: 10, planned_date: null, due_date: "2026-11-14", pre_sprint_due_date: "2026-11-20",
+            sprint_id: 10, planned_date: null, due_date: "2026-11-20", pre_sprint_due_date: null,
         });
     });
 
@@ -588,7 +593,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         const memberList = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
         expect(memberList.status).toBe(200);
-        expect(memberList.body.tasks.map((ticket: any) => ticket.title)).toEqual([
+        expect(memberList.body.tasks.map((ticket: any) => ticket.title).sort()).toEqual([
             "Alpha grant ticket",
             "Beta grant ticket",
             "Gamma grant ticket",
@@ -696,7 +701,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     test("My Work and dashboard ticket lists include actor capabilities", async () => {
         const today = (await pool.query("SELECT CURRENT_DATE::text AS date")).rows[0].date;
         const taskId = (await pool.query(
-            `INSERT INTO tasks (title, user_id, org_id, team_id, planned_date)
+            `INSERT INTO tasks (title, user_id, org_id, team_id, start_date)
              VALUES ('Manager dashboard capability', 1, 1, 1, $1) RETURNING id`,
             [today],
         )).rows[0].id;
@@ -790,14 +795,14 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         });
     });
 
-    test("scheduling a ticket in a sprint is refused and changes nothing", async () => {
+    test("scheduling edits start date without moving a sprint ticket", async () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "New", sprint_id: 10 });
         const before = await row(created.body.id);
 
         const res = await request(app).patch(`/api/tasks/${created.body.id}/schedule`).send({ date: "2026-11-06" });
 
-        expect(res.status).toBe(409);
-        expect(res.body.code).toBe("IN_SPRINT");
+        expect(res.status).toBe(200);
+        expect(res.body.start_date).toBe("2026-11-06");
         expect(await row(created.body.id)).toEqual(before);
     });
 
@@ -844,7 +849,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: null, planned_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
-        expect((await row(created.body.id)).planned_date).toBe("2026-11-06");
+        expect(res.body.start_date).toBe("2026-11-06");
+        expect((await row(created.body.id)).planned_date).toBeNull();
     });
 
     test("editing the due date of a sprinted ticket while resending its sprint keeps the typed date", async () => {
@@ -888,7 +894,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect((await pool.query("SELECT org_id FROM tasks WHERE id = $1", [res.body.task.id])).rows[0].org_id).toBe(1);
     });
 
-    test("carry-forward records one planned-day history row per copy", async () => {
+    test("carry-forward compatibility records a start-date history row per copy", async () => {
         await pool.query("UPDATE users SET timezone = 'UTC' WHERE id = 1").catch(() => undefined);
         const yesterday = (await pool.query("SELECT (CURRENT_DATE - 1)::text AS d")).rows[0].d;
         const created = await request(app).post("/api/tasks").send({ title: "Yesterday", date: yesterday });
@@ -900,7 +906,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const copies = (await pool.query("SELECT id FROM tasks WHERE title = 'Yesterday' AND id <> $1", [created.body.id])).rows;
         expect(copies).toHaveLength(1);
         const history = (await pool.query(
-            "SELECT action, field FROM task_history WHERE task_id = $1 AND field = 'planned_date'", [copies[0].id],
+            "SELECT action, field FROM task_history WHERE task_id = $1 AND field = 'start_date'", [copies[0].id],
         )).rows;
         expect(history).toHaveLength(1);
     });

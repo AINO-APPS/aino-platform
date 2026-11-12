@@ -69,7 +69,7 @@ export function useFilters({ activeTab }: { activeTab: string }) {
             filterPriority,
             filterSearch.trim(),
         ];
-        if (activeTab === "sprint" || activeTab === "scheduled") base.push(filterStatus);
+        if (activeTab === "sprint") base.push(filterStatus);
         return base.filter(Boolean).length;
     }, [
         filterAssignee,

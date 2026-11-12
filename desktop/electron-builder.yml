@@ -51,6 +51,7 @@ files:
   - locationIpc.js
   - protocol.js
   - protocolUtils.js
+  - clientVersion.js
   - windowState.js
   - icons/**/*
   - package.json

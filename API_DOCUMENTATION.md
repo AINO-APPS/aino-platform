@@ -442,17 +442,95 @@ Revoke an approved leave (restores the balance).
 
 Base path: `/api/tasks`
 
+Project-type controls: `GET /api/projects/types` returns organization
+`availableTypes` and `defaultType`; create and update accept `type` (`scrum`,
+`kanban`, `task_list`). Project responses carry ordered `planTabs`, type-policy
+fields, `changeableTypes` and `capabilities.canChangeType`. Only project admins
+change type; leaving Scrum with planned/active/paused sprints returns 409
+`PROJECT_HAS_OPEN_SPRINTS`. Without `agile`, new destinations are Task list only
+(403 `PROJECT_TYPE_NOT_AVAILABLE` otherwise); existing projects keep working.
+Sprint requests outside Scrum return 409 `PROJECT_HAS_NO_SPRINTS`.
+See [Projects](docs/PROJECTS.md) and `contracts/openapi.json`.
+
+#### Start dates (project types Expand)
+
+Tickets expose nullable `start_date` (`YYYY-MM-DD`). Both create endpoints and
+`PUT /api/tasks/:id` accept it; `planned_date` remains a request/response alias.
+An explicit `start_date`, including null, wins over the alias. Legacy day-create
+`date` and its default of today remain; backlog creation defaults to no start.
+Start-date edits write `updated/start_date` history and never move placement.
+A due date before start returns `400` with
+`{"error":"Due date cannot be earlier than the start date"}`.
+`PATCH /api/tasks/:id/schedule` accepts `{date}` and sets start;
+`PATCH /api/tasks/:id/unschedule` clears start, preserving sprint and deadline.
+Search, export, Notes, manager/attendance reads and dashboard week windows use
+start date. Sprint-date bookkeeping and remaining legacy routes are retained
+until the separate planning/Contract tickets.
+
+### Ticket hierarchy (Expand)
+
+The fixed levels are Epic → Story/Task/Bug → Subtask. Custom ordinary work-item
+types occupy the middle level. Epics have no parent; middle-level tickets have
+an optional epic parent (including another project); a Subtask requires an
+ordinary parent in the same project and sprint and has no children.
+
+- `POST /api/tasks/:id/subtasks` takes at least `{title}`. The path fixes parent
+  and Subtask type; project/sprint come from that parent, never from supplied
+  container fields. Both legacy create routes apply the same inheritance when
+  `work_item_type_id` selects Subtask.
+- `PATCH /api/tasks/:id/parent` and full edits validate both the parent and
+  children. Successful parent/type changes have transactional history.
+- Invalid relationships return `409 INVALID_HIERARCHY` with the violated rule.
+  Independent Subtask sprint/project writes return `409 SUBTASK_FOLLOWS_PARENT`,
+  including full edits, bulk placement and project-move previews.
+- Detail adds `parent` (nullable) and `subtasks` summary arrays with keys.
+  Inaccessible cross-project relationships are omitted. Render the
+  `capabilities.can.canAddSubtask` decision rather than deriving permissions.
+- Work-item-type responses include `is_subtask`. Exactly one seeded Subtask
+  type per organization stays active and cannot be deleted or made default.
+
+Migration repair snapshots and reasons are recorded in `task_hierarchy_repairs`
+and system ticket history.
+
+Parent sprint/backlog placement and project moves atomically include every
+Subtask, with history/audit for each. Project moves assign each member a new key,
+preserve its old key as an alias and map its workflow independently. Direct
+Subtask placement/project/ranking writes remain refused. Dates do not change.
+
+Backlog reads count/page parents and include their nested `subtasks`; board reads
+remain flat and provide `is_subtask` and `parent_key`. Detail adds
+`subtask_summary: { total, done }` and `effort` with
+`own_time_spent_minutes`, `total_time_spent_minutes`,
+`own_remaining_estimate_minutes`, `total_remaining_estimate_minutes`.
+Existing top-level effort fields remain the ticket's own values. Totals exclude
+deleted worklogs; an entirely unknown remaining forecast is null. Subtask story
+point writes (including zero) return `409 INVALID_HIERARCHY`; sprint metrics
+exclude Subtask and Epic points, including legacy values.
+
 ### GET `/api/tasks`
-List tasks with filtering and pagination.
+Read legacy day/sprint tasks, or opt into project List/Calendar views.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Query**: `?sprint_id=&status=todo|in_progress|review|done&priority=low|medium|high|critical&assignee_id=&date=YYYY-MM-DD&search=&page=1&limit=50`
+- **Project views**: `scope=list|calendar&project_id=…` requires project access and
+  refuses `sprint_id`. List membership is independent of dates. Calendar returns
+  only open, non-Cancelled tickets overlapping inclusive `start_date`/`end_date`
+  or a single `date`; either missing ticket date coalesces to the other.
+  `undated=1` instead returns open tickets with neither date.
+- **Filters**: `key`, `title` (case-insensitive literal substrings),
+  `work_item_type_id`, `status` (project workflow key), `assignee` (ID, `me`,
+  `unassigned`), `priority=low|medium|high`, `start_on`, `due_on` (exact days).
+- **List sort**: `sort=key|title|type|status|assignee|priority|start_date|due_date`,
+  `direction=asc|desc`. Nulls last; ID breaks ties. Priority ascending is high-first.
+- **Pagination**: at most 500 tickets per page. `offset=0` initially; advance
+  by returned count while `pagination.hasMore` is true. Legacy reads omit pagination.
+- **Legacy reads**: retain `date`, `sprint_id`, `start_date`/`end_date`, `search`,
+  `include_due`, project/team/personal visibility and existing filters.
 - **Response**:
   ```json
   {
-    "tasks": [{ "id", "title", "description", "status", "priority", "assignee", "labels", "sprint_id", "created_at", "updated_at" }],
-    "total": 100,
-    "page": 1
+    "tasks": [],
+    "stats": { "total": 0, "done": 0, "inProgress": 0, "percent": 0 },
+    "pagination": { "offset": 0, "hasMore": false }
   }
   ```
 
@@ -541,10 +619,16 @@ See `contracts/openapi.json` for the complete schemas.
 Base path: `/api/sprints`
 
 ### GET `/api/sprints`
-List team sprints sorted by status and start date.
+List team or project sprints sorted by status and start date. Project-scoped
+sprint rows include `can_manage`, which reflects the authenticated actor's
+server-side sprint lifecycle permission; clients should prefer it over role
+name checks.
 
 - **Auth**: `auth`, `loadUserContext`
-- **Response**: Array of sprint objects with task counts
+- **Response**: `{ sprints: Sprint[], currentSprintId: number | null }`.
+  Project-scoped sprint rows also include `can_manage`, which reflects the
+  authenticated actor's server-side lifecycle permission; clients should prefer
+  it over role-name checks.
 
 ### GET `/api/sprints/active`
 Get the currently active sprint (cached in Redis).
@@ -579,6 +663,37 @@ Delete a sprint.
 
 - **Auth**: `auth`, `loadUserContext`, `requireRole('team_lead')`
 - **Response**: `200 { message: "Sprint deleted" }`
+
+### GET `/api/sprints/:id/completion-preview`
+Preview the exact carryover plan used when completing a sprint.
+
+- **Query**: `rolloverTo=next|new|backlog` to preview a selected destination. Omitting it previews the default.
+- **Response**:
+  ```json
+  {
+    "supportsNewSprint": true,
+    "defaultTarget": 12,
+    "defaultTargetType": "next",
+    "selectedTarget": "new",
+    "hasNext": true,
+    "nextPlannedSprint": { "id": 12, "name": "Sprint 25" },
+    "moving": [],
+    "movingParents": [],
+    "movingSubtasks": 2,
+    "staying": [],
+    "movingPoints": 8,
+    "newSprint": { "name": "Next after Sprint 24 (9)", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD" }
+  }
+  ```
+- `moving` and `staying` contain all tickets; subtasks are grouped with their parent for movement. `movingParents` excludes subtasks, `movingSubtasks` is their count, and `movingPoints` sums the full moving set.
+- `defaultTarget` remains the legacy next-sprint ID or `"backlog"`; `supportsNewSprint` signals support for the additive target contract.
+
+### POST `/api/sprints/:id/complete`
+Complete a sprint and move its unfinished parent tickets and all their subtasks in one transaction.
+
+- **Body**: `{ "rolloverTo": "next" | "new" | "backlog" }`; omission uses the same default as the preview (next planned sprint, otherwise backlog).
+- `"new"` creates a planned sprint in the closing sprint's project, starting the day after completion and with the same inclusive duration. Numeric sprint IDs remain accepted for older clients.
+- **Response**: Existing completion fields plus `rolloverTarget`, `rolloverTargetType`, and `targetSprint`.
 
 ### GET `/api/sprints/:id/tasks`
 Get all tasks in a specific sprint.

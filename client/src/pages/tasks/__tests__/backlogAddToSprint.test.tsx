@@ -38,12 +38,7 @@ function renderCard(onAddToSprint?: (task: any) => void) {
                     <BacklogCard
                         task={task}
                         workflowStates={[]}
-                        scheduleTaskId={null}
-                        scheduleDate=""
-                        setScheduleTaskId={vi.fn()}
-                        setScheduleDate={vi.fn()}
                         onOpenDetail={vi.fn()}
-                        onScheduleTask={vi.fn()}
                         onAddToSprint={onAddToSprint}
                     />
                 </TaskProvider>

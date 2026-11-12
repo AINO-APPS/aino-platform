@@ -35,7 +35,7 @@ function installCors(app: Express): void {
             res.setHeader("Access-Control-Allow-Origin", origin);
             res.setHeader("Access-Control-Allow-Credentials", "true");
             res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
-            res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, x-timezone-offset");
+            res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, x-timezone-offset, X-AINO-Client, X-AINO-Client-Version");
             res.setHeader("Access-Control-Expose-Headers", "X-Total-Count");
         }
         if (req.method === "OPTIONS") return res.sendStatus(204);

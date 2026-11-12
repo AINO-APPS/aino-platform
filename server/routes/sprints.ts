@@ -1,11 +1,12 @@
+import { requireScrumSprint } from "./_helpers/projectSprint";
 import express from "express";
 import type { Request, Response } from "express";
 import { sprintManagementRole } from "./_helpers/sprintRole";
-import { canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
-import { completeSprint, SprintCompletionError } from "../services/sprintCompletion";
+import { addSprintManagementCapability, canManageSprint, createProjectSprint, sprintProjectIds, projectSprintVelocity, activeProjectSprint } from "../modules/tasks/tasks.sprintProjects";
+import { completeSprint, parseSprintCompletionTarget, SprintCompletionError } from "../services/sprintCompletion";
 const auth = require("../middleware/auth");
 const { loadUserContext } = require("../middleware/rbac");
-const { requireTenant, requireFeature } = require("../middleware/tenant");
+const { requireTenant } = require("../middleware/tenant");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { buildTaskCollection, listSprintTasks } = require("../modules/tasks/tasks.collection");
@@ -24,6 +25,7 @@ const {
     findSprintInOrg,
     lockSprintForDeletion,
     findSprintMemberIds,
+    findSprintReportTasks,
     deleteSprint,
     pauseSprintForOrg,
 } = require("../modules/tasks/tasks.sprintRepository");
@@ -45,19 +47,20 @@ const { notifySprintStarted, notifySprintCompleted } = require("./_helpers/sprin
 const { snapshotBurndown } = require("./_helpers/sprintBurndown");
 const { acquirePlacementLifecycleLock } = require("../modules/tasks/tasks.placementRepository");
 const router = express.Router();
-router.use(requireTenant, requireFeature("agile"));
+router.use(requireTenant);
 async function loadAccessibleSprint(req: Request, res: Response, id: number) {
     const outcome = await loadSprintForActor(req.db!, id, taskActorFromRequest(req));
     if (outcome.error) { res.status(outcome.error.status).json(outcome.error.body); return null; }
     return outcome.sprint;
 }
-router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
         if (actor.projectOwnership) {
             const projectIds = await sprintProjectIds(actor, req.query);
             const sprints = await findSprintsForProjects(req.db!, req.userOrgId, projectIds);
-            return res.json(sprintListResponse(sprints, req.query.team_id != null || req.query.project_id != null));
+            const sprintsWithCapabilities = await addSprintManagementCapability(req.db!, sprints, actor);
+            return res.json(sprintListResponse(sprintsWithCapabilities, req.query.team_id != null || req.query.project_id != null));
         }
 
         // Org admins see every team's sprints (and may filter with ?team_id=);
@@ -79,7 +82,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
         res.status(500).json({ error: "Failed to fetch sprints" });
     }
 });
-router.get("/active", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/active", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
         if (actor.projectOwnership) {
@@ -114,7 +117,7 @@ router.get("/active", auth, loadUserContext, async (req: Request, res: Response)
     }
 });
 
-router.post("/", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.post("/", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
         if (!actor.projectOwnership && !req.userTeamId) return res.status(403).json({ error: "You must be assigned to a team to create sprints" });
@@ -140,16 +143,16 @@ router.post("/", auth, loadUserContext, sprintManagementRole, async (req: Reques
         });
         res.json({ sprint: newSprint });
     } catch (err) {
+        if ((err as any)?.code === "23514" && (err as any)?.message === "PROJECT_HAS_NO_SPRINTS") return res.status(409).json({ error: "Sprints are only available in Scrum projects.", code: "PROJECT_HAS_NO_SPRINTS" });
         req.log.error({ err }, "Error creating sprint:");
         res.status(500).json({ error: "Failed to create sprint" });
     }
 });
-
 function sprintAlreadyActive(res: Response, running: RunningSprint): Response {
     return res.status(409).json(sprintAlreadyActiveBody(running));
 }
 
-router.put("/:id", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.put("/:id", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, start_date, end_date, goal, status } = req.body;
@@ -205,7 +208,7 @@ router.put("/:id", auth, loadUserContext, sprintManagementRole, async (req: Requ
     }
 });
 
-router.delete("/:id", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.delete("/:id", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
@@ -240,8 +243,8 @@ router.delete("/:id", auth, loadUserContext, sprintManagementRole, async (req: R
         res.status(500).json({ error: "Failed to delete sprint" });
     }
 });
-router.get("/:id/board", auth, loadUserContext, require("./_helpers/sprintBoard").getSprintBoard(loadAccessibleSprint));
-router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/board", auth, loadUserContext, requireScrumSprint, require("./_helpers/sprintBoard").getSprintBoard(loadAccessibleSprint));
+router.get("/:id/tasks", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const sprint = await loadAccessibleSprint(req, res, Number(id));
@@ -274,7 +277,7 @@ router.get("/:id/tasks", auth, loadUserContext, async (req: Request, res: Respon
 //
 // Org admins can request stats for any sprint in their org; others limited
 // to their own team. Visible to any member of the team.
-router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/stats", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -282,13 +285,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
         const sprint = await loadAccessibleSprint(req, res, id);
         if (!sprint) return;
 
-        const tasks = (await req.db!.query(
-            `SELECT t.id, t.title, t.workflow_state_id, t.work_item_type_id,
-                    t.story_points, t.assigned_to, t.is_blocked, t.completed_at, t.priority
-               FROM tasks t
-              WHERE t.sprint_id = $1`,
-            [id]
-        )).rows;
+        const tasks = await findSprintReportTasks(req.db!, id);
 
         // Pull workflow state metadata (category, terminal flag) and type metadata
         const stateIds = [...new Set(tasks.map((t: any) => t.workflow_state_id).filter(Boolean))];
@@ -414,7 +411,7 @@ router.get("/:id/stats", auth, loadUserContext, async (req: Request, res: Respon
 // Transitions a sprint from 'planned' → 'active'. Enforces:
 //   - Only one active sprint per team at a time (409 while another is active).
 //   - Captures the scope baseline and the day-0 burndown snapshot.
-router.post("/:id/start", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.post("/:id/start", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
@@ -437,39 +434,26 @@ router.post("/:id/start", auth, loadUserContext, sprintManagementRole, async (re
         req.log.error({ err }, "Error starting sprint");
         res.status(500).json({ error: "Failed to start sprint" });
     }
-});// ─── Sprint lifecycle: COMPLETE (with optional rollover) ────────────────────
+});// ─── Sprint lifecycle: COMPLETE (with optional carryover target) ─────────────
 //
-// Body: { rolloverTo?: <sprintId or "backlog"> }
-//   - "backlog" (default) — moves any incomplete tickets to the backlog
-//     (sprint_id = NULL) so they can be re-prioritised.
-//   - sprintId — bulk-assigns the incomplete tickets to that next sprint.
-router.post("/:id/complete", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+// The target vocabulary is shared with GET /:id/completion-preview. Omitting
+// rolloverTo uses its default: the next planned sprint, or the backlog.
+router.post("/:id/complete", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { rolloverTo } = req.body || {};
+        const rolloverTo = parseSprintCompletionTarget(req.body?.rolloverTo);
+        if (rolloverTo === null) return res.status(400).json({ error: "Invalid rolloverTo target" });
 
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status === "completed") return res.status(409).json({ error: "Sprint already completed" });
 
-        let targetSprintId: number | null = null;
-        if (rolloverTo && rolloverTo !== "backlog") {
-            targetSprintId = parseInt(String(rolloverTo), 10);
-            if (isNaN(targetSprintId)) return res.status(400).json({ error: "Invalid rolloverTo sprint id" });
-            const target = (await req.db!.query(
-                `SELECT id, name, status FROM sprints WHERE id = $1 AND ${req.projectOwnership ? "project_id" : "team_id"} = $2`,
-                [targetSprintId, req.projectOwnership ? sprint.project_id : sprint.team_id]
-            )).rows[0];
-            if (!target) return res.status(400).json({ error: "Target sprint not found" });
-            if (target.status === "completed") return res.status(400).json({ error: "Cannot roll over to a completed sprint" });
-        }
-
         const actor = taskActorFromRequest(req);
         const xff = req.headers?.["x-forwarded-for"];
         const completion = await completeSprint(req.db! as any, {
             sprintId: Number(id),
-            targetSprintId,
+            target: rolloverTo,
             projectOwnership: req.projectOwnership,
             actor: {
                 userId: actor.userId,
@@ -499,10 +483,19 @@ router.post("/:id/complete", auth, loadUserContext, sprintManagementRole, async 
             doneTasks: completion.doneTasks,
             totalTasks: completion.totalTasks,
             rolledOver: completion.rolledOver,
+            rolloverTarget: completion.rolloverTarget,
+            rolloverTargetType: completion.rolloverTargetType,
+            targetSprint: completion.targetSprint ? {
+                id: completion.targetSprint.id,
+                name: completion.targetSprint.name,
+                start_date: completion.targetSprint.start_date,
+                end_date: completion.targetSprint.end_date,
+            } : null,
         });
     } catch (err) {
         if (err instanceof SprintCompletionError) {
-            return res.status(err.code === "TARGET_INVALID" ? 400 : 409).json({ error: err.message, code: err.code });
+            return res.status(err.code === "TARGET_INVALID" ? 400 : 409)
+                .json({ error: err.message, code: err.code });
         }
         req.log.error({ err }, "Error completing sprint");
         res.status(500).json({ error: "Failed to complete sprint" });
@@ -514,7 +507,7 @@ router.post("/:id/complete", auth, loadUserContext, sprintManagementRole, async 
 // Pauses an active sprint. Sets status='paused' + paused_at and flags the team
 // as paused so the auto-scheduler skips it (the cadence clock effectively
 // freezes). Restricted to team_lead and above (manager / admins inherit).
-router.post("/:id/pause", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.post("/:id/pause", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
@@ -537,7 +530,7 @@ router.post("/:id/pause", auth, loadUserContext, sprintManagementRole, async (re
 
 // ─── Sprint lifecycle: RESUME ───────────────────────────────────────────────
 // Re-activates, shifts end_date by the pause duration, and restarts the team's auto-scheduler.
-router.post("/:id/resume", auth, loadUserContext, sprintManagementRole, async (req: Request, res: Response) => {
+router.post("/:id/resume", auth, loadUserContext, requireScrumSprint, sprintManagementRole, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const sprint = await findSprintInOrg(req.db!, id, req.userOrgId ?? null);
@@ -578,7 +571,7 @@ router.post("/:id/resume", auth, loadUserContext, sprintManagementRole, async (r
 // (tasks.carried_over_from_sprint_id points at the origin sprint), along with
 // the origin sprint metadata so the UI can link back. Visible to any member of
 // the team (and org admins).
-router.get("/:id/carried-over", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/carried-over", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -612,7 +605,7 @@ router.get("/:id/carried-over", auth, loadUserContext, async (req: Request, res:
 //
 // Returns the per-day snapshot series + an "ideal" line computed from the
 // total starting scope and the sprint duration.
-router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/burndown", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -660,7 +653,7 @@ router.get("/:id/burndown", auth, loadUserContext, async (req: Request, res: Res
 });
 
 // ─── Velocity (last N completed sprints for the team) ───────────────────────
-router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/velocity/recent", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
         if (actor.projectOwnership) {
@@ -703,7 +696,7 @@ router.get("/velocity/recent", auth, loadUserContext, async (req: Request, res: 
 // We approximate the historical state by walking task_history rows up to the
 // snapshot date. This is cheap-ish for sprint-scoped task sets and avoids the
 // need for a daily snapshot table.
-router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/cumulative-flow", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -816,7 +809,7 @@ router.get("/:id/cumulative-flow", auth, loadUserContext, async (req: Request, r
 // Returns per-task cycle time (cycle_started_at → completed_at) and lead time
 // (lead_started_at → completed_at) for every completed task in the sprint,
 // plus aggregate stats (avg / median / p90 in days) used by the Insights view.
-router.get("/:id/cycle-time", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/cycle-time", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -884,7 +877,7 @@ function normalizeActionItems(value: any): any[] {
     })).filter((it: any) => it.text);
 }
 
-router.get("/:id/retrospective", auth, loadUserContext, async (req: Request, res: Response) => {
+router.get("/:id/retrospective", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });
@@ -907,7 +900,7 @@ router.get("/:id/retrospective", auth, loadUserContext, async (req: Request, res
 
 // PUT /sprints/:id/retrospective — upsert. Anyone on the same team can edit;
 // the row tracks created_by + updated_by separately.
-router.put("/:id/retrospective", auth, loadUserContext, async (req: Request, res: Response) => {
+router.put("/:id/retrospective", auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: "Invalid sprint id" });

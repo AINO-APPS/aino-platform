@@ -14,7 +14,7 @@ beforeEach(() => {
     searchTasks.mockReset().mockResolvedValue({ data: [] });
 });
 
-const views = paletteViews("7");
+const views = paletteViews("7", ["backlog", "sprint", "reports"]);
 const actions = [
     { id: "action-new-task", label: "New task", run: vi.fn() },
     { id: "action-toggle-completed", label: "Toggle completed", run: vi.fn() },
@@ -32,7 +32,6 @@ describe("buildPaletteItems", () => {
         });
         expect(items.map((item) => item.group)).toEqual([
             "tasks",
-            "views",
             "views",
             "views",
             "views",
@@ -93,12 +92,19 @@ describe("buildPaletteItems", () => {
             onGoToView: vi.fn(),
         });
         expect(items.map((item) => item.label)).toEqual([
+            "Reports",
             "Backlog",
             "Sprint board",
             "Sprint plan",
-            "Schedule",
-            "Service desk",
         ]);
+    });
+
+    test.each([
+        [["board"], ["Board"]],
+        [["board", "backlog"], ["Board", "Backlog"]],
+        [["list", "board", "calendar"], ["Board", "List", "Calendar"]],
+    ])("only server-provided tabs %j are reachable", (tabs, labels) => {
+        expect(paletteViews(null, tabs).map((view) => view.label)).toEqual(labels);
     });
 
     test("selecting a task opens it", () => {

@@ -1,7 +1,8 @@
-# WorkPulse Tasks — Backlog / Sprint / Schedule Design Spec
+# WorkPulse Tasks — Historical Backlog / Sprint / Schedule Design Spec
 
-**Status:** approved design, not yet implemented
-**Date:** 2026-10-25
+**Status:** historical design; current project planning decisions are defined by
+[ADR-018](adr/ADR-018-project-types.md) and the project-type rollout.
+**Date:** 2026-10-25 (historical)
 **Scope:** the Tasks area (Backlog, Sprint, Schedule) of every WorkPulse client
 **Parity matrix:** [`contracts/tasks-parity.json`](../contracts/tasks-parity.json)
 **Parity gate:** `node scripts/validate-tasks-parity.mjs` (wired into `contracts:validate`)
@@ -18,6 +19,14 @@ for integrated validation and outstanding cross-branch parity gaps.
 This is the single source of truth for the Tasks domain model, information
 architecture, per-view behaviour, API surface, and per-client parity. It follows
 the convention established by [`CHAT_DESIGN_SPEC.md`](./CHAT_DESIGN_SPEC.md).
+
+> **Current model:** ADR-018 supersedes this spec's earlier Scheduled container
+> and Continuous sprint model. Tickets are placed in Scrum sprints/backlog,
+> Kanban boards (optionally with backlog), or Task list views. Start and due
+> dates are fields, not containers. Ticket 05 removes current web Scheduled
+> planning and automatic sprint controls while retaining legacy endpoint
+> compatibility until ticket 11. The decision table below retains prior
+> decisions for historical context; D57 is authoritative where they conflict.
 
 ---
 
@@ -221,6 +230,10 @@ are referenced by the parity matrix and the phase plan.
 | D51 | **Schedule overlays** show approved leave, holidays and booked meetings as read-only, independently toggleable background bands — reusing existing data instead of building a capacity model (which D33 defers). |
 | D52 | **Team mode is web-only configuration.** `server/middleware/webOnly.ts` already blocks agile editor/reviewer routes for native clients, so the Continuous/Sprints switch is edited on web and only *read* by Android and the iOS webview. |
 | D53 | **The home card shows the running sprint or this week — never the backlog.** With an active sprint (and the tenant `agile` feature) it lists the viewer's tickets in that sprint; otherwise the tickets assigned to the viewer with a `planned_date` in this Monday–Sunday window, with open tickets planned before it pinned as **Overdue**. Both modes keep strictly `assigned_to = me` and drop `cancelled`, which the date-range query does not exclude; an empty week says so instead of falling back to the backlog, because a section whose meaning flips is the ambiguity ADR-015 exists to end. |
+| D56 | **Project-type controls (ADR-018):** project admins change type; leaving Scrum refuses planned, active or paused sprints. `agile` controls creation/change destinations only, not existing work. Server project responses decide ordered Plan tabs, backlog/sprint policy and type capabilities. Web/desktop Task list projects provide List (eight-field filters/sorts), the shared project Board, and Calendar (inclusive start-to-due spans, single dates, undated open work, capability-controlled date dragging/editor, read-only overlays). Android upcoming remains a separate pending slice; the calendar is web-only. |
+| D57 | **Scrum planning without Scheduled or auto sprints (ADR-018):** Backlog, Sprint and Reports tabs remain stable; empty Sprint links to Backlog. Sprint membership and end-date edits never retime ticket due dates. The sprint board shows both dates. Automatic sprint controls/scheduler and current web Scheduled planning are removed; migration 0032 safely retires existing automatic sprints and restores only untouched sprint-derived due dates. |
+| D58 | **Ticket hierarchy (ADR-018, Expand):** Epic → Story/Task/Bug → Subtask is validated on create, parent/type edits and project moves. Subtasks inherit parent project/sprint at create and reject independent placement. Detail returns visible parent/subtask summaries and `canAddSubtask`; the seeded Subtask type is protected. Migration repairs retain snapshots and system history. Cascading moves, nesting and rollups follow in ticket 07. |
+| D59 | **Client-version observation and upgrade readiness (ticket 09):** platform-wide OFF (default) or REPORT only. Authenticated last-seen adoption is distinct by tenant-safe principal, client and bundled version over 30 days, retained independently of login session lifetime. Public `/api/client-versions` exposes mode/minimums. Web/desktop send immutable web build identity on every first-party API transport; all API 426 failures reach the global blocking reload or existing desktop updater/restart boundary. Released planning never falls back to Scheduled, timers or team scope; unswitched tenants see an explicit migration-needed state, without changing their ownership switch. Android/release proof is separate; enforcement and legacy server removal remain tickets 10/11. |
 | D55 | **Project-owned creation (ADR-017):** web/desktop and Android require an active `canCreateTickets` project, defaulting to the current or last-used project. Older clients may omit it; the server resolves request → sprint → legacy team project → General. Archived/viewer-only destinations are refused. Create, edit, bulk and plan placement use `SPRINT_PROJECT_MISMATCH` when a sprint belongs to another project. |
 | D54 | **Project moves are transactional placements (ADR-017).** With project ownership on, `canMoveProject` requires member or higher in the active source project. Web/desktop and Android select a creatable project, preview `POST /tasks/:id/move-project/preview { project_id }`, then confirm `POST /tasks/:id/move-project`. Both validate source/target grants and archive state and share workflow mapping (active key, first active category by order/id, initial fallback). Preview reserves no number. Commit allocates the target key, aliases the old key, clears the source project's sprint while restoring the personal due date and retaining a planned day, writes history/audit, then emits `task_updated`. Project moves retain legacy `team_id`; `/transfer` keeps its envelope and maps the target team to its generated project, changing `team_id` only before switch-over. Older Android clients' legacy transfer remains supported until the Phase 3 gate. |
 
@@ -524,6 +537,14 @@ is absent. `/tasks` redirects to `/tasks/backlog` preserving the query string.
 - Overdue items appear in a pinned strip above the calendar, not inside past days.
 
 ### 7.5 Task detail
+
+**Project-types Expand (ticket 02):** the date field is now **Start date**
+(`start_date`), separate from Due date, editable even within a sprint under the
+server's edit capability. Date edits write history without changing placement.
+`planned_date` remains a legacy alias. My Work's D53 week window and all
+date-driven readers use start date. ADR-018's remaining removal and sprint-date
+changes ship separately; the historical container decisions below are retained
+for that rollout, not new date-edit behavior.
 
 Kept as the deep surface. Changes: bottom sheet on narrow viewports (D39),
 `planned_date` and `due_date` shown as distinct fields with distinct labels, a

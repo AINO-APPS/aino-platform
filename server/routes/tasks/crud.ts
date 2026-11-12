@@ -10,7 +10,10 @@
 import express from "express";
 import type { Request, Response } from "express";
 import type { LifecycleContext } from "../../modules/tasks/tasks.workflow";
+import { guardLifecycleWrite, LifecycleWriteError, withLifecycleWrite } from "../../modules/tasks/tasks.workflowWrite";
 import type { TransactionContext } from "../../types/domain";
+import { assertTicketHierarchy, hierarchyParentId, getHierarchyType, recordHierarchyHistory } from "../../modules/tasks/tasks.hierarchy";
+import { prepareHierarchyCreate, sendHierarchyRefusal } from "./_helpers/hierarchy";
 const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { getLocalToday } = require('../../utils/timezone');
@@ -22,8 +25,6 @@ const { logHistory } = require('./_helpers/logHistory');
 const { ticketActionConflict, ticketCreationConflict, denyTaskAccess, ACCESS_DENIED } = require("./_helpers/access");
 const {
     isOrgAdmin,
-    rejectsForeignTeamRequest,
-    resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
@@ -32,13 +33,13 @@ const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusE
 const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
-const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
-const { resolveSprintTarget, resolveEditDates, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { resolveSprintTarget, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { requestedStartDate, resolveTicketDates, setTicketStartDate, lockTicketDates, recordDateHistory } = require('../../modules/tasks/tasks.dates');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
-const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
+const { placementContext, placedOrThrow, sendPlacementRefusal, PlacementRefused } = require('./_helpers/placement');
 const {
     validateStoryPoints,
     resolveWorkItemType,
@@ -55,61 +56,12 @@ interface DbLike {
 
 const router = express.Router();
 
-// ─── Get tasks for a specific date or date range ─────────────────────────
-router.get('/', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const { date, start_date, end_date, sprint_id, scope, include_due, assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
-
-        // One policy for every list surface. Admins may ask for a team (the
-        // Plan team switcher) or the Unassigned bucket; a non-admin asking for
-        // a foreign team is rejected rather than silently narrowed.
-        const actor = taskActorFromRequest(req);
-        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
-            return res.status(403).json({ error: ACCESS_DENIED });
-        }
-        const visibility = await resolveTaskVisibilityForRequest(actor, {
-            scope,
-            teamId: Number.isNaN(requestedTeamId as number)
-                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
-                : requestedTeamId,
-            projectId: project_id ? Number.parseInt(project_id, 10) : null,
-            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
-        });
-
-        const collection = buildTaskCollection({
-            scope: 'schedule',
-            orgId: req.userOrgId || null,
-            visibility,
-            sprintId: sprint_id ? parseInt(sprint_id, 10) : undefined,
-            startDate: start_date,
-            endDate: end_date,
-            date: date || (sprint_id || (start_date && end_date) ? undefined : getLocalToday(req)),
-            filters: { assignee, label, priority, status, search, projectId: project_id, includeDue: include_due === '1' },
-        });
-
-        const tasks = (await req.db!.query(`
-            SELECT t.* FROM tasks t
-            WHERE ${collection.whereSql}
-            ORDER BY ${collection.orderSql}
-            LIMIT 500
-        `, collection.params)).rows;
-
-        const enriched = await enrichTasks(tasks, req.db, actor);
-        const total = enriched.length;
-        const done = enriched.filter((t: any) => t.workflow_state_category === 'done').length;
-        const inProgress = enriched.filter((t: any) => t.workflow_state_category === 'in_progress').length;
-
-        res.json({ tasks: enriched, stats: { total, done, inProgress, percent: total > 0 ? Math.round((done / total) * 100) : 0 } });
-    } catch (err) {
-        req.log.error({ err: err }, 'Error fetching tasks:');
-        res.status(500).json({ error: 'Failed to fetch tasks' });
-    }
-});
+router.use(require("./collection"));
 
 // ─── Add a task ──────────────────────────────────────────────────────────
 router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        if (!await prepareHierarchyCreate(req, res)) return;
         const { title, description, priority, date, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
@@ -117,7 +69,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        const targetDate = date || getLocalToday(req);
+        const targetDate = requestedStartDate(req.body, date || getLocalToday(req));
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
         let assignedTo = null;
@@ -130,24 +82,14 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             assignedTo = assigned_to;
         }
 
-        // Bug #15: reject a due date before the scheduled day so an impossible
-        // ticket cannot be created.
-        const created = resolveEditDates({
-            currentDueDate: null,
-            currentPlannedDate: targetDate ?? null,
-            requestedDueDate: due_date ?? undefined,
-        });
-        if (created.error) return res.status(400).json(created.error.body);
+        const created = resolveTicketDates({}, { start_date: targetDate, due_date });
+        if (created.error) return res.status(400).json({ error: created.error });
         let validDueDate = created.dueDate;
 
         let validSprintId = null;
         let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
-        // Sprint assignment is part of the Agile feature bundle — when the
-        // tenant's "Agile & Sprints" flag is off (plan default or feature
-        // override) silently ignore any sprint_id so a stale client can't
-        // sneak a task into a sprint.
-        const { isFeatureEnabled } = require('../../utils/planCatalog');
-        if (sprint_id && isFeatureEnabled((req as any).tenant, 'agile')) {
+        // Sprint assignment follows the destination project, not its feature flag.
+        if (sprint_id) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
@@ -186,6 +128,9 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         const sp = validateStoryPoints(story_points);
         const witRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+        if (work_item_type_id != null && work_item_type_id !== "" && !witRow) {
+            return res.status(400).json({ error: "Invalid or inactive work_item_type" });
+        }
         const wsRow = await resolveWorkflowState(workflow_state_id, req.userOrgId, req.db, validProjectId);
         const witId = witRow ? witRow.id : (await getDefaultWorkItemType(req.userOrgId, req.db))?.id || null;
         const initialState = wsRow || (await getInitialWorkflowState(req.userOrgId, req.db, validProjectId));
@@ -193,14 +138,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         const ac = normalizeAcceptanceCriteria(acceptance_criteria);
         const isBlocked = !!is_blocked;
         const blockedReason = isBlocked ? (blocked_reason ? String(blocked_reason).slice(0, 500) : null) : null;
-        let parentTaskId = null;
-        if (parent_task_id) {
-            const parentNum = parseInt(parent_task_id, 10);
-            if (!isNaN(parentNum)) {
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (parent && parent.org_id === req.userOrgId) parentTaskId = parent.id;
-            }
-        }
+        const parentTaskId = hierarchyParentId(parent_task_id);
 
         // Bug #1 (Stage 2): the INSERT + label sync + history were three
         // separate statements. A failure between them left orphan rows (e.g.
@@ -209,6 +147,10 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         //
         // Reserve the key and place the ticket in the same transaction.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
+            const hierarchy = await assertTicketHierarchy(client, {
+                org_id: req.userOrgId ?? null, project_id: validProjectId,
+                work_item_type_id: witId, parent_task_id: parentTaskId, sprint_id: validSprintId, story_points: sp,
+            }, taskActorFromRequest(req));
             let taskNumber = null;
             if (validProjectId) {
                 const numRes = await client.query(
@@ -241,10 +183,11 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
                 await syncLabels(newId, label_ids, req.userOrgId, { query: client.query.bind(client) });
             }
             await logHistory(newId, req.userId, 'created', null, null, null, client, req.db);
-            placedOrThrow(await placeTickets(
-                placementContext(req, client, afterCommit, { notify: false }),
-                [newId],
-                validSprintId ? { sprint: validSprintId } : { day: targetDate },
+            if (parentTaskId != null) await logHistory(newId, req.userId, 'updated', 'parent', null, parentTaskId, client, req.db);
+            await setTicketStartDate(client, { id: newId }, created.startDate, req.userId);
+            if (validSprintId) placedOrThrow(await placeTickets(
+                { ...placementContext(req, client, afterCommit, { notify: false }),
+                    creatingSubtaskOf: hierarchy.ticket.is_subtask ? parentTaskId! : undefined }, [newId], { sprint: validSprintId },
             ));
             return newId;
         });
@@ -264,6 +207,7 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error creating task:');
         res.status(500).json({ error: 'Failed to create task' });
@@ -329,11 +273,11 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         const startsCycle = wasOpen && targetIsStartOfWork;
         if (startsCycle) cycleStartedAtClause = ', cycle_started_at = NOW()';
 
-        await req.db!.query(
+        await withLifecycleWrite(req.db!, req.userOrgId, task, target, actor, (client) => client.query(
             `UPDATE tasks SET workflow_state_id = $1${cycleStartedAtClause}
               WHERE id = $2`,
             [target.id, id]
-        );
+        ));
 
         const statusChanged = String(task.workflow_state_id ?? '') !== String(target.id ?? '');
         const statusActor = await findActorName(req.db!, req.userId);
@@ -356,6 +300,7 @@ router.patch('/:id/status', auth, loadUserContext, async (req: Request, res: Res
         }
         res.json(enriched[0]);
     } catch (err) {
+        if (err instanceof LifecycleWriteError) return res.status(err.conflict.status).json(err.conflict.body);
         req.log.error({ err: err }, 'Error updating task status:');
         res.status(500).json({ error: 'Failed to update task status' });
     }
@@ -366,7 +311,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
     try {
         const id = parseInt(String(req.params.id), 10);
         if (isNaN(id)) return res.status(400).json({ error: 'Invalid task ID' });
-        const { title, description, priority, assigned_to, due_date, planned_date, label_ids, sprint_id,
+        const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
             acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
@@ -378,6 +323,11 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         const decisionContext = await loadTicketDecisionContext(req.db!, actor, [task]);
         const refusal = await ticketActionConflict(req.db!, actor, task, changesState ? "changeState" : "edit", decisionContext);
         if (refusal) return res.status(refusal.status).json(refusal.body);
+        if (decisionContext.subtaskIds?.has(id) && (sprint_id !== undefined
+            || project_id !== undefined && String(project_id ?? "") !== String(task.project_id ?? ""))) {
+            return res.status(409).json({ code: "SUBTASK_FOLLOWS_PARENT",
+                error: "A subtask follows its parent's project and sprint and cannot move independently." });
+        }
 
         // Stage 3: allow assigning a task to a project *only if it has none
         // yet*. Re-keying an existing task (PROJ-12 → OTHER-7) would orphan
@@ -442,12 +392,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             }
         }
 
-        // Where the edit moves the ticket, if anywhere (ADR-015). The agile gate
-        // keeps sprint moves off entirely when the tenant disables it; a planned
-        // day on a sprinted ticket is ignored because the sprint wins.
-        const { isFeatureEnabled: isAgileFeatureEnabled } = require('../../utils/planCatalog');
+        // Sprint destinations follow project type; dates remain independent of placement.
         let requestedSprint: { id: number } | null | undefined;
-        if (sprint_id !== undefined && isAgileFeatureEnabled((req as any).tenant, 'agile')) {
+        if (sprint_id !== undefined) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
@@ -461,20 +408,16 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         const move = editPlacement({
             requestedSprint,
-            requestedPlannedDate: planned_date,
+            requestedPlannedDate: undefined,
             currentSprintId: task.sprint_id,
             currentPlannedDate: task.planned_date ?? null,
         });
         const placementTarget = move.target;
 
-        // The pair rule between the two dates (Bug #15), against where the ticket will be.
-        const dueDateRequested = due_date !== undefined && !move.joinsSprint;
-        const dates = resolveEditDates({
-            currentDueDate: task.due_date,
-            currentPlannedDate: move.plannedAfter,
-            requestedDueDate: dueDateRequested ? due_date : undefined,
-        });
-        if (dates.error) return res.status(dates.error.status).json(dates.error.body);
+        // Ticket 05 retains ownership of the legacy sprint deadline override.
+        const dueDateRequested = due_date !== undefined;
+        const dates = resolveTicketDates(task, { ...req.body, due_date: dueDateRequested ? due_date : undefined });
+        if (dates.error) return res.status(400).json({ error: dates.error });
 
         // Resolve agile fields (only update if explicitly supplied)
         let newStoryPoints = task.story_points;
@@ -488,6 +431,10 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 newWitId = null;
             } else {
                 newWitRow = await resolveWorkItemType(work_item_type_id, req.userOrgId, req.db);
+                if (!newWitRow) {
+                    const stored = await getHierarchyType(req.db!, work_item_type_id, req.userOrgId ?? null, false);
+                    if (stored && String(stored.id) === String(task.work_item_type_id)) newWitRow = stored;
+                }
                 if (!newWitRow) return res.status(400).json({ error: 'Invalid work_item_type' });
                 newWitId = newWitRow.id;
             }
@@ -516,15 +463,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         }
         let newParentTaskId = task.parent_task_id;
         if (parent_task_id !== undefined) {
-            if (parent_task_id === null || parent_task_id === '') {
-                newParentTaskId = null;
-            } else {
-                const parentNum = parseInt(parent_task_id, 10);
-                if (isNaN(parentNum) || parentNum === id) return res.status(400).json({ error: 'Invalid parent_task_id' });
-                const parent = (await req.db!.query('SELECT id, org_id FROM tasks WHERE id = $1', [parentNum])).rows[0];
-                if (!parent || parent.org_id !== req.userOrgId) return res.status(400).json({ error: 'Parent task not found' });
-                newParentTaskId = parent.id;
-            }
+            newParentTaskId = hierarchyParentId(parent_task_id);
         }
         let newAc = task.acceptance_criteria;
         if (acceptance_criteria !== undefined) {
@@ -539,12 +478,32 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (blocked_reason !== undefined) {
             newBlockedReason = blocked_reason ? String(blocked_reason).slice(0, 500) : null;
         }
-
         // One transaction: the move first (placement owns sprint, planned day and
         // the due-date bookkeeping), then the plain fields. A due date the user
         // typed is applied after the move, so it wins over a restored one.
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
-            let row = task;
+            const hierarchy = await assertTicketHierarchy(client, {
+                id, org_id: req.userOrgId ?? null,
+                story_points: newStoryPoints,
+                ...(work_item_type_id === undefined ? {} : { work_item_type_id: newWitId }),
+                ...(parent_task_id === undefined ? {} : { parent_task_id: newParentTaskId }),
+                ...(wantsProjectAssign ? { project_id: newProjectId } : {}),
+            }, actor);
+            if (hierarchy.ticket.is_subtask && (sprint_id !== undefined
+                || project_id !== undefined && String(project_id ?? "") !== String(hierarchy.ticket.project_id ?? ""))) {
+                throw new PlacementRefused({ id, ok: false, code: "SUBTASK_FOLLOWS_PARENT",
+                    error: "A subtask follows its parent's project and sprint and cannot move independently." });
+            }
+            newParentTaskId = hierarchy.ticket.parent_task_id;
+            newWitId = hierarchy.ticket.work_item_type_id;
+            newProjectId = hierarchy.ticket.project_id;
+            if (!wantsProjectAssign) newTaskNumber = hierarchy.current.task_number;
+            if (stateChanged) await guardLifecycleWrite(client, req.userOrgId, task, newWsRow, actor);
+            const current = requestedStartDate(req.body) !== undefined || dueDateRequested
+                ? await lockTicketDates(client, id) : task;
+            let row = current;
+            const lockedDates = resolveTicketDates(current, { ...req.body, due_date: dueDateRequested ? due_date : undefined });
+            if (lockedDates.error) throw Object.assign(new Error(lockedDates.error), { dateError: true });
             if (placementTarget) {
                 row = placedOrThrow(await placeTickets(
                     placementContext(req, client, afterCommit), [id], placementTarget,
@@ -558,16 +517,25 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                     project_id = $13, task_number = $14
                   WHERE id = $15`,
                 [newTitle, newDesc, newPriority, newAssignedTo,
-                    dueDateRequested ? dates.dueDate : row.due_date,
+                    dueDateRequested ? lockedDates.dueDate : row.due_date,
                     newStoryPoints, newWitId, newWsId, newParentTaskId,
                     newAc !== null && newAc !== undefined ? JSON.stringify(newAc) : null,
                     newIsBlocked, newBlockedReason, newProjectId, newTaskNumber, id]
             );
+            await recordHierarchyHistory(client, id, req.userId!, "parent", hierarchy.current.parent_task_id, newParentTaskId);
+            if (String(hierarchy.current.work_item_type_id ?? "") !== String(newWitId ?? "")) {
+                const oldType = await getHierarchyType(client, hierarchy.current.work_item_type_id, req.userOrgId ?? null, false);
+                const newType = await getHierarchyType(client, newWitId, req.userOrgId ?? null);
+                await recordHierarchyHistory(client, id, req.userId!, "work_item_type", oldType?.name, newType?.name);
+            }
+            if (requestedStartDate(req.body) !== undefined) {
+                await setTicketStartDate(client, current, lockedDates.startDate, req.userId);
+            }
+            if (dueDateRequested && (row.due_date ?? null) !== lockedDates.dueDate) {
+                await recordDateHistory(client, id, req.userId, "due_date", row.due_date, lockedDates.dueDate);
+            }
             return row;
         });
-        // History for the container fields was written by placement; this
-        // route only records a due date it set over the placed value.
-        const newDueDate = dueDateRequested ? dates.dueDate : placedRow.due_date;
 
         // Log a project assignment as a first-class history event so users
         // can see when a previously-keyless task picked up an issue key.
@@ -591,9 +559,6 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const newLabel = newUser?.full_name || newUser?.username || 'unassigned';
             await logHistory(id, req.userId, 'updated', 'assigned_to', oldLabel, newLabel, null, req.db);
         }
-        if (String(newDueDate ?? '') !== String(placedRow.due_date ?? '')) {
-            await logHistory(id, req.userId, 'updated', 'due_date', placedRow.due_date, newDueDate, null, req.db);
-        }
         // Normalize for comparison: DB returns NUMERIC as a string like '8.00',
         // while newStoryPoints is a JS number (e.g. 8). A naive string compare
         // would mark every edit as a change. Compare numerically and treat
@@ -607,17 +572,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             // than "8.00 → 9" (Postgres NUMERIC vs JS number formatting).
             await logHistory(id, req.userId, 'updated', 'story_points', oldSpNum, newSpNum, null, req.db);
         }
-        if (String(newWitId ?? '') !== String(task.work_item_type_id ?? '')) {
-            const oldWit = task.work_item_type_id ? (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [task.work_item_type_id])).rows[0] : null;
-            const newWit = newWitId ? (newWitRow || (await req.db!.query('SELECT name FROM work_item_types WHERE id = $1', [newWitId])).rows[0]) : null;
-            await logHistory(id, req.userId, 'updated', 'work_item_type', oldWit?.name || 'none', newWit?.name || 'none', null, req.db);
-        }
         const statusActor = await findActorName(req.db!, req.userId);
         if (stateChanged) {
             await logHistory(id, req.userId, 'status_change', 'workflow_state', task.workflow_state_id, newWsId, null, req.db);
-        }
-        if (String(newParentTaskId ?? '') !== String(task.parent_task_id ?? '')) {
-            await logHistory(id, req.userId, 'updated', 'parent', task.parent_task_id || 'none', newParentTaskId || 'none', null, req.db);
         }
         if (!!newIsBlocked !== !!task.is_blocked) {
             await logHistory(id, req.userId, 'updated', 'is_blocked', String(task.is_blocked), String(newIsBlocked), null, req.db);
@@ -668,6 +625,9 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
 
         res.json(enriched[0]);
     } catch (err) {
+        if (sendHierarchyRefusal(res, err)) return;
+        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
+        if (err instanceof LifecycleWriteError) return res.status(err.conflict.status).json(err.conflict.body);
         if (sendPlacementRefusal(res, err)) return;
         req.log.error({ err: err }, 'Error updating task:');
         res.status(500).json({ error: 'Failed to update task' });

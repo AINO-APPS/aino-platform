@@ -264,6 +264,7 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             completed_at TIMESTAMPTZ,
             assigned_to  INTEGER REFERENCES users(id) ON DELETE SET NULL,
             due_date     DATE,
+            start_date   DATE,
             sprint_id    INTEGER,
             original_estimate_minutes INTEGER CONSTRAINT tasks_original_estimate_nonnegative CHECK (original_estimate_minutes >= 0),
             remaining_estimate_minutes INTEGER CONSTRAINT tasks_remaining_estimate_nonnegative CHECK (remaining_estimate_minutes >= 0)
@@ -305,6 +306,9 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             id         TEXT PRIMARY KEY,
             user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             device     TEXT,
+            observed_client_class TEXT,
+            client_version TEXT,
+            client_version_seen_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     `);

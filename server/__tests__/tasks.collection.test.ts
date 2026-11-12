@@ -56,7 +56,7 @@ describe("task collection builder", () => {
 
         expect(backlog.whereSql).toContain("t.sprint_id IS NULL");
         expect(board.whereSql).toMatch(/t\.sprint_id = \$\d+/);
-        expect(schedule.whereSql).toMatch(/t\.planned_date = \$\d+/);
+        expect(schedule.whereSql).toMatch(/t\.start_date = \$\d+/);
 
         const shared = "t.org_id = $? AND t.team_id = $?";
         expect(withoutParamNumbers(backlog.whereSql)).toContain(shared);
@@ -143,10 +143,11 @@ describe("task collection builder", () => {
     });
 
     describe("container placement (sprint > planned day > backlog)", () => {
-        test("the backlog holds tickets with no sprint and no planned day, whatever their due date", () => {
+        test("the backlog holds unsprinted tickets regardless of any dates", () => {
             const backlog = normalise(buildTaskCollection({ scope: "backlog", orgId: 1, visibility }).whereSql);
             expect(backlog).toContain("t.sprint_id IS NULL");
-            expect(backlog).toContain("t.planned_date IS NULL");
+            expect(backlog).not.toContain("t.planned_date");
+            expect(backlog).not.toContain("t.start_date");
             // A due date is a deadline, not a container: it must not hide the
             // ticket from the backlog it was created in.
             expect(backlog).not.toContain("t.due_date");
@@ -168,7 +169,7 @@ describe("task collection builder", () => {
             const scheduled = buildTaskCollection({ scope: "scheduled", orgId: 1, visibility, today: "2026-10-28" });
             const sql = normalise(scheduled.whereSql);
             expect(sql).toContain("t.sprint_id IS NULL");
-            expect(sql).toContain("t.planned_date IS NOT NULL");
+            expect(sql).toContain("t.start_date IS NOT NULL");
             expect(sql).not.toMatch(/planned_date <= \$/);
         });
 
@@ -178,11 +179,11 @@ describe("task collection builder", () => {
             expect(scheduled.params).toContain("2026-09-28");
         });
 
-        test("a planned-date range never returns tickets that are in a sprint", () => {
+        test("a start-date range is independent of sprint placement", () => {
             const range = buildTaskCollection({
                 scope: "schedule", orgId: 1, visibility, startDate: "2026-10-01", endDate: "2026-10-31",
             });
-            expect(normalise(range.whereSql)).toContain("t.sprint_id IS NULL");
+            expect(normalise(range.whereSql)).not.toContain("t.sprint_id IS NULL");
         });
 
         test("scheduled applies the same filters and visibility as the backlog", () => {

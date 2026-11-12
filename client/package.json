@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "check:icons": "node scripts/check-ui-icons.mjs",
     "test": "vitest run",
+    "test:build-version": "node --test scripts/build-version.test-node.mjs",
     "test:watch": "vitest",
     "generate-emoji": "node ../scripts/generate-emoji.mjs",
     "generate-icons": "node scripts/generate-icons.cjs"

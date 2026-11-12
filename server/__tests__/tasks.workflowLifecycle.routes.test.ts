@@ -103,7 +103,7 @@ function makeTask(overrides: Record<string, any> = {}) {
         priority: "medium",
         is_blocked: false,
         acceptance_criteria: null,
-        project_id: null,
+        project_id: 10,
         task_number: null,
         story_points: null,
         work_item_type_id: null,
@@ -150,11 +150,11 @@ function routeQueries() {
             return rows(STATES);
         }
         if (/FROM workflow_transitions/.test(text)) return rows([]);
-        if (/FROM org_agile_settings/.test(text)) return rows([{ enable_wip_limits: wipEnabled }]);
+        if (/FROM projects/.test(text)) return rows([{ id: 10, org_id: 1, type: "kanban", enable_wip_limits: wipEnabled }]);
 
         // Tickets
         if (/COUNT\(\*\)::int AS c FROM tasks/.test(text)) {
-            return rows([{ c: occupancyOf(Number(params[0]), Number(params[1])) }]);
+            return rows([{ c: occupancyOf(Number(params.at(-2)), Number(params.at(-1))) }]);
         }
         if (/FROM tasks WHERE id = ANY/.test(text)) {
             const wanted = (params[0] ?? []) as number[];
@@ -175,6 +175,15 @@ function routeQueries() {
         if (/SELECT \* FROM tasks WHERE id = \$1/.test(text)) {
             const task = tasksById[Number(params[0])];
             return task ? rows([{ ...task }]) : rows([]);
+        }
+        if (/FROM tasks t LEFT JOIN work_item_types w/.test(text) && /WHERE t.id = \$1/.test(text)) {
+            const task = tasksById[Number(params[0])];
+            return task ? rows([{ ...task, is_epic: false, is_subtask: false }]) : rows([]);
+        }
+        if (/UPDATE tasks SET title = \$1/.test(text)) {
+            const task = tasksById[Number(params[14])];
+            if (task) task.workflow_state_id = Number(params[7]);
+            return rows([]);
         }
         if (/INSERT INTO task_history/.test(text)) return rows([]);
 
@@ -210,7 +219,7 @@ beforeEach(() => {
     wipEnabled = false;
     teamMembers = [];
     mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-    mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+    mockTxClient.query.mockReset().mockImplementation((...args: any[]) => mockQuery(...args));
     mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     (ws.sendToUser as jest.Mock).mockClear();
     (fanout.notifyUser as jest.Mock).mockClear();
@@ -344,6 +353,7 @@ describe("PUT /api/tasks/:id applies the same graph", () => {
         const res = await send("put", "/api/tasks/77", 1, { workflow_state_id: target });
 
         expect(res.status).toBe(200);
+        expect(tasksById[77].workflow_state_id).toBe(target);
     });
 
     test.each([

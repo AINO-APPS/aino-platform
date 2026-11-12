@@ -64,11 +64,12 @@ export const deleteGitRef = async (db: TasksDb, taskId: number, refId: number) =
 
 export const findChildren = async (db: TasksDb, taskId: number) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.user_id, t.assigned_to,
-            t.team_id, t.org_id, t.sprint_id, t.planned_date, t.completed_at,
-            t.story_points, t.work_item_type_id, t.priority,
+            t.team_id, t.org_id, t.sprint_id, t.start_date, t.completed_at,
+            t.story_points, t.work_item_type_id, t.priority, t.project_id, t.ticket_key,
+            t.parent_task_id, t.original_estimate_minutes, t.remaining_estimate_minutes,
             u.full_name AS assignee_name, u.username AS assignee_username,
             ws.name AS state_name, ws.color AS state_color, ws.is_terminal,
-            wit.name AS type_name, wit.color AS type_color
+            wit.name AS type_name, wit.color AS type_color, wit.is_subtask
        FROM tasks t
   LEFT JOIN users u ON u.id = t.assigned_to
   LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
@@ -81,9 +82,9 @@ export const findChildren = async (db: TasksDb, taskId: number) => (await db.que
 export const findParent = async (db: TasksDb, taskId: number) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
             t.work_item_type_id, t.user_id, t.assigned_to, t.team_id, t.org_id,
-            t.sprint_id, t.planned_date, t.completed_at, t.priority,
+            t.sprint_id, t.start_date, t.completed_at, t.priority, t.project_id, t.ticket_key,
             ws.name AS state_name, ws.color AS state_color,
-            wit.name AS type_name, wit.color AS type_color, wit.is_epic
+            wit.name AS type_name, wit.color AS type_color, wit.is_epic, wit.is_subtask
        FROM tasks t
   LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
   LEFT JOIN work_item_types wit ON wit.id = t.work_item_type_id

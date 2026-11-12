@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startMeetingHlsBroadcast, stopMeetingHlsBroadcast } from "../../api/meetings";
+import { firstPartyFetch } from "../../api/firstPartyFetch";
 
 type BroadcastState = "idle" | "starting" | "live" | "stopping" | "error";
 
@@ -88,7 +89,7 @@ export function useHlsBroadcast({
         if (!ingestUrlRef.current) return;
         try {
             const url = `${ingestUrlRef.current}?seq=${sequence}&broadcastId=${encodeURIComponent(broadcastIdRef.current || "")}`;
-            const resp = await fetch(url, {
+            const resp = await firstPartyFetch(url, {
                 method: "PUT",
                 headers: {
                     "Content-Type": blob.type || "application/octet-stream",

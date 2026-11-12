@@ -8,6 +8,7 @@ const electron_1 = require("electron");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const protocolUtils_1 = require("./protocolUtils");
+const clientVersion_1 = require("./clientVersion");
 // ─── MIME type lookup ───
 const MIME_TYPES = {
     ".html": "text/html",
@@ -37,6 +38,7 @@ function getMimeType(filePath) {
     return MIME_TYPES[ext] || "application/octet-stream";
 }
 function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electronSession }) {
+    const bundledWebVersion = (0, clientVersion_1.readBundledWebVersion)(clientDist);
     // Content Security Policy — restrict what can run in the renderer.
     // NOTE: `frame-src` must allow https://embed.diagrams.net so the
     // draw.io diagram editor (loaded as an <iframe> inside the notes
@@ -128,7 +130,11 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
                 const headers = {
                     origin: "workpulse://app",
                     "x-requested-with": "WorkPulse",
+                    "x-aino-client": "desktop",
                 };
+                const version = request.headers.get("x-aino-client-version") || bundledWebVersion;
+                if (version)
+                    headers["x-aino-client-version"] = version;
                 const accept = request.headers.get("accept");
                 if (accept)
                     headers["accept"] = accept;
@@ -161,20 +167,9 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
                     });
                 }
                 else if (resp.type === "opaqueredirect" || resp.status === 0) {
-                    // Per the Fetch spec, `redirect: "manual"` may surface the 302 as an
-                    // OPAQUE redirect: status 0, no readable headers, no Location. We
-                    // then can't drive the second hop ourselves, so repeat hop 1 and let
-                    // the network stack follow the chain. The important part — not
-                    // handing a *redirected* Response straight back to protocol.handle,
-                    // which Chromium rejects — is preserved by the re-wrap below.
-                    followed = true;
-                    resp = await electron_1.net.fetch(`${apiServer}${pathname}${url.search || ""}`, {
-                        method: request.method,
-                        headers,
-                        credentials: "include",
-                        redirect: "follow",
-                        bypassCustomProtocolHandlers: true,
-                    });
+                    // Without Location we cannot strip credentials/client identity on the
+                    // signed hop. Current servers stream desktop uploads without redirects.
+                    return new Response(request.method === "HEAD" ? null : "Upload redirect unavailable", { status: 502 });
                 }
                 console.log(`[proxy] ${request.method} ${pathname} -> ${resp.status}` +
                     `${followed ? " (via R2 redirect)" : ""} (${Date.now() - startedAt}ms)`);
@@ -210,7 +205,7 @@ function setupProtocolHandling({ apiServer, clientDist, r2OriginPattern, electro
         if (pathname.startsWith("/api/") || pathname.startsWith("/api\\")) {
             try {
                 // Read-only requests retain normal HTTP caching; mutations bypass it.
-                const proxy = (0, protocolUtils_1.createProxyRequest)(apiServer, request);
+                const proxy = (0, protocolUtils_1.createProxyRequest)(apiServer, request, bundledWebVersion);
                 const targetUrl = proxy.url;
                 const fetchOpts = proxy.init;
                 // Buffer the body for methods that have one

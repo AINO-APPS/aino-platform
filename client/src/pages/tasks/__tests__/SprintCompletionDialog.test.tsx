@@ -105,4 +105,47 @@ describe("SprintCompletionDialog", () => {
         const stayingSection = screen.getByText(/Stays with this sprint/).closest("section")!;
         expect(stayingSection.textContent).toContain("Retry backoff");
     });
+
+    test("uses the server preview for all destinations and displays parent and subtask counts", async () => {
+        const modernPreview = {
+            ...preview,
+            supportsNewSprint: true,
+            selectedTarget: "next",
+            defaultTargetType: "next",
+            hasNext: true,
+            nextPlannedSprint: { id: 12, name: "Sprint 25" },
+            movingParents: [{ id: 1, title: "Refund webhook", story_points: 5 }],
+            movingSubtasks: 2,
+            newSprint: null,
+        };
+        getSprintCompletionPreview.mockImplementation((_id: number, target?: string) => Promise.resolve({
+            data: {
+                ...modernPreview,
+                selectedTarget: target ?? "next",
+                newSprint: target === "new"
+                    ? { name: "Sprint 25", start_date: "2026-11-10", end_date: "2026-11-23" }
+                    : null,
+            },
+        }));
+        const onConfirm = vi.fn();
+        render(
+            <SprintCompletionDialog
+                sprintId={9}
+                sprintName="Sprint 24"
+                onCancel={vi.fn()}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        await waitFor(() => expect(screen.getByText(/Moves \(1 parents · 2 subtasks · 8 pts\)/)).toBeTruthy());
+        expect(screen.getByRole("option", { name: /Next planned sprint — Sprint 25/ })).toBeTruthy();
+        expect(screen.getByRole("option", { name: "New planned sprint" })).toBeTruthy();
+        fireEvent.change(screen.getByRole("combobox"), { target: { value: "new" } });
+        await waitFor(() => expect(screen.getByText(/2026-11-10 – 2026-11-23/)).toBeTruthy());
+        await waitFor(() => expect(getSprintCompletionPreview).toHaveBeenCalledWith(9, "new"));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Complete sprint" })).not.toBeDisabled());
+
+        fireEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+        expect(onConfirm).toHaveBeenCalledWith("new");
+    });
 });

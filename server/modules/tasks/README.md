@@ -12,6 +12,112 @@ User-facing guides: [Projects](../../../docs/PROJECTS.md) and
 [Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
 flag-off compatibility policy.
 
+## Ticket hierarchy (project types, Expand)
+
+`tasks.hierarchy.ts` owns Epic → Story/Task/Bug → Subtask validation; its
+repository owns hierarchy reads and transactional history. Custom non-epic,
+non-subtask types occupy the Story/Task/Bug level. Create, parent/type edits and
+project moves validate both the changed ticket and its children under the same
+organization placement lock. Epics retain cross-project children. Subtasks
+require an ordinary parent in the same project and sprint and cannot move on
+their own (`SUBTASK_FOLLOWS_PARENT`); other violations return `INVALID_HIERARCHY`
+with the violated rule.
+Stored hierarchy classification includes inactive types; only a newly selected
+type must be active. Deactivating Epic never turns its existing tickets ordinary.
+
+`POST /api/tasks/:id/subtasks` reuses backlog creation, fixes the parent/type,
+and inherits project/sprint. Both older create routes also inherit those fields
+when the selected type is Subtask. Creation and parent/type history are atomic.
+Detail returns visible `parent` and `subtasks` summaries; `canAddSubtask` is a
+server decision, including viewer, archived, frozen-sprint and Cancelled-parent
+refusals. The transactional create/conversion guard reuses that decision, so
+stale clients receive the same `CANCELLED_TERMINAL` denial before any insert.
+
+Migration `0031_ticket_hierarchy.sql` seeds/protects the unique Subtask type,
+including future organizations. It detaches invalid ordinary/epic links;
+invalid legacy Subtasks become ordinary Tasks without moving their project or
+key, while valid Subtasks' sprint mismatches are aligned. Full before/after
+snapshots and reasons remain in `task_hierarchy_repairs`, with system history.
+The data marker makes SQL replay safe.
+Additive `0034_recover_hierarchy_leaves.sql` recovers the eligible ordinary
+leaves that 0031 detached, using only recorded original links and unchanged
+hierarchy data. It converts them to Subtask, inherits the current parent sprint,
+clears points and records immutable corrections/system history without changing
+0031 or its original records. Human hierarchy/placement/points edits and missing
+or ambiguous evidence are preserved for review. The complete ordered-chain and
+already-applied-0031 upgrade/replay seam is `hierarchyLeafRecovery.integration`.
+
+Parent placement and project moves cascade through `getTicketSubtasks` under the
+organization placement lock. Every member gets transactional placement history,
+audit and post-commit invalidation. Project moves reserve a key and alias the old
+key for each member, mapping each workflow independently. A failed child write
+rolls back the entire family; direct Subtask placement, project moves and ranking
+remain refused. Sprint completion uses the same placement seam for whole parents.
+
+Planning backlog reads page/count ordinary parents and batch-enrich their nested
+`subtasks`. Board reads stay flat and include `is_subtask` and `parent_key`.
+Detail preserves own `time_spent_minutes`/`remaining_estimate_minutes` and adds
+`subtask_summary` (total/done, using canonical `completed_at`) and `effort`
+(own/including-subtasks spent and remaining minutes). Deleted worklogs are excluded;
+an entirely unknown remaining forecast stays null. `tasks.points.ts` owns the shared
+point predicate: Subtasks cannot carry points, and Subtasks/Epics do not contribute
+to sprint points, capacity, baselines, burndown or velocity. Board WIP still counts
+cards, including Subtasks.
+
+Real PostgreSQL coverage: `npx jest tasks.hierarchy.integration
+tasksHierarchyExpand.integration --runInBand`.
+
+## Start date (project types, Expand)
+
+### Task list reads and calendar
+
+`GET /api/tasks?scope=list&project_id=…` reads all project tickets, without a
+date or sprint restriction. `tasks.collection.ts` owns shared SQL, literal
+key/title substring filters, type/status/assignee/priority and exact
+`start_on`/`due_on` filters, plus allowlisted sorting across all eight fields.
+Use `sort=key|title|type|status|assignee|priority|start_date|due_date` and
+`direction=asc|desc` (nulls last; ID breaks ties).
+
+`scope=calendar` reads open, non-Cancelled tickets overlapping inclusive
+`start_date`/`end_date` or one `date`: missing start/due coalesces to the other.
+`undated=1` instead reads open work with neither date. Both scopes require a
+positive project ID and project access, reject sprint scope, and return
+`{ tasks, stats, pagination: { offset, hasMore } }` in pages of 500.
+The calendar client follows all pages; List provides page controls. Legacy
+day/sprint reads retain their behavior and omit pagination.
+
+The web month and Monday-to-Sunday week calendar share range reads, paging,
+overlays, the undated tray and normal `PUT /api/tasks/:id` date edits, not placement.
+Drag shifts both dates by the same day offset, preserving null single dates
+and duration; undated drops set both dates to the target. An accessible editor
+supports precise/cleared dates. Server edit capabilities control dragging and
+editing. Existing schedule overlays supply read-only approved leave, holiday
+and meeting context. No schema migration is required.
+
+`tasks.start_date` is nullable date metadata, independent of sprint/backlog
+placement. `tasks.dateRepository.ts` owns locking, persistence and history SQL;
+`tasks.dates.ts` validates real ISO days and refuses a deadline before
+start with `Due date cannot be earlier than the start date`. Start-date writes
+and their `updated/start_date` history share a transaction. Both creates and the
+full edit accept `start_date`; legacy `planned_date` is an alias, with an explicit
+`start_date` (including null) winning if both are sent. The day-create route also
+accepts legacy `date` and retains its default of today; backlog create is undated
+unless a start date is supplied.
+
+The retained schedule/unschedule endpoints set/clear start date only. Search,
+export, Notes, manager/attendance day reads and My Work/dashboard windows read
+start date. Ticket/search/notes summaries and realtime date deltas retain
+`planned_date` equal to start date. The stored legacy placement column is not
+rewritten by date edits: the Scheduled container, carry-forward route and sprint
+due-date bookkeeping remain until their ticket 05/Contract changes.
+
+Migration `0029_tasks_start_date.sql` copies planned days once, preserving
+explicit start dates. Its transactional data marker also prevents direct SQL
+replay from resurrecting a cleared start date. New-tenant base schema includes
+the column. Run `npx jest tasks.startDates.integration tasksStartDateExpand.integration
+--runInBand` with the disposable test database variable for real PostgreSQL HTTP
+and migration coverage. No production database is required.
+
 ## Service Desk copies
 
 `tasks.serviceDesk.ts` creates copies in the platform organization's configured
@@ -94,12 +200,69 @@ Create, edit, bulk and plan placement all refuse a sprint from another project
 with `SPRINT_PROJECT_MISMATCH`. This replaces the legacy team mismatch code;
 flag-off tenants retain their existing team-scoped placement rules.
 
+## Project-type policy and lifecycle (ADR-018)
+
+### Project boards and capacity
+
+`GET /api/projects/:id/board` is the project-wide board read for every type.
+Kanban and Task list use continuous project populations; Scrum uses its selected
+or current active/paused sprint. All boards exclude Cancelled and retain Done
+for 14 days. The optional Kanban backlog is off by default; enabling it moves
+initial-state visibility to `GET /api/projects/:id/backlog` without changing
+ticket state or dates. Scrum backlog remains open, unsprinted work.
+
+Project admins change `kanban_backlog_enabled` and `enable_wip_limits` through
+`PATCH /api/projects/:id/board-settings`; existing project workflow settings own
+per-state limits. Migration `0030_project_board_settings.sql` copies the former
+organization WIP switch once, preserving subsequent project choices on replay.
+
+`tasks.boardRepository.ts` owns shared board-membership and occupancy SQL.
+`tasks.workflowWrite.ts` serializes lifecycle moves with the shared organization
+placement/lifecycle advisory lock before taking any row lock, then takes
+project-before-ticket locks and rechecks the fresh lifecycle and target capacity.
+Project/family moves and sprint placement acquire that same advisory lock first,
+as do project-key renames, so ticket-before-project moves cannot deadlock with
+project-before-ticket status or key writers.
+PATCH, full edits and bulk status moves cannot race to overfill the last slot.
+Counts are never reduced by client filters; off-board Scrum work, Kanban initial
+backlog and Cancelled never consume board capacity. Refusals include
+`WIP_EXCEEDED` and the current count/limit.
+
+The web ProjectBoard consumes these reads, capabilities and settings without
+exposing sprint actions in non-Scrum projects. It supports pointer/keyboard
+state moves, backlog pulling, quick creation and live invalidation; stale
+capacity refusals preserve the ticket and show the server's occupancy message.
+Run `npx jest projectBoard.integration tasks.board --runInBand` with
+`TASKS_SCHEMA_TEST_DATABASE_URL` set to a disposable PostgreSQL instance.
+
+`tasks.projectTypes.ts` is the pure policy seam: ordered Plan tabs, backlog,
+board scope, 14-day Done window, Cancelled exclusion and type-change refusal.
+`tasks.projectTypeLifecycle.ts` validates choices and coordinates locked changes;
+its repository owns sprint-status reads, project locks and type writes. Routes
+remain adapters; clients consume `planTabs` and `changeableTypes`. Only project
+admins of active projects can change type.
+
+`agile` controls new type destinations only. Workflow, project, board and sprint
+endpoints keep existing projects working after feature loss. Sprint requests use
+`tasks.projectSprintPolicy.ts` and refuse non-Scrum with `PROJECT_HAS_NO_SPRINTS`.
+Ticket placement capabilities ask the same pure policy. Migration
+`0028_project_type_lifecycle.sql` adds the default-off Kanban backlog setting;
+project-row locks and database triggers serialize open-sprint writers with type
+changes, preventing bypass and concurrent orphaning.
+
+Run `npx jest projectTypes.integration tasks.projectTypes tasks.capabilities.integration --runInBand`
+with the local test-database variable for pure policy, HTTP and capability seams.
+Ticket 01 does not replace subsequent tickets' planning board contents.
+
 ## Migration review and publication
 
 At `/projects`, **Review project migration** opens the super-admin review.
 `GET /api/projects/migration/review` returns a consistent snapshot of generated
 team/General projects, publication state, types, ticket counts, named grants,
-and migration moves. `new_key` follows review renames; `migration_key` retains
+and migration moves. `hierarchy_repairs` includes organization-scoped original
+repairs and follow-up corrections, with immutable before/after hierarchy fields,
+reason and time. A removed ticket retains its record with a null current key.
+`new_key` follows review renames; `migration_key` retains
 the original migration target. Inline rename reuses the project-key endpoint.
 
 `tasks.migration.ts` orchestrates review and switch-over; its repository owns SQL.
@@ -130,10 +293,11 @@ key lookup, search and comments remain available. Unarchiving requires an org
 admin. Deletion remains super-admin-only and refuses any project whose persistent
 `has_had_tickets` bit is set, even after its tickets leave. Keys stay reserved.
 
-Placement — any change to a ticket's sprint, planned day, or the due date that
-follows sprint membership — goes through `tasks.placement.ts` (rules),
+Placement — sprint/backlog membership and the sprint exit during project moves —
+goes through `tasks.placement.ts` (rules),
 `tasks.placementRepository.ts` (SQL) and `tasks.placementEffects.ts` (realtime
-and notifications). See ADR-015. `scripts/check-placement-writes.mjs` enforces it.
+and notifications). Dates are independent fields (ADR-018); compatibility date
+routes remain until ticket11. `scripts/check-placement-writes.mjs` enforces it.
 
 ### Moving projects (ticket10)
 
@@ -174,8 +338,9 @@ The single-ticket form returns the same decision for write-path callers.
 
 Load context once for the whole request. It contains project lifecycles, the
 legacy org-template fallback, a batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
-creator-team lookup. Project mode also loads archived state and the actor's
-effective project roles. Pass an already loaded lifecycle as the loader's
+creator-team lookup. Project metadata is loaded in both ownership modes so containers follow project
+type and never dates; project mode additionally uses the actor's effective roles.
+Pass an already loaded lifecycle as the loader's
 `{ lifecycle }` option to reuse it. Both decide forms are synchronous and perform
 no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.

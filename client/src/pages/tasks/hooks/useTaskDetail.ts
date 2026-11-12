@@ -18,7 +18,7 @@ interface DetailEditData {
     priority?: string;
     assignedTo?: number | string | null;
     dueDate?: string | null;
-    plannedDate?: string | null;
+    startDate?: string | null;
     sprintId?: number | string | null;
     labels?: (number | string)[];
     storyPoints?: number | null;
@@ -69,16 +69,22 @@ export function useTaskDetail({
     const [detailTab, setDetailTab] = useState("comments");
     const [detailHistory, setDetailHistory] = useState<unknown[]>([]);
     const replaceTicket = (fresh: Task) => {
-        setDetailTask((current) => current?.id === fresh.id ? fresh : current);
-        setTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task));
-        setBacklogTasks((current) => current.map((task) => task.id === fresh.id ? fresh : task).filter((task) => task.container === "backlog"));
+        setDetailTask((current) => current?.id === fresh.id ? { ...current, ...fresh } : current);
+        setTasks((current) => current.map((task) => task.id === fresh.id ? { ...task, ...fresh } : task));
+        setBacklogTasks((current) => current.map((task) => task.id === fresh.id ? { ...task, ...fresh } : task).filter((task) => task.container === "backlog"));
+        if (detailTask?.id === fresh.id && !fresh.effort) {
+            void getTaskDetail(fresh.id).then(({ data }) => {
+                setDetailTask(current => current?.id === fresh.id ? data as Task : current);
+            }).catch(() => { /* Preserve the last hierarchy while offline. */ });
+        }
     };
     useRealtimeEvent(["task_updated", "project_updated"], async (event) => {
         if (!detailTask) return;
         const data = event.data as { taskId?: number; project_id?: number };
         if (event.type === "project_updated"
             ? Number(data?.project_id) !== Number(detailTask.project_id)
-            : String(data?.taskId) !== String(detailTask.id)) return;
+            : String(data?.taskId) !== String(detailTask.id)
+                && !(detailTask.subtasks as Task[] | undefined)?.some(child => String(child.id) === String(data?.taskId))) return;
         try {
             const { data } = await getTaskDetail(detailTask.id);
             replaceTicket(data as Task);
@@ -149,10 +155,10 @@ export function useTaskDetail({
                         priority: editData.priority,
                         assigned_to: editData.assignedTo || null,
                         due_date: editData.dueDate || null,
-                        planned_date: editData.plannedDate || null,
-                        sprint_id: editData.sprintId || null,
+                        start_date: editData.startDate || null,
+                        ...(detailTask.is_subtask ? {} : { sprint_id: editData.sprintId || null }),
                         label_ids: editData.labels,
-                        story_points: editData.storyPoints,
+                        story_points: detailTask.is_subtask ? null : editData.storyPoints,
                         work_item_type_id: editData.workItemType || null,
                         // project_id is only honoured by the server when the task has
                         // no project yet — once assigned, the issue key is immutable.

@@ -3,6 +3,8 @@ import type { InternalAxiosRequestConfig } from "axios";
 import NProgress from "nprogress";
 import "nprogress/nprogress.css";
 import { installMfaStepUp } from "../auth/mfaStepUp";
+import { apiBaseURL, apiRequestTarget, clientHeaders, isFirstPartyApi } from "./clientIdentity";
+import { inspectClientUpgrade } from "./clientUpgrade";
 
 export type AnyData = Record<string, unknown> | unknown;
 export type Params = Record<string, unknown>;
@@ -12,8 +14,7 @@ NProgress.configure({ showSpinner: false });
 // Disable NProgress loading bar in Electron desktop app
 const isElectron = !!import.meta.env.VITE_ELECTRON;
 // Desktop (Electron) builds set VITE_API_URL to the Railway server; web builds use relative /api
-export const baseURL =
-    import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api" : "http://localhost:5000/api");
+export const baseURL = apiBaseURL;
 export const serverURL = import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace(/\/api$/, "")
     : "";
@@ -45,6 +46,17 @@ export function getLocalDate(daysAgo = 0): string {
 // Attach timezone offset to every request (auth is sent via HttpOnly cookie).
 API.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     if (!isElectron) NProgress.start();
+    if (!isFirstPartyApi(apiRequestTarget(config.url, config.baseURL))) {
+        config.withCredentials = false;
+        delete config.auth;
+        for (const header of Object.keys(config.headers)) {
+            if (["authorization", "cookie", "x-aino-client", "x-aino-client-version", "x-requested-with", "x-timezone-offset"].includes(header.toLowerCase())) {
+                delete config.headers[header];
+            }
+        }
+        return config;
+    }
+    Object.assign(config.headers, clientHeaders());
     config.headers["x-timezone-offset"] = new Date().getTimezoneOffset();
     return config;
 });
@@ -55,8 +67,11 @@ API.interceptors.response.use(
         if (!isElectron) NProgress.done();
         return response;
     },
-    (error) => {
+    async (error) => {
         if (!isElectron) NProgress.done();
+        if (isFirstPartyApi(apiRequestTarget(error.config?.url, error.config?.baseURL))) {
+            await inspectClientUpgrade(error.response);
+        }
         return Promise.reject(error);
     },
 );

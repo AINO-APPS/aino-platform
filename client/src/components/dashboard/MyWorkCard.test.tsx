@@ -30,8 +30,9 @@ vi.mock("../../FeaturesContext", () => ({
     useFeatures: () => ({ hasFeature }),
 }));
 
+const currentUser = { id: 7 };
 vi.mock("../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 7 } }),
+    useAuth: () => ({ user: currentUser }),
 }));
 
 vi.mock("../../hooks/useWebSocket", () => ({ default: vi.fn() }));
@@ -90,15 +91,17 @@ describe("MyWorkCard stats", () => {
 });
 
 describe("MyWorkCard", () => {
-    test("My Work reads the server container even when date and sprint metadata disagree", async () => {
+    test("My Work groups dated tickets by start date independently of placement", async () => {
         hasFeature.mockReturnValue(false);
-        getTasks.mockResolvedValueOnce({ data: { tasks: [
-            { ...ticket, id: 1, title: "Server scheduled", assigned_to: 7, container: "scheduled", planned_date: nextMonday(), sprint_id: 999 },
-            { ...ticket, id: 2, title: "Not scheduled", assigned_to: 7, container: "backlog", planned_date: nextMonday() },
-        ] } });
+        getTasks.mockImplementation((_date: unknown, params: { start_date: string }) => Promise.resolve({ data: { tasks: params.start_date === nextMonday() ? [
+            { ...ticket, id: 1, title: "Sprint start", assigned_to: 7, container: "sprint", start_date: nextMonday(), planned_date: "2026-01-01", sprint_id: 999 },
+            { ...ticket, id: 2, title: "Backlog start", assigned_to: 7, container: "backlog", start_date: nextMonday(), planned_date: null },
+            { ...ticket, id: 3, title: "Cleared date", assigned_to: 7, container: "scheduled", start_date: null, planned_date: nextMonday() },
+        ] : [] } }));
         renderCard();
-        await screen.findByText("Server scheduled");
-        expect(screen.queryByText("Not scheduled")).not.toBeInTheDocument();
+        await screen.findByText("Sprint start");
+        expect(screen.getByText("Backlog start")).toBeInTheDocument();
+        expect(screen.queryByText("Cleared date")).not.toBeInTheDocument();
     });
     test("an empty week says so and never falls back to the backlog", async () => {
         hasFeature.mockReturnValue(true);
@@ -162,7 +165,7 @@ describe("MyWorkCard", () => {
         hasFeature.mockReturnValue(true);
         getActiveSprint.mockResolvedValue({ data: { sprint: null } });
         getTasks
-            .mockResolvedValueOnce({ data: { tasks: [{ ...ticket, container: "scheduled", id: 1, title: "This week", assigned_to: 7, planned_date: nextMonday() }] } })
+            .mockResolvedValueOnce({ data: { tasks: [{ ...ticket, container: "scheduled", id: 1, title: "This week", assigned_to: 7, start_date: nextMonday() }] } })
             .mockRejectedValueOnce(new Error("overdue lookup failed"));
 
         renderCard();

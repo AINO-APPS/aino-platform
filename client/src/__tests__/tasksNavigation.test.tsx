@@ -14,6 +14,7 @@ vi.mock("../AuthContext", () => ({
         user: {
             id: 1, tenant_id: 1, org_id: 1, team_id: 1, role: "employee",
             must_change_password: auth.mustChangePassword,
+            project_ownership: true,
         },
     }),
     hasTenantContext: () => true,
@@ -88,6 +89,7 @@ vi.mock("../pages/tasks/BacklogTab", () => ({ default: () => <div data-testid="b
 vi.mock("../pages/tasks/ScheduledTab", () => ({ default: () => <div data-testid="scheduled-tab" /> }));
 vi.mock("../pages/tasks/ServiceDeskTab", () => ({ default: () => <div data-testid="service-desk-tab" /> }));
 vi.mock("../pages/tasks/SprintTab", () => ({ default: () => <div data-testid="sprint-tab" /> }));
+vi.mock("../pages/SprintInsights", () => ({ default: () => <div data-testid="reports-tab" /> }));
 vi.mock("../pages/tasks/TaskDetailModal", () => ({ default: () => null }));
 vi.mock("../pages/tasks/InlineCommentPanel", () => ({ default: () => null }));
 vi.mock("../pages/tasks/TasksOverlays", () => ({ default: () => null }));
@@ -101,7 +103,10 @@ vi.mock("../api/tasks", () => ({
     addTaskComment: vi.fn(), updateTaskComment: vi.fn(), getTaskDetail: vi.fn(),
     getAvailableSprints: vi.fn().mockResolvedValue({ data: [] }),
     getSprintStats: vi.fn().mockResolvedValue({ data: null }),
-    getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getProjects: vi.fn().mockResolvedValue({ data: [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getSprints: vi.fn().mockResolvedValue({ data: { sprints: [{ id: 12, project_id: 10, name: "Sprint 12", status: "active", start_date: "2026-10-20", end_date: "2026-11-02" }], currentSprintId: 12 } }),
+    getSprintBoard: vi.fn().mockResolvedValue({ data: { columns: [], tickets: [] } }),
     getBacklog: vi.fn().mockResolvedValue({ data: {
         tasks: [], summary: { total: 0, byStatus: {}, byPriority: {} }, pagination: { total: 0 },
     } }),
@@ -143,7 +148,7 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
     beforeEach(() => {
         auth.isAuthenticated = true;
         auth.mustChangePassword = false;
-        window.history.replaceState({}, "", "/tasks");
+        window.history.replaceState({}, "", "/tasks/backlog");
         queryClient.clear();
         if (platform === "desktop") vi.stubGlobal("electronAPI", {});
     });
@@ -160,12 +165,12 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
     });
 
     test.each([
-        ["/tasks/schedule", "scheduled-tab"],
+        ["/tasks/schedule", "backlog-tab"],
         ["/tasks/desk", "service-desk-tab"],
         ["/tasks/backlog", "backlog-tab"],
         ["/tasks/sprint/12", "sprint-tab"],
         ["/tasks/sprint/12/plan", "sprint-tab"],
-        ["/tasks/schedule/?priority=high", "scheduled-tab"],
+        ["/tasks/schedule/?priority=high", "backlog-tab"],
         ["/tasks/archived", "backlog-tab"],
     ])("opening %s directly keeps the Tasks page", async (path, tabId) => {
         window.history.replaceState({}, "", path);
@@ -197,8 +202,8 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
     });
 
     test.each([
-        ["Scheduled", "/tasks/schedule", "scheduled-tab"],
-        ["Service Desk", "/tasks/desk", "service-desk-tab"],
+        ["Sprint", "/tasks/sprint/12", "sprint-tab"],
+        ["Reports", "/tasks/reports", "reports-tab"],
     ])("clicking %s opens its tab instead of Dashboard", async (label, path, tabId) => {
         const user = userEvent.setup();
         render(<App />);
@@ -217,17 +222,17 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
         render(<App />);
         await screen.findByTestId("backlog-tab");
         const backlogButton = screen.getByRole("tab", { name: "Backlog" });
-        await user.click(screen.getByRole("tab", { name: "Scheduled" }));
-        expect(await screen.findByTestId("scheduled-tab")).toBeVisible();
-        await user.click(screen.getByRole("tab", { name: "Service Desk" }));
-        expect(await screen.findByTestId("service-desk-tab")).toBeVisible();
+        await user.click(screen.getByRole("tab", { name: "Sprint" }));
+        expect(await screen.findByTestId("sprint-tab")).toBeVisible();
+        await user.click(screen.getByRole("tab", { name: "Reports" }));
+        expect(await screen.findByTestId("reports-tab")).toBeVisible();
         await user.click(screen.getByRole("tab", { name: "Backlog" }));
         expect(await screen.findByTestId("backlog-tab")).toBeVisible();
         expect(screen.getByRole("tab", { name: "Backlog" })).toBe(backlogButton);
     });
 
     test.each([
-        ["/tasks?tab=scheduled&priority=high", "/tasks/schedule?priority=high", "scheduled-tab"],
+        ["/tasks?tab=scheduled&priority=high", "/tasks/backlog?priority=high", "backlog-tab"],
         ["/tasks?tab=service-desk", "/tasks/desk", "service-desk-tab"],
     ])("legacy link %s redirects to its tab", async (entry, path, tabId) => {
         window.history.replaceState({}, "", entry);

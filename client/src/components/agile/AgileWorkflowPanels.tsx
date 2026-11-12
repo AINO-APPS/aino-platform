@@ -30,8 +30,13 @@ import {
     BarChart3,
     Link as LinkIcon,
 } from "../../constants/icons";
-import { setTaskBlocker, getTaskDependencies, addTaskDependency, removeTaskDependency, quicksearchTasks, getSprintBurndown, getRecentVelocity, startSprint, completeSprint, getSprints, getTaskChildren, getTaskParent, setTaskParent } from "../../api/tasks";
+import {
+    setTaskBlocker, getTaskDependencies, addTaskDependency, removeTaskDependency, quicksearchTasks,
+    getSprintBurndown, getRecentVelocity, startSprint, completeSprint, getTaskChildren, getTaskParent,
+    setTaskParent, type SprintCompletionTarget,
+} from "../../api/tasks";
 import { useAgileConfig } from "../../AgileConfigContext";
+import SprintCompletionDialog from "../../pages/tasks/SprintCompletionDialog";
 import s from "./AgileWorkflowPanels.module.css";
 
 type TaskLike = any;
@@ -686,20 +691,7 @@ export function SprintLifecycleControls({
 }: SprintLifecycleControlsProps) {
     const [busy, setBusy] = useState(false);
     const [completing, setCompleting] = useState(false);
-    const [available, setAvailable] = useState<any[]>([]);
-    const [rolloverTo, setRolloverTo] = useState("backlog");
     const [error, setError] = useState("");
-
-    useEffect(() => {
-        if (!completing) return;
-        getSprints().then((r) => {
-            const list = (r.data?.sprints || []).filter(
-                (sp: any) =>
-                    sp.id !== sprint.id && sp.status !== "completed",
-            );
-            setAvailable(list);
-        });
-    }, [completing, sprint?.id]);
 
     const start = async () => {
         if (!canEdit || busy) return;
@@ -716,12 +708,12 @@ export function SprintLifecycleControls({
         }
     };
 
-    const complete = async () => {
+    const complete = async (target: SprintCompletionTarget) => {
         if (!canEdit || busy) return;
         setBusy(true);
         setError("");
         try {
-            const r = await completeSprint(sprint.id, rolloverTo);
+            const r = await completeSprint(sprint.id, target);
             setCompleting(false);
             onChanged && onChanged(r.data?.sprint, r.data);
         } catch (e) {
@@ -756,37 +748,14 @@ export function SprintLifecycleControls({
                 </button>
             )}
             {sprint.status === "active" && completing && (
-                <div className={s.lifecycleForm}>
-                    <label className={s.lifecycleLabel}>
-                        Roll over incomplete tickets to:
-                    </label>
-                    <select
-                        value={rolloverTo}
-                        onChange={(e) => setRolloverTo(e.target.value)}
-                        className={s.lifecycleSelect}
-                    >
-                        <option value="backlog">Backlog</option>
-                        {available.map((sp) => (
-                            <option key={sp.id} value={sp.id}>
-                                {sp.name} ({sp.status})
-                            </option>
-                        ))}
-                    </select>
-                    <button
-                        className="btn btn-primary btn-sm"
-                        onClick={complete}
-                        disabled={busy}
-                    >
-                        Complete
-                    </button>
-                    <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => setCompleting(false)}
-                        disabled={busy}
-                    >
-                        Cancel
-                    </button>
-                </div>
+                <SprintCompletionDialog
+                    sprintId={sprint.id}
+                    sprintName={sprint.name || `Sprint ${sprint.id}`}
+                    onCancel={() => setCompleting(false)}
+                    onConfirm={complete}
+                    busy={busy}
+                    error={error}
+                />
             )}
             {sprint.status === "completed" && (
                 <span className={s.completedBadge}>
@@ -798,7 +767,7 @@ export function SprintLifecycleControls({
                     )}
                 </span>
             )}
-            {error && <span className={s.lifecycleError}>{error}</span>}
+            {!completing && error && <span className={s.lifecycleError}>{error}</span>}
         </div>
     );
 }
@@ -815,11 +784,13 @@ interface ParentChildPanelProps {
 
 export function ParentChildPanel({
     task,
-    canEdit = true,
+    canEdit: editable = true,
     onOpenTask,
     onChanged,
 }: ParentChildPanelProps) {
     const { features, typeById } = useAgileConfig();
+    const canEdit = editable && task?.capabilities?.can?.edit?.allowed === true
+        && task?.capabilities?.can?.placeInSprint?.reason !== "SUBTASK_FOLLOWS_PARENT";
     const [children, setChildren] = useState<any[]>([]);
     const [rollup, setRollup] = useState<any>(null);
     const [parent, setParent] = useState<any>(null);
@@ -880,15 +851,9 @@ export function ParentChildPanel({
                         .map((t: any) => t.id),
                 );
                 const all = (r.data?.tasks || []).filter(
-                    (t: any) => t.id !== task?.id,
+                    (t: any) => t.id !== task?.id && epicTypeIds.has(t.work_item_type_id),
                 );
-                // Sort epics to the top, then everything else alphabetically by id.
-                all.sort((a: any, b: any) => {
-                    const ae = epicTypeIds.has(a.work_item_type_id) ? 0 : 1;
-                    const be = epicTypeIds.has(b.work_item_type_id) ? 0 : 1;
-                    if (ae !== be) return ae - be;
-                    return b.id - a.id;
-                });
+                all.sort((a: any, b: any) => b.id - a.id);
                 setResults(all);
             } catch {
                 setResults([]);
@@ -918,7 +883,7 @@ export function ParentChildPanel({
         }
     };
 
-    if (!features.epics) return null;
+    if (!features.epics && isEpic) return null;
     if (loading) return <div className={s.depLoading}>Loading…</div>;
 
     if (isEpic) {
@@ -1074,7 +1039,7 @@ export function ParentChildPanel({
                                 autoFocus
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search by ID or title (Epics shown first)…"
+                                placeholder="Search epics by ID or title…"
                                 className={s.depSearchInput}
                             />
                         </div>

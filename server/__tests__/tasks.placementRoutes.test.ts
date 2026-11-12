@@ -52,7 +52,7 @@ const request = require("supertest");
 
 const TICKET = {
     id: 5, org_id: 1, team_id: 10, user_id: 1, assigned_to: null, sprint_id: null,
-    planned_date: null, due_date: null, title: "Ticket", workflow_state_id: 7, priority: "medium",
+    planned_date: null, start_date: null, due_date: null, title: "Ticket", workflow_state_id: 7, priority: "medium",
     project_id: 100, task_number: 1, ticket_key: "TEAM-1",
 };
 const SPRINT = { id: 50, team_id: 10, end_date: "2026-11-14", name: "S" };
@@ -62,9 +62,15 @@ const txClient = { query: jest.fn() };
 
 function respond(sql: string, params: unknown[] = []) {
     const text = sql.replace(/\s+/g, " ");
-    if (/SELECT \* FROM tasks WHERE id = \$1/.test(text)) {
+    if (/SELECT \* FROM tasks WHERE id = \$1/.test(text)
+        || /FROM tasks t LEFT JOIN work_item_types/.test(text) && /WHERE t.id = \$1/.test(text)) {
         const row = rows[Number(params[0])];
         return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+    }
+    if (/UPDATE tasks SET start_date/.test(text)) {
+        const row = rows[Number(params[1])];
+        row.start_date = params[0];
+        return { rows: [{ ...row }], rowCount: 1 };
     }
     if (/INSERT INTO tasks/.test(text)) return { rows: [{ id: 5 }], rowCount: 1 };
     if (/SELECT COALESCE\(/.test(text) && /origin_team_id/.test(text)) return { rows: [{ id: 100 }], rowCount: 1 };
@@ -159,45 +165,24 @@ describe("POST /:id/transfer", () => {
     });
 });
 
-describe("PATCH /:id/schedule", () => {
-    test("plans the ticket onto the day inside a transaction", async () => {
+describe("date compatibility endpoints", () => {
+    test("schedule sets the start date, not placement", async () => {
         const res = await request(app).patch("/api/tasks/5/schedule").send({ date: "2026-11-06" });
-
         expect(res.status).toBe(200);
-        expect(lastPlacement()).toMatchObject({ ids: [5], target: { day: "2026-11-06" } });
-        expect(lastPlacement()!.ctx.db).toBe(txClient);
-    });
-
-    test.each([
-        ["IN_SPRINT", 409],
-        ["SPRINT_FROZEN", 409],
-        ["NOT_FOUND", 404],
-    ])("maps %s to %i with its code", async (code, status) => {
-        mockPlaceTickets.mockResolvedValue(refused(code));
-
-        const res = await request(app).patch("/api/tasks/5/schedule").send({ date: "2026-11-06" });
-
-        expect(res.status).toBe(status);
-        expect(res.body).toMatchObject({ code });
-    });
-
-    test("rejects a malformed day before placing", async () => {
-        const res = await request(app).patch("/api/tasks/5/schedule").send({ date: "6 Nov" });
-
-        expect(res.status).toBe(400);
+        expect(res.body).toMatchObject({ start_date: "2026-11-06", planned_date: "2026-11-06", sprint_id: null });
         expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
-});
-
-describe("PATCH /:id/unschedule", () => {
-    test("sends the ticket back to the backlog", async () => {
+    test("unschedule clears the start date without placement", async () => {
+        rows[5].start_date = "2026-11-06";
         const res = await request(app).patch("/api/tasks/5/unschedule").send({});
-
         expect(res.status).toBe(200);
-        expect(lastPlacement()).toMatchObject({ ids: [5], target: "backlog" });
+        expect(res.body.start_date).toBeNull();
+        expect(mockPlaceTickets).not.toHaveBeenCalled();
+    });
+    test("schedule rejects a malformed date", async () => {
+        expect((await request(app).patch("/api/tasks/5/schedule").send({ date: "6 Nov" })).status).toBe(400);
     });
 });
-
 describe("PATCH /:id/assign-sprint", () => {
     test("joins the sprint and keeps the enriched-ticket response", async () => {
         const res = await request(app).patch("/api/tasks/5/assign-sprint").send({ sprint_id: 50 });
@@ -246,11 +231,11 @@ describe("creating a ticket", () => {
         expect(lastPlacement()!.ctx.db).toBe(txClient);
     });
 
-    test("POST / with no sprint plans the ticket onto today", async () => {
+    test("POST / with no sprint sets start date without placement", async () => {
         const res = await request(app).post("/api/tasks").send({ title: "New", date: "2026-11-06" });
 
         expect(res.status).toBe(200);
-        expect(lastPlacement()).toMatchObject({ target: { day: "2026-11-06" } });
+        expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 
     test("POST /backlog with no sprint places nothing", async () => {
@@ -291,7 +276,7 @@ describe("other ways a ticket is created", () => {
         db.query.mockImplementation(async (sql: string, params: unknown[]) => respond(sql, params));
     });
 
-    test("a note checklist item with no active sprint is planned onto today", async () => {
+    test("a note checklist item without a sprint gets a start date", async () => {
         txClient.query.mockImplementation(async (sql: string, params: unknown[]) => {
             if (/INSERT INTO tasks/.test(sql)) return { rows: [{ id: 5, title: "From note" }], rowCount: 1 };
             return respond(sql, params);
@@ -300,7 +285,7 @@ describe("other ways a ticket is created", () => {
         const res = await request(app).post("/api/notes/convert-to-task").send({ title: "From note" });
 
         expect(res.status).toBe(200);
-        expect(lastPlacement()!.target).toEqual({ day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+        expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 });
 
@@ -312,23 +297,23 @@ describe("PUT /:id", () => {
         expect(lastPlacement()).toMatchObject({ ids: [5], target: { sprint: 50 } });
     });
 
-    test("a planned day on an unsprinted ticket goes through placement", async () => {
+    test("a legacy planned day edits start date without placement", async () => {
         const res = await request(app).put("/api/tasks/5").send({ planned_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
-        expect(lastPlacement()).toMatchObject({ target: { day: "2026-11-06" } });
+        expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 
-    test("clearing the planned day sends the ticket back to the backlog", async () => {
+    test("clearing the legacy date does not place the ticket", async () => {
         rows[5] = { ...TICKET, planned_date: "2026-11-06" };
 
         const res = await request(app).put("/api/tasks/5").send({ planned_date: null });
 
         expect(res.status).toBe(200);
-        expect(lastPlacement()).toMatchObject({ target: "backlog" });
+        expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 
-    test("a planned day on a sprinted ticket is ignored", async () => {
+    test("a legacy date on a sprinted ticket does not move it", async () => {
         rows[5] = { ...TICKET, sprint_id: 50, due_date: "2026-11-14" };
 
         const res = await request(app).put("/api/tasks/5").send({ planned_date: "2026-11-06", title: "Renamed" });

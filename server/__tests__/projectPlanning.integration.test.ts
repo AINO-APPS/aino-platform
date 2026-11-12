@@ -51,6 +51,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
             req.log = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
             next();
         });
+        app.use("/api/sprints", require("../routes/sprintCompletion"));
         app.use("/api/sprints", require("../routes/sprints"));
         app.use("/api/tasks", require("../routes/tasks"));
         app.use("/api/projects", require("../routes/projects"));
@@ -65,7 +66,46 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES (1, 'planner', 'x', 'Planner', 1, 1)");
         await pool.query(`INSERT INTO projects (id, org_id, key, name, origin_team_id) VALUES
             (10, 1, 'ONE', 'One', 1), (20, 1, 'TWO', 'Two', NULL), (30, 1, 'HIDE', 'Hidden', 2)`);
+        await pool.query("UPDATE projects SET type = 'scrum' WHERE id IN (10, 20, 30)");
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
+    });
+
+    test.each(["project", "compatibility"])("%s Scrum backlog includes dated migrated work and never serializes Scheduled", async mode => {
+        const dated = (await request(app).post("/api/tasks/backlog").send({
+            title: "Dated migration", project_id: 10, start_date: "2026-11-09", due_date: "2026-11-12",
+        }).expect(200)).body;
+        // Expanded production rows retain this legacy storage until ticket 11.
+        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
+        const headers = mode === "compatibility" ? { "x-legacy": "1" } : {};
+        const backlog = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
+        const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
+        expect({
+            ids: backlog.body.tasks.map((task: any) => task.id),
+            container: detail.body.container,
+        }).toEqual({ ids: [dated.id], container: "backlog" });
+        expect(backlog.body.tasks[0]).toMatchObject({
+            start_date: "2026-11-09", planned_date: "2026-11-09", container: "backlog",
+        });
+        const scheduled = await request(app).get("/api/tasks/scheduled?team_id=1").set(headers).expect(200);
+        expect(scheduled.body.tasks).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: dated.id, container: "backlog" }),
+        ]));
+    });
+
+    test.each([
+        ["kanban", false, "board"], ["kanban", true, "backlog"], ["task_list", false, "board"],
+    ])("%s backlog setting %s determines dated ticket containers in both ownership modes", async (type, backlog, expected) => {
+        await pool.query("UPDATE projects SET type = $1, kanban_backlog_enabled = $2 WHERE id = 10", [type, backlog]);
+        const dated = (await request(app).post("/api/tasks/backlog").send({
+            title: "Dated project work", project_id: 10, start_date: "2026-11-09",
+        }).expect(200)).body;
+        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
+        for (const headers of [{}, { "x-legacy": "1" }]) {
+            const read = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
+            expect(read.body.tasks).toEqual([expect.objectContaining({ id: dated.id, container: expected })]);
+            const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
+            expect(detail.body.container).toBe(expected);
+        }
     });
 
     test("my projects picker includes only active projects where the actor can create tickets", async () => {
@@ -154,6 +194,9 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query(`INSERT INTO tasks (id, user_id, org_id, team_id, project_id, sprint_id, title) VALUES
             (1, 1, 1, 1, 10, NULL, 'One backlog'), (2, 1, 1, 1, 20, NULL, 'Two backlog'),
             (3, 1, 1, 1, 10, 100, 'One board'), (4, 1, 1, 1, 20, 200, 'Two board')`);
+        await pool.query(`UPDATE tasks t SET workflow_state_id = (
+            SELECT id FROM workflow_states WHERE project_id = t.project_id AND is_initial = TRUE LIMIT 1
+        )`);
         const backlog = await request(app).get("/api/tasks/backlog?project_id=20");
         expect(backlog.status).toBe(200);
         expect(backlog.body.tasks.map((task: any) => task.id)).toEqual([2]);
@@ -202,6 +245,9 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
             VALUES (100, 1, 10, 'Keep sprint', '2026-11-01', '2026-11-14')`);
         await pool.query(`INSERT INTO tasks (id, user_id, org_id, team_id, project_id, sprint_id, title)
             VALUES (1, 1, 1, 1, 10, 100, 'Keep ticket')`);
+        await pool.query(`UPDATE tasks SET workflow_state_id = (
+            SELECT id FROM workflow_states WHERE project_id = 10 AND is_initial = TRUE LIMIT 1
+        ) WHERE id = 1`);
         const refused = await request(app).delete("/api/organization/teams/1").set("x-legacy", "1").set("x-role", "super_admin");
         expect(refused.status).toBe(409);
         const deleted = await request(app).delete("/api/organization/teams/1").set("x-role", "super_admin");
@@ -240,6 +286,138 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect((await request(app).delete(`/api/sprints/${second.id}`)).status).toBe(200);
         const list = await request(app).get("/api/sprints?project_id=20");
         expect(list.body.sprints).toEqual([]);
+    });
+
+    test("completion preview and new-sprint completion share hierarchy-aware carryover within the project", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, team_id, name, start_date, end_date, status) VALUES
+            (100, 10, 1, 'Current', '2026-11-01', '2026-11-14', 'active'),
+            (101, 10, 1, 'Next', '2026-11-15', '2026-11-28', 'planned'),
+            (200, 20, NULL, 'Other project', '2026-11-15', '2026-11-28', 'planned')`);
+        const states = (await pool.query(
+            "SELECT id, key, is_terminal FROM workflow_states WHERE org_id = 1 AND project_id = 10",
+        )).rows;
+        const openStateId = Number(states.find((state: any) => !state.is_terminal && state.key !== "cancelled")!.id);
+        const doneStateId = Number(states.find((state: any) => state.is_terminal && state.key !== "cancelled")!.id);
+        const types = (await pool.query(
+            "SELECT id, key FROM work_item_types WHERE org_id = 1",
+        )).rows;
+        const taskTypeId = Number(types.find((type: any) => type.key === "task")!.id);
+        const subtaskTypeId = Number(types.find((type: any) => type.key === "subtask")!.id);
+        const addTicket = async (input: {
+            title: string;
+            terminal: boolean;
+            subtask?: boolean;
+            parentId?: number;
+            points?: number;
+        }) => Number((await pool.query(
+            `INSERT INTO tasks
+                (user_id, org_id, team_id, project_id, sprint_id, workflow_state_id, work_item_type_id, parent_task_id, title, story_points)
+             VALUES (1, 1, 1, 10, 100, $1, $2, $3, $4, $5)
+             RETURNING id`,
+            [
+                input.terminal ? doneStateId : openStateId,
+                input.subtask ? subtaskTypeId : taskTypeId,
+                input.parentId ?? null,
+                input.title,
+                input.points ?? null,
+            ],
+        )).rows[0].id);
+        const terminalParent = await addTicket({ title: "Done parent with open work", terminal: true, points: 5 });
+        const openSubtask = await addTicket({
+            title: "Open subtask", terminal: false, subtask: true, parentId: terminalParent,
+        });
+        const doneSubtask = await addTicket({
+            title: "Done subtask", terminal: true, subtask: true, parentId: terminalParent,
+        });
+        const openParent = await addTicket({ title: "Open parent", terminal: false, points: 3 });
+        const doneSibling = await addTicket({
+            title: "Done sibling", terminal: true, subtask: true, parentId: openParent,
+        });
+        const finishedParent = await addTicket({ title: "Finished parent", terminal: true, points: 8 });
+        const finishedSubtask = await addTicket({
+            title: "Finished subtask", terminal: true, subtask: true, parentId: finishedParent,
+        });
+
+        const dateBounds = (await pool.query(
+            "SELECT (CURRENT_DATE + 1)::text AS start_date, (CURRENT_DATE + 14)::text AS end_date",
+        )).rows[0];
+        const preview = await request(app).get("/api/sprints/100/completion-preview?rolloverTo=new");
+        expect(preview.status).toBe(200);
+        expect(preview.body).toMatchObject({
+            supportsNewSprint: true,
+            defaultTarget: 101,
+            defaultTargetType: "next",
+            selectedTarget: "new",
+            hasNext: true,
+            nextPlannedSprint: { id: 101, name: "Next" },
+            movingParents: [
+                { id: terminalParent, title: "Done parent with open work" },
+                { id: openParent, title: "Open parent" },
+            ],
+            movingSubtasks: 3,
+            movingPoints: 8,
+            staying: expect.arrayContaining([
+                expect.objectContaining({ id: finishedParent, title: "Finished parent", story_points: "8.00", completed: true }),
+                expect.objectContaining({ id: finishedSubtask, title: "Finished subtask", story_points: null, completed: true }),
+            ]),
+            newSprint: {
+                start_date: dateBounds.start_date,
+                end_date: dateBounds.end_date,
+            },
+        });
+        expect(preview.body.moving.map((ticket: any) => ticket.id)).toEqual([
+            terminalParent, openSubtask, doneSubtask, openParent, doneSibling,
+        ]);
+        expect(preview.body.staying.map((ticket: any) => ticket.id)).toEqual([finishedParent, finishedSubtask]);
+
+        const completed = await request(app).post("/api/sprints/100/complete").send({ rolloverTo: "new" });
+        expect(completed.status).toBe(200);
+        const created = (await pool.query(
+            "SELECT id, project_id, team_id, name, status, start_date::text, end_date::text FROM sprints WHERE project_id = 10 AND id NOT IN (100, 101)",
+        )).rows[0];
+        expect(created).toMatchObject({
+            project_id: 10,
+            team_id: null,
+            status: "planned",
+            start_date: dateBounds.start_date,
+            end_date: dateBounds.end_date,
+        });
+        const moved = (await pool.query(
+            "SELECT id, project_id, team_id, sprint_id FROM tasks WHERE id = ANY($1::int[]) ORDER BY id",
+            [[terminalParent, openSubtask, doneSubtask, openParent, doneSibling]],
+        )).rows;
+        expect(moved.map((ticket: any) => ticket.id)).toEqual(
+            [terminalParent, openSubtask, doneSubtask, openParent, doneSibling].sort((a, b) => a - b),
+        );
+        expect(moved.every((ticket: any) =>
+            Number(ticket.project_id) === 10 && Number(ticket.team_id) === 1
+            && Number(ticket.sprint_id) === Number(created.id))).toBe(true);
+        const stayed = (await pool.query(
+            "SELECT project_id, sprint_id FROM tasks WHERE id = ANY($1::int[]) ORDER BY id",
+            [[finishedParent, finishedSubtask]],
+        )).rows;
+        expect(stayed).toEqual([
+            { project_id: 10, sprint_id: 100 },
+            { project_id: 10, sprint_id: 100 },
+        ]);
+    });
+
+    test("omitting the completion target uses the previewed next planned sprint", async () => {
+        await pool.query(`INSERT INTO sprints (id, project_id, team_id, name, start_date, end_date, status) VALUES
+            (100, 10, 1, 'Current', '2026-11-01', '2026-11-14', 'active'),
+            (101, 10, 1, 'Next', '2026-11-15', '2026-11-28', 'planned')`);
+        const ticket = Number((await pool.query(
+            `INSERT INTO tasks (user_id, org_id, team_id, project_id, sprint_id, title)
+             VALUES (1, 1, 1, 10, 100, 'Omitted target')
+             RETURNING id`,
+        )).rows[0].id);
+
+        const preview = await request(app).get("/api/sprints/100/completion-preview");
+        expect(preview.body).toMatchObject({ defaultTarget: 101, defaultTargetType: "next", hasNext: true });
+        const completed = await request(app).post("/api/sprints/100/complete").send({});
+
+        expect(completed.status).toBe(200);
+        expect((await pool.query("SELECT sprint_id FROM tasks WHERE id = $1", [ticket])).rows[0].sprint_id).toBe(101);
     });
 
     test("project members can plan without an organization lead role, but viewers and archived projects cannot write", async () => {

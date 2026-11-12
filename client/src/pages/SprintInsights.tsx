@@ -27,15 +27,15 @@ import s from "./SprintInsights.module.css";
 const EMPTY_SPRINTS: any[] = [];
 const EMPTY_TASKS: any[] = [];
 
-export default function SprintInsights() {
+export default function SprintInsights({ projectId }: { projectId?: number | null } = {}) {
   const { unitLabel } = useAgileConfig() as any;
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const { data: sprintList = { sprints: EMPTY_SPRINTS, currentSprintId: null } } = useQuery({
-    queryKey: ["sprints", "list"],
-    queryFn: async () => (await getSprints()).data as any,
+    queryKey: ["sprints", "list", projectId], enabled: projectId != null,
+    queryFn: async () => (await getSprints({ project_id: projectId! })).data as any,
   });
   const sprints: any[] = sprintList?.sprints || EMPTY_SPRINTS;
   const currentSprintId = sprintList?.currentSprintId ?? null;
@@ -144,7 +144,7 @@ export default function SprintInsights() {
       </header>
 
       {!selectedId && (
-        <div className={s.empty}>Select a sprint to see insights.</div>
+        <div className={s.empty}>{projectId == null ? "Open Reports from a project to see its sprints." : "Select a sprint to see insights."}</div>
       )}
 
       {selectedId && (

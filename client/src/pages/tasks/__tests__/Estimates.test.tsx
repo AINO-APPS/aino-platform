@@ -9,6 +9,17 @@ beforeEach(()=>{vi.clearAllMocks();api.getTaskWorklogs.mockResolvedValue({data:{
     api.setTaskEstimates.mockResolvedValue({data:{ticket:{...ticket,original_estimate_minutes:180,remaining_estimate_minutes:75}}});});
 const worklog={id:4,task_id:1,author_id:1,logged_by_id:1,author:{id:1,full_name:'Alice'},logged_by:{id:1,full_name:'Alice'},
     day_worked:'2026-11-01',minutes:30,comment:'Effort',start_time:null,canEdit:true,canDelete:true};
+test('parent effort names own and including-subtask totals separately', async () => {
+    render(<TaskTimePanel task={{ ...ticket, subtask_summary: { total: 2, done: 1 }, effort: {
+        own_time_spent_minutes: 150, total_time_spent_minutes: 210,
+        own_remaining_estimate_minutes: 75, total_remaining_estimate_minutes: 105,
+    } }} />);
+    const totals = screen.getByRole('group', { name: 'Including subtasks' });
+    expect(totals).toHaveTextContent('3h 30m spent');
+    expect(totals).toHaveTextContent('1h 45m remaining');
+    expect(screen.getByText('Own time spent')).toBeTruthy();
+    await screen.findByText('No work logged yet');
+});
 test.each(['create','edit','delete'])('remaining choices send auto/set/leave payloads for %s',async(operation)=>{
     api.getTaskWorklogs.mockResolvedValue({data:{worklogs:operation==='create'?[]:[worklog],time_spent_minutes:30}});
     for(const mode of ['auto','set','leave']){

@@ -1,3 +1,8 @@
+import { applyProjectTypeContract } from "./project-types.mjs";
+import { applyClientVersionContract, clientVersionHeaderParameters } from "./client-versions.mjs";
+import { applyHierarchyContract } from "./hierarchy.mjs";
+import { applyTaskCollectionContract } from "./task-collections.mjs";
+import { applyProjectBoardContract } from "./project-boards.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +13,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const defs=[
 ["webhooks","/api/webhooks","webhooks.ts",0],["auth","/api/auth","auth.ts",1],["sessions","/api/sessions","sessions.ts",1],["mfa","/api/auth/mfa","mfa.ts",1],["tracker","/api/tracker","tracker.ts",1],["leaves","/api/leaves","leaves.ts",1],["tasks","/api/tasks","tasks/index.ts",1],["sprints","/api/sprints","sprints.ts",0],["agile","/api/agile","agile.ts",0],["profile","/api/profile","profile.ts",1],["user-preferences","/api/user/preferences","userPreferences.ts",1],["organization","/api/org","organization.ts",0],["admin","/api/admin","admin.ts",0],["tenants","/api/admin/tenants","tenants.ts",0],["platform-access","/api/platform-access","platformAccess.ts",0],["internal","/api/internal","internal.ts",0],["manager","/api/manager","manager.ts",0],["leave-policy","/api/leave-policy","leavePolicy.ts",0],["notes","/api/notes","notes.ts",0],["calendar","/api/calendar","calendar.ts",1],["meetings","/api/meetings","meetings.ts",1],["notifications","/api/notifications","notifications.ts",1],["export","/api/export","export.ts",0],["chat","/api/chat","chat.ts",1],["giphy","/api/giphy","giphy.ts",0],["status","/api/me/status","status.ts",1],["search","/api/search","search.ts",1],["service-desk","/api/service-desk","serviceDesk.ts",0],["branding","/api/branding","branding.ts",0],["custom-fields","/api/custom-fields","customFields.ts",0],["compensation","/api/compensation","compensation.ts",0],["projects","/api/projects","projects.ts",1],["integrations","/api/integrations","integrations.ts",0],["public","/api/public","public.ts",1]];
 const mounts=defs.map(([id,mountPath,file,full])=>({id,mountPath,source:`server/routes/${file}`,coverage:full?"baseline":"inventory-only"}));
+mounts.push(
+ {id:"client-versions",mountPath:"/api/client-versions",source:"server/modules/clientVersions/clientVersions.routes.ts",coverage:"baseline"},
+ {id:"client-version-adoption",mountPath:"/api/admin/client-versions",source:"server/modules/clientVersions/clientVersions.routes.ts",coverage:"baseline"}
+);
 const snap=fs.readFileSync(path.join(root,"server/__tests__/__snapshots__/routes.snapshot.test.ts.snap"),"utf8");
 const endpoints=[...snap.matchAll(/"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ALL)\s+([^"\\]+)"/g)].map(([,method,path])=>({method,path})).filter(x=>x.path!=="/^[^.]*$/");
 const health=new Set(["/healthz","/readyz","/api/health"]), prefixes=mounts.filter(x=>x.coverage==="baseline").map(x=>x.mountPath);
@@ -180,7 +189,7 @@ const schemas={
  ,NotificationMetricLatency:obj({averageMs:{type:"number",minimum:0},p50Ms:{type:"number",minimum:0},p95Ms:{type:"number",minimum:0}},["averageMs","p50Ms","p95Ms"])
  ,NotificationMetricsResponse:obj({windowHours:{type:"integer",minimum:1,maximum:168},successRate:{type:["number","null"],minimum:0,maximum:100},counts:R("NotificationMetricCounts"),latency:R("NotificationMetricLatency"),lastEventAt:{type:["string","null"],format:"date-time"}},["windowHours","successRate","counts","latency","lastEventAt"])
  ,SearchTask:obj({id:{type:"integer"},title:{type:"string"},description:{type:["string","null"]},workflow_state_key:{type:["string","null"]},priority:{type:"string"},planned_date:{type:["string","null"],format:"date"},due_date:{type:["string","null"]},sprint_id:{type:["integer","null"]},snippet:{type:"string"},ticket_key:{type:"string"},issue_key:{type:"string"},key_aliases:{type:"array",items:{type:"string"}},container:{type:"string",enum:["sprint","scheduled","backlog"]},capabilities:R("TicketCapabilities")},["id","ticket_key","issue_key","key_aliases","title","description","priority","planned_date","due_date","sprint_id","snippet","container","capabilities"])
- ,Sprint:obj({id:{type:"integer"},project_id:{type:"integer"},team_id:{type:["integer","null"],description:"Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."},name:{type:"string"},goal:{type:["string","null"]},status:{type:"string",enum:["planned","active","paused","completed"]},start_date:{type:["string","null"],format:"date"},end_date:{type:["string","null"],format:"date"},started_at:{type:["string","null"],format:"date-time"},completed_at:{type:["string","null"],format:"date-time"},paused_at:{type:["string","null"],format:"date-time"},velocity_points:{type:["number","null"]},auto_managed:{type:"boolean"},sprint_number:{type:["integer","null"]},carried_from_sprint_id:{type:["integer","null"]}},["id","project_id","team_id","name","status","auto_managed"])
+ ,Sprint:obj({id:{type:"integer"},project_id:{type:"integer"},team_id:{type:["integer","null"],description:"Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."},name:{type:"string"},goal:{type:["string","null"]},status:{type:"string",enum:["planned","active","paused","completed"]},start_date:{type:["string","null"],format:"date"},end_date:{type:["string","null"],format:"date"},started_at:{type:["string","null"],format:"date-time"},completed_at:{type:["string","null"],format:"date-time"},paused_at:{type:["string","null"],format:"date-time"},velocity_points:{type:["number","null"]},auto_managed:{type:"boolean"},sprint_number:{type:["integer","null"]},carried_from_sprint_id:{type:["integer","null"]},can_manage:{type:"boolean",description:"When present in project-scoped sprint lists, the actor may manage the sprint lifecycle."}},["id","project_id","team_id","name","status","auto_managed"])
  ,CreateSprintRequest:obj({project_id:{type:"integer",minimum:1,description:"Selected project; omitted by legacy clients, which fall back to their team's generated project."},team_id:{type:"integer",minimum:1},name:{type:"string",maxLength:100},start_date:{type:"string",format:"date"},end_date:{type:"string",format:"date"},goal:{type:"string",maxLength:1000}},["name","start_date","end_date"])
  ,SprintResponse:obj({sprint:R("Sprint")},["sprint"])
  ,ActiveSprintResponse:obj({sprint:{anyOf:[R("Sprint"),{type:"null"}]}},["sprint"])
@@ -246,7 +255,13 @@ schemas.TaskByKey={type:"object",properties:{id:{type:"integer"},ticket_key:{typ
 applyWorklogContract(paths, schemas);
 applyEstimateContract(paths, schemas);
 applyProjectMoveContract(paths, schemas);
+applyProjectTypeContract(paths, schemas);
+applyProjectBoardContract(paths, schemas);
+applyHierarchyContract(paths, schemas);
+applyTaskCollectionContract(paths, schemas);
+applyClientVersionContract(paths, schemas);
 const openapi={openapi:"3.1.0",info:{title:"AINO Platform HTTP API",version:"0.1.0",description:"Initial contract baseline derived from mounted server routers and route tests. See contracts/README.md for explicit completeness limits."},servers:[{url:"/",description:"Current origin"}],tags:mounts.filter(m=>m.coverage==="baseline").map(m=>({name:m.id})).concat({name:"health"}),paths,components:{securitySchemes:{cookieAuth:{type:"apiKey",in:"cookie",name:"token",description:"HttpOnly JWT cookie used by web and desktop clients"},bearerAuth:{type:"http",scheme:"bearer",bearerFormat:"JWT",description:"JWT returned by auth flows for native mobile clients"}},parameters:{CsrfHeader:{name:"X-Requested-With",in:"header",required:true,description:"Required on mutating /api requests. AINO is preferred; WorkPulse is accepted for compatibility.",schema:{type:"string",enum:["AINO","WorkPulse"]}}},schemas}};
+Object.assign(openapi.components.parameters, clientVersionHeaderParameters);
 openapi.paths=Object.fromEntries([...reviewed.pathOrder,...Object.keys(paths).filter(route=>!reviewed.pathOrder.includes(route))].map(route=>[route,paths[route]]));
 openapi.components.schemas=Object.fromEntries([...reviewed.schemaOrder,...Object.keys(schemas).filter(name=>!reviewed.schemaOrder.includes(name))].map(name=>[name,schemas[name]]));
 fs.writeFileSync(path.join(root,"contracts/openapi.json"),JSON.stringify(openapi,null,2)+"\n");
