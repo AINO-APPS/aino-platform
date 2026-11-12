@@ -249,40 +249,24 @@ Ticket placement capabilities ask the same pure policy. Migration
 project-row locks and database triggers serialize open-sprint writers with type
 changes, preventing bypass and concurrent orphaning.
 
-Run `npx jest projectTypes.integration tasks.projectTypes tasks.capabilities.integration --runInBand`
+Run `npx jest projectTypes.integration projectTypesRemoval.test tasks.projectCapabilities.test --runInBand`
 with the local test-database variable for pure policy, HTTP and capability seams.
 Ticket 01 does not replace subsequent tickets' planning board contents.
 
-## Migration review and publication
+## Ownership migration history and contraction guard
 
-At `/projects`, **Review project migration** opens the super-admin review.
-`GET /api/projects/migration/review` returns a consistent snapshot of generated
-team/General projects, publication state, types, ticket counts, named grants,
-and migration moves. `hierarchy_repairs` includes organization-scoped original
-repairs and follow-up corrections, with immutable before/after hierarchy fields,
-reason and time. A removed ticket retains its record with a null current key.
-`new_key` follows review renames; `migration_key` retains
-the original migration target. Inline rename reuses the project-key endpoint.
+The pre-ticket-11 review, switch and switch-back endpoints under
+`/api/projects/migration/**` are retired and are not supported API. Historical
+migrations remain in the ordered tenant chain; bootstrap keeps only the
+compatibility columns they require until guarded migration `0035` contracts
+them. The contraction runner refuses unless the released client-version
+minimums are enforced and its global inventory verifies project ownership for
+every organization. Bootstrap/schema presence does not satisfy that preflight.
 
-`tasks.migration.ts` orchestrates review and switch-over; its repository owns SQL.
-`POST /api/projects/migration/switch` requires exactly `super_admin`, locks the
-organization, publishes every project key, enables `project_ownership`, stamps
-the first publication time and inserts an audit entry in one transaction.
-Concurrent/repeated switches return 409. A failed audit rolls everything back.
-`POST /api/projects/migration/switch-back` requires exactly `platform_admin`,
-disables project visibility and audits the emergency action without unpublishing
-keys or clearing the first-publication timestamp. Initial publication cannot
-be repeated after rollback. All three endpoints require web sessions and an
-organization context; HR/project admins cannot administer this switch.
-
-Migration `0023_project_ownership_switch.sql` adds the retained timestamp and
-stamps already-enabled organizations. Run
-`npm run test:pg -- projectsMigration --runInBand` for the HTTP/PostgreSQL seam.
-
-With project ownership enabled, ticket decisions use project roles rather than
-team membership. Viewers, reporters and assignees can comment; only members and
-project admins can write. Project admins can log, edit and delete other people's
-worklogs only within their administered project, including team-derived grants.
+Ticket decisions use project roles rather than team ownership. Viewers, reporters
+and assignees can comment; only members and project admins can write. Project
+admins can log, edit and delete other people's worklogs only within their
+administered project, including team-derived grants.
 Org admins retain on-behalf access throughout their organization. Worklog
 `canEdit`/`canDelete` responses use the same project-role and archive context as
 mutation guards; member/viewer grants never confer on-behalf administration.
@@ -506,5 +490,5 @@ bar. Tasks parity points to real web RTL and Android fake-API ticket-view-model
 tests. The platform's read-only native parity gate requires coverage for all five
 manual-worklog/estimate routes without changing unrelated baseline parity debt.
 Tests: `tasks.estimates.test.ts`, `tasks.estimateMigration.integration.test.ts`,
-`tasks.worklogRoutes.integration.test.ts`, `tasks.capabilities.integration.test.ts`
-(real PostgreSQL), and client `Estimates.test.tsx` / `LogWork.test.tsx` (RTL).
+`tasks.worklogRoutes.integration.test.ts` (real PostgreSQL), and client
+`Estimates.test.tsx` / `LogWork.test.tsx` (RTL).
