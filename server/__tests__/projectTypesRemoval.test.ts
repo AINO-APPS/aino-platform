@@ -2,7 +2,7 @@ import express from "express";
 import request from "supertest";
 import { createProjectTypesRemoval } from "../modules/projectTypesRemoval/projectTypesRemoval";
 import { runProjectTypesContraction } from "../modules/projectTypesRemoval/projectTypesRemoval.migrate";
-import { verifyAllProjectOwnership } from "../modules/projectTypesRemoval/projectTypesRemoval.repository";
+import { verifyAllProjectOwnership, verifyProjectOwnership } from "../platform/projectTypesRemoval";
 
 describe("guarded project-types API removal boundary", () => {
     test("contraction refuses before issuing SQL unless the released minimums and global ownership preflight pass", async () => {
@@ -72,6 +72,26 @@ describe("guarded project-types API removal boundary", () => {
         await expect(verifyAllProjectOwnership({ masterQuery: query, tenantQuery: async () => query }))
             .rejects.toThrow("Project ownership is not verified for every organization");
     });
+
+    test("ownership preflight requires every organization in each tenant database to be switched", async () => {
+        const statements: string[] = [];
+        const query = async (sql: string) => {
+            statements.push(sql);
+            if (sql.includes("information_schema.columns")) return { rows: [
+                { column_name: "organizations.project_ownership" },
+                { column_name: "organizations.project_ownership_switched_at" },
+            ] };
+            if (sql.includes("COUNT(*)")) return { rows: [{ organizations: 3, unswitched: 1 }] };
+            return { rows: [] };
+        };
+
+        await expect(verifyProjectOwnership(query))
+            .rejects.toThrow("Project ownership is not verified for every organization");
+        const organizationCount = statements.find(sql => sql.includes("COUNT(*)"));
+        expect(organizationCount).toMatch(/FROM organizations/);
+        expect(organizationCount).not.toMatch(/WHERE\s+org_id/i);
+    });
+
     test("an explicit opt-in with an OFF gate refuses without retiring existing routes", async () => {
         const verifyOwnership = jest.fn(async () => undefined);
         const app = express();
@@ -132,6 +152,8 @@ describe("guarded project-types API removal boundary", () => {
             CLIENT_VERSION_MIN_ANDROID: "0.27.18", CLIENT_VERSION_MIN_DESKTOP: "3.0.80", CLIENT_VERSION_MIN_WEB: "3.0.80+web.test",
         }), verifyOwnership }));
         app.get("/api/tasks/schedule-overlays", (_req, res) => res.json({ leave: [], holidays: [], meetings: [] }));
+        app.get("/api/tasks", (req, res) => res.json({ date: req.query.date }));
+        app.get("/api/sprints", (req, res) => res.json({ date: req.query.date }));
         app.use((req, res) => res.json(req.method === "GET" ? {
             task: { id: 1, ticket_key: "APP-1", issue_key: "APP-1", project_id: 10, team_id: 2,
                 start_date: "2026-11-12", planned_date: "2026-11-12", pre_sprint_due_date: null,
@@ -150,6 +172,12 @@ describe("guarded project-types API removal boundary", () => {
         ]) {
             expect((await (request(app) as any)[method](path)).status).toBe(404);
         }
+        const taskDate = await request(app).get("/api/tasks?date=2026-11-12");
+        const sprintDate = await request(app).get("/api/sprints?date=2026-11-12");
+        expect(taskDate.status).toBe(200);
+        expect(taskDate.body).toEqual({ date: "2026-11-12" });
+        expect(sprintDate.status).toBe(200);
+        expect(sprintDate.body).toEqual({ date: "2026-11-12" });
         const response = await request(app).get("/api/tasks/1/detail");
         expect(response.body.task).toEqual({ id: 1, ticket_key: "APP-1", project_id: 10, start_date: "2026-11-12",
             time_spent_minutes: 45, original_estimate_minutes: 90,

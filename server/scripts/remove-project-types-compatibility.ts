@@ -5,7 +5,7 @@ import { runProjectTypesContraction, type ProjectTypesContractionTarget } from "
 async function main(): Promise<void> {
     await assertProjectTypesRemovalReady(process.env, async () => undefined);
     const { masterQuery } = require("../platform/db/pool");
-    const { verifyPlatformProjectOwnership } = require("../modules/projectTypesRemoval/projectTypesRemoval.platform");
+    const { verifyPlatformProjectOwnership } = require("../platform/projectTypesRemoval");
     const inventory = await masterQuery("SELECT db_name, db_host FROM tenants ORDER BY id");
     const legacy = await masterQuery("SELECT to_regclass('public.organizations') IS NOT NULL AS present");
     if (inventory.rows.length === 0 && legacy.rows[0]?.present !== true) {

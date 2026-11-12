@@ -8,7 +8,8 @@ const fields = new Set([
     "planned_date", "pre_sprint_due_date", "issue_key", "logged_minutes", "estimated_minutes",
     "project_ownership", "project_ownership_switched_at",
 ]);
-const retiredInputFields = new Set([...fields, "date"]);
+const retiredInputFields = new Set(fields);
+const retiredBodyFields = new Set([...fields, "date"]);
 
 export function isRetiredProjectTypesPath(path: string): boolean {
     return retired.some(pattern => pattern.test(path));
@@ -16,10 +17,10 @@ export function isRetiredProjectTypesPath(path: string): boolean {
 
 export function hasRetiredProjectTypesInput(path: string, query: Record<string, unknown>, body: unknown): boolean {
     if (!/^\/api\/(?:tasks|sprints)(?:\/|$)/.test(path)) return false;
-    const retiredInput = (value: Record<string, unknown>) => Object.keys(value)
-        .some(key => retiredInputFields.has(key) || key === "team_id" || key === "unassigned");
-    return retiredInput(query) || (!!body && typeof body === "object" && !Array.isArray(body)
-        && retiredInput(body as Record<string, unknown>));
+    const retiredInput = (value: Record<string, unknown>, retiredFields: Set<string>) => Object.keys(value)
+        .some(key => retiredFields.has(key) || key === "team_id" || key === "unassigned");
+    return retiredInput(query, retiredInputFields) || (!!body && typeof body === "object" && !Array.isArray(body)
+        && retiredInput(body as Record<string, unknown>, retiredBodyFields));
 }
 
 export function supportedProjectTypesPayload(value: any): any {

@@ -1,10 +1,13 @@
+import { Pool } from "pg";
+import { masterQuery } from "./db/pool";
+
 type Query = (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>;
 
 export async function verifyAllProjectOwnership(options: {
     masterQuery: Query;
     tenantQuery: (database: string, host: string | null) => Promise<Query>;
 }): Promise<void> {
-    // Include suspended/deleted retained databases: inactive is not migrated.
+    // Include suspended/deleted retained databases: inactive does not mean migrated.
     const catalog = await options.masterQuery("SELECT db_name, db_host FROM tenants ORDER BY id");
     const legacy = await options.masterQuery("SELECT to_regclass('public.organizations') IS NOT NULL AS present");
     if (catalog.rows.length === 0 && legacy.rows[0]?.present !== true) throw new Error("Ownership inventory is empty");
@@ -48,4 +51,24 @@ async function verifyProjectOwnedData(query: Query): Promise<void> {
         WHERE p.id IS NULL OR p.org_id IS DISTINCT FROM t.org_id
         UNION ALL SELECT 1 FROM sprints s LEFT JOIN projects p ON p.id = s.project_id WHERE p.id IS NULL LIMIT 1`);
     if (invalid.rows.length) throw new Error("Project-owned data has not been migrated");
+}
+
+/** Uses read-only direct connections because tenant-pool acquisition can migrate. */
+export async function verifyPlatformProjectOwnership(): Promise<void> {
+    const pools: Pool[] = [];
+    try {
+        await verifyAllProjectOwnership({ masterQuery, tenantQuery: async (database, host) => {
+            const url = new URL(process.env.DATABASE_URL!);
+            url.pathname = `/${database}`;
+            if (host) url.hostname = host;
+            const pool = new Pool({ connectionString: url.toString(), max: 1,
+                connectionTimeoutMillis: 5000, statement_timeout: 5000,
+                options: "-c default_transaction_read_only=on",
+                ssl: url.searchParams.get("sslmode") === "require" ? { rejectUnauthorized: false } : false });
+            pools.push(pool);
+            return (sql, params) => pool.query(sql, params as any[]);
+        } });
+    } finally {
+        await Promise.all(pools.map(pool => pool.end()));
+    }
 }

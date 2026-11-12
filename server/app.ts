@@ -49,7 +49,7 @@ function buildApp() {
     app.use(express.urlencoded({ limit: "100kb", extended: true }));
     app.use(requestLogger);
     app.use(createProjectTypesRemoval({ verifyOwnership: async () => {
-        const { verifyPlatformProjectOwnership } = require("./modules/projectTypesRemoval/projectTypesRemoval.platform");
+        const { verifyPlatformProjectOwnership } = require("./platform/projectTypesRemoval");
         await verifyPlatformProjectOwnership();
     } }));
     // After requestLogger so `req.id` exists; the duration is measured on
