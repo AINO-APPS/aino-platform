@@ -23,7 +23,7 @@
         "owner_tests": [
           { "path": "client/src/__tests__/ClientUpgradeBoundary.test.tsx", "name": "desktop automatically uses the existing updater and offers restart only after download" }
         ] },
-      "android": { "status": "waived", "waiver": "Android ticket09 and installed release proof are independently owned. Shared public GET /api/client-versions returns off/report plus three semantic minimums; this platform ticket does not claim native completion." },
+      "android": { "status": "waived", "waiver": "Android ticket09 and installed release proof are independently owned. Shared public GET /api/client-versions returns off/report/enforce plus three semantic minimums; this platform ticket does not claim native completion." },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits bundled web headers and blocking reload. Native enforcement remains outside ticket09." }
     },
     {

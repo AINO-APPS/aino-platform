@@ -1,8 +1,8 @@
 # Client-version observation and upgrade readiness
 
-Ticket 09 implements OFF and REPORT only. No configuration can activate
-enforcement in this release. Compatibility server endpoints remain available.
-Do not enable REPORT or set production minimums as part of this change.
+The gate supports OFF, REPORT and ENFORCE. Compatibility server endpoints
+remain available until ticket 11's separate rollout prerequisites are met.
+Implementing enforcement does not activate it: the default remains OFF.
 
 ## Configuration (platform-wide, not tenant-overridable)
 
@@ -13,9 +13,28 @@ Do not enable REPORT or set production minimums as part of this change.
 | `CLIENT_VERSION_MIN_DESKTOP` | `0.0.0` |
 | `CLIENT_VERSION_MIN_WEB` | `0.0.0` |
 
-Only exact `report` opts in to observation; absent, invalid or `enforce` values
-remain OFF. Invalid/non-semantic minimums fall back to `0.0.0`. Prerelease and
-build metadata are allowed. The minima are informational in ticket 09.
+Mode must be exactly `off`, `report` or `enforce`. Missing values use the defaults
+above. Invalid modes or minimums are rejected at application startup with the
+offending variable named; they never silently disable protection. Prerelease
+and build metadata are allowed.
+
+In ENFORCE, recognized clients below their class's minimum receive HTTP 426
+before authentication, with `CLIENT_UPGRADE_REQUIRED`, `client`, `min_version`
+and `current_version`. Responses are not cacheable. Missing or malformed client
+versions count as `0` (the precedence of `0.0.0`). Numeric components and
+prerelease identifiers follow semantic-version ordering; build metadata does
+not affect precedence. Equal or newer versions pass through. Unknown clients
+are never gated. Health and GET/HEAD `/api/client-versions` remain exempt.
+
+For a separately approved rollout, first deploy this implementation with OFF,
+then use REPORT to inspect adoption. Only then set ENFORCE and the released
+step-B minimums: Android `0.27.18`, desktop and web `3.0.80`. Verify startup,
+the public configuration, a refusal below each minimum, and access at the
+minimum. Changing configuration requires the normal application restart/deploy;
+there is no per-tenant override. Returning to OFF disables enforcement without
+removing compatibility APIs. Ticket 11 additionally requires every organization
+to have switched to project ownership; do not remove legacy storage or routes
+merely because enforcement code exists.
 
 Run the existing master and tenant migration flow before an operator separately
 opts in: tenant `0033_client_versions.sql`, master
@@ -42,7 +61,7 @@ usage timestamps. Existing mobile/web session exclusivity is unchanged.
 - Monitor `Client version observation failed` warnings before trusting adoption.
   REPORT is fail-open and does not change successful API/auth responses.
 
-## Bundled web identity and future 426
+## Bundled web identity and 426
 
 All first-party API transports send `X-AINO-Client` and
 `X-AINO-Client-Version`. Android uses its version name. Browser and Electron
@@ -58,7 +77,7 @@ with 502 rather than following with credentials; current servers stream desktop
 uploads directly. Build metadata distinguishes observations but has no semver
 ordering: release-stage numeric version bumps must precede minimum increases.
 
-The server does **not** emit 426 yet. Clients are prepared for:
+In ENFORCE the server can emit the contract clients already handle:
 
 ```json
 {"code":"CLIENT_UPGRADE_REQUIRED","client":"web","min_version":"3.0.80","current_version":"3.0.79"}
@@ -102,7 +121,8 @@ Verify project ownership rollout independently. Unswitched tenants retain the
 migration-needed state; this release never silently returns to team scope or
 changes their switch.
 
-Only after separate operator approval, opt in to REPORT and inspect adoption.
-That approval has not been given and REPORT remains OFF. Minimum enforcement
-belongs to ticket 10; destructive legacy endpoint/schema removal belongs to
-ticket 11 and also requires every organization to have switched ownership.
+Only after separate operator approval, opt in to REPORT and inspect adoption,
+then enforce released minimums. No deployment or operator configuration change
+was authorized for ticket 10's code-only implementation. Destructive legacy
+endpoint/schema removal belongs to ticket 11 and additionally requires every
+organization to have switched ownership.

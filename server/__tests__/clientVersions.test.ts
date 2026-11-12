@@ -5,6 +5,8 @@ import { readClientVersionConfig } from "../modules/clientVersions/clientVersion
 import { createClientVersionRoutes } from "../modules/clientVersions/clientVersions.routes";
 import requirePlatformIdentity from "../middleware/platformIdentity";
 import { installCors } from "../http/middleware/cors";
+import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken";
 
 describe("client version HTTP boundary (miniExpress, no database)", () => {
     test("cross-origin first-party preflight permits both client identity headers", async () => {
@@ -35,15 +37,17 @@ describe("client version HTTP boundary (miniExpress, no database)", () => {
         expect((await request(app).get("/api/tasks")).body.observation).toBeNull();
     });
 
-    test("public config is available before authentication; OFF is safe and enforce cannot be enabled", async () => {
+    test("public config is available before authentication and malformed configuration is refused", async () => {
         expect(readClientVersionConfig({})).toEqual({
             mode: "off", minimums: { android: "0.0.0", desktop: "0.0.0", web: "0.0.0" },
         });
-        expect(readClientVersionConfig({ CLIENT_VERSION_MODE: "enforce", CLIENT_VERSION_MIN_WEB: "garbage" }).mode).toBe("off");
+        expect(() => readClientVersionConfig({ CLIENT_VERSION_MODE: "enforce", CLIENT_VERSION_MIN_WEB: "garbage" }))
+            .toThrow("CLIENT_VERSION_MIN_WEB");
         const config = readClientVersionConfig({
             CLIENT_VERSION_MODE: "report", CLIENT_VERSION_MIN_ANDROID: "0.30.0",
             CLIENT_VERSION_MIN_DESKTOP: "3.0.80-beta.1", CLIENT_VERSION_MIN_WEB: "3.0.80+build.9",
         });
+
         const routes = createClientVersionRoutes({ config: () => config, report: async () => [] }, [
             (_req, res) => { res.sendStatus(401); },
         ]);
@@ -53,6 +57,77 @@ describe("client version HTTP boundary (miniExpress, no database)", () => {
         app.use("/api/admin/client-versions", routes.admin);
         expect((await request(app).get("/api/client-versions").set("X-AINO-Client", "android")).body).toEqual(config);
         expect((await request(app).get("/api/admin/client-versions")).status).toBe(401);
+    });
+
+    test("enforcement refuses an outdated client before authentication with the upgrade contract", async () => {
+        const config = readClientVersionConfig({ CLIENT_VERSION_MODE: "enforce", CLIENT_VERSION_MIN_ANDROID: "0.27.18" });
+        const app = express();
+        app.use(createClientVersionGate(() => config));
+        app.use((_req, res) => res.sendStatus(401));
+        const response = await request(app).get("/api/tasks")
+            .set("X-AINO-Client", "android").set("X-AINO-Client-Version", "0.27.17");
+        expect(response.status).toBe(426);
+        expect(response.body).toEqual({
+            code: "CLIENT_UPGRADE_REQUIRED", client: "android",
+            min_version: "0.27.18", current_version: "0.27.17",
+        });
+    });
+
+    test.each(["android", "desktop", "web"] as const)("enforces the minimum boundary for %s", async client => {
+        const config = readClientVersionConfig({
+            CLIENT_VERSION_MODE: "enforce", CLIENT_VERSION_MIN_ANDROID: "3.0.80",
+            CLIENT_VERSION_MIN_DESKTOP: "3.0.80", CLIENT_VERSION_MIN_WEB: "3.0.80",
+        });
+        const app = express();
+        app.use(createClientVersionGate(() => config));
+        app.use((_req, res) => res.sendStatus(200));
+        for (const version of ["3.0.79", "3.0.80-rc.1", "garbage", undefined]) {
+            const call = request(app).get("/api/tasks").set("X-AINO-Client", client);
+            if (version !== undefined) call.set("X-AINO-Client-Version", version);
+            const response = await call;
+            expect(response.status).toBe(426);
+            expect(response.body.current_version).toBe(version === "garbage" || version === undefined ? "0" : version);
+            expect(response.headers["cache-control"]).toBe("no-store");
+        }
+        for (const version of ["3.0.80", "3.0.80+web.build", "3.0.81"]) {
+            expect((await request(app).get("/api/tasks").set("X-AINO-Client", client)
+                .set("X-AINO-Client-Version", version)).status).toBe(200);
+        }
+    });
+
+    test("legacy recognition, unknown clients and exempt recovery routes remain usable", async () => {
+        const config = readClientVersionConfig({
+            CLIENT_VERSION_MODE: "enforce", CLIENT_VERSION_MIN_ANDROID: "0.27.18",
+            CLIENT_VERSION_MIN_DESKTOP: "3.0.80", CLIENT_VERSION_MIN_WEB: "3.0.80",
+        });
+        const app = express();
+        app.use(cookieParser());
+        app.use(createClientVersionGate(() => config));
+        const routes = createClientVersionRoutes({ config: () => config, report: async () => [] }, [(_req, _res, next) => next()]);
+        app.use("/api/client-versions", routes.public);
+        app.use((_req, res) => res.sendStatus(200));
+        expect((await request(app).get("/api/tasks").set("Authorization", "Bearer legacy")).body)
+            .toMatchObject({ client: "android", current_version: "0" });
+        expect((await request(app).get("/api/tasks").set("Origin", "workpulse://app")).body)
+            .toMatchObject({ client: "desktop", current_version: "0" });
+        const token = jwt.sign({ cli: "mobile" }, "client-recognition-test-only");
+        expect((await request(app).get("/api/tasks").set("Cookie", `token=${token}`)).body)
+            .toMatchObject({ client: "android", current_version: "0" });
+        expect((await request(app).get("/api/tasks")).status).toBe(200);
+        expect((await request(app).get("/api/tasks").set("X-AINO-Client", "integration")).status).toBe(200);
+        for (const path of ["/health", "/healthz", "/readyz", "/api/health", "/api/client-versions", "/api/client-versions/"]) {
+            expect((await request(app).get(path).set("X-AINO-Client", "android")).status).toBe(200);
+            expect((await request(app).head(path).set("X-AINO-Client", "android")).status).toBe(200);
+        }
+        expect((await request(app).get("/api/client-versions").set("X-AINO-Client", "web")).body).toEqual(config);
+    });
+
+    test.each([
+        { CLIENT_VERSION_MODE: "typo" },
+        { CLIENT_VERSION_MIN_ANDROID: "" },
+        { CLIENT_VERSION_MIN_DESKTOP: "3.0" },
+    ])("invalid operator configuration is rejected: %j", env => {
+        expect(() => readClientVersionConfig(env)).toThrow();
     });
 
     test("OFF and every health probe remain unobserved, malformed versions count as zero", async () => {

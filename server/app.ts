@@ -27,6 +27,7 @@ import {
 } from "./platform/metrics";
 
 function buildApp() {
+    readClientVersionConfig();
     const app = express();
 
     // Cloudflare edge + Railway proxy = two trusted hops. Using 1 makes
