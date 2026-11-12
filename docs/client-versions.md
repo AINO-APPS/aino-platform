@@ -77,6 +77,8 @@ existing restart/install action after download. It cannot be dismissed.
    lock metadata. No version bump, publish, tag or deployment occurs here.
 3. Package the new web bundle with its manifest; prove update/restart on an
    installed desktop and blocking reload in a released browser build.
+   macOS must ship both DMG installers and ZIP updater payloads for x64 and
+   arm64; verify the ZIP references in the published `latest-mac.yml`.
 4. Verify project ownership rollout independently; this ticket never changes
    tenant ownership switches.
       Released planning shows a migration-needed state for an unswitched tenant,
