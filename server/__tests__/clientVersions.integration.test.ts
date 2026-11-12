@@ -26,7 +26,7 @@ const url = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
     afterAll(async () => { await tenant?.end(); await pool?.end(); await database?.drop(); });
 
     test("both expand migrations rerun safely; real last-seen counts survive activity, logout and tenant collisions", async () => {
-        for (const file of ["0033_client_versions.sql", "master\\0011_client_versions.sql"]) {
+        for (const file of ["0033_client_versions.sql", path.join("master", "0011_client_versions.sql")]) {
             const sql = fs.readFileSync(path.join(__dirname, "..", "platform", "db", "migrations", file), "utf8");
             const target = file.startsWith("master") ? pool : tenant;
             await target.query(sql);
