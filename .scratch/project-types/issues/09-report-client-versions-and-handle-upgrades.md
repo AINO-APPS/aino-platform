@@ -426,3 +426,42 @@ push, PR, tag, version bump, production deployment or database operation.
   recorded above. No source push, PR, tag, version bump, release, deployment,
   gate/configuration change, restore, deletion or schedule change occurred.
   Ticket **09 remains claimed**. Tickets **10/11** remain untouched.
+
+### Approved encrypted local backup blocked by source connectivity (2026-11-12)
+
+- The operator explicitly approved encrypted local backups outside repositories,
+  secure decryption-material retention and disposable PostgreSQL restore
+  validation, followed by the original publication sequence. No further
+  backup approval or Railway plan change was requested or attempted.
+- Existing local Docker is available (server **27.3.1**) and 7-Zip is installed.
+  Native `psql`, `pg_dump`, `pg_dumpall` and `pg_restore` are not on PATH.
+  Portable/version-compatible tooling can be used after source connectivity
+  exists; installing encryption tooling does not solve the current blocker.
+- Production metadata still identifies the same approved Postgres service and
+  volume instance. Its image is
+  `ghcr.io/railwayapp-templates/postgres-ssl:18`; compatible backup/restore
+  clients must support PostgreSQL **18**.
+- A bounded, read-only application SSH probe used the existing local SSH
+  identity and exact approved project/environment/web service. It attempted
+  only `pwd`, not SQL, and failed with exit **255**:
+  **`ssh: connect to host ssh.railway.com port 22: Connection timed out`**.
+- The independent direct-database route check found `DATABASE_PUBLIC_URL`,
+  `RAILWAY_TCP_PROXY_DOMAIN` and `RAILWAY_TCP_PROXY_PORT` **unset**.
+  Read-only GraphQL `tcpProxies` for this exact environment/Postgres service
+  returned **`[]`** at approximately **2026-11-12 03:46 UTC**. Its only
+  configured database endpoint is private `postgres.railway.internal:5432`.
+  No public proxy, new infrastructure or alternate cloud upload was created.
+- **Concrete unblock:** permit this workstation to reach the existing Railway
+  SSH endpoint `ssh.railway.com:22` (or provide an already authorized,
+  reachable source connection). No credentials should be placed in chat.
+  Then perform the approved fresh active-tenant routing inventory, consistent
+  globals/master/all-target dumps, encryption and disposable PostgreSQL 18
+  recovery verification before any release deployment.
+- No production database contents were read, no plaintext staging or encrypted
+  backup deliverable was created, and no keys/passwords were generated or
+  printed. Tenant-host coverage, identity/schema/data-count verification and
+  recovery remain unproven; neither an empty file nor a live database-file copy
+  is treated as a verified backup.
+- Publication remains stopped: no source push, PR, tag, version bump, release,
+  deploy, production SQL, restore, plan/schedule/gate change or ownership
+  operation occurred. Ticket **09 remains claimed** and **10/11** are untouched.
