@@ -108,6 +108,13 @@ export default function TaskCalendar({ project, onOpenDetail, updatedTicket, tod
                     <button aria-pressed={mode === "month"} onClick={() => setMode("month")}>Month</button>
                     <button aria-pressed={mode === "week"} onClick={() => setMode("week")}>Week</button>
                 </div>
+                <div className={s.legend} role="group" aria-label="Calendar overlays">
+                    {(["leave", "holidays", "meetings"] as OverlayType[]).map(type => <label key={type}>
+                        <input type="checkbox" checked={visible[type]} onChange={() => setVisible(value => ({ ...value, [type]: !value[type] }))} />
+                        {type === "leave" ? "Approved leave" : type === "holidays" ? "Holidays" : "Meetings"}
+                    </label>)}
+                    <span>Read-only context</span>
+                </div>
                 <button aria-label={`Previous ${mode}`} onClick={() => step(-1)}>←</button>
                 <label className={shared.srOnly} htmlFor="task-calendar-anchor">{mode === "month" ? "Calendar month" : "Calendar week containing"}</label>
                 <input id="task-calendar-anchor" type={mode === "month" ? "month" : "date"}
@@ -121,13 +128,6 @@ export default function TaskCalendar({ project, onOpenDetail, updatedTicket, tod
             <time dateTime={from}>{parseDateString(from).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</time>
             {" — "}<time dateTime={to}>{parseDateString(to).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</time>
         </p>}
-        <div className={s.legend} role="group" aria-label="Calendar overlays">
-            {(["leave", "holidays", "meetings"] as OverlayType[]).map(type => <label key={type}>
-                <input type="checkbox" checked={visible[type]} onChange={() => setVisible(value => ({ ...value, [type]: !value[type] }))} />
-                {type === "leave" ? "Approved leave" : type === "holidays" ? "Holidays" : "Meetings"}
-            </label>)}
-            <span>Read-only context</span>
-        </div>
         {(dated.isError || tray.isError) && <p role="alert">Could not load calendar tickets. <button onClick={refresh}>Retry</button></p>}
         {overlays.isError && <p role="alert">Calendar context is unavailable. <button onClick={() => void overlays.refetch()}>Retry overlays</button></p>}
         {(dated.isLoading || tray.isLoading) && <p role="status">Loading calendar…</p>}

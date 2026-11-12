@@ -77,8 +77,10 @@ test('read-only worklog route documents its author, worked day and computed time
     assert.equal(worklog.properties.minutes.minimum, 1);
     assert.equal(api.components.schemas.Task.properties.time_spent_minutes.minimum, 0);
     for (const [url, method] of [['/api/tasks/{id}/timer', 'get'], ['/api/tasks/{id}/timer/start', 'post'], ['/api/tasks/{id}/timer/stop', 'post']]) {
-        assert.equal(api.paths[url][method].deprecated, true);
-        assert.equal(inventory.endpoints.find(e => e.path === url.replace('{id}', ':id') && e.method === method.toUpperCase()).deprecated, true);
+        assert.equal(api.paths[url]?.[method], undefined);
+        assert.equal(inventory.endpoints.find(e => e.path === url.replace('{id}', ':id') && e.method === method.toUpperCase()).retiredBy, 'ticket-11');
     }
-    assert.equal(api.components.schemas.TaskTimerStopResponse.properties.minutes.minimum, 1);
+    assert.equal(api.components.schemas.TaskTimerStopResponse, undefined);
+    assert.equal(api.components.schemas.Task.properties.logged_minutes, undefined);
+    assert.equal(api.components.schemas.Task.properties.estimated_minutes, undefined);
 });

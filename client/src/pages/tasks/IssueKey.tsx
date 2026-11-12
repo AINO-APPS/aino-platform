@@ -3,7 +3,7 @@ import { Check, Copy } from "../../constants/icons";
 import s from "./IssueKey.module.css";
 
 interface IssueKeyProps {
-    task: { id: number | string; issue_key?: string | null };
+    task: { id: number | string; ticket_key?: string | null };
     /** Show the copy affordance. */
     copyable?: boolean;
 }
@@ -16,7 +16,7 @@ interface IssueKeyProps {
  */
 export default function IssueKey({ task, copyable = true }: IssueKeyProps) {
     const [copied, setCopied] = useState(false);
-    const key = task.issue_key || `#${task.id}`;
+    const key = task.ticket_key || `#${task.id}`;
 
     const copy = useCallback(async () => {
         try {

@@ -92,7 +92,7 @@ describe("TaskTimePanel", () => {
             { id: 1, task_id: 1, author_id: 1, logged_by_id: 1, author: { full_name: 'Alice' }, logged_by: { full_name: 'Alice' },
                 day_worked: '2026-11-02', minutes: 90, comment: 'Migrated from timer', start_time: '09:30:00' },
         ] } });
-        render(<TaskTimePanel task={{ id: 1, logged_minutes: 90 }} />);
+        render(<TaskTimePanel task={{ id: 1, time_spent_minutes: 90 }} />);
         const list = await screen.findByRole('list', { name: 'Worklogs' });
         expect(list.textContent).toContain('Alice');
         expect(list.textContent).toContain('1h 30m');
@@ -109,19 +109,19 @@ describe("TaskTimePanel", () => {
         expect(screen.queryByRole('button', { name: /Start timer|Stop timer/ })).toBeNull();
     });
     test("shows logged against estimated", async () => {
-        render(<TaskTimePanel task={{ id: 1, estimated_minutes: 120, logged_minutes: 45 }} />);
+        render(<TaskTimePanel task={{ id: 1, original_estimate_minutes: 120, time_spent_minutes: 45 }} />);
         expect(await screen.findByText("45m / 2h")).toBeTruthy();
     });
 
     test("an overrun is labelled", async () => {
-        render(<TaskTimePanel task={{ id: 1, estimated_minutes: 60, logged_minutes: 90 }} />);
+        render(<TaskTimePanel task={{ id: 1, original_estimate_minutes: 60, time_spent_minutes: 90 }} />);
         expect(await screen.findByText("Over estimate")).toBeTruthy();
     });
 });
 
 describe("time helpers", () => {
     test("summarises logged against estimated", () => {
-        expect(summariseTime({ estimated_minutes: 120, logged_minutes: 45 })).toMatchObject({
+        expect(summariseTime({ original_estimate_minutes: 120, time_spent_minutes: 45 })).toMatchObject({
             estimated: 120,
             logged: 45,
             remaining: 75,

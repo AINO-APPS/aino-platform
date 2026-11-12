@@ -406,29 +406,28 @@ context; links to another organization's tickets return no details.
 
 ## Manual worklogs (ADR-019)
 
-Web/desktop and Android record ticket time only through manual worklogs; there is
-no ticket Start/Stop UI. The attendance timer is unrelated and unchanged. Both
-clients render server capabilities, author/logged-by attribution, inline original
-and remaining estimates, all three remaining choices, and post-save warnings.
-Deprecated server timer routes remain available for older-client compatibility.
+Ticket time is recorded only through manual worklogs; the attendance timer is
+unrelated and unchanged. Clients render server capabilities, author/logged-by
+attribution, inline original and remaining estimates, all three remaining
+choices, and post-save warnings. Ticket timer routes are retired.
 
 `tasks.worklogs.ts` is the worklog interface; `tasks.worklogRepository.ts` owns
 its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 (with creation time/id tie-breaks), author/logged-by identities, and
 `time_spent_minutes`, `original_estimate_minutes` and `remaining_estimate_minutes`.
 Clients must refresh all three values from this envelope, including null and zero.
-`getTimeSpent` batches sums for ticket read surfaces;
-`logged_minutes` in responses is a legacy alias, never the stored ticket column.
+`getTimeSpent` batches sums for ticket read surfaces. Legacy `logged_minutes`
+and `estimated_minutes` aliases are not part of the supported response.
 
 `logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
 `day_worked`, `time_spent`, optional `start_time`, `comment` and `author_id`, and returns
-`{ worklog, ticket, warnings }` with authoritative time spent, original/remaining
-estimates, and legacy logged/estimated aliases. It locks the org-scoped ticket, checks `can.logWork` through the
+`{ worklog, ticket, warnings }` with authoritative time spent and
+original/remaining estimates. It locks the org-scoped ticket, checks `can.logWork` through the
 capabilities module, and writes worklog/history/audit in one transaction.
 Realtime `task_updated` reaches the ticket's people and project readers only after
-commit in project mode; flag-off compatibility retains the legacy team audience.
-`tasks.effortAudience.ts` shares this audience rule across worklog create/edit/delete,
-legacy timer-stop and estimate writes, without broadcasting worklog fields.
+commit to project readers. `tasks.effortAudience.ts` shares this audience rule
+across worklog create/edit/delete and estimate writes, without broadcasting
+worklog fields.
 Done is allowed; Cancelled returns 403 `WORKLOG_CANCELLED`; frozen sprints remain
 read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 `INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
@@ -473,25 +472,18 @@ malformed people return 400 `INVALID_WORKLOG`. Omitting author uses the caller
 on create and keeps the current author on edit. `logged_by_id` always records
 the original logger and never changes on correction; history/audit record the
 current actor. The list shows both identities when they differ. Estimates and
-remaining choices are documented below. All five worklog/estimate routes have
-native coverage; no temporary manual-worklog parity waiver remains.
-
-`stopLegacyTimer` locks the org-scoped ticket and timer in one transaction, records a worklog,
-persists automatic remaining adjustment, and uses the same `worklog_added` history/audit
-semantics and after-commit `task_updated` as manual work. New stops do not duplicate
-that history with `time_logged`; existing legacy history remains readable.
-The timer-stop response shape and compatibility arithmetic are unchanged.
-All estimate, worklog and timer mutations explicitly carry the actor's org filter.
-Concurrent stops record only once. The day/start time use the caller's
-`X-Timezone-Offset` (JavaScript convention); elapsed minutes round up to at least
-one. Start/Stop remain compatibility routes during this rollout. Their legacy time
-summary reads original estimate through the compatibility alias.
+remaining choices are documented below. Ticket 11 removes timer endpoint
+coverage and updates the Android parity snapshot; focused and unfiltered parity
+checks must both pass before merge.
 
 Migration `0026_task_worklogs` stops running timers and converts timer history,
 using the owning organization's timezone (UTC fallback) and the comment
 "Migrated from timer". Unique `source_timer_id` prevents duplicate conversion,
 including SQL replay independently of the migration ledger. New-tenant baseline
 columns, constraints and indexes match. The obsolete total is never written.
+Ticket 11 drops the timer table only through its separately guarded contraction
+after the client-version gate enforces its minimums and every organization is
+verified project-owned. That one-shot path is not automatically run at startup.
 
 Public seams: `tasks.worklogRoutes.integration.test.ts` exercises the mounted
 HTTP router on real PostgreSQL; `tasks.worklogMigration.integration.test.ts`
@@ -506,8 +498,7 @@ accepts `original_estimate` and/or `remaining_estimate` duration strings; empty
 text clears, `0m` sets zero. Setting original seeds a null remaining only when
 remaining is omitted. `can.canEditEstimate` shares `logWork`'s decision.
 The endpoint records `estimate_changed` history and audit in the write transaction,
-then emits `task_updated` to the same project-reader audience after commit
-(legacy team audience while project ownership is off).
+then emits `task_updated` to the same project-reader audience after commit.
 
 Worklog create/edit/delete accept `remaining_mode` (`auto`, default; `set`; `leave`).
 `set` requires `remaining_estimate`; empty clears. `auto` applies the minutes delta,
@@ -518,8 +509,8 @@ Detail bars use spent / (spent + remaining), hiding unknown forecasts and showin
 zero progress for a zero total. Original still determines the overrun indicator.
 History renders worklog identity, author/logger, day, start time, duration and comment
 from stored before/after metadata; deletions and null/zero estimate changes remain traceable.
-Reads and write summaries expose original/remaining minutes and retain
-`estimated_minutes` as an alias of original for older clients.
+Reads and write summaries expose original/remaining minutes; the legacy
+`estimated_minutes` alias is retired.
 
 Migration `0027_task_estimates` renames the plan, adds nullable nonnegative remaining,
 and backfills from active worklogs. Replaying never resets an edited/cleared forecast.

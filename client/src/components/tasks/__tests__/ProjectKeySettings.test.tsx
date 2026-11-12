@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   api.key = "OLD";
   api.getProjectTasks.mockImplementation(async () => ({
-    data: { tasks: [{ id: 100, title: "First", ticket_key: `${api.key}-2`, issue_key: `${api.key}-2` }] },
+    data: { tasks: [{ id: 100, title: "First", ticket_key: `${api.key}-2` }] },
   }));
   api.getProjectMembers.mockResolvedValue({ data: [] });
   api.previewProjectKeyRename.mockResolvedValue({

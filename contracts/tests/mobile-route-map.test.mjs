@@ -12,8 +12,8 @@ test("legacy mobile wrapper inventory is complete and traceable", () => {
   assert.equal(routeMap.totals.wrapperCalls, 307);
   assert.equal(routeMap.totals.unresolvedCalls, 0);
   assert.deepEqual(routeMap.totals.classifications, {
-    active: 307,
-    stale: 0,
+    active: 305,
+    stale: 2,
     "method-mismatch": 0,
   });
   assert.ok(routeMap.wrappers.every(wrapper =>

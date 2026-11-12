@@ -2,12 +2,10 @@
   "sprint": {
     "id": 10,
     "project_id": 3,
-    "team_id": 1,
     "name": "Sprint 10",
     "status": "active",
     "start_date": "2026-11-01",
-    "end_date": "2026-11-14",
-    "auto_managed": false
+    "end_date": "2026-11-14"
   },
   "columns": [
     {
@@ -27,14 +25,12 @@
     {
       "id": 201,
       "ticket_key": "OPS-201",
-      "issue_key": "OPS-201",
       "title": "Review the release plan",
       "priority": "high",
       "workflow_state_id": 101,
       "workflow_state_key": "todo",
       "workflow_state_name": "To Do",
       "workflow_state_category": "open",
-      "planned_date": null,
       "start_date": null,
       "due_date": null,
       "completed_at": null,
@@ -57,10 +53,6 @@
           "cancel": {
             "allowed": true
           },
-          "transfer": {
-            "allowed": false,
-            "reason": "ACCESS_DENIED"
-          },
           "delete": {
             "allowed": true
           },
@@ -69,18 +61,7 @@
           },
           "comment": { "allowed": true },
           "logWork": { "allowed": true },
-          "logWorkForOthers": { "allowed": false, "reason": "ACCESS_DENIED" },
-          "schedule": {
-            "allowed": false,
-            "reason": "IN_SPRINT"
-          },
-          "logWork": {
-            "allowed": true
-          },
-          "logWorkForOthers": {
-            "allowed": false,
-            "reason": "WORKLOG_FOR_OTHERS_DENIED"
-          },
+          "logWorkForOthers": { "allowed": false, "reason": "WORKLOG_FOR_OTHERS_DENIED" },
           "canEditEstimate": {
             "allowed": true
           },
@@ -92,7 +73,6 @@
           }
         }
       },
-      "team_id": 1,
       "project_id": 3,
       "rank": null,
       "is_blocked": false

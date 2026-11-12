@@ -420,7 +420,6 @@ components:
                       priority: { type: string }
                       assigned_to: { type: [integer, "null"] }
                       due_date: { type: [string, "null"] }
-                      planned_date: { type: [string, "null"] }
                       start_date: { type: [string, "null"] }
                       sprint_id: { type: [integer, "null"] }
                       story_points: { type: [number, "null"] }
@@ -432,12 +431,8 @@ components:
                       blocked_reason: { type: [string, "null"] }
                       project_id: { type: [integer, "null"] }
                       ticket_key: { type: [string, "null"] }
-                      issue_key: { type: [string, "null"], description: Legacy alias of ticket_key. }
                       rank: { type: [string, "null"] }
-                      estimated_minutes: { type: [integer, "null"] }
-                      logged_minutes: { type: integer }
                       acceptance_criteria: { type: [array, "null"] }
-                      team_id: { type: [integer, "null"] }
                   actor:
                     type: [object, "null"]
                     description: Who made the change, so the card can attribute it.

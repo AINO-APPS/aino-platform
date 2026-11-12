@@ -82,7 +82,6 @@ function setupAuth(role = "employee", extra: Record<string, any> = {}) {
             rowCount: 1,
         })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
-        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
 }
 
 // ─── GET /api/export/my-analytics ────────────────────────────────────────

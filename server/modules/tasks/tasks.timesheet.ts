@@ -1,18 +1,12 @@
 /**
- * Task time in the timesheet.
- *
- * Worklogs are grouped by their recorded day worked. Legacy timer-shaped rows
- * remain accepted by the pure summariser for compatibility.
+ * Task time in the timesheet, grouped by the recorded worklog day.
  */
 
-export interface TaskTimerRow {
+export interface TaskWorklogRow {
     task_id: number;
     task_title?: string | null;
     ticket_key?: string | null;
-    issue_key?: string | null;
-    started_at?: string | Date;
     day_worked?: string;
-    stopped_at?: string | Date | null;
     minutes?: number | null;
 }
 
@@ -20,7 +14,6 @@ export interface TaskTimeEntry {
     task_id: number;
     title: string;
     ticket_key: string | null;
-    issue_key: string | null;
     date: string;
     minutes: number;
 }
@@ -36,27 +29,16 @@ function toMinutes(value: unknown): number {
     return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
 }
 
-/** The local calendar day a timer belongs to, from its start instant. */
-export function localDate(startedAt: string | Date, timezoneOffsetMinutes = 0): string {
-    const ms = new Date(startedAt).getTime();
-    if (!Number.isFinite(ms)) return "";
-    return new Date(ms - timezoneOffsetMinutes * 60_000).toISOString().slice(0, 10);
-}
-
-/**
- * Group worklogs into per-day, per-ticket rows, newest day first.
- * Legacy timer inputs alone use the JS timezone offset; worklogs retain day_worked.
- */
+/** Group worklogs into per-day, per-ticket rows, newest day first. */
 export function summariseTaskTime(
-    rows: TaskTimerRow[],
-    timezoneOffsetMinutes = 0,
+    rows: TaskWorklogRow[],
 ): TaskTimeDay[] {
     const byDate = new Map<string, Map<number, TaskTimeEntry>>();
 
     for (const row of rows) {
         const minutes = toMinutes(row.minutes);
         if (minutes === 0) continue;
-        const date = row.day_worked ?? (row.started_at ? localDate(row.started_at, timezoneOffsetMinutes) : "");
+        const date = row.day_worked ?? "";
         if (!date) continue;
 
         const day = byDate.get(date) ?? new Map<number, TaskTimeEntry>();
@@ -67,8 +49,7 @@ export function summariseTaskTime(
             day.set(row.task_id, {
                 task_id: row.task_id,
                 title: row.task_title || `Task #${row.task_id}`,
-                ticket_key: row.ticket_key ?? row.issue_key ?? null,
-                issue_key: row.issue_key || null,
+                ticket_key: row.ticket_key ?? null,
                 date,
                 minutes,
             });

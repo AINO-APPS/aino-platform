@@ -77,7 +77,6 @@ function setupAuth(role = "team_lead", extra: Record<string, any> = {}) {
             rowCount: 1,
         }) // loadUserContext
         .mockResolvedValueOnce({ rows: [{ team_id: 1 }], rowCount: 1 }) // loadUserTeamIds
-        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // loadProjectOwnership
 }
 
 function setupScrumProjectRead() {

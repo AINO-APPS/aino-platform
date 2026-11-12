@@ -34,7 +34,7 @@ export interface LogWorkInput extends RemainingInput {
     comment?: string | null;
     author_id?: number;
 }
-export interface WorklogTicketSummary { id: number; time_spent_minutes: number; logged_minutes: number; estimated_minutes: number | null;
+export interface WorklogTicketSummary { id: number; time_spent_minutes: number;
     original_estimate_minutes: number | null; remaining_estimate_minutes: number | null }
 export const setTaskEstimates = (id: number | string, input: { original_estimate?: string; remaining_estimate?: string }) =>
     API.patch<{ ticket: WorklogTicketSummary }>(`/tasks/${id}/estimates`, input);
@@ -60,6 +60,8 @@ export const getTasks = <T = any>(date?: string, filters?: Params, signal?: Abor
     }
     return API.get<T>("/tasks", { params, signal });
 };
+export const getScheduleOverlays = (from: string, to: string) =>
+    API.get("/tasks/schedule-overlays", { params: { from, to } });
 export const addTask = (data: AnyData) => API.post("/tasks", data);
 export const getProjectTypes = () => API.get<import("../types/generated/tasks").ProjectTypeOptions>("/projects/types");
 export const getMyProjects = () => API.get("/projects/mine");
@@ -73,8 +75,6 @@ export const updateTaskStatus = (id: number | string, status: string) =>
     API.patch(`/tasks/${id}/status`, { status });
 export const updateTask = (id: number | string, data: AnyData) => API.put(`/tasks/${id}`, data);
 export const deleteTask = (id: number | string) => API.delete(`/tasks/${id}`);
-export const transferTask = (id: number | string, teamId: number | string) =>
-    API.post(`/tasks/${id}/transfer`, { team_id: teamId });
 export interface ProjectMovePreview {
     target_project_id: number;
     key_format: string;
@@ -85,7 +85,6 @@ export const previewTaskProjectMove = (id: number | string, projectId: number) =
     API.post<ProjectMovePreview>(`/tasks/${id}/move-project/preview`, { project_id: projectId });
 export const moveTaskProject = (id: number | string, projectId: number) =>
     API.post(`/tasks/${id}/move-project`, { project_id: projectId });
-export const carryForwardTasks = () => API.post("/tasks/carry-forward");
 export const getAssignableUsers = () => API.get("/tasks/assignable-users");
 export const getTaskLabels = () => API.get("/tasks/labels");
 export const getTaskLabelsManage = () => API.get("/tasks/labels/manage");
@@ -96,7 +95,7 @@ export const deleteTaskLabel = (id: number | string) => API.delete(`/tasks/label
 // â”€â”€ Stage 3: Projects, Git integration (GitHub OAuth), task git refs â”€â”€â”€â”€â”€
 // Projects = Jira-style folders with a unique KEY (e.g. WEB). Tasks inside
 // a project automatically get a per-project task_number, surfaced as
-// "WEB-123" (issue_key) by the server's enrich step.
+// "WEB-123" (ticket_key) by the server's enrich step.
 // Projects list â€” call without options for the legacy plain-array response,
 // or pass `{ limit, offset }` to opt-in to the paginated `{ projects, pagination }`
 // shape (page sizes are capped server-side).
@@ -194,12 +193,7 @@ export const deleteTaskComment = (taskId: number | string, commentId: number | s
 
 // Backlog
 export const getBacklog = (filters?: Params) => API.get("/tasks/backlog", { params: filters });
-/** Unsprinted tickets with a planned day — the Scheduled tab. */
-export const getScheduled = (filters?: Params) => API.get("/tasks/scheduled", { params: filters });
 export const addBacklogTask = (data: AnyData) => API.post("/tasks/backlog", data);
-export const scheduleTask = (id: number | string, date: string) =>
-    API.patch(`/tasks/${id}/schedule`, { date });
-export const unscheduleTask = (id: number | string) => API.patch(`/tasks/${id}/unschedule`);
 export const getTaskDetail = (id: number | string) => API.get(`/tasks/${id}/detail`);
 export const getTaskHistory = (id: number | string) => API.get(`/tasks/${id}/history`);
 export const searchTasks = (q: string) => API.get("/tasks/search", { params: { q } });
@@ -249,11 +243,6 @@ export const getSprintCompletionPreview = (id: number | string, rolloverTo?: Spr
         params: rolloverTo == null ? undefined : { rolloverTo },
     });
 export const getSprintBaseline = (id: number | string) => API.get(`/sprints/${id}/baseline`);
-export const getScheduleOverlays = (from: string, to: string) =>
-    API.get("/tasks/schedule-overlays", { params: { from, to } });
-export const startTaskTimer = (id: number | string) => API.post(`/tasks/${id}/timer/start`);
-export const stopTaskTimer = (id: number | string) => API.post(`/tasks/${id}/timer/stop`);
-export const getTaskTimer = (id: number | string) => API.get(`/tasks/${id}/timer`);
 export const getTaskTime = (from?: string, to?: string) =>
     API.get("/tracker/task-time", { params: { from, to } });
 

@@ -21,22 +21,23 @@ test("the task model carries the fields the Tasks spec depends on", () => {
     const task = openapi.components.schemas.Task;
     for (const field of [
         "ticket_key",
-        "issue_key",
         "project_id",
         "workflow_state_id",
-        "planned_date",
         "start_date",
         "due_date",
         "completed_at",
         "sprint_id",
-        "team_id",
+        "original_estimate_minutes",
+        "remaining_estimate_minutes",
         "rank",
     ]) {
         assert.ok(field in task.properties, `Task is missing ${field}`);
     }
+    for (const field of ["issue_key", "planned_date", "team_id", "logged_minutes", "estimated_minutes"]) {
+        assert.ok(!(field in task.properties), `Task still exposes retired ${field}`);
+    }
     assert.ok(task.required.includes("completed_at"), "completed_at must be required so clients cannot omit it");
     assert.ok(task.required.includes("ticket_key"), "every ticket response must carry its stored ticket_key");
-    assert.ok(task.required.includes("issue_key"), "legacy issue_key must remain available to older clients");
     assert.ok(task.required.includes("project_id"), "every ticket must belong to a project");
 });
 

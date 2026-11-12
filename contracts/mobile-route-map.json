@@ -12,8 +12,8 @@
     "wrapperCalls": 307,
     "unresolvedCalls": 0,
     "classifications": {
-      "active": 307,
-      "stale": 0,
+      "active": 305,
+      "stale": 2,
       "method-mismatch": 0
     }
   },
@@ -2185,7 +2185,7 @@
       "method": "PATCH",
       "relativePath": "/tasks/:id/schedule",
       "apiPath": "/api/tasks/:id/schedule",
-      "classification": "active"
+      "classification": "stale"
     },
     {
       "source": "mobile/src/features.ts",
@@ -2193,7 +2193,7 @@
       "method": "PATCH",
       "relativePath": "/tasks/:id/unschedule",
       "apiPath": "/api/tasks/:id/unschedule",
-      "classification": "active"
+      "classification": "stale"
     },
     {
       "source": "mobile/src/features.ts",

@@ -23,7 +23,7 @@ import path from "node:path";
 const task = {
     id: 42,
     title: "Refund webhook retries",
-    issue_key: "PAY-142",
+    ticket_key: "PAY-142",
     priority: "high",
     workflow_state_key: "in_progress",
     due_date: "2099-11-01",

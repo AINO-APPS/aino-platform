@@ -113,7 +113,7 @@ vi.mock("../hooks/useConfirmDialog", () => ({
 import Tasks from "../../Tasks";
 import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
-const TICKET = { ...ticket, id: 7, title: "Refund webhook retries", issue_key: "PAY-142", priority: "high", workflow_state_key: "pending" };
+const TICKET = { ...ticket, id: 7, title: "Refund webhook retries", ticket_key: "PAY-142", priority: "high", workflow_state_key: "pending" };
 
 /** The server state: one ticket, in or out of the sprint. */
 let sprintIdOfTicket: number | null = null;

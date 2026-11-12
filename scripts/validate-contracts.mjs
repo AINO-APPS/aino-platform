@@ -75,7 +75,7 @@ for (const field of ["floorSeconds", "breakSeconds"]) {
 const structuralPath = value => value.replace(/:[^/]+/g, ":param");
 const classificationTotals = { active: 0, stale: 0, "method-mismatch": 0 };
 for (const wrapper of mobileRoutes.wrappers || []) {
-  const samePath = inventory.endpoints.filter(endpoint => structuralPath(endpoint.path) === structuralPath(wrapper.apiPath));
+  const samePath = inventory.endpoints.filter(endpoint => !endpoint.deprecated && structuralPath(endpoint.path) === structuralPath(wrapper.apiPath));
   const exact = samePath.some(endpoint => endpoint.method === wrapper.method);
   const expected = exact ? "active" : samePath.length ? "method-mismatch" : "stale";
   check(wrapper.classification === expected, `mobile route classification is stale: ${wrapper.method} ${wrapper.apiPath}`);
@@ -107,7 +107,7 @@ if (fs.existsSync(path.join(root, snapshotFile))) {
       // The snapshot carries one bare regex mount probe that is not an endpoint.
       .filter(key => !key.includes("*")),
   );
-  const inventoryKeys = new Set(inventory.endpoints.map(e => `${e.method} ${e.path}`));
+  const inventoryKeys = new Set(inventory.endpoints.filter(e => !e.deprecated).map(e => `${e.method} ${e.path}`));
   // An endpoint in both is fine; report each side's unique members.
   for (const key of snapshotKeys) {
     if (!inventoryKeys.has(key)) errors.push(`route snapshot has an endpoint absent from the inventory: ${key}`);

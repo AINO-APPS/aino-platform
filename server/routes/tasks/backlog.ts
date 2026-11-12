@@ -1,10 +1,6 @@
-// Backlog endpoints — the backlog is `sprint_id IS NULL`; dates are fields,
-// never membership rules. Scheduled is retained only as a compatibility read.
+// Backlog endpoints — the backlog is `sprint_id IS NULL`.
 //   GET   /backlog
-//   GET   /scheduled
 //   POST  /backlog
-//   PATCH /:id/schedule
-//   PATCH /:id/unschedule
 
 import express from "express";
 import type { Request, Response } from "express";
@@ -15,23 +11,15 @@ const auth = require('../../middleware/auth');
 const { loadUserContext } = require('../../middleware/rbac');
 const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
-const {
-    findLastCompletedSprintStart,
-    listScheduledTasks,
-} = require('../../modules/tasks/tasks.sprintRepository');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
 const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
-const { getLocalToday } = require('../../utils/timezone');
 const { resolveTicketDates, setTicketStartDate, editTicketStartDate } = require('../../modules/tasks/tasks.dates');
-const { broadcastTaskUpdated } = require('./_helpers/statusEvents');
-const { diffTask } = require('../../modules/tasks/tasks.deltas');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { ticketActionConflict, ticketCreationConflict, denyTaskAccess } = require('./_helpers/access');
 const {
-    isOrgAdmin,
     rejectsForeignTeamRequest,
     resolveTaskVisibilityForRequest,
     taskActorFromRequest,
@@ -50,24 +38,6 @@ const {
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
     transaction: <T = unknown>(fn: (client: any, ctx: TransactionContext) => Promise<T>) => Promise<T>;
-}
-
-/**
- * The completed section shows the last 30 days, or the last closed sprint,
- * whichever reaches further back (D17). The client supplies its 30-day floor;
- * this widens it when the last completed sprint started earlier, so a sprint
- * that ran longer than a month does not lose its own finished work.
- */
-async function resolveCompletedSince(
-    db: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }> },
-    teamId: number | null | undefined,
-    requested: string | undefined,
-): Promise<string | undefined> {
-    if (!teamId) return requested;
-    const sprintStart = await findLastCompletedSprintStart(db, teamId);
-    if (!sprintStart) return requested;
-    if (!requested) return sprintStart;
-    return sprintStart < requested ? sprintStart : requested;
 }
 
 const router = Object.assign(express.Router(), { createBacklogTicket });
@@ -115,11 +85,7 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         // whichever reaches further back" (D17). The client sends its 30-day
         // floor; the server widens it to the last completed sprint's start so a
         // long sprint does not lose its own finished work.
-        const completedSince = await resolveCompletedSince(
-            req.db!,
-            req.userTeamId,
-            completed_since || undefined,
-        );
+        const completedSince = completed_since || undefined;
 
         const filters = {
             assignee, label, priority, status, search, projectId: project_id,
@@ -187,40 +153,6 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
     }
 });
 
-// ─── Scheduled: unsprinted tickets that carry a planned day ─────────────
-// No date window: a ticket planned months ahead must still be visible once it
-// leaves the backlog. Completed history is trimmed to 30 days.
-router.get('/scheduled', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const { assignee, label, priority, status, search, project_id } = req.query as Record<string, string>;
-        const actor = taskActorFromRequest(req);
-        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
-            return res.status(403).json({ error: 'Access denied' });
-        }
-        const visibility = await resolveTaskVisibilityForRequest(actor, {
-            scope: req.query.scope === 'personal' ? 'personal' : undefined,
-            teamId: Number.isNaN(requestedTeamId as number)
-                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
-                : requestedTeamId,
-            projectId: project_id ? Number.parseInt(project_id, 10) : null,
-            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
-        });
-        const collection = buildTaskCollection({
-            scope: 'scheduled',
-            orgId: req.userOrgId || null,
-            visibility,
-            today: getLocalToday(req),
-            filters: { assignee, label, priority, status, search, projectId: project_id },
-        });
-        const tasks = await listScheduledTasks(req.db!, collection.whereSql, collection.params);
-        res.json({ tasks: await enrichTasks(tasks, req.db, taskActorFromRequest(req)) });
-    } catch (err) {
-        req.log.error({ err: err }, 'Error fetching scheduled tasks:');
-        res.status(500).json({ error: 'Failed to fetch scheduled tasks' });
-    }
-});
-
 // ─── Backlog: Create a backlog item (no date) ─────────────────────────────
 async function createBacklogTicket(req: Request, res: Response) {
     try {
@@ -257,8 +189,7 @@ async function createBacklogTicket(req: Request, res: Response) {
         if (sprint_id) {
             const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
             const target = await resolveSprintTarget(req.db!, {
-                sprintId: sprint_id, orgId: req.userOrgId || null, actorTeamId: req.userTeamId ?? null,
-                isAdmin: isOrgAdmin(req.userRole), actor: taskActorFromRequest(req),
+                sprintId: sprint_id, orgId: req.userOrgId || null, actor: taskActorFromRequest(req),
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             const sprint = target.sprint;
@@ -372,58 +303,5 @@ async function createBacklogTicket(req: Request, res: Response) {
     }
 }
 router.post('/backlog', auth, loadUserContext, createBacklogTicket);
-
-// ─── Legacy shim: set start date without placement ───────────────────────
-router.patch('/:id/schedule', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { date } = req.body;
-
-        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            return res.status(400).json({ error: 'Valid date is required' });
-        }
-
-        const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
-        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
-        if (refusal) return res.status(refusal.status).json(refusal.body);
-
-        const dates = resolveTicketDates(task, { start_date: date });
-        if (dates.error) return res.status(400).json({ error: dates.error });
-        const updated = await (req.db as DbLike).transaction(async (client) =>
-            editTicketStartDate(client, task.id, date, req.userId));
-        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
-        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
-        res.json(enriched[0]);
-    } catch (err) {
-        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
-        if (sendPlacementRefusal(res, err)) return;
-        req.log.error({ err: err }, 'Error scheduling task:');
-        res.status(500).json({ error: 'Failed to schedule task' });
-    }
-});
-
-// ─── Legacy shim: clear start date only ──────────────────────────────────
-router.patch('/:id/unschedule', auth, loadUserContext, async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-
-        const task = (await req.db!.query('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-        if (!task) return denyTaskAccess(res, task, taskActorFromRequest(req));
-        const refusal = await ticketActionConflict(req.db!, taskActorFromRequest(req), task, "edit");
-        if (refusal) return res.status(refusal.status).json(refusal.body);
-
-        const updated = await (req.db as DbLike).transaction(async (client) =>
-            editTicketStartDate(client, task.id, null, req.userId));
-        const enriched = await enrichTasks([updated], req.db, taskActorFromRequest(req));
-        await broadcastTaskUpdated(req, enriched[0], "updated", { fields: diffTask(task, enriched[0]), actor: { id: req.userId! } });
-        res.json(enriched[0]);
-    } catch (err) {
-        if ((err as any).dateError) return res.status(400).json({ error: (err as Error).message });
-        if (sendPlacementRefusal(res, err)) return;
-        req.log.error({ err: err }, 'Error unscheduling task:');
-        res.status(500).json({ error: 'Failed to move task to backlog' });
-    }
-});
 
 export = router;

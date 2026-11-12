@@ -2,8 +2,6 @@ import type { DbContext } from "../../types/domain";
 import type { TasksDb } from "./tasks.types";
 import type { TaskActor } from "./tasks.policy";
 import * as repository from "./tasks.worklogRepository";
-import { summariseTime } from "./tasks.time";
-import { localDate } from "./tasks.timesheet";
 import { parseDuration } from "./tasks.duration";
 import { ticketActionConflict } from "./tasks.writeGuards";
 import { emitTaskUpdated } from "../../utils/taskNotifications";
@@ -166,25 +164,3 @@ async function worklogProjectContext(db: TasksDb, taskId: number, actor: TaskAct
     return (await loadTicketDecisionContext(db, actor, [task])).projects?.get(Number(task.project_id));
 }
 
-/** One transaction owns stopping, recording and history, so repeated/concurrent stops cannot add time twice. */
-export async function stopLegacyTimer(db: TasksDb & Pick<DbContext, "transaction">, taskId: number, actor: TaskActor,
-    offset: number, stoppedAt = new Date(), source: { tenantId?: number | null; ip?: string; userAgent?: string } = {}) {
-    return db.transaction(async (client, context) => {
-        const task = await repository.lockWorklogTicket(client as TasksDb, taskId, actor.orgId);
-        if (!task) return null;
-        const running = await repository.lockRunningTimer(client as TasksDb, taskId, actor.userId, actor.orgId);
-        if (!running) return null;
-        const started = new Date(running.started_at);
-        const minutes = Math.max(1, Math.ceil((stoppedAt.getTime() - started.getTime()) / 60_000));
-        await applyRemaining(client as TasksDb, task, 0, minutes, {}, actor.orgId);
-        const localStart = new Date(started.getTime() - offset * 60_000);
-        const id = await repository.recordTimerWorklog(client as TasksDb, running.id, taskId, actor.userId,
-            stoppedAt.toISOString(), minutes, localDate(started, offset), localStart.toISOString().slice(11, 19), actor.orgId);
-        const list = await getTicketWorklogs(client as TasksDb, taskId, actor.orgId, actor);
-        const worklog = list.worklogs.find(row => row.id === id)!;
-        await repository.recordWorklogAddition(client as TasksDb, taskId, actor.userId, actor.orgId, worklog, source.ip, source.userAgent);
-        context.afterCommit(() => notifyWorklogChange(db, taskId, task, actor, source.tenantId));
-        const total = list.time_spent_minutes;
-        return { minutes, time: summariseTime({ ...task, logged_minutes: total }) };
-    });
-}

@@ -1,6 +1,6 @@
 import ProjectForm from "./ProjectForm";
 import { projectTypeLabel } from "../components/tasks/ProjectTypeControl";
-// Project administration, migration review, key management, and workflow settings.
+// Project administration, key management, and workflow settings.
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../AuthContext";
@@ -9,7 +9,6 @@ import { getOrgTeams } from "../api/organization";
 import ProjectTasksPanel from "../components/tasks/ProjectTasksPanel";
 import useRealtimeEvent from "../hooks/useRealtimeEvent";
 import ProjectWorkflowSettings from "./ProjectWorkflowSettings";
-import { ProjectMigrationReviewLauncher } from "./ProjectMigrationReview";
 import { useToast } from "../components/common/Toast";
 import Pagination from "../components/common/Pagination";
 import {
@@ -163,7 +162,6 @@ export default function Projects() {
           )}
         </div>
       </header>
-      <ProjectMigrationReviewLauncher role={user?.role} />
       {loading ? (
         <div style={styles.empty}>Loading…</div>
       ) : projects.length === 0 ? (

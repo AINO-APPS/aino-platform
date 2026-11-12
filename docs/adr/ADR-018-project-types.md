@@ -41,10 +41,13 @@ planned automatic sprints are removed after their tickets return to Backlog;
 completed automatic sprints remain as history. A Scrum project whose sprint
 history is entirely automatic becomes Kanban with Backlog disabled.
 
-The hourly sprint scheduler and current web controls for Scheduled planning,
-carry-forward and automatic sprint configuration are removed. Legacy Scheduled
-endpoints remain as a compatibility shim until ticket 11. The migration resets
-existing team automatic-sprint settings to manual.
+The hourly sprint scheduler and current web controls for scheduled planning,
+carry-forward and automatic sprint configuration are removed. Ticket 11 removes
+the remaining compatibility API and storage only through a guarded contraction:
+the step-B client-version minimums must be enforced and every organization must
+be verified as project-owned before any endpoint or column is contracted. Its
+one-shot migration is not part of the automatic tenant migration sweep. The
+expand migration resets existing team automatic-sprint settings to manual.
 
 When a sprint completes, its unfinished tickets go to the selected rollover
 target or the backlog. Project-type capabilities and ordered Plan tabs come from

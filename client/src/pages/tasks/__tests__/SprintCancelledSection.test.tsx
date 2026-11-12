@@ -17,7 +17,7 @@ beforeEach(() => {
 describe("SprintCancelledSection", () => {
     test("asks for the sprint's cancelled tickets in scope and opens one from the collapsed list", async () => {
         getTasks.mockResolvedValue({
-            data: { tasks: [{ id: 13, issue_key: "DEV-13", title: "Dropped idea", workflow_state_key: "cancelled" }] },
+            data: { tasks: [{ id: 13, ticket_key: "DEV-13", title: "Dropped idea", workflow_state_key: "cancelled" }] },
         });
         const onOpenDetail = vi.fn();
 

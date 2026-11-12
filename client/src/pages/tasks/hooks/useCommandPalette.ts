@@ -5,7 +5,7 @@ import type { TasksView } from "./useTasksRoute";
 export interface PaletteTask {
     id: number | string;
     title: string;
-    issue_key?: string | null;
+    ticket_key?: string | null;
     key_aliases?: string[];
 }
 
@@ -76,14 +76,14 @@ export function buildPaletteItems(input: {
     const taskItems: PaletteItem[] = tasks
         .filter((task) =>
             matches(task.title)
-            || matches(task.issue_key || "")
+            || matches(task.ticket_key || "")
             || (task.key_aliases || []).some(matches),
         )
         .map((task) => ({
             id: `task-${task.id}`,
             group: "tasks" as const,
             label: task.title,
-            hint: task.issue_key || `#${task.id}`,
+            hint: task.ticket_key || `#${task.id}`,
             run: () => onOpenTask(task),
         }));
 

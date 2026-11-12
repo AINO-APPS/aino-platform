@@ -1,11 +1,3 @@
-/**
- * Calendar overlays.
- *
- * Approved leave, holidays and booked meetings render as read-only background
- * context behind tasks. Each type toggles independently, and none of them
- * affects task counts or point totals.
- */
-
 export type OverlayType = "leave" | "holidays" | "meetings";
 
 export interface OverlayVisibility {
@@ -41,15 +33,9 @@ function eachDay(from: string, to: string): string[] {
     return days;
 }
 
-/** Flatten the server payload into one item per day, per type. */
 export function overlayItems(payload: any): OverlayItem[] {
     const items: OverlayItem[] = [];
-
     for (const leave of payload?.leave ?? []) {
-        // The server returns one row per leave day (`leaves` stores a single
-        // `date` plus a `duration` fraction), so each row is already a day.
-        // `end_date` is still honoured for older server builds that sent a
-        // range instead.
         const start = String(leave.date).slice(0, 10);
         const end = String(leave.end_date ?? leave.date).slice(0, 10);
         for (const date of eachDay(start, end)) {
@@ -61,7 +47,6 @@ export function overlayItems(payload: any): OverlayItem[] {
             });
         }
     }
-
     for (const holiday of payload?.holidays ?? []) {
         items.push({
             id: `holiday-${holiday.id}`,
@@ -70,7 +55,6 @@ export function overlayItems(payload: any): OverlayItem[] {
             label: holiday.name ?? "Holiday",
         });
     }
-
     for (const meeting of payload?.meetings ?? []) {
         items.push({
             id: `meeting-${meeting.id}`,
@@ -79,30 +63,17 @@ export function overlayItems(payload: any): OverlayItem[] {
             label: meeting.title ?? "Meeting",
         });
     }
-
     return items;
 }
 
-/** The overlays visible for a day, honouring the independent toggles. */
-export function overlaysForDay(
-    items: OverlayItem[],
-    date: string,
-    visibility: OverlayVisibility,
-): OverlayItem[] {
-    return items.filter((item) => item.date === date && visibility[item.type]);
+export function overlaysForDay(items: OverlayItem[], date: string, visibility: OverlayVisibility): OverlayItem[] {
+    return items.filter(item => item.date === date && visibility[item.type]);
 }
 
-/** Toggle one overlay type without touching the others. */
-export function toggleOverlay(
-    visibility: OverlayVisibility,
-    type: OverlayType,
-): OverlayVisibility {
+export function toggleOverlay(visibility: OverlayVisibility, type: OverlayType): OverlayVisibility {
     return { ...visibility, [type]: !visibility[type] };
 }
 
-/** A day with an all-day absence still renders; it is never hidden. */
 export function hasAllDayAbsence(items: OverlayItem[], date: string): boolean {
-    return items.some(
-        (item) => item.date === date && (item.type === "leave" || item.type === "holidays"),
-    );
+    return items.some(item => item.date === date && (item.type === "leave" || item.type === "holidays"));
 }

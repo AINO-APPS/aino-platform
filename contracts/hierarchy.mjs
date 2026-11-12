@@ -4,28 +4,6 @@ export function applyHierarchyContract(paths, schemas) {
     const json = (schema) => ({ "application/json": { schema } });
     const conflict = { description: "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
         content: json(ref("Error")) };
-    schemas.HierarchyRepairValue = {
-        type: "object",
-        properties: Object.fromEntries(["parent_task_id", "work_item_type_id", "project_id", "sprint_id", "story_points"]
-            .map(name => [name, { type: [name === "story_points" ? "number" : "integer", "null"] }])),
-        required: ["parent_task_id", "work_item_type_id", "project_id", "sprint_id", "story_points"],
-        additionalProperties: false,
-    };
-    schemas.HierarchyRepairStage = { type: "string", enum: ["original", "correction"] };
-    schemas.HierarchyRepair = {
-        type: "object",
-        properties: {
-            task_id: { type: "integer" }, ticket_key: { type: ["string", "null"] },
-            stage: ref("HierarchyRepairStage"), reason: { type: "string" },
-            repaired_at: { type: "string", format: "date-time" },
-            before: ref("HierarchyRepairValue"), after: ref("HierarchyRepairValue"),
-        },
-        required: ["task_id", "ticket_key", "stage", "reason", "repaired_at", "before", "after"],
-        additionalProperties: false,
-    };
-    schemas.ProjectMigrationReview.properties.hierarchy_repairs = { type: "array", items: ref("HierarchyRepair"),
-        description: "Organization-scoped immutable original repairs and additive corrections, oldest first; retained even if a ticket was later removed. Web organization super-admin/platform-admin review only." };
-    schemas.ProjectMigrationReview.required.push("hierarchy_repairs");
     for (const reason of ["INVALID_HIERARCHY", "SUBTASK_FOLLOWS_PARENT"]) {
         const reasons = schemas.TicketCapability.properties.reason.enum;
         if (!reasons.includes(reason)) reasons.push(reason);

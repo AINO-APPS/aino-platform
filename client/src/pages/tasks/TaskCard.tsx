@@ -80,7 +80,7 @@ export default function TaskCard({
     // Issue key (e.g. WEB-123) only exists once a task is assigned to a project;
     // legacy / unkeyed tickets fall back to "#<id>" so the chip is always
     // present and consistently placed.
-    const issueKey = task.issue_key || `#${task.id}`;
+    const issueKey = task.ticket_key || `#${task.id}`;
     const status = currentStatusOption(
         task,
         workflowStates,

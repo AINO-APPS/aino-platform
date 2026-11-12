@@ -14,9 +14,6 @@ export interface SprintAssignmentRequest {
     /** The id from the request body; null or "" means "leave the sprint". */
     sprintId: unknown;
     orgId: number | null;
-    actorTeamId: number | null;
-    /** True for super admin and above, who may target any sprint in the org. */
-    isAdmin: boolean;
     ticket?: DecisionTicket;
     actor?: TaskActor;
 }
@@ -25,7 +22,7 @@ export interface SprintAssignmentRequest {
 export async function resolveSprintTarget(
     db: SprintDb,
     request: SprintAssignmentRequest,
-): Promise<{ sprint?: { id: number; team_id: number | null; end_date: string }; error?: { status: number; body: Record<string, unknown> } }> {
+): Promise<{ sprint?: { id: number; project_id: number; end_date: string; is_archived: boolean }; error?: { status: number; body: Record<string, unknown> } }> {
     if (request.sprintId === null || request.sprintId === "") return { sprint: undefined };
     try { await assertScrumSprintRequest(db, request.orgId, { sprintId: request.sprintId }); }
     catch (err) {
@@ -33,9 +30,7 @@ export async function resolveSprintTarget(
         throw err;
     }
     const sprint = (await db.query(
-        request.actor?.projectOwnership
-            ? "SELECT s.id, s.team_id, s.project_id, s.end_date, p.is_archived FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $1 AND p.org_id = $2"
-            : "SELECT s.id, s.team_id, s.end_date FROM sprints s JOIN teams t ON t.id = s.team_id WHERE s.id = $1 AND t.org_id = $2",
+        "SELECT s.id, s.project_id, s.end_date, p.is_archived FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $1 AND p.org_id = $2",
         [request.sprintId, request.orgId],
     )).rows[0];
     if (request.ticket && request.actor) {
@@ -47,17 +42,13 @@ export async function resolveSprintTarget(
         }
         return { sprint };
     }
-    if (request.actor?.projectOwnership && sprint) {
+    if (request.actor && sprint) {
         const role = await request.actor.projectAccess?.roleForProject(Number(sprint.project_id));
         if (sprint.is_archived) return { error: { status: 409, body: { error: "This project is archived and its tickets are read-only.", code: "PROJECT_ARCHIVED" } } };
         if (role === "member" || role === "project_admin") return { sprint };
         return { error: { status: 403, body: { error: "Your project role allows reading and commenting only.", code: "READ_ONLY_ROLE" } } };
     }
-    const mayUse = sprint && (sprint.team_id === request.actorTeamId || request.isAdmin);
-    if (!mayUse) {
-        return { error: { status: 400, body: { error: "Invalid sprint or sprint does not belong to your team" } } };
-    }
-    return { sprint };
+    return { error: { status: 400, body: { error: "Invalid sprint" } } };
 }
 
 import type { PlacementTarget } from "./tasks.placement";
@@ -97,9 +88,7 @@ export function editPlacement(input: {
 }
 
 export interface DateEdit {
-    /** Resolved due date after the request (null clears it). */
     dueDate: string | null;
-    /** Resolved planned date after the request (null clears it). */
     plannedDate: string | null;
     error?: { status: number; body: Record<string, unknown> };
 }
@@ -107,13 +96,6 @@ export interface DateEdit {
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const dayOf = (value: string | null | undefined) => (value && ISO_DAY.test(value) ? value : null);
 
-/**
- * Resolve the two scheduling dates on an edit, refusing an impossible pair.
- *
- * A planned day is when the work happens and a due date is the deadline, so a
- * deadline before the planned day is rejected (Bug #15). `undefined` means the
- * request left that field alone.
- */
 export function resolveEditDates(input: {
     currentDueDate: string | null;
     currentPlannedDate: string | null;
@@ -123,10 +105,9 @@ export function resolveEditDates(input: {
     const plannedDate = input.requestedPlannedDate === undefined
         ? input.currentPlannedDate
         : dayOf(input.requestedPlannedDate);
-    let dueDate = input.requestedDueDate === undefined
+    const dueDate = input.requestedDueDate === undefined
         ? input.currentDueDate
         : dayOf(input.requestedDueDate);
-    // A due date may never precede the planned day, whichever side changed.
     if (dueDate && plannedDate && dueDate < plannedDate) {
         return {
             dueDate,

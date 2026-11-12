@@ -98,12 +98,11 @@ export async function findSprintsForProjects(db: SprintDb, orgId: unknown, proje
     )).rows;
 }
 
-/** One sprint joined with its team's org, for access checks. */
+/** One sprint joined with its project's org, for access checks. */
 export async function findSprintWithTeam(db: SprintDb, sprintId: unknown) {
     return (await db.query(
-        `SELECT s.*, p.org_id, t.name AS team_name
+        `SELECT s.*, p.org_id
            FROM sprints s JOIN projects p ON p.id = s.project_id
-           LEFT JOIN teams t ON t.id = s.team_id
           WHERE s.id = $1`,
         [sprintId],
     )).rows[0] || null;

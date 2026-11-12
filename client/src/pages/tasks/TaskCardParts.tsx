@@ -155,8 +155,8 @@ export function CardBody({
     onOpenComments,
 }: CardBodyProps) {
     const description = compact ? "" : stripHtml(task.description || "").trim();
-    const spent = formatMinutes(task.time_spent_minutes ?? task.logged_minutes);
-    const originalValue = task.original_estimate_minutes !== undefined ? task.original_estimate_minutes : task.estimated_minutes;
+    const spent = formatMinutes(task.time_spent_minutes);
+    const originalValue = task.original_estimate_minutes;
     const original = originalValue == null ? '—' : formatMinutes(originalValue);
     const remaining = task.remaining_estimate_minutes == null ? '—' : formatMinutes(task.remaining_estimate_minutes);
     return (
@@ -202,7 +202,7 @@ export function CardBody({
                             event.stopPropagation();
                             onOpenComments();
                         }}
-                        aria-label={`${task.comment_count || 0} comments on ${task.issue_key || `#${task.id}`}`}
+                        aria-label={`${task.comment_count || 0} comments on ${task.ticket_key || `#${task.id}`}`}
                     >
                         <MessageSquare size={13} />
                         {task.comment_count > 0 && <span className={s["comment-count"]}>{task.comment_count}</span>}

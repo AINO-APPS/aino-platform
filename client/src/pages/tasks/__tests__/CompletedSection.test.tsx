@@ -3,8 +3,8 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import CompletedSection from "../CompletedSection";
 
 const tasks = [
-    { id: 1, issue_key: "PAY-101", title: "Refund webhook", completed_at: "2026-10-20T10:00:00Z" },
-    { id: 2, issue_key: "PAY-102", title: "Ledger fix", completed_at: "2026-10-21T10:00:00Z" },
+    { id: 1, ticket_key: "PAY-101", title: "Refund webhook", completed_at: "2026-10-20T10:00:00Z" },
+    { id: 2, ticket_key: "PAY-102", title: "Ledger fix", completed_at: "2026-10-21T10:00:00Z" },
 ];
 
 const formatDate = (value: string | null | undefined) => (value ? value.slice(0, 10) : null);

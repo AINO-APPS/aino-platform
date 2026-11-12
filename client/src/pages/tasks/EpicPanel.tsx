@@ -4,7 +4,7 @@ import s from "./EpicPanel.module.css";
 export interface EpicRollup {
     id: number | string;
     title: string;
-    issue_key?: string | null;
+    ticket_key?: string | null;
     type_color?: string | null;
     rollup: {
         totalChildren: number;

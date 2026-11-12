@@ -32,10 +32,9 @@ export async function applyRemaining(db: TasksDb, task: any, before: number, aft
 }
 
 export function estimateSummary(task: any, timeSpent: number) {
-    return { id: task.id, time_spent_minutes: timeSpent, logged_minutes: timeSpent,
+    return { id: task.id, time_spent_minutes: timeSpent,
         original_estimate_minutes: task.original_estimate_minutes ?? null,
-        remaining_estimate_minutes: task.remaining_estimate_minutes ?? null,
-        estimated_minutes: task.original_estimate_minutes ?? null };
+        remaining_estimate_minutes: task.remaining_estimate_minutes ?? null };
 }
 
 export async function setEstimates(db: TasksDb & Pick<DbContext,'transaction'>, taskId: number, actor: TaskActor,

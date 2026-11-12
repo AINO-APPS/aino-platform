@@ -62,7 +62,6 @@ function setupAuth(role = "employee", extra: Record<string, any> = {}) {
         .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [{ role, org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true, ...extra }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 });
 }
 
 // ─── Auth gate ─────────────────────────────────────────────────────────────

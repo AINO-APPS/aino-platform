@@ -44,11 +44,9 @@ defaults, migration and release boundaries are in [the operator guide](../docs/c
 `GET /api/tasks/:id/worklogs` is read-only and returns author/logged-by identities,
 day worked, minutes, optional start/comment, timestamps, and computed
 `time_spent_minutes`. Entries are newest day worked first, then creation time/id.
-Ticket read responses carry `time_spent_minutes`; `logged_minutes` is the same
-computed sum for older apps. Timer routes are deprecated but their envelopes
-are unchanged; stopping atomically creates one worklog, rounded up to at least
-one minute. Ticket summaries expose original and remaining estimate minutes;
-`estimated_minutes` remains an alias of original for older apps.
+Ticket reads expose `time_spent_minutes`; the legacy `logged_minutes` alias and
+`estimated_minutes` alias are retired. Timer endpoints are retired; record time
+through manual worklogs instead.
 
 `POST /api/tasks/:id/worklogs` takes day worked, time spent in org-aware w/d/h/m
 format, optional start time, comment and an org-admin `author_id`. It returns 201
@@ -61,9 +59,8 @@ estimate and person controls, plus edit/delete on each worklog.
 All three worklog writes accept `remaining_mode`: `auto` (default, duration delta),
 `set` (requires `remaining_estimate`), or `leave`. `PATCH /api/tasks/:id/estimates`
 sets or clears original/remaining estimates; original seeds null remaining when
-remaining is omitted. The native ticket timer is retired, not the server routes.
-History and audit commit atomically and realtime follows commit. Timer operations
-are marked deprecated in both OpenAPI and the route inventory and remain usable.
+remaining is omitted. History and audit commit atomically and realtime follows
+commit. Worklogs remain supported independently of the retired ticket timer.
 
 `worklogs.mjs` defines the new field-level contract. `reviewed-task-baseline.json`
 preserves already-published precise task, project and Service Desk schemas/operations when regenerating

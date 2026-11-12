@@ -6,7 +6,6 @@ const redisClient = require("../redis");
 const { logAction } = require("../utils/audit");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
-const { resolveTeamMode } = require("../modules/tasks/tasks.teamMode");
 const { removeTeam } = require("../modules/organization/teamOwnership");
 const { listTeamsForActor } = require("../modules/organization/teamListing");
 const { isValidServiceDeskProjectSetting } = require("../modules/organization/serviceDeskProject");
@@ -623,21 +622,8 @@ router.delete("/teams/:id", requireRole("hr_admin"), requireSameOrg, async (req:
             teamId: id,
             orgId: req.userOrgId ?? null,
             isPlatformAdmin: req.userRole === "platform_admin",
-            projectOwnership: req.projectOwnership === true,
         });
         if (!outcome.team) return res.status(404).json({ error: "Team not found" });
-
-        // A team that still owns work cannot be deleted: deleting it would
-        // orphan tickets and destroy its sprints.
-        if (outcome.counts && (outcome.counts.tasks > 0 || outcome.counts.sprints > 0)) {
-            return res.status(409).json({
-                error: `This team still owns ${outcome.counts.tasks} ticket(s) and ${outcome.counts.sprints} sprint(s). `
-                    + "Transfer or remove them before deleting the team.",
-                code: "TEAM_HAS_WORK",
-                tasks: outcome.counts.tasks,
-                sprints: outcome.counts.sprints,
-            });
-        }
 
         // The user-context cache holds `team_id` for an hour; detaching members
         // must not leave them with their old team's visibility.
@@ -649,86 +635,6 @@ router.delete("/teams/:id", requireRole("hr_admin"), requireSameOrg, async (req:
     } catch (err) {
         req.log.error({ err }, "DELETE /teams/:id error");
         res.status(500).json({ error: "Failed to delete team" });
-    }
-});
-
-router.get("/teams/:id/sprint-config", requireSameOrg, async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const teamQuery = req.userRole === "platform_admin"
-            ? await req.db!.query("SELECT * FROM teams WHERE id = $1", [id])
-            : await req.db!.query("SELECT * FROM teams WHERE id = $1 AND org_id = $2", [id, req.userOrgId]);
-        const team = teamQuery.rows[0];
-        if (!team) return res.status(404).json({ error: "Team not found" });
-
-        let currentSprint: any = null;
-        if (team.sprint_start_date) {
-            const tzOffset = req.headers["x-timezone-offset"];
-            let todayStr: string;
-            if (tzOffset !== undefined) {
-                const now = new Date();
-                const localNow = new Date(now.getTime() - Number(tzOffset) * 60000);
-                todayStr = localNow.toISOString().split("T")[0];
-            } else {
-                const now = new Date();
-                todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-            }
-
-            const [sy, sm, sd] = team.sprint_start_date.split("-").map(Number);
-            const [ty, tm, td] = todayStr.split("-").map(Number);
-            const startMs = Date.UTC(sy, sm - 1, sd);
-            const todayMs = Date.UTC(ty, tm - 1, td);
-            const daysSinceStart = Math.floor((todayMs - startMs) / 86400000);
-            const sprintDurationDays = team.sprint_duration_weeks * 7;
-            const sprintNumber = daysSinceStart < 0 ? 1 : Math.floor(daysSinceStart / sprintDurationDays) + 1;
-            const currentSprintStartDays = (sprintNumber - 1) * sprintDurationDays;
-            const sprintStartMs = startMs + currentSprintStartDays * 86400000;
-            const sprintEndMs = sprintStartMs + (sprintDurationDays - 1) * 86400000;
-            const fmt = (ms: number) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; };
-            currentSprint = { number: sprintNumber, startDate: fmt(sprintStartMs), endDate: fmt(sprintEndMs), daysRemaining: Math.max(0, Math.ceil((sprintEndMs - todayMs) / 86400000)), durationWeeks: team.sprint_duration_weeks };
-        }
-
-        res.json({ teamId: team.id, teamName: team.name, sprintDurationWeeks: team.sprint_duration_weeks, sprintStartDate: team.sprint_start_date, sprintMode: team.sprint_mode || "manual", teamMode: resolveTeamMode(team), sprintPaused: !!team.sprint_paused, currentSprint });
-    } catch (err) {
-        req.log.error({ err }, "GET /teams/:id/sprint-config error");
-        res.status(500).json({ error: "Failed to fetch sprint config" });
-    }
-});
-
-router.put("/teams/:id/sprint-config", requireRole("team_lead"), requireSameOrg, async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { sprint_duration_weeks, sprint_start_date, sprint_mode } = req.body;
-
-        const teamQuery = req.userRole === "platform_admin"
-            ? await req.db!.query("SELECT * FROM teams WHERE id = $1", [id])
-            : await req.db!.query("SELECT * FROM teams WHERE id = $1 AND org_id = $2", [id, req.userOrgId]);
-        const team = teamQuery.rows[0];
-        if (!team) return res.status(404).json({ error: "Team not found" });
-
-        if (sprint_duration_weeks !== undefined) {
-            const weeks = Number(sprint_duration_weeks);
-            if (!Number.isInteger(weeks) || weeks < 1 || weeks > 8) {
-                return res.status(400).json({ error: "Sprint duration must be between 1-8 weeks" });
-            }
-        }
-        if (sprint_start_date !== undefined && sprint_start_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(sprint_start_date)) {
-            return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
-        }
-        if (sprint_mode !== undefined && sprint_mode !== "manual") {
-            return res.status(400).json({ error: "Automatic sprints are no longer supported" });
-        }
-
-        await req.db!.query("UPDATE teams SET sprint_duration_weeks = $1, sprint_start_date = $2, sprint_mode = 'manual', sprint_paused = FALSE WHERE id = $3",
-            [sprint_duration_weeks !== undefined ? sprint_duration_weeks : team.sprint_duration_weeks,
-            sprint_start_date !== undefined ? sprint_start_date : team.sprint_start_date,
-                id]);
-        logAction(req, "update", "team", Number(id), { sprint_duration_weeks, sprint_start_date, sprint_mode });
-
-        res.json({ message: "Sprint configuration updated" });
-    } catch (err) {
-        req.log.error({ err }, "PUT /teams/:id/sprint-config error");
-        res.status(500).json({ error: "Failed to update sprint config" });
     }
 });
 

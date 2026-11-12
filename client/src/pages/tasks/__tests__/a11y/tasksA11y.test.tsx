@@ -30,7 +30,7 @@ import { expectAccessible, LAYOUT_DEPENDENT_RULES } from "./axe";
 const task = {
     id: 7,
     title: "Refund webhook retries",
-    issue_key: "PAY-142",
+    ticket_key: "PAY-142",
     priority: "high",
     story_points: 5,
     workflow_state_id: 2,
@@ -114,8 +114,8 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
     test("sprint plan", async () => {
         const { container } = wrap(
             <SprintPlan
-                backlogTasks={[{ id: 1, issue_key: "PAY-1", title: "Refund webhook", story_points: 5 }]}
-                sprintTasks={[{ id: 3, issue_key: "PAY-3", title: "Retry backoff", story_points: 8 }]}
+                backlogTasks={[{ id: 1, ticket_key: "PAY-1", title: "Refund webhook", story_points: 5 }]}
+                sprintTasks={[{ id: 3, ticket_key: "PAY-3", title: "Retry backoff", story_points: 8 }]}
                 sprint={{ id: 9, name: "Sprint 24", goal: "Refunds never double", velocity_points: 20 }}
                 velocity={{ sprints: [], average: 18 }}
                 burndown={[{ snapshot_date: "2026-10-01", remaining_points: 20 }]}
@@ -169,7 +169,7 @@ describe("Tasks surfaces are WCAG 2.1 AA clean", () => {
     test("command palette", async () => {
         const items = buildPaletteItems({
             query: "",
-            tasks: [{ id: 1, title: "Refund webhook", issue_key: "PAY-142" }],
+            tasks: [{ id: 1, title: "Refund webhook", ticket_key: "PAY-142" }],
             views: paletteViews("7"),
             actions: [{ id: "action-new-task", label: "New task", run: vi.fn() }],
             onOpenTask: vi.fn(),

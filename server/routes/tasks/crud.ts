@@ -87,14 +87,12 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         let validDueDate = created.dueDate;
 
         let validSprintId = null;
-        let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
+        let sprintRow: { id: number; project_id: number; end_date: string; is_archived: boolean } | null = null;
         // Sprint assignment follows the destination project, not its feature flag.
         if (sprint_id) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
-                actorTeamId: req.userTeamId ?? null,
-                isAdmin: isOrgAdmin(req.userRole),
                 actor: taskActorFromRequest(req),
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
@@ -398,8 +396,6 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
-                actorTeamId: req.userTeamId ?? null,
-                isAdmin: isOrgAdmin(req.userRole),
                 ticket: task,
                 actor,
             });
