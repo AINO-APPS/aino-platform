@@ -390,3 +390,39 @@ push, PR, tag, version bump, production deployment or database operation.
   checks and `git diff --check` passed. The tracker commit is retained locally
   and fast-forward merged into the clean platform integration; no remote
   documentation PR or production-triggering push is needed for this blocker.
+
+### Approved snapshot rejected by Railway workspace plan (2026-11-12)
+
+- The operator explicitly approved creating/verifying the named snapshot and
+  continuing publication afterward. This supersedes the missing-approval
+  barrier, but does not authorize plan changes, restore/delete/schedules or
+  unprotected migrations.
+- Authentication and the exact project/environment/Postgres/volume-instance
+  mapping above were reverified before the approved command:
+  `railway postgres pitr backup create --project
+  c19393be-ed82-43e5-b227-c1b8bc056743 --environment
+  c3c5b681-4b08-4eff-aec2-24089ebde1d9 --service
+  0c25959f-9c91-46b1-854e-c3d58a4b3f6a --name
+  pre-project-types-09 --json`.
+- The command failed at **2026-11-12 03:37:57 UTC**, exit **1**, with CLI JSON
+  `{"code":"GRAPHQL_ERROR","error":"Failed to create a backup","hint":null}`.
+  The scoped CLI operation history exposes the precise rejection:
+  **`Failed to create a backup: Manual backups and backup schedules are only available for Pro workspaces`**.
+- Read-only `volumeInstanceBackupList` immediately afterward returned `[]`.
+  No snapshot ID, completed backup or retention/recoverability proof exists.
+  Retrying the same mutation through GraphQL would not resolve this explicit
+  workspace-plan restriction; no alternative mutation or plan upgrade was used.
+- Active-tenant host/database-routing coverage remains unverified. The newly
+  authorized narrow catalog lookup was not needed after the backup itself
+  failed, and no production database SQL was executed. Do not infer that all
+  tenants are covered by the observed single Postgres service.
+- **Unblock:** the operator must enable an eligible workspace plan or separately
+  approve/provide another recoverable backup mechanism covering all affected
+  targets. Once a real snapshot is verified, perform the authorized read-only
+  active-host inventory before deployment; external hosts still require their
+  own backup approval.
+- Remote release collision checks remain unchanged: desktop **v3.0.79** and
+  Android **android-v0.27.17** are latest; default branch tips still match those
+  recorded above. No source push, PR, tag, version bump, release, deployment,
+  gate/configuration change, restore, deletion or schedule change occurred.
+  Ticket **09 remains claimed**. Tickets **10/11** remain untouched.
