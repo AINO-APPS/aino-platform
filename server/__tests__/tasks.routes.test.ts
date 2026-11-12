@@ -32,11 +32,44 @@ jest.mock("../middleware/maintenanceMode", () => ({
     maintenanceModeMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
+jest.mock("../modules/tasks/tasks.projectAccessRepository", () => {
+    const actual = jest.requireActual("../modules/tasks/tasks.projectAccessRepository");
+    const grant = (userId: number) => userId === 9
+        ? []
+        : [{ userId, teamId: null, role: "project_admin" }];
+    return {
+        ...actual,
+        findProjectRoles: async (_db: any, input: { userId: number }) => grant(input.userId),
+        findProjectRolesForProjects: async (_db: any, input: { userId: number; projectIds: number[] }) =>
+            new Map(input.projectIds.map((id) => [id, grant(input.userId)])),
+        findAccessibleProjectIds: async () => [100],
+        findProjectById: async (_db: any, projectId: number, orgId: number) =>
+            projectId > 0 ? { id: projectId, org_id: orgId, is_archived: false } : null,
+    };
+});
+jest.mock("../modules/tasks/tasks.capabilitiesRepository", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.capabilitiesRepository"),
+    findDecisionProjects: async (_db: any, ids: number[]) =>
+        ids.map((id) => ({ id, is_archived: false, type: "scrum", kanban_backlog_enabled: false })),
+}));
+jest.mock("../modules/tasks/tasks.repository", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.repository"),
+    findDefaultTicketProject: async () => 100,
+}));
+
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
 const mockQuery: jest.Mock = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
 const mockTxClient = { query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
+async function transactionQuery(sql: string, params?: any[]) {
+    if (/FOR UPDATE/.test(sql) || /FROM workflow_states/.test(sql) || /FROM workflow_transitions/.test(sql)) {
+        return mockQuery(sql, params);
+    }
+    if (/UPDATE projects/.test(sql)) return { rows: [{ task_number: 1 }], rowCount: 1 };
+    if (/INSERT INTO tasks/.test(sql)) return { rows: [{ id: 10 }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+}
 const mockTransaction: jest.Mock = jest.fn(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
 
 jest.mock("../db", () => ({
@@ -75,7 +108,7 @@ function setupAuth(role = "employee", extra: Record<string, any> = {}) {
 describe("POST /api/tasks/backlog", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockImplementation(transactionQuery);
         mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     });
 
@@ -165,7 +198,7 @@ describe("GET /api/tasks", () => {
 describe("Tenant Isolation - Tasks", () => {
     beforeEach(() => {
         mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
-        mockTxClient.query.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
+        mockTxClient.query.mockReset().mockImplementation(transactionQuery);
         mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
     });
 
@@ -236,7 +269,7 @@ describe("Tenant Isolation - Tasks", () => {
         setupAuth();
         mockQuery.mockImplementation(async (sql: string) => {
             if (/SELECT \* FROM tasks/.test(sql)) return {
-                rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, team_id: 1, title: "Scoped Task" }], rowCount: 1,
+                rows: [{ id: 88, user_id: 2, assigned_to: null, org_id: 1, project_id: 100, title: "Scoped Task" }], rowCount: 1,
             };
             if (/INSERT INTO task_comments/.test(sql)) return { rows: [{ id: 501 }], rowCount: 1 };
             if (/FROM task_comments tc/.test(sql)) return {
@@ -269,7 +302,7 @@ describe("Tenant Isolation - Tasks", () => {
         (ws.notifyUser as jest.Mock).mockClear();
         setupAuth("employee", { org_id: null });
         // Commenter (1) owns the task; the mentioned user (5) is its assignee.
-        const task = { id: 90, user_id: 1, assigned_to: 5, org_id: null, title: "No-org task" };
+        const task = { id: 90, user_id: 1, assigned_to: 5, org_id: null, project_id: null, title: "No-org task" };
         mockQuery.mockImplementation(async (sql: string) => {
             if (sql.includes("SELECT * FROM tasks")) return { rows: [task], rowCount: 1 };
             if (sql.includes("INSERT INTO task_comments")) return { rows: [{ id: 601 }], rowCount: 1 };
@@ -298,7 +331,7 @@ describe("Tenant Isolation - Tasks", () => {
 
 describe("task realtime fan-out (task_updated)", () => {
     const ws = require("../utils/ws");
-    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, team_id: 1, workflow_state_id: 10, title: "Ship it" };
+    const task = { id: 77, user_id: 2, assigned_to: 3, org_id: 1, project_id: 100, workflow_state_id: 10, title: "Ship it" };
     const states = [
         { id: 10, key: "pending", category: "open", is_initial: true, is_terminal: false },
         { id: 11, key: "in_progress", category: "in_progress", is_initial: false, is_terminal: false },

@@ -39,6 +39,13 @@ jest.mock("../utils/audit", () => ({
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
 }));
 
+jest.mock("../modules/tasks/tasks.projectAccessRepository", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.projectAccessRepository"),
+    findProjectRoles: async (_db: any, input: { userId: number }) => [
+        { userId: input.userId, teamId: null, role: "project_admin" },
+    ],
+}));
+
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
@@ -84,6 +91,7 @@ const task = {
     user_id: 1,
     assigned_to: 3,
     org_id: 1,
+    project_id: 1,
     sprint_id: null,
     workflow_state_id: 11,
     completed_at: null,
@@ -99,6 +107,9 @@ function routeQueries(overrides: Array<[RegExp, any[]]> = []) {
                 rows: [{ role: "employee", org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true }],
                 rowCount: 1,
             };
+        }
+        if (/SELECT id, is_archived, type, kanban_backlog_enabled FROM projects/.test(sql)) {
+            return { rows: [{ id: 1, is_archived: false, type: "kanban", kanban_backlog_enabled: true }], rowCount: 1 };
         }
         if (/FROM workflow_states/.test(sql)) {
             if (/ORDER BY sort_order ASC, id ASC/.test(sql)) return {

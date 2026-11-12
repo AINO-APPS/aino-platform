@@ -12,15 +12,21 @@ const ALICE = 1;
 const BOB = 2;
 const CAROL = 3;
 
-function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, { name: string; orgId?: number }>, projectMembers: number[] = []) {
+function fakeDb(
+    projectMembers: Record<number, number[]>,
+    sprints: Record<number, { name: string; orgId?: number }>,
+) {
     return {
         query: jest.fn(async (sql: string, params: unknown[]) => {
-            if (sql.includes("project_members")) return { rows: projectMembers.map((id) => ({ id })), rowCount: projectMembers.length };
-            if (sql.includes("FROM users")) return { rows: (teamMembers[Number(params[0])] ?? []).map((id) => ({ id })), rowCount: 0 };
+            if (/SELECT DISTINCT u\.id FROM users u/.test(sql)) {
+                const ids = [...new Set(((params[0] as number[]) ?? []).flatMap((projectId) => projectMembers[projectId] ?? []))];
+                return { rows: ids.map((id) => ({ id })), rowCount: ids.length };
+            }
             if (sql.includes("FROM sprints")) {
                 const sprint = sprints[Number(params[0])];
-                const scoped = sql.includes("JOIN teams") && sql.includes("JOIN tasks");
-                return { rows: [sprint].filter((row) => row && (!scoped || (row.orgId ?? 1) === params[2])), rowCount: 1 };
+                const scoped = sql.includes("JOIN projects") && sql.includes("JOIN tasks");
+                const rows = [sprint].filter((row) => row && (!scoped || (row.orgId ?? 1) === params[2]));
+                return { rows, rowCount: rows.length };
             }
             throw new Error(`unexpected query: ${sql}`);
         }),
@@ -28,7 +34,7 @@ function fakeDb(teamMembers: Record<number, number[]>, sprints: Record<number, {
 }
 
 const actor = { userId: ALICE, orgId: 1 };
-const ticket = { id: 7, title: "Fix login", org_id: 1, team_id: 10, user_id: ALICE, assigned_to: BOB };
+const ticket = { id: 7, title: "Fix login", org_id: 1, project_id: 1, user_id: ALICE, assigned_to: BOB };
 
 describe("realtime effects of a placement", () => {
     beforeEach(() => {
@@ -36,8 +42,8 @@ describe("realtime effects of a placement", () => {
         mockNotifyUser.mockClear();
     });
 
-    test("a ticket joining a sprint is broadcast to its people and team, and its assignee is told", async () => {
-        const effects = realtimeEffects({ db: fakeDb({ 10: [ALICE, CAROL] }, { 5: { name: "Sprint 5" } }), tenantId: 42 });
+    test("a ticket joining a sprint is broadcast to project members, and its assignee is told", async () => {
+        const effects = realtimeEffects({ db: fakeDb({ 1: [CAROL] }, { 5: { name: "Sprint 5" } }), tenantId: 42 });
 
         await effects.changed({
             before: { ...ticket, sprint_id: null, due_date: "2026-11-20", planned_date: null },
@@ -48,7 +54,6 @@ describe("realtime effects of a placement", () => {
         expect(mockEmitTaskUpdated).toHaveBeenCalledWith(
             42, 7, "updated",
             expect.arrayContaining([BOB, ALICE, CAROL]),
-            { fields: { sprint_id: 5, due_date: "2026-11-14" }, actor: { id: ALICE, name: null } },
         );
         expect(mockNotifyUser).toHaveBeenCalledTimes(1);
         expect(mockNotifyUser).toHaveBeenCalledWith(
@@ -58,7 +63,7 @@ describe("realtime effects of a placement", () => {
     });
 
     test("a ticket created straight into a sprint is broadcast without the sprint-added notification", async () => {
-        const effects = realtimeEffects({ db: fakeDb({ 10: [ALICE] }, { 5: { name: "Sprint 5" } }), tenantId: 42, notify: false });
+        const effects = realtimeEffects({ db: fakeDb({ 1: [ALICE] }, { 5: { name: "Sprint 5" } }), tenantId: 42, notify: false });
 
         await effects.changed({
             before: { ...ticket, sprint_id: null },
@@ -72,7 +77,7 @@ describe("realtime effects of a placement", () => {
 
     test("a ticket does not announce a sprint from another organization", async () => {
         const effects = realtimeEffects({
-            db: fakeDb({ 10: [ALICE] }, { 5: { name: "Foreign sprint", orgId: 2 } }),
+            db: fakeDb({ 1: [ALICE] }, { 5: { name: "Foreign sprint", orgId: 2 } }),
             tenantId: 42,
         });
 
@@ -86,7 +91,7 @@ describe("realtime effects of a placement", () => {
     });
 
     test("leaving a sprint or changing a day is broadcast but notifies nobody", async () => {
-        const effects = realtimeEffects({ db: fakeDb({ 10: [ALICE] }, {}), tenantId: 42 });
+        const effects = realtimeEffects({ db: fakeDb({ 1: [ALICE] }, {}), tenantId: 42 });
 
         await effects.changed({
             before: { ...ticket, sprint_id: 5, planned_date: "2026-11-05", due_date: "2026-11-14" },
@@ -96,27 +101,26 @@ describe("realtime effects of a placement", () => {
 
         expect(mockEmitTaskUpdated).toHaveBeenCalledWith(
             42, 7, "updated", expect.any(Array),
-            { fields: { sprint_id: null, due_date: "2026-11-20" }, actor: { id: ALICE, name: null } },
         );
         expect(mockNotifyUser).not.toHaveBeenCalled();
     });
 
-    test("a team transfer reaches both the old and the new team", async () => {
-        const effects = realtimeEffects({ db: fakeDb({ 10: [CAROL], 20: [BOB] }, {}), tenantId: 42 });
+    test("a project move reaches members of both projects", async () => {
+        const effects = realtimeEffects({ db: fakeDb({ 1: [CAROL], 2: [BOB] }, {}), tenantId: 42 });
 
         await effects.changed({
-            before: { ...ticket, team_id: 10, assigned_to: null, sprint_id: null },
-            after: { ...ticket, team_id: 20, assigned_to: null, sprint_id: null },
+            before: { ...ticket, project_id: 1, assigned_to: null, sprint_id: null },
+            after: { ...ticket, project_id: 2, assigned_to: null, sprint_id: null },
             actor,
+            projectOwnership: true,
         });
 
         const audience = mockEmitTaskUpdated.mock.calls[0][3];
         expect(audience).toEqual(expect.arrayContaining([CAROL, BOB]));
-        expect(mockEmitTaskUpdated.mock.calls[0][4].fields).toEqual({ team_id: 20 });
     });
 
-    test("a project move invalidates both projects without leaking the new key to source-only readers", async () => {
-        const effects = realtimeEffects({ db: fakeDb({ 10: [99] }, {}, [CAROL, 4]), tenantId: 42 });
+    test("a project move invalidates both projects without including ticket data", async () => {
+        const effects = realtimeEffects({ db: fakeDb({ 1: [99], 2: [CAROL, 4] }, {}), tenantId: 42 });
         await effects.changed({
             before: { ...ticket, project_id: 1, ticket_key: "SRC-7", workflow_state_id: 10 },
             after: { ...ticket, project_id: 2, ticket_key: "DEST-1", workflow_state_id: 20 },
@@ -126,7 +130,8 @@ describe("realtime effects of a placement", () => {
         expect(mockEmitTaskUpdated).toHaveBeenCalledWith(
             42, 7, "updated", expect.arrayContaining([ALICE, BOB, CAROL, 4]),
         );
-        expect(mockEmitTaskUpdated.mock.calls[0][3]).not.toContain(99);
+        expect(mockEmitTaskUpdated.mock.calls[0][3]).toContain(99);
+        expect(mockEmitTaskUpdated.mock.calls[0]).toHaveLength(4);
         expect(mockNotifyUser).not.toHaveBeenCalled();
     });
 });

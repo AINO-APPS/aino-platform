@@ -58,11 +58,11 @@ const { app } = require("../index");
 const SECRET = process.env.JWT_SECRET || "test-secret";
 const CSRF = { "X-Requested-With": "WorkPulse" };
 const ticketA = {
-    id: 10, title: "First", user_id: 1, assigned_to: null, org_id: 1, team_id: 1,
+    id: 10, title: "First", user_id: 1, assigned_to: null, org_id: 1,
     project_id: 1, sprint_id: null, planned_date: null, due_date: "2026-11-03",
 };
 const ticketB = {
-    id: 11, title: "Second", user_id: 1, assigned_to: null, org_id: 1, team_id: 1,
+    id: 11, title: "Second", user_id: 1, assigned_to: null, org_id: 1,
     project_id: 1, sprint_id: null, planned_date: null, due_date: null,
 };
 
@@ -87,13 +87,19 @@ function routeQueries(tasks: any[]) {
                 rowCount: 1,
             };
         }
+        if (/SELECT id, type FROM projects/.test(sql)) {
+            return { rows: [{ id: 1, type: "scrum", is_archived: false }], rowCount: 1 };
+        }
+        if (/SELECT id, is_archived, type, kanban_backlog_enabled FROM projects/.test(sql)) {
+            return { rows: [{ id: 1, is_archived: false, type: "scrum", kanban_backlog_enabled: false }], rowCount: 1 };
+        }
         if (/FROM tasks WHERE id = ANY/.test(sql)) {
             const wanted = (params?.[0] ?? []) as number[];
             const rows = tasks.filter((task) => wanted.includes(task.id));
             return { rows, rowCount: rows.length };
         }
-        if (/FROM sprints s JOIN (teams|projects) t/.test(sql)) {
-            return { rows: [{ id: 50, team_id: 1, project_id: 1, org_id: 1, end_date: "2026-11-20", name: "Sprint 5" }], rowCount: 1 };
+        if (/FROM sprints s JOIN projects (?:p|t)/.test(sql)) {
+            return { rows: [{ id: 50, project_id: 1, org_id: 1, end_date: "2026-11-20", name: "Sprint 5" }], rowCount: 1 };
         }
         return { rows: [], rowCount: 0 };
     });

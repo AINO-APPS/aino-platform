@@ -637,11 +637,11 @@
       "phase": 1,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "android": {
         "status": "shipped",
@@ -1037,11 +1037,11 @@
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "android": {
         "status": "waived",

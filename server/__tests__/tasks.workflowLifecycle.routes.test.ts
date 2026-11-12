@@ -7,7 +7,7 @@ export {};
  * every write path applies them: PATCH status, the full update, bulk, and
  * cancel. They also pin the side effects — a per-ticket bulk result, a status
  * notification for the assignee and reporter only, and the realtime frame
- * reaching the owning team.
+ * reaching project members.
  */
 
 jest.mock("../utils/logger", () => ({
@@ -45,6 +45,18 @@ jest.mock("../realtime/fanout", () => ({
 jest.mock("../utils/audit", () => ({
     logAction: jest.fn(),
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
+}));
+
+jest.mock("../modules/tasks/tasks.projectAccessRepository", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.projectAccessRepository"),
+    findProjectRoles: async (_db: any, input: { userId: number }) => [
+        { userId: input.userId, teamId: null, role: "project_admin" },
+    ],
+    findProjectRolesForProjects: async (_db: any, input: { userId: number; projectIds: number[] }) =>
+        new Map(input.projectIds.map((id) => [id, [{ userId: input.userId, teamId: null, role: "project_admin" }]])),
+    findAccessibleProjectIds: async () => [10],
+    findProjectById: async (_db: any, projectId: number, orgId: number) =>
+        ({ id: projectId, org_id: orgId, is_archived: false }),
 }));
 
 const jwt = require("jsonwebtoken");
@@ -87,7 +99,7 @@ const STATES = [PENDING, IN_PROGRESS, IN_REVIEW, DONE, CANCELLED];
 
 let tasksById: Record<number, any>;
 let wipEnabled: boolean;
-let teamMembers: number[];
+let projectMembers: number[];
 
 function makeTask(overrides: Record<string, any> = {}) {
     return {
@@ -96,7 +108,6 @@ function makeTask(overrides: Record<string, any> = {}) {
         user_id: 4,
         assigned_to: 2,
         org_id: 1,
-        team_id: 1,
         sprint_id: null,
         workflow_state_id: PENDING.id,
         completed_at: null,
@@ -188,8 +199,8 @@ function routeQueries() {
         if (/INSERT INTO task_history/.test(text)) return rows([]);
 
         // People
-        if (/FROM users WHERE team_id = \$1/.test(text)) {
-            return rows(teamMembers.map((id) => ({ id })));
+        if (/SELECT DISTINCT u\.id FROM users u/.test(text)) {
+            return rows(projectMembers.map((id) => ({ id })));
         }
         if (/SELECT full_name, username FROM users WHERE id = \$1/.test(text)) {
             return rows([{ full_name: `User ${params[0]}`, username: `user${params[0]}` }]);
@@ -217,7 +228,7 @@ function notifiedUserIds(): number[] {
 beforeEach(() => {
     tasksById = { 77: makeTask() };
     wipEnabled = false;
-    teamMembers = [];
+    projectMembers = [];
     mockQuery.mockReset().mockResolvedValue({ rows: [], rowCount: 0 });
     mockTxClient.query.mockReset().mockImplementation((...args: any[]) => mockQuery(...args));
     mockTransaction.mockReset().mockImplementation(async (fn: any) => fn(mockTxClient, { afterCommit: (cb: any) => cb() }));
@@ -433,7 +444,7 @@ describe("POST /api/tasks/bulk reports a per-ticket result", () => {
 // ── Cancel ──────────────────────────────────────────────────────────────────
 
 describe("DELETE /api/tasks/:id cancels through the lifecycle", () => {
-    test("any owning-team member may cancel", async () => {
+    test("a project member may cancel work they do not own", async () => {
         tasksById[77] = makeTask({ user_id: 900, assigned_to: null });
 
         const res = await send("delete", "/api/tasks/77", 1);
@@ -506,8 +517,8 @@ describe("status transitions notify and fan out to the right people", () => {
         expect(notifiedUserIds().sort()).toEqual([2, 4]);
     });
 
-    test("the realtime frame reaches the owning team", async () => {
-        teamMembers = [10, 11];
+    test("the realtime frame reaches project members", async () => {
+        projectMembers = [10, 11];
         tasksById[77] = makeTask({ user_id: 4, assigned_to: 2 });
 
         const res = await send("patch", "/api/tasks/77/status", 3, { status: "in_progress" });
@@ -519,8 +530,8 @@ describe("status transitions notify and fan out to the right people", () => {
         }
     });
 
-    test("cancel notifies the assignee and reporter and the team sees it move", async () => {
-        teamMembers = [10];
+    test("cancel notifies the assignee and reporter and project members see it move", async () => {
+        projectMembers = [10];
         tasksById[77] = makeTask({ user_id: 4, assigned_to: 2 });
 
         const res = await send("delete", "/api/tasks/77", 3);
