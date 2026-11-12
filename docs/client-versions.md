@@ -69,20 +69,40 @@ fetches, can trigger the global blocking boundary. Web reloads; desktop checks
 through its existing updater, keeps failures retryable, and exposes the
 existing restart/install action after download. It cannot be dismissed.
 
-## Release work remains separate
+## Published EXPAND release (2026-11-12)
 
-1. Complete/review Android's separate ticket-09 work and shared public contract.
-2. Merge the reviewed platform changes, run release validation and use
-   `scripts/set-desktop-version.mjs` for desktop `3.0.80` or later with matching
-   lock metadata. No version bump, publish, tag or deployment occurs here.
-3. Package the new web bundle with its manifest; prove update/restart on an
-   installed desktop and blocking reload in a released browser build.
-   macOS must ship both DMG installers and ZIP updater payloads for x64 and
-   arm64; verify the ZIP references in the published `latest-mac.yml`.
-4. Verify project ownership rollout independently; this ticket never changes
-   tenant ownership switches.
-      Released planning shows a migration-needed state for an unswitched tenant,
-      never silently returning to team scope or changing that tenant's switch.
-5. Only after client releases and operator approval, opt in to REPORT and
-   inspect real adoption. Minimum enforcement belongs to ticket 10, destructive
-   legacy endpoint/schema removal to ticket 11.
+- [Desktop v3.0.80](https://github.com/AINO-APPS/aino-platform/releases/tag/v3.0.80)
+  and [Android v0.27.18](https://github.com/AINO-APPS/aino-android/releases/tag/android-v0.27.18)
+  are published. Android's version code is `27018`; its direct APK and Play AAB
+  signatures and actual package/version metadata were verified.
+- Web and bundled desktop identity is `3.0.80+web.e218cfca5003`. All desktop
+  release files, three updater feeds and Android's published artifacts match
+  their checksums. macOS includes both DMG installers and x64/arm64 ZIP updater
+  payloads; the feed's ZIP references and SHA-512 values were verified.
+- Production GET `/api/client-versions` returns OFF and `0.0.0` minima with
+  `no-store`. Web/realtime/worker deployments report SUCCESS. No gate, ownership
+  switch, compatibility removal, network or workspace-plan change occurred.
+- Released browser requests and blocking reload were verified with a valid
+  426 intercepted only inside the isolated browser harness. Production was not
+  made to emit 426. Existing native/desktop transport and update/restart tests
+  pass; physical-device and installed-desktop acceptance were not run.
+- Desktop installers retain the existing unsigned distribution posture.
+  Android publication is GitHub plus the R2 direct-update channel, **not a Play
+  Store upload**.
+- No backup or recovery proof exists. The operator explicitly represented all
+  current data as disposable internal testing and accepted the known planning/
+  date migration risk, waiving the pre-release backup condition for this
+  publication only. This is not a waiver for future customer-data migrations.
+- Full source, CI, deployment, asset and runtime evidence is in the local
+  [ticket-09 tracker](../.scratch/project-types/issues/09-report-client-versions-and-handle-upgrades.md).
+
+## Separate operator work
+
+Verify project ownership rollout independently. Unswitched tenants retain the
+migration-needed state; this release never silently returns to team scope or
+changes their switch.
+
+Only after separate operator approval, opt in to REPORT and inspect adoption.
+That approval has not been given and REPORT remains OFF. Minimum enforcement
+belongs to ticket 10; destructive legacy endpoint/schema removal belongs to
+ticket 11 and also requires every organization to have switched ownership.
