@@ -88,11 +88,11 @@ describe("myWorkStats", () => {
 describe("weekGroups", () => {
     test("overdue first, then each day that has work, Monday through Sunday", () => {
         const groups = weekGroups(
-            [task({ id: 1, planned_date: "2026-10-21" })],
+            [task({ id: 1, start_date: "2026-10-21" })],
             [
-                task({ id: 2, planned_date: "2026-10-28" }),
-                task({ id: 3, planned_date: "2026-10-26" }),
-                task({ id: 4, planned_date: "2026-10-28" }),
+                task({ id: 2, start_date: "2026-10-28" }),
+                task({ id: 3, start_date: "2026-10-26" }),
+                task({ id: 4, start_date: "2026-10-28" }),
             ],
             "2026-10-26",
         );
@@ -103,7 +103,7 @@ describe("weekGroups", () => {
     });
 
     test("a week with only overdue work still renders the overdue group", () => {
-        const groups = weekGroups([task({ id: 1, planned_date: "2026-10-21" })], [], "2026-10-26");
+        const groups = weekGroups([task({ id: 1, start_date: "2026-10-21" })], [], "2026-10-26");
         expect(groups).toHaveLength(1);
         expect(groups[0].label).toBe("Overdue");
     });
@@ -126,17 +126,17 @@ describe("sprintGroups", () => {
 
 describe("rowDayLabel", () => {
     test("an overdue row carries its own day", () => {
-        expect(rowDayLabel(task({ id: 1, planned_date: "2026-10-21" }), "overdue")).toBe("Oct 21");
+        expect(rowDayLabel(task({ id: 1, start_date: "2026-10-21" }), "overdue")).toBe("Oct 21");
     });
 
     test("rows in a day group do not repeat the header's day", () => {
-        expect(rowDayLabel(task({ id: 1, planned_date: "2026-10-26" }), "2026-10-26")).toBeNull();
+        expect(rowDayLabel(task({ id: 1, start_date: "2026-10-26" }), "2026-10-26")).toBeNull();
     });
 });
 
 describe("capGroups", () => {
     test(`shows at most ${MY_WORK_ROW_LIMIT} rows and reports the rest`, () => {
-        const rows = Array.from({ length: 8 }, (_, i) => task({ id: i + 1, planned_date: "2026-10-26" }));
+        const rows = Array.from({ length: 8 }, (_, i) => task({ id: i + 1, start_date: "2026-10-26" }));
         const { groups, hidden } = capGroups([{ key: "mon", label: "Monday", tasks: rows }]);
 
         expect(groups[0].tasks).toHaveLength(MY_WORK_ROW_LIMIT);

@@ -24,7 +24,7 @@ test("placing a parent publishes a move and sprint history for both tickets", as
         return { rows: rows.map(row => ({ ...row })), rowCount: rows.length };
     } };
     const result = await placeTickets({
-        db, actor: { userId: 1, orgId: 1 }, projectOwnership: true,
+        db, actor: { userId: 1, orgId: 1 },
         afterCommit: fn => { callbacks.push(fn); },
         effects: { changed: change => { changes.push(change); } },
     }, [1], { sprint: 10 });

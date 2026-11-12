@@ -186,7 +186,6 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
             data: {
                 id: 17,
                 ticket_key: "ALPHA-17",
-                issue_key: "ALPHA-17",
                 key_alias: true,
                 requested_key: "OLD-17",
             },

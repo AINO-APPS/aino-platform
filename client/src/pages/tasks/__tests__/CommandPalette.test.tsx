@@ -24,7 +24,7 @@ describe("buildPaletteItems", () => {
     test("tasks come first, then views, then actions", () => {
         const items = buildPaletteItems({
             query: "",
-            tasks: [{ id: 1, title: "Refund webhook", issue_key: "PAY-142" }],
+            tasks: [{ id: 1, title: "Refund webhook", ticket_key: "PAY-142" }],
             views,
             actions,
             onOpenTask: vi.fn(),
@@ -43,8 +43,8 @@ describe("buildPaletteItems", () => {
 
     test("a query filters by title and by key", () => {
         const tasks = [
-            { id: 1, title: "Refund webhook", issue_key: "PAY-142" },
-            { id: 2, title: "Sprint board", issue_key: "WEB-7" },
+            { id: 1, title: "Refund webhook", ticket_key: "PAY-142" },
+            { id: 2, title: "Sprint board", ticket_key: "WEB-7" },
         ];
         const byTitle = buildPaletteItems({
             query: "refund",
@@ -71,7 +71,7 @@ describe("buildPaletteItems", () => {
     test("a query matches a former ticket key", () => {
         const items = buildPaletteItems({
             query: "OLD-17",
-            tasks: [{ id: 7, title: "Renamed ticket", issue_key: "ALPHA-17", key_aliases: ["OLD-17"] }],
+            tasks: [{ id: 7, title: "Renamed ticket", ticket_key: "ALPHA-17", key_aliases: ["OLD-17"] }],
             views: [],
             actions: [],
             onOpenTask: vi.fn(),
@@ -145,7 +145,7 @@ describe("CommandPalette", () => {
         setQuery: vi.fn(),
         items: buildPaletteItems({
             query: "",
-            tasks: [{ id: 1, title: "Refund webhook", issue_key: "PAY-142" }],
+            tasks: [{ id: 1, title: "Refund webhook", ticket_key: "PAY-142" }],
             views,
             actions,
             onOpenTask: vi.fn(),

@@ -101,7 +101,7 @@ test("rejected writes use the same ACCESS_DENIED copy as disabled controls", asy
 });
 
 test("a project key rename refreshes open boards, lists and the matching ticket detail", async () => {
-    const fresh = { ...ticket, project_id: 10, ticket_key: "NEW-2", issue_key: "NEW-2" };
+    const fresh = { ...ticket, project_id: 10, ticket_key: "NEW-2" };
     vi.mocked(getTaskDetail).mockResolvedValue({ data: fresh } as any);
     const refresh = vi.fn();
     const { result } = renderHook(() => {
@@ -117,7 +117,7 @@ test("a project key rename refreshes open boards, lists and the matching ticket 
     await act(async () => { window.dispatchEvent(new CustomEvent(REALTIME_EVENT, {
         detail: { type: "project_updated", data: { project_id: 10 } },
     })); });
-    await waitFor(() => expect(result.current.detailTask?.issue_key).toBe("NEW-2"));
+    await waitFor(() => expect(result.current.detailTask?.ticket_key).toBe("NEW-2"));
     expect(result.current.tasks[0].ticket_key).toBe("NEW-2");
     expect(refresh).toHaveBeenCalledTimes(1);
 });

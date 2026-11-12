@@ -32,7 +32,8 @@ test("global search documents query normalization and group limits", () => {
 
 test("ticket search exposes current and former keys", () => {
   const task = api.components.schemas.SearchTask;
-  assert.deepEqual(task.required.slice(0, 4), ["id", "ticket_key", "issue_key", "key_aliases"]);
+  assert.deepEqual(task.required.slice(0, 3), ["id", "ticket_key", "key_aliases"]);
+  assert.equal(task.properties.issue_key, undefined);
   assert.equal(task.properties.key_aliases.items.type, "string");
 });
 
@@ -41,6 +42,7 @@ test("fetch-by-key documents alias resolution and invisible-ticket 404s", () => 
   assert.equal(operation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/TaskByKey");
   assert.match(operation.responses["404"].description, /not visible/);
   assert.deepEqual(api.components.schemas.TaskByKey.required, [
-    "id", "ticket_key", "issue_key", "key_aliases", "key_alias", "requested_key",
+    "id", "ticket_key", "key_aliases", "key_alias", "requested_key",
   ]);
+  assert.equal(api.components.schemas.TaskByKey.properties.issue_key, undefined);
 });

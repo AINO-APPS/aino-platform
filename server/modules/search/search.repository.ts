@@ -23,7 +23,7 @@ export async function searchTasks(
     return (await db.query(
         `SELECT t.id, t.title, t.description, t.ticket_key, ws.key AS workflow_state_key, t.priority,
                 t.start_date, t.due_date, t.sprint_id, t.user_id, t.assigned_to,
-                t.team_id, t.org_id, t.workflow_state_id, t.completed_at,
+                t.org_id, t.workflow_state_id, t.completed_at,
                 ts_headline('english', t.title || ' ' || COALESCE(t.description, ''),
                     to_tsquery('english', $1), 'MaxFragments=1, MaxWords=10, MinWords=3') AS snippet
          FROM tasks t
@@ -36,11 +36,6 @@ export async function searchTasks(
 
 /** The visibility decision a search request runs under. */
 export function searchVisibility(actor: TaskActor): Promise<TaskVisibility> {
-    const teamVisibility = actor.teamVisibility ?? true;
-    // Global search was personal before the flag; off restores that scope.
-    if (!teamVisibility && !actor.projectOwnership) {
-        return Promise.resolve({ kind: "personal", userId: actor.userId });
-    }
     return resolveTaskVisibilityForRequest(actor);
 }
 
@@ -73,15 +68,12 @@ export async function searchLeaves(db: SearchDb, userId: number, pattern: string
     )).rows;
 }
 
-export async function findTeamId(db: SearchDb, userId: number): Promise<number | null> {
-    return (await db.query("SELECT team_id FROM users WHERE id = $1", [userId])).rows[0]?.team_id || null;
-}
-
-export async function searchSprints(db: SearchDb, teamId: number, pattern: string) {
+export async function searchSprints(db: SearchDb, projectIds: number[], pattern: string) {
+    if (projectIds.length === 0) return [];
     return (await db.query(
         `SELECT id, name, goal, status, start_date, end_date FROM sprints
-         WHERE team_id = $1 AND (name ILIKE $2 OR COALESCE(goal, '') ILIKE $2)
-         ORDER BY start_date DESC LIMIT 7`, [teamId, pattern],
+         WHERE project_id = ANY($1::int[]) AND (name ILIKE $2 OR COALESCE(goal, '') ILIKE $2)
+         ORDER BY start_date DESC LIMIT 7`, [projectIds, pattern],
     )).rows;
 }
 

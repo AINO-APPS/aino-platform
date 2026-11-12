@@ -18,7 +18,7 @@ export interface NotesTaskDb {
 }
 
 /** The task columns the Notes UI renders, with the workflow-state key as `status`. */
-const TASK_SELECT = `SELECT t.*, ws.key AS status, t.start_date AS date
+const TASK_SELECT = `SELECT t.*, ws.key AS status
                        FROM tasks t
                        LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id`;
 
@@ -63,29 +63,29 @@ export async function searchTasksForLinking(
 
 /**
  * Insert a ticket from a note checklist item, with no container: the caller
- * places it (sprint or planned day) in the same transaction. Starts in the
+ * places it in a sprint in the same transaction. Starts in the
  * org's initial workflow state.
  */
 export async function insertNoteTicket(
     db: NotesTaskDb,
-    input: { userId: number; orgId: number | null; teamId: number | null; title: string },
+    input: { userId: number; orgId: number | null; title: string },
 ): Promise<number> {
     return (await db.query(
-        `INSERT INTO tasks (user_id, org_id, team_id, title, workflow_state_id, priority)
-         VALUES ($1, $2, $4, $3,
-                 (SELECT id FROM workflow_states
-                   WHERE org_id = $2 AND is_active = TRUE
-                   ORDER BY is_initial DESC, sort_order ASC, id ASC LIMIT 1),
-                 'medium')
+        `INSERT INTO tasks (user_id, org_id, project_id, title, workflow_state_id, priority)
+         SELECT $1, $2, p.id, $3, ws.id, 'medium'
+           FROM projects p
+           LEFT JOIN workflow_states ws ON ws.project_id = p.id AND ws.is_active = TRUE AND ws.is_initial = TRUE
+          WHERE p.org_id IS NOT DISTINCT FROM $2 AND p.is_general
+          ORDER BY p.id, ws.sort_order, ws.id LIMIT 1
          RETURNING id`,
-        [input.userId, input.orgId, input.title, input.teamId],
+        [input.userId, input.orgId, input.title],
     )).rows[0].id;
 }
 
 /** One task's summary for a linked-entity panel, scoped to the actor's org. */
 export async function findLinkedTask(db: NotesTaskDb, taskId: unknown, orgId: number | null): Promise<any | null> {
     return (await db.query(
-        `SELECT t.*, ws.key AS status, t.start_date AS date
+        `SELECT t.*, ws.key AS status
            FROM tasks t
            LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
           WHERE t.id = $1 AND t.org_id IS NOT DISTINCT FROM $2`,

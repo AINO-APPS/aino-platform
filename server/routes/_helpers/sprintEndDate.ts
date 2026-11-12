@@ -3,7 +3,6 @@ import type { TransactionContext } from "../../types/domain";
 const { retimeSprintDueDates } = require("../../modules/tasks/tasks.placement");
 const { acquirePlacementLifecycleLock } = require("../../modules/tasks/tasks.placementRepository");
 const { findSprintStatusInOrg } = require("../../modules/tasks/tasks.sprintRepository");
-const { placementContext } = require("../tasks/_helpers/placement");
 
 export async function withSprintLifecycleLock<T>(
     req: Request,
@@ -15,22 +14,16 @@ export async function withSprintLifecycleLock<T>(
     });
 }
 
-export async function withSprintEndDateRetime(
+export async function withLockedSprintUpdate(
     req: Request,
     sprintId: number,
-    oldEnd: string | Date,
-    newEnd: string,
     updateSprint: (client: any) => Promise<unknown>,
     expectedStatus?: string,
 ): Promise<boolean> {
-    return withSprintLifecycleLock(req, async (client: any, { afterCommit }: TransactionContext) => {
+    return withSprintLifecycleLock(req, async (client: any) => {
         const sprint = await findSprintStatusInOrg(client, sprintId, req.userOrgId ?? null);
         if (!sprint || sprint.status === "completed" || (expectedStatus && sprint.status !== expectedStatus)) return false;
 
-        const previousEnd = oldEnd instanceof Date
-            ? oldEnd.toISOString().slice(0, 10)
-            : String(oldEnd).slice(0, 10);
-        await retimeSprintDueDates(placementContext(req, client, afterCommit), sprintId, previousEnd, newEnd);
         await updateSprint(client);
         return true;
     });

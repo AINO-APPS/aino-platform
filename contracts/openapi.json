@@ -15769,25 +15769,6 @@
             }
           },
           {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "unassigned",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "scope",
             "in": "query",
             "required": false,
@@ -18406,125 +18387,6 @@
         }
       }
     },
-    "/api/tasks/{id}/schedule": {
-      "patch": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "PATCH /api/tasks/:id/schedule",
-        "operationId": "patch_api_tasks_id_schedule",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Ticket is in a sprint and cannot be scheduled to a day",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "examples": {
-                  "inSprint": {
-                    "value": {
-                      "error": "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
-                      "code": "IN_SPRINT"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/tasks/{id}/status": {
       "patch": {
         "tags": [
@@ -18532,514 +18394,6 @@
         ],
         "summary": "PATCH /api/tasks/:id/status",
         "operationId": "patch_api_tasks_id_status",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tasks/{id}/timer": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Read the task timer state",
-        "operationId": "get_api_tasks_id_timer",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskTimerState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true,
-        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
-      }
-    },
-    "/api/tasks/{id}/timer/start": {
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Start a timer attributed to a task",
-        "operationId": "post_api_tasks_id_timer_start",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskTimerState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true,
-        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
-      }
-    },
-    "/api/tasks/{id}/timer/stop": {
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Stop the task timer and log the elapsed minutes",
-        "operationId": "post_api_tasks_id_timer_stop",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskTimerStopResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": true,
-        "description": "Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate."
-      }
-    },
-    "/api/tasks/{id}/transfer": {
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "POST /api/tasks/:id/transfer",
-        "operationId": "post_api_tasks_id_transfer",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tasks/{id}/unschedule": {
-      "patch": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "PATCH /api/tasks/:id/unschedule",
-        "operationId": "patch_api_tasks_id_unschedule",
         "parameters": [
           {
             "name": "id",
@@ -19341,16 +18695,6 @@
         "operationId": "get_api_sprints",
         "parameters": [
           {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
             "name": "project_id",
             "in": "query",
             "required": false,
@@ -19552,16 +18896,6 @@
             }
           },
           {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
             "$ref": "#/components/parameters/AinoClient"
           },
           {
@@ -19659,25 +18993,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "unassigned",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
-            "schema": {
-              "type": "boolean"
             }
           },
           {
@@ -20069,99 +19384,6 @@
           },
           "404": {
             "description": "Ticket not found or not visible to the current actor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tasks/carry-forward": {
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "POST /api/tasks/carry-forward",
-        "operationId": "post_api_tasks_carry_forward",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -20773,137 +19995,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1
-            }
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          },
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FreeFormValue"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden, CSRF header missing, or feature unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tasks/scheduled": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "GET /api/tasks/backlog",
-        "operationId": "get_api_tasks_scheduled",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "description": "Limit ticket visibility to one project the actor can access.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "unassigned",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Returns no tickets while project ownership is enabled.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "description": "Use personal to show only tickets reported by or assigned to the current actor.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "personal"
-              ]
             }
           },
           {
@@ -23516,7 +22607,7 @@
           "client-versions"
         ],
         "summary": "Public platform-wide version configuration",
-        "description": "Available before authentication, tenant resolution and maintenance checks. No-store. OFF by default; supports OFF, REPORT and ENFORCE. This read remains exempt from minimum-version enforcement.",
+        "description": "Available before authentication, tenant resolution and maintenance checks. No-store. OFF by default; ENFORCE requires a configured minimum for each client class.",
         "security": [],
         "responses": {
           "200": {
@@ -25424,323 +24515,6 @@
         }
       }
     },
-    "/api/projects/migration/review": {
-      "get": {
-        "tags": [
-          "projects"
-        ],
-        "summary": "Review generated projects, grants and migration moves (web organization admin)",
-        "operationId": "get_api_projects_migration_review",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectMigrationReview"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Organization context not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/migration/switch": {
-      "post": {
-        "tags": [
-          "projects"
-        ],
-        "summary": "Publish every project key and enable ownership atomically once (web super_admin only)",
-        "operationId": "post_api_projects_migration_switch",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectOwnershipState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Organization context not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/migration/switch-back": {
-      "post": {
-        "tags": [
-          "projects"
-        ],
-        "summary": "Emergency restore team visibility; retain published keys (web platform_admin only)",
-        "operationId": "post_api_projects_migration_switch_back",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/CsrfHeader"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClient"
-          },
-          {
-            "$ref": "#/components/parameters/AinoClientVersion"
-          }
-        ],
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectOwnershipState"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required or session invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Web session and exact super_admin (switch), platform_admin (switch-back), or organization administrator (review) role required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Organization context not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Initial publication already completed, or project ownership is not enabled for rollback",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "426": {
-            "$ref": "#/components/responses/ClientUpgradeRequired"
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/projects/mine": {
       "get": {
         "tags": [
@@ -26164,16 +24938,6 @@
             "in": "query",
             "required": false,
             "description": "Limit ticket visibility to one project the actor can access.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "team_id",
-            "in": "query",
-            "required": false,
-            "description": "Legacy client scope. Resolves to the generated project while project ownership is enabled.",
             "schema": {
               "type": "integer",
               "minimum": 1
@@ -27229,6 +25993,18 @@
         "description": "Android version name or the bundled web build semantic version (also for desktop). Missing/invalid versions report as 0."
       }
     },
+    "responses": {
+      "ClientUpgradeRequired": {
+        "description": "The client is below the enforced minimum version.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ClientUpgradeRequired"
+            }
+          }
+        }
+      }
+    },
     "schemas": {
       "Error": {
         "type": "object",
@@ -27420,12 +26196,7 @@
           },
           {
             "type": "object",
-            "properties": {
-              "project_ownership": {
-                "type": "boolean",
-                "description": "Organization switch selecting project-scoped Plan UI; independent of subscription feature flags."
-              }
-            },
+            "properties": {},
             "additionalProperties": true
           }
         ]
@@ -27992,14 +26763,6 @@
           "priority": {
             "type": "string"
           },
-          "planned_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Deprecated compatibility alias of start_date during Expand."
-          },
           "due_date": {
             "type": [
               "string",
@@ -28016,9 +26779,6 @@
             "type": "string"
           },
           "ticket_key": {
-            "type": "string"
-          },
-          "issue_key": {
             "type": "string"
           },
           "key_aliases": {
@@ -28081,18 +26841,14 @@
         "required": [
           "id",
           "ticket_key",
-          "issue_key",
           "key_aliases",
           "ticket_key",
-          "issue_key",
           "key_aliases",
           "ticket_key",
-          "issue_key",
           "key_aliases",
           "title",
           "description",
           "priority",
-          "planned_date",
           "due_date",
           "sprint_id",
           "snippet",
@@ -28115,10 +26871,6 @@
           "ticket_key": {
             "type": "string",
             "description": "Stored, org-unique ticket key. Never recomputed from a project's current key."
-          },
-          "issue_key": {
-            "type": "string",
-            "description": "Legacy field retained for older clients; equal to ticket_key."
           },
           "title": {
             "type": "string"
@@ -28168,14 +26920,6 @@
               null
             ]
           },
-          "planned_date": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date",
-            "description": "Deprecated compatibility alias of start_date during Expand."
-          },
           "due_date": {
             "type": [
               "string",
@@ -28209,12 +26953,6 @@
           "capabilities": {
             "$ref": "#/components/schemas/TicketCapabilities"
           },
-          "team_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
           "rank": {
             "type": [
               "string",
@@ -28242,19 +26980,6 @@
               "number",
               "null"
             ]
-          },
-          "estimated_minutes": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0,
-            "description": "Legacy alias of original_estimate_minutes."
-          },
-          "logged_minutes": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Legacy alias of time_spent_minutes, computed from non-deleted worklogs."
           },
           "assigned_to": {
             "type": [
@@ -28559,17 +27284,14 @@
         "required": [
           "id",
           "ticket_key",
-          "issue_key",
           "title",
           "priority",
           "workflow_state_id",
-          "planned_date",
           "due_date",
           "completed_at",
           "sprint_id",
           "container",
           "capabilities",
-          "team_id",
           "project_id",
           "rank",
           "is_blocked",
@@ -28658,16 +27380,10 @@
               "cancel": {
                 "$ref": "#/components/schemas/TicketCapability"
               },
-              "transfer": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
               "delete": {
                 "$ref": "#/components/schemas/TicketCapability"
               },
               "placeInSprint": {
-                "$ref": "#/components/schemas/TicketCapability"
-              },
-              "schedule": {
                 "$ref": "#/components/schemas/TicketCapability"
               },
               "comment": {
@@ -28693,10 +27409,8 @@
               "edit",
               "changeState",
               "cancel",
-              "transfer",
               "delete",
               "placeInSprint",
-              "schedule",
               "comment",
               "logWork",
               "logWorkForOthers",
@@ -28721,13 +27435,6 @@
           },
           "project_id": {
             "type": "integer"
-          },
-          "team_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "description": "Legacy team hint, not ownership; nullable for project-created sprints or after team deletion."
           },
           "name": {
             "type": "string"
@@ -28788,15 +27495,6 @@
               "null"
             ]
           },
-          "auto_managed": {
-            "type": "boolean"
-          },
-          "sprint_number": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
           "carried_from_sprint_id": {
             "type": [
               "integer",
@@ -28811,10 +27509,8 @@
         "required": [
           "id",
           "project_id",
-          "team_id",
           "name",
-          "status",
-          "auto_managed"
+          "status"
         ],
         "additionalProperties": false
       },
@@ -29414,60 +28110,6 @@
         ],
         "additionalProperties": false
       },
-      "TaskTimerState": {
-        "type": "object",
-        "properties": {
-          "taskId": {
-            "type": "integer"
-          },
-          "running": {
-            "type": "boolean"
-          },
-          "startedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "time": {
-            "$ref": "#/components/schemas/TaskTimeSummary"
-          }
-        },
-        "required": [
-          "taskId",
-          "running",
-          "startedAt",
-          "time"
-        ],
-        "additionalProperties": false
-      },
-      "TaskTimerStopResponse": {
-        "type": "object",
-        "properties": {
-          "taskId": {
-            "type": "integer"
-          },
-          "running": {
-            "const": false
-          },
-          "minutes": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Minutes recorded as one worklog by this stop, rounded up to at least one."
-          },
-          "time": {
-            "$ref": "#/components/schemas/TaskTimeSummary"
-          }
-        },
-        "required": [
-          "taskId",
-          "running",
-          "minutes",
-          "time"
-        ],
-        "additionalProperties": false
-      },
       "TaskTimeEntry": {
         "type": "object",
         "properties": {
@@ -29476,12 +28118,6 @@
           },
           "title": {
             "type": "string"
-          },
-          "issue_key": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "date": {
             "type": "string",
@@ -29495,7 +28131,6 @@
         "required": [
           "task_id",
           "title",
-          "issue_key",
           "date",
           "minutes"
         ],
@@ -30318,220 +28953,6 @@
         ],
         "additionalProperties": false
       },
-      "ProjectOwnershipState": {
-        "type": "object",
-        "properties": {
-          "project_ownership": {
-            "type": "boolean"
-          },
-          "switched_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "First publication timestamp; retained after emergency switch-back. Initial publication cannot be repeated."
-          }
-        },
-        "required": [
-          "project_ownership",
-          "switched_at"
-        ],
-        "additionalProperties": false
-      },
-      "ProjectMigrationGrant": {
-        "type": "object",
-        "properties": {
-          "user_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "team_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "role": {
-            "$ref": "#/components/schemas/ProjectRole"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "user_id",
-          "team_id",
-          "role",
-          "name"
-        ],
-        "additionalProperties": false
-      },
-      "ProjectMigrationProject": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "key_published": {
-            "type": "boolean"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "scrum",
-              "kanban",
-              "task_list"
-            ]
-          },
-          "origin_team_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "is_general": {
-            "type": "boolean"
-          },
-          "ticket_count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProjectMigrationGrant"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "key",
-          "key_published",
-          "type",
-          "origin_team_id",
-          "is_general",
-          "ticket_count",
-          "grants"
-        ],
-        "additionalProperties": false
-      },
-      "ProjectMigrationMove": {
-        "type": "object",
-        "properties": {
-          "task_id": {
-            "type": "integer"
-          },
-          "old_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "new_key": {
-            "type": "string",
-            "description": "Current key, including review-time renames."
-          },
-          "migration_key": {
-            "type": "string",
-            "description": "Original migration target key, preserved for audit."
-          },
-          "sprint_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "sprint_name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "from_project_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "to_project_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "moved_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "task_id",
-          "old_key",
-          "new_key",
-          "migration_key",
-          "sprint_id",
-          "sprint_name",
-          "from_project_id",
-          "to_project_id",
-          "moved_at"
-        ],
-        "additionalProperties": false
-      },
-      "ProjectMigrationReview": {
-        "type": "object",
-        "properties": {
-          "project_ownership": {
-            "type": "boolean"
-          },
-          "switched_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "projects": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProjectMigrationProject"
-            }
-          },
-          "moves": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProjectMigrationMove"
-            }
-          },
-          "hierarchy_repairs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/HierarchyRepair"
-            },
-            "description": "Organization-scoped immutable original repairs and additive corrections, oldest first; retained even if a ticket was later removed. Web organization super-admin/platform-admin review only."
-          }
-        },
-        "required": [
-          "project_ownership",
-          "switched_at",
-          "projects",
-          "moves",
-          "hierarchy_repairs"
-        ],
-        "additionalProperties": false
-      },
       "CreateSprintRequest": {
         "type": "object",
         "properties": {
@@ -30539,10 +28960,6 @@
             "type": "integer",
             "minimum": 1,
             "description": "Selected project; omitted by legacy clients, which fall back to their team's generated project."
-          },
-          "team_id": {
-            "type": "integer",
-            "minimum": 1
           },
           "name": {
             "type": "string",
@@ -30623,9 +29040,6 @@
           "ticket_key": {
             "type": "string"
           },
-          "issue_key": {
-            "type": "string"
-          },
           "key_aliases": {
             "type": "array",
             "items": {
@@ -30642,7 +29056,6 @@
         "required": [
           "id",
           "ticket_key",
-          "issue_key",
           "key_aliases",
           "key_alias",
           "requested_key"
@@ -31267,18 +29680,6 @@
             "type": "integer",
             "minimum": 0
           },
-          "logged_minutes": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Legacy alias for time spent."
-          },
-          "estimated_minutes": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
           "original_estimate_minutes": {
             "type": [
               "integer",
@@ -31297,8 +29698,6 @@
         "required": [
           "id",
           "time_spent_minutes",
-          "logged_minutes",
-          "estimated_minutes",
           "original_estimate_minutes",
           "remaining_estimate_minutes"
         ],
@@ -31712,96 +30111,6 @@
         },
         "additionalProperties": false
       },
-      "HierarchyRepairValue": {
-        "type": "object",
-        "properties": {
-          "parent_task_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "work_item_type_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "project_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "sprint_id": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "story_points": {
-            "type": [
-              "number",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "parent_task_id",
-          "work_item_type_id",
-          "project_id",
-          "sprint_id",
-          "story_points"
-        ],
-        "additionalProperties": false
-      },
-      "HierarchyRepairStage": {
-        "type": "string",
-        "enum": [
-          "original",
-          "correction"
-        ]
-      },
-      "HierarchyRepair": {
-        "type": "object",
-        "properties": {
-          "task_id": {
-            "type": "integer"
-          },
-          "ticket_key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stage": {
-            "$ref": "#/components/schemas/HierarchyRepairStage"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "repaired_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "before": {
-            "$ref": "#/components/schemas/HierarchyRepairValue"
-          },
-          "after": {
-            "$ref": "#/components/schemas/HierarchyRepairValue"
-          }
-        },
-        "required": [
-          "task_id",
-          "ticket_key",
-          "stage",
-          "reason",
-          "repaired_at",
-          "before",
-          "after"
-        ],
-        "additionalProperties": false
-      },
       "TicketSummary": {
         "type": "object",
         "properties": {
@@ -32198,27 +30507,7 @@
           "current_version"
         ],
         "additionalProperties": false,
-        "description": "HTTP 426 for a recognized client below its platform-wide minimum in enforce mode. Missing or malformed client versions are reported as 0. Health and the public client-version read are exempt."
-      }
-    },
-    "responses": {
-      "ClientUpgradeRequired": {
-        "description": "Recognized client is below its platform-wide semantic minimum in enforce mode.",
-        "headers": {
-          "Cache-Control": {
-            "schema": {
-              "type": "string",
-              "const": "no-store"
-            }
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ClientUpgradeRequired"
-            }
-          }
-        }
+        "description": "Returned when an enforced minimum client version is not met."
       }
     }
   }

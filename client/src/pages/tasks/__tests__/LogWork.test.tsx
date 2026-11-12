@@ -13,7 +13,7 @@ beforeEach(() => {
     api.getAssignableUsers.mockReset().mockResolvedValue({ data: [{ id: 1, full_name: 'Alice', username: 'alice' }, { id: 2, full_name: 'Bob', username: 'bob' }] });
     api.editTaskWorklog.mockReset();
     api.deleteTaskWorklog.mockReset();
-    api.logTaskWork.mockReset().mockResolvedValue({ data: { worklog, ticket: { id: 1, time_spent_minutes: 150, logged_minutes: 150 }, warnings: [] } });
+    api.logTaskWork.mockReset().mockResolvedValue({ data: { worklog, ticket: { id: 1, time_spent_minutes: 150 }, warnings: [] } });
 });
 describe('Log work on a ticket', () => {
     test('shows both returned attendance warnings after the worklog saves and the dialog closes', async () => {
@@ -185,7 +185,7 @@ describe('Log work on a ticket', () => {
     test('delete asks for confirmation, cancel preserves work, and success immediately removes the row and time', async () => {
         const own = { ...worklog, canEdit: true, canDelete: true };
         api.getTaskWorklogs.mockResolvedValue({ data: { worklogs: [own], time_spent_minutes: 150 } });
-        api.deleteTaskWorklog.mockReset().mockResolvedValue({ data: { ticket: { id: 1, time_spent_minutes: 0, logged_minutes: 0 } } });
+        api.deleteTaskWorklog.mockReset().mockResolvedValue({ data: { ticket: { id: 1, time_spent_minutes: 0 } } });
         render(<TaskTimePanel task={{ ...ticket, time_spent_minutes: 150 }} />);
         fireEvent.click(await screen.findByRole('button', { name: 'Delete worklog' }));
         let dialog = screen.getByRole('dialog', { name: 'Delete worklog?' });

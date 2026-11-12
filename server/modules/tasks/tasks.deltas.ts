@@ -14,7 +14,6 @@ export const DELTA_FIELDS = [
     "priority",
     "assigned_to",
     "due_date",
-    "planned_date",
     "start_date",
     "sprint_id",
     "story_points",
@@ -26,14 +25,8 @@ export const DELTA_FIELDS = [
     "blocked_reason",
     "project_id",
     "ticket_key",
-    "issue_key",
     "rank",
-    "estimated_minutes",
-    "logged_minutes",
     "acceptance_criteria",
-    // A transfer changes the ticket's owning team and project/key. Clients
-    // need all three values to refresh their card without a second fetch.
-    "team_id",
 ] as const;
 
 export type DeltaField = (typeof DELTA_FIELDS)[number];
@@ -79,9 +72,8 @@ export function diffTask(
     const fields: Partial<Record<DeltaField, unknown>> = {};
     for (const field of DELTA_FIELDS) {
         if (!FIELD_SET.has(field)) continue;
-        const source = field === "issue_key" ? "ticket_key" : field === "planned_date" ? "start_date" : field;
-        const oldValue = before?.[source];
-        const newValue = after[source];
+        const oldValue = before?.[field];
+        const newValue = after[field];
         if (!same(oldValue, newValue)) {
             fields[field] = newValue ?? null;
         }

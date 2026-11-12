@@ -1,4 +1,4 @@
-/** Manual-worklog rollout contract; legacy timer envelopes are unchanged. */
+/** Manual-worklog contract; ticket timer operations are retired by ticket 11. */
 export function applyWorklogContract(paths, schemas) {
     const ref = name => ({ $ref: `#/components/schemas/${name}` });
     const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
@@ -66,11 +66,5 @@ export function applyWorklogContract(paths, schemas) {
     can.required = [...new Set([...can.required, 'logWork'])];
     can.properties.logWorkForOthers = ref('TicketCapability');
     can.required = [...new Set([...can.required, 'logWorkForOthers'])];
-    schemas.TaskTimerStopResponse.properties.minutes.minimum = 1;
-    schemas.TaskTimerStopResponse.properties.minutes.description = 'Minutes recorded as one worklog by this stop, rounded up to at least one.';
-    for (const [url, method] of [['/api/tasks/{id}/timer', 'get'], ['/api/tasks/{id}/timer/start', 'post'], ['/api/tasks/{id}/timer/stop', 'post']]) {
-        paths[url][method].deprecated = true;
-        paths[url][method].description = 'Legacy compatibility route. Stopping creates a worklog; response shape is unchanged. Timer removal is deferred until the client-version gate.';
-    }
     paths['/api/tracker/task-time'].get.summary = 'Time spent on tasks, grouped by recorded day worked';
 }

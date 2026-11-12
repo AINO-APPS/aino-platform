@@ -55,7 +55,7 @@ const MyWorkCard = memo(function MyWorkCard() {
     const loadWeek = useCallback(async (userId: number | string) => {
         const range = weekRange();
         const overdueEnd = previousWeekEnd(range.start);
-        // Two narrow range queries rather than the whole scheduled set: the
+        // Two narrow range queries rather than the whole project task set: the
         // overdue window is bounded so ancient slipped work cannot crowd the card.
         const [weekRes, overdueRes] = await Promise.all([
             getTasks(undefined, { start_date: range.start, end_date: range.end, assignee: "me" }),
@@ -152,7 +152,7 @@ const MyWorkCard = memo(function MyWorkCard() {
     }, [loadCard]));
 
     const openAll = useCallback(() => {
-        navigate(sprint ? `/tasks?tab=sprint&sprint_id=${sprint.id}` : "/tasks?tab=scheduled");
+        navigate(sprint ? `/tasks?tab=sprint&sprint_id=${sprint.id}` : "/tasks?tab=calendar");
     }, [navigate, sprint]);
 
     if (!loaded) {

@@ -18,7 +18,7 @@ describe("sprint lifecycle SQL organization scope", () => {
             openTasks: 0,
         });
         await repo.claimSprintCompletion(db, 10, orgId);
-        await repo.findSprintCompletionActor(db, 10, 1, orgId);
+        await repo.findSprintCompletionActor(db, 10, orgId);
         await repo.findRolloverTarget(db, 11, 1, orgId);
         await repo.lockSprintCompletionMembers(db, 10, orgId);
         await repo.findSprintCompletionVelocity(db, 10, orgId);
@@ -26,7 +26,7 @@ describe("sprint lifecycle SQL organization scope", () => {
         await repo.linkSprintCarryover(db, 10, 11, orgId);
         await repo.finishSprint(db, 10, 3, orgId);
         await repo.lockSprintForDeletion(db, 10, orgId);
-        await repo.pauseSprintForOrg(db, 10, 1, orgId);
+        await repo.pauseSprintForOrg(db, 10, orgId);
         await repo.findSprintMemberIds(db, 10, orgId);
         await repo.deleteSprint(db, 10, orgId);
         await repo.findTeamMemberIds(db, 1, orgId);

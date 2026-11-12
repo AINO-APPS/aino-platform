@@ -11,10 +11,8 @@ const { loadUserContext } = require('../../middleware/rbac');
 
 
 const { ticketActionConflict, denyTaskAccess } = require("./_helpers/access");
-const { isOrgAdmin, taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
+const { taskActorFromRequest } = require('../../modules/tasks/tasks.policy');
 const { enrichTasks } = require('./_helpers/enrich');
-const { materialiseTeamSprints } = require('./_helpers/sprintMaterialise');
-const { buildTaskCollection } = require('../../modules/tasks/tasks.collection');
 const { findTask } = require('../../modules/tasks/tasks.sprintRepository');
 const { findSprintsForProjects } = require('../../modules/tasks/tasks.sprintRepository');
 const { sprintProjectIds } = require('../../modules/tasks/tasks.sprintProjects');
@@ -24,70 +22,14 @@ const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_he
 
 const router = express.Router();
 
-// ─── Get available sprints for user's team (current + future) ────────────
+// ─── Get available sprints for projects the actor can access ─────────────
 router.get('/available-sprints', auth, loadUserContext, requireScrumSprint, async (req: Request, res: Response) => {
     try {
         const actor = taskActorFromRequest(req);
-        if (actor.projectOwnership) {
-            const ids = await sprintProjectIds(actor, req.query);
-            const sprints = await findSprintsForProjects(req.db!, actor.orgId, ids);
-            return res.json(sprints.filter((sprint: any) =>
-                ["active", "planned", "paused"].includes(sprint.status)));
-        }
-        const callerIsOrgAdmin = !!req.userOrgId && isOrgAdmin(req.userRole);
-
-        // Org admins see every active/planned sprint across all teams in their org
-        // (so they can move service-desk tickets into any team's sprint). For any
-        // team in the org that has a sprint_start_date configured but no sprint
-        // rows yet, auto-materialise the current + next sprint so admins don't
-        // have to wait for a team member to visit the Tasks page first.
-        if (callerIsOrgAdmin) {
-            const teamsNeedingSprints = (await req.db!.query(`
-                SELECT t.id, t.name, t.sprint_start_date, t.sprint_duration_weeks
-                FROM teams t
-                LEFT JOIN sprints s
-                       ON s.team_id = t.id AND s.status IN ('active', 'planned')
-                WHERE t.org_id = $1
-                  AND t.sprint_start_date IS NOT NULL
-                  AND s.id IS NULL
-            `, [req.userOrgId])).rows;
-            for (const team of teamsNeedingSprints) {
-                try { await materialiseTeamSprints(team, req); }
-                catch (e) { req.log.warn({ err: e, teamId: team.id }, 'Failed to auto-materialise sprints for team'); }
-            }
-
-            const orgSprints = (await req.db!.query(`
-                SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal, s.team_id,
-                       s.sprint_number, t.name as team_name
-                FROM sprints s
-                JOIN teams t ON t.id = s.team_id
-                WHERE t.org_id = $1 AND s.status IN ('active', 'planned')
-                ORDER BY t.name ASC, s.start_date ASC
-            `, [req.userOrgId])).rows;
-            return res.json(orgSprints);
-        }
-
-        if (!req.userTeamId) return res.json([]);
-
-        const sprints = (await req.db!.query(`
-            SELECT s.id, s.name, s.start_date, s.end_date, s.status, s.goal,
-                   s.team_id, s.sprint_number, t.name AS team_name
-            FROM sprints s
-            JOIN teams t ON t.id = s.team_id
-            WHERE s.team_id = $1 AND s.status IN ('active', 'planned')
-            ORDER BY s.start_date ASC
-        `, [req.userTeamId])).rows;
-
-        if (sprints.length === 0) {
-            const team = (await req.db!.query(
-                'SELECT id, sprint_start_date, sprint_duration_weeks FROM teams WHERE id = $1',
-                [req.userTeamId]
-            )).rows[0];
-            const autoSprints = await materialiseTeamSprints(team, req);
-            return res.json(autoSprints);
-        }
-
-        res.json(sprints);
+        const ids = await sprintProjectIds(actor, req.query);
+        const sprints = await findSprintsForProjects(req.db!, actor.orgId, ids);
+        return res.json(sprints.filter((sprint: any) =>
+            ["active", "planned", "paused"].includes(sprint.status)));
     } catch (err) {
         req.log.error({ err: err }, 'Error fetching available sprints:');
         res.status(500).json({ error: 'Failed to fetch sprints' });
@@ -109,8 +51,7 @@ router.patch('/:id/assign-sprint', auth, loadUserContext, async (req: Request, r
         const leaving = sprint_id === null || sprint_id === undefined || sprint_id === '';
         if (!leaving) {
             const target = await resolveSprintTarget(req.db!, {
-                sprintId: sprint_id, orgId: actor.orgId, actorTeamId: actor.teamId,
-                isAdmin: isOrgAdmin(actor.role), ticket: task, actor,
+                sprintId: sprint_id, orgId: actor.orgId, ticket: task, actor,
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
         }

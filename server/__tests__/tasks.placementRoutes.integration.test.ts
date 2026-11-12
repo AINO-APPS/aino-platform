@@ -351,7 +351,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.ticket_key).toBeTruthy();
-        expect(res.body.issue_key).toBe(res.body.ticket_key);
+        expect(res.body).not.toHaveProperty("issue_key");
         expect(res.body.project_id).toBe((await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0].project_id);
         expect((await pool.query("SELECT project_ownership FROM organizations WHERE id = 1")).rows[0].project_ownership).toBe(false);
     });
@@ -616,7 +616,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
         expect(transferred.status).toBe(200);
         expect(transferred.body.task.ticket_key).not.toBe(oldKey);
-        expect(transferred.body.task.issue_key).toBe(transferred.body.task.ticket_key);
+        expect(transferred.body.task).not.toHaveProperty("issue_key");
         expect((await pool.query(
             "SELECT key, reason FROM ticket_key_aliases WHERE task_id = $1",
             [created.body.id],

@@ -5,11 +5,8 @@
  * missing column cannot be allowed to fail it: a 500 there leaves the app on a
  * degraded user and the user effectively signed out of their own context.
  *
- * Two columns are optional. `users.notification_prefs` arrives with a later
- * migration, and `teams.sprint_start_date` (which `team_sprint_enabled` is
- * derived from) predates neither a fresh tenant nor a very old one. Each attempt
- * drops one optional column, so the worst case is a response with fewer fields
- * rather than an error.
+ * `users.notification_prefs` is optional on older tenant databases. Each
+ * attempt drops only that column, so older tenants still hydrate a profile.
  */
 
 interface DbLike {
@@ -20,30 +17,18 @@ const BASE_COLUMNS = [
     "u.id", "u.username", "u.full_name", "u.email", "u.avatar", "u.role",
     "u.org_id", "u.team_id", "u.department_id", "u.must_change_password",
     "t.name as team_name",
-    "COALESCE(o.project_ownership, FALSE) AS project_ownership",
 ].join(", ");
 
-const FROM = "FROM users u LEFT JOIN teams t ON u.team_id = t.id LEFT JOIN organizations o ON o.id = u.org_id WHERE u.id = $1";
+const FROM = "FROM users u LEFT JOIN teams t ON u.team_id = t.id WHERE u.id = $1";
 
-/**
- * The team's sprint config, not the tenant's agile feature: a team works in
- * sprints once an admin has set a start date, even before any sprint row has
- * been materialised. Clients use it to choose between the Sprint and Schedule
- * planning surfaces.
- */
-const SPRINT_ENABLED = "(t.sprint_start_date IS NOT NULL AND t.sprint_start_date <> '') as team_sprint_enabled";
-
-/** Most complete first; each fallback drops one optional column. */
+/** Most complete first; fallback drops the optional notification preference. */
 const ATTEMPTS: { sql: string; drops: string }[] = [
-    { sql: `SELECT ${BASE_COLUMNS}, u.notification_prefs, ${SPRINT_ENABLED} ${FROM}`, drops: "nothing" },
-    { sql: `SELECT ${BASE_COLUMNS}, ${SPRINT_ENABLED} ${FROM}`, drops: "notification_prefs" },
-    { sql: `SELECT ${BASE_COLUMNS} ${FROM}`, drops: "notification_prefs and sprint_start_date" },
+    { sql: `SELECT ${BASE_COLUMNS}, u.notification_prefs ${FROM}`, drops: "nothing" },
+    { sql: `SELECT ${BASE_COLUMNS} ${FROM}`, drops: "notification_prefs" },
 ];
 
 export interface ProfileRowResult {
     user: any;
-    /** False when the tenant DB predates `teams.sprint_start_date`; the field is then absent, not false. */
-    sprintEnabledReported: boolean;
 }
 
 /**
@@ -57,7 +42,7 @@ export async function loadProfileRow(db: DbLike, userId: number, onFallback: (mi
     for (const [index, attempt] of ATTEMPTS.entries()) {
         try {
             const user = (await db.query(attempt.sql, [userId])).rows[0];
-            return { user, sprintEnabledReported: index < last };
+            return { user };
         } catch (err) {
             // The last attempt failing is not a fallback, it is the response.
             if (index === last) throw err;

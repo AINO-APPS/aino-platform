@@ -1,5 +1,3 @@
-import { scheduleDateOf } from "./scheduled";
-
 /**
  * Calendar maths for the task calendar view.
  *
@@ -81,7 +79,6 @@ export interface ScheduledTask {
     id: number | string;
     title?: string;
     start_date?: string | null;
-    planned_date?: string | null;
     due_date?: string | null;
     story_points?: number | null;
     completed_at?: string | null;
@@ -92,8 +89,10 @@ export interface ScheduledTask {
  * The calendar day of a task: its start date, else its due date.
  */
 export function plannedDay(task: ScheduledTask): string | null {
-    // Keep the calendar aligned with the legacy date-grouping helper.
-    return scheduleDateOf(task);
+    for (const value of [task.start_date, task.due_date]) {
+        if (typeof value === "string" && value.length >= 10) return value.slice(0, 10);
+    }
+    return null;
 }
 
 /** Group tasks by their planned day. */

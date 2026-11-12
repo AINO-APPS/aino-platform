@@ -19,7 +19,6 @@ export interface MyWorkTask {
     id: number | string;
     title: string;
     priority?: string | null;
-    planned_date?: string | null;
     start_date?: string | null;
     assigned_to?: number | string | null;
     /** The workflow state is the only status (D4). */
@@ -135,7 +134,7 @@ export function myWorkStats(tasks: MyWorkTask[], userId: number | string): MyWor
  *
  * The server sends the state's key, name and category but not its colour, so the
  * card maps categories itself — the same three-tone convention the Tasks page
- * uses (`pages/tasks/scheduled`). An unknown or custom state reads as neutral.
+ * uses the task's canonical start date. An unknown or custom state reads as neutral.
  */
 export function stateTone(task: MyWorkTask): "progress" | "review" | "neutral" {
     switch (task.workflow_state_category) {

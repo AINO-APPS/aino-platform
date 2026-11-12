@@ -28,7 +28,8 @@ export async function listTeamsForActor(db: TeamListDb, options: TeamListOptions
         }
 
         return (await db.query(`
-            SELECT t.*, u.full_name as lead_name, d.name as department_name,
+            SELECT t.id, t.org_id, t.department_id, t.name, t.lead_id, t.created_at,
+                   u.full_name as lead_name, d.name as department_name,
                    (SELECT COUNT(*) FROM users WHERE team_id = t.id AND is_active = TRUE)::integer as member_count
             FROM teams t
             LEFT JOIN users u ON u.id = t.lead_id
@@ -41,7 +42,7 @@ export async function listTeamsForActor(db: TeamListDb, options: TeamListOptions
     const user = (await db.query("SELECT team_id FROM users WHERE id = $1", [options.userId])).rows[0];
     if (!user?.team_id) return [];
     return (await db.query(`
-        SELECT t.id, t.name, t.department_id, t.sprint_duration_weeks, t.sprint_start_date,
+        SELECT t.id, t.name, t.department_id,
                u.full_name as lead_name, d.name as department_name
         FROM teams t
         LEFT JOIN users u ON u.id = t.lead_id

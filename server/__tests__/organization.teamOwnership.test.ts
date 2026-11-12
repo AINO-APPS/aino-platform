@@ -6,8 +6,8 @@ test.each([false, true])("team grant cleanup uses the selected team's org (platf
         rowCount: 1,
     }));
     await expect(removeTeam({ query }, {
-        teamId: 21, orgId: isPlatformAdmin ? null : 7, isPlatformAdmin, projectOwnership: true,
-    })).resolves.toMatchObject({ team: { id: 21, org_id: 7 } });
+        teamId: 21, orgId: isPlatformAdmin ? null : 7, isPlatformAdmin,
+    })).resolves.toMatchObject({ team: { id: 21, org_id: 7 }, memberIds: [] });
 
     const cleanup = query.mock.calls.find(([sql]) => sql.startsWith("DELETE FROM project_members"));
     expect(cleanup).toBeDefined();

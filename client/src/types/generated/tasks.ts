@@ -95,26 +95,6 @@ export interface UpdateProjectRequest {
   type?: ProjectType;
 }
 
-export type HierarchyRepairStage = "original" | "correction";
-
-export interface HierarchyRepairValue {
-  parent_task_id: number | null;
-  work_item_type_id: number | null;
-  project_id: number | null;
-  sprint_id: number | null;
-  story_points: number | null;
-}
-
-export interface HierarchyRepair {
-  task_id: number;
-  ticket_key: string | null;
-  stage: HierarchyRepairStage;
-  reason: string;
-  repaired_at: string;
-  before: HierarchyRepairValue;
-  after: HierarchyRepairValue;
-}
-
 export interface TicketCapability {
   allowed: boolean;
   reason?: string;
@@ -134,7 +114,6 @@ export interface TicketCapabilities {
 export interface Task {
   id: number;
   ticket_key: string;
-  issue_key: string;
   title: string;
   description?: string | null;
   priority: string;
@@ -142,20 +121,16 @@ export interface Task {
   workflow_state_key?: string | null;
   workflow_state_name?: string | null;
   workflow_state_category?: string | null;
-  planned_date: string | null;
   due_date: string | null;
   completed_at: string | null;
   sprint_id: number | null;
   container: string;
   capabilities: TicketCapabilities;
-  team_id: number | null;
   rank: string | null;
   parent_task_id?: number | null;
   project_id: number;
   work_item_type_id?: number | null;
   story_points?: number | null;
-  estimated_minutes?: number | null;
-  logged_minutes?: number;
   assigned_to?: number | null;
   user_id?: number;
   org_id?: number | null;
@@ -184,7 +159,6 @@ export interface Task {
 export interface Sprint {
   id: number;
   project_id: number;
-  team_id: number | null;
   name: string;
   goal?: string | null;
   status: string;
@@ -194,8 +168,6 @@ export interface Sprint {
   completed_at?: string | null;
   paused_at?: string | null;
   velocity_points?: number | null;
-  auto_managed: boolean;
-  sprint_number?: number | null;
   carried_from_sprint_id?: number | null;
   can_manage?: boolean;
 }
@@ -242,10 +214,8 @@ export interface TicketCapabilitiesCan {
   edit: TicketCapability;
   changeState: TicketCapability;
   cancel: TicketCapability;
-  transfer: TicketCapability;
   delete: TicketCapability;
   placeInSprint: TicketCapability;
-  schedule: TicketCapability;
   comment: TicketCapability;
   logWork: TicketCapability;
   logWorkForOthers: TicketCapability;

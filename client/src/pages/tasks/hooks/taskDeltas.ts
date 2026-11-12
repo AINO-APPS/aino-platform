@@ -13,7 +13,6 @@ export const DELTA_FIELDS = [
     "priority",
     "assigned_to",
     "due_date",
-    "planned_date",
     "start_date",
     "sprint_id",
     "story_points",
@@ -25,13 +24,8 @@ export const DELTA_FIELDS = [
     "blocked_reason",
     "project_id",
     "ticket_key",
-    "issue_key",
     "rank",
-    "estimated_minutes",
-    "logged_minutes",
     "acceptance_criteria",
-    // A transfer changes the ticket's owning team.
-    "team_id",
 ] as const;
 
 export type DeltaField = (typeof DELTA_FIELDS)[number];

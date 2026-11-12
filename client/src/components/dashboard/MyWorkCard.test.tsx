@@ -72,8 +72,8 @@ describe("MyWorkCard stats", () => {
                 data: {
                     tasks: params.start_date === monday
                         ? [
-                            { id: 1, title: "Writing", container: "scheduled", assigned_to: 7, planned_date: monday, workflow_state_category: "in_progress" },
-                            { id: 2, title: "Shipped", container: "scheduled", assigned_to: 7, planned_date: monday, completed_at: "2026-11-02T10:00:00Z" },
+                            { id: 1, title: "Writing", container: "backlog", assigned_to: 7, start_date: monday, workflow_state_category: "in_progress" },
+                            { id: 2, title: "Shipped", container: "backlog", assigned_to: 7, start_date: monday, completed_at: "2026-11-02T10:00:00Z" },
                         ]
                         : [],
                 },
@@ -94,9 +94,9 @@ describe("MyWorkCard", () => {
     test("My Work groups dated tickets by start date independently of placement", async () => {
         hasFeature.mockReturnValue(false);
         getTasks.mockImplementation((_date: unknown, params: { start_date: string }) => Promise.resolve({ data: { tasks: params.start_date === nextMonday() ? [
-            { ...ticket, id: 1, title: "Sprint start", assigned_to: 7, container: "sprint", start_date: nextMonday(), planned_date: "2026-01-01", sprint_id: 999 },
-            { ...ticket, id: 2, title: "Backlog start", assigned_to: 7, container: "backlog", start_date: nextMonday(), planned_date: null },
-            { ...ticket, id: 3, title: "Cleared date", assigned_to: 7, container: "scheduled", start_date: null, planned_date: nextMonday() },
+            { ...ticket, id: 1, title: "Sprint start", assigned_to: 7, container: "sprint", start_date: nextMonday(), sprint_id: 999 },
+            { ...ticket, id: 2, title: "Backlog start", assigned_to: 7, container: "backlog", start_date: nextMonday() },
+            { ...ticket, id: 3, title: "Cleared date", assigned_to: 7, container: "backlog", start_date: null },
         ] : [] } }));
         renderCard();
         await screen.findByText("Sprint start");
@@ -165,7 +165,7 @@ describe("MyWorkCard", () => {
         hasFeature.mockReturnValue(true);
         getActiveSprint.mockResolvedValue({ data: { sprint: null } });
         getTasks
-            .mockResolvedValueOnce({ data: { tasks: [{ ...ticket, container: "scheduled", id: 1, title: "This week", assigned_to: 7, start_date: nextMonday() }] } })
+            .mockResolvedValueOnce({ data: { tasks: [{ ...ticket, container: "backlog", id: 1, title: "This week", assigned_to: 7, start_date: nextMonday() }] } })
             .mockRejectedValueOnce(new Error("overdue lookup failed"));
 
         renderCard();

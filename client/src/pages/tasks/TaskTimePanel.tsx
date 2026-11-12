@@ -54,10 +54,10 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
         setEditing(undefined);
         onLogged?.(response.worklog.minutes);
     };
-    const original = estimates ? estimates.original_estimate_minutes : task?.original_estimate_minutes ?? task?.estimated_minutes ?? null;
+    const original = estimates ? estimates.original_estimate_minutes : task?.original_estimate_minutes ?? null;
     const summary = summariseTime({
-        estimated_minutes: original,
-        logged_minutes: logged ?? task?.time_spent_minutes ?? task?.logged_minutes,
+        original_estimate_minutes: original,
+        time_spent_minutes: logged ?? task?.time_spent_minutes,
     });
 
     const remaining = estimates ? estimates.remaining_estimate_minutes : task?.remaining_estimate_minutes ?? null;
@@ -88,7 +88,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
             )}
 
             {(['original', 'remaining'] as const).map(kind => <InlineEstimate key={`${taskId}:${kind}`} taskId={taskId} kind={kind}
-                value={estimates ? estimates[`${kind}_estimate_minutes`] : (kind === 'original' ? task?.original_estimate_minutes ?? task?.estimated_minutes : task?.remaining_estimate_minutes) ?? null}
+                value={estimates ? estimates[`${kind}_estimate_minutes`] : (kind === 'original' ? task?.original_estimate_minutes : task?.remaining_estimate_minutes) ?? null}
                 editable={canEditEstimate} onSaved={ticket => { publishSavedEffort(ticket); onLogged?.(0); }} />)}
 
             {remaining != null && (
@@ -109,7 +109,7 @@ export default function TaskTimePanel({ task, onLogged }: TaskTimePanelProps) {
             {!canLogWork && <p>{reasonCopy(actionDecision(task, "logWork").reason)}</p>}
 
             <WorklogWarnings warnings={warnings} />
-            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? task?.logged_minutes ?? 0}`} saved={saved} deleted={deleted} onEdit={setEditing} onDelete={setDeleting} onSummary={summary => {
+            {taskId && <TaskWorklogList taskId={taskId} revision={`${revision}:${task?.time_spent_minutes ?? 0}`} saved={saved} deleted={deleted} onEdit={setEditing} onDelete={setDeleting} onSummary={summary => {
                 if (publicationVersion !== effortVersion.current) return;
                 setLogged(summary.time_spent_minutes);
                 if ('original_estimate_minutes' in summary && 'remaining_estimate_minutes' in summary) setEstimates(summary);

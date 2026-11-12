@@ -2,9 +2,8 @@
  * Query scope for the ticket export.
  *
  * "My tasks" used to mean "tickets I created" — one of the divergent
- * visibility rules this change removes. The export now uses the same policy as
- * every Plan list, so a team member exports the team's tickets and a user
- * without a team exports only their own.
+ * visibility rules this change removes. The export now uses the same
+ * project-role policy as every Plan list.
  */
 
 import {
@@ -33,17 +32,11 @@ export async function buildTaskExportScope(
         conditions.push("t.org_id IS NULL");
     }
 
-    // The export used to be creator-only. With the flag off it stays that way.
-    if (!actor.teamVisibility && !actor.projectOwnership) {
-        conditions.push(`t.user_id = $${nextIndex++}`);
-        params.push(actor.userId);
-    } else {
-        const visibility = buildVisibilityPredicate(await resolveTaskVisibilityForRequest(actor), nextIndex);
-        if (visibility.sql) {
-            conditions.push(visibility.sql);
-            params.push(...visibility.params);
-            nextIndex = visibility.nextIndex;
-        }
+    const visibility = buildVisibilityPredicate(await resolveTaskVisibilityForRequest(actor), nextIndex);
+    if (visibility.sql) {
+        conditions.push(visibility.sql);
+        params.push(...visibility.params);
+        nextIndex = visibility.nextIndex;
     }
 
     if (options.from && options.to) {

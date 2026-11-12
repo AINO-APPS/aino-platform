@@ -37,6 +37,13 @@ jest.mock("../utils/audit", () => ({
     queryLogs: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
 }));
 
+jest.mock("../modules/tasks/tasks.projectAccessRepository", () => ({
+    ...jest.requireActual("../modules/tasks/tasks.projectAccessRepository"),
+    findProjectRoles: async (_db: any, input: { userId: number }) => [
+        { userId: input.userId, teamId: null, role: "project_admin" },
+    ],
+}));
+
 const jwt = require("jsonwebtoken");
 const request = require("supertest");
 
@@ -65,11 +72,11 @@ function authCookie(userId = 1) {
 
 const openTask = {
     id: 10, title: "Open work", user_id: 1, assigned_to: null, org_id: 1,
-    sprint_id: null, workflow_state_id: 11, completed_at: null,
+    project_id: 1, sprint_id: null, workflow_state_id: 11, completed_at: null,
 };
 const doneTask = {
     id: 11, title: "Finished work", user_id: 1, assigned_to: null, org_id: 1,
-    sprint_id: null, workflow_state_id: 12, completed_at: "2026-10-20T10:00:00.000Z",
+    project_id: 1, sprint_id: null, workflow_state_id: 12, completed_at: "2026-10-20T10:00:00.000Z",
 };
 
 /** Answer each query by shape so auth and the route see the rows they expect. */
@@ -82,6 +89,9 @@ function routeQueries(tasks: any[]) {
                 rows: [{ role: "employee", org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true }],
                 rowCount: 1,
             };
+        }
+        if (/SELECT id, is_archived, type, kanban_backlog_enabled FROM projects/.test(sql)) {
+            return { rows: [{ id: 1, is_archived: false, type: "kanban", kanban_backlog_enabled: true }], rowCount: 1 };
         }
         if (/FROM tasks WHERE id = ANY/.test(sql)) {
             const wanted = (params?.[0] ?? []) as number[];

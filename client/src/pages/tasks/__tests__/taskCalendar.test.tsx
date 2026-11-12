@@ -10,11 +10,8 @@ const span = { id: 1, ticket_key: "OPS-1", title: "Launch window", start_date: "
 const undated = { ...span, id: 2, ticket_key: "OPS-2", title: "Ready to plan", start_date: null, due_date: null };
 beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(API.get).mockImplementation(async (url: string, config: any) => ({ data: url.includes("schedule-overlays")
-        ? { leave: [{ id: 1, date: "2026-11-10", user_name: "Alice", leave_type: "leave" }],
-            holidays: [{ id: 1, date: "2026-11-11", name: "Holiday" }],
-            meetings: [{ id: 1, start_time: "2026-11-12T10:00:00Z", title: "Launch review" }] }
-        : { tasks: config?.params?.undated ? [undated] : [span] },
+    vi.mocked(API.get).mockImplementation(async (_url: string, config: any) => ({ data:
+        { tasks: config?.params?.undated ? [undated] : [span] },
     }) as any);
     vi.mocked(API.put).mockResolvedValue({ data: span } as any);
 });
@@ -25,12 +22,9 @@ function show(today = "2026-11-09") {
     return onOpenDetail;
 }
 
-test("week view uses Monday-to-Sunday bounds across a year boundary with inclusive spans, overlays and undated work", async () => {
-    vi.mocked(API.get).mockImplementation(async (url: string, config: any) => ({ data: url.includes("schedule-overlays")
-        ? { leave: [{ id: 1, date: "2026-12-31", user_name: "Alice", leave_type: "leave" }],
-            holidays: [{ id: 1, date: "2027-01-01", name: "New year" }],
-            meetings: [{ id: 1, start_time: "2027-01-02T10:00:00Z", title: "Year review" }] }
-        : { tasks: config?.params?.undated ? [undated] : [
+test("week view uses Monday-to-Sunday bounds across a year boundary with inclusive spans and undated work", async () => {
+    vi.mocked(API.get).mockImplementation(async (_url: string, config: any) => ({ data: {
+        tasks: config?.params?.undated ? [undated] : [
             { ...span, start_date: "2026-12-27", due_date: "2027-01-02" },
             { ...span, id: 3, title: "Only a deadline", start_date: null, due_date: "2027-01-03" },
         ] },
@@ -42,18 +36,10 @@ test("week view uses Monday-to-Sunday bounds across a year boundary with inclusi
     expect(API.get).toHaveBeenCalledWith("/tasks", expect.objectContaining({ params: expect.objectContaining({
         start_date: "2026-12-28", end_date: "2027-01-03",
     }) }));
-    expect(API.get).toHaveBeenCalledWith(expect.stringContaining("schedule-overlays"), expect.objectContaining({
-        params: { from: "2026-12-28", to: "2027-01-03" },
-    }));
     expect(screen.queryByRole("group", { name: "2026-12-27" })).toBeNull();
     expect(screen.queryByRole("group", { name: "2027-01-04" })).toBeNull();
     expect(screen.getAllByText("Launch window")).toHaveLength(6);
     expect(within(screen.getByRole("group", { name: "2027-01-03" })).getByText("Only a deadline")).toBeInTheDocument();
-    expect(screen.getByText("Alice on leave")).toHaveAttribute("draggable", "false");
-    expect(screen.getByText("New year")).toBeInTheDocument();
-    expect(screen.getByText("Year review")).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Holidays"));
-    expect(screen.queryByText("New year")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next week" }));
     expect(screen.getByRole("group", { name: "2027-01-04" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
@@ -62,16 +48,13 @@ test("week view uses Monday-to-Sunday bounds across a year boundary with inclusi
     expect(screen.getByLabelText("Calendar month")).toHaveValue("2027-01");
 });
 
-test("calendar shows an inclusive span, undated tray and read-only leave, holiday and meeting context", async () => {
+test("calendar shows an inclusive span and undated tray", async () => {
     const open = show();
     await screen.findByText("Ready to plan");
     for (const date of ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12"]) {
         expect(within(screen.getByRole("group", { name: date })).getByText("Launch window")).toBeInTheDocument();
     }
     expect(within(screen.getByRole("group", { name: "2026-11-13" })).queryByText("Launch window")).toBeNull();
-    expect(screen.getByText("Alice on leave")).toHaveAttribute("draggable", "false");
-    expect(screen.getByText("Holiday")).toBeInTheDocument();
-    expect(screen.getByText("Launch review")).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("group", { name: "2026-11-09" })).getByRole("button", { name: "Launch window" }));
     expect(open).toHaveBeenCalledWith(span);
     expect(API.get).toHaveBeenCalledWith("/tasks", expect.objectContaining({ params: expect.objectContaining({ scope: "calendar", project_id: 10, undated: "1" }) }));
@@ -136,7 +119,7 @@ test("dragging shifts a span together and dates undated work, without changing p
 }, 20_000);
 
 test("single-date tickets appear only on that day and server read-only capabilities disable dates and drag", async () => {
-    vi.mocked(API.get).mockImplementation(async (url: string, config: any) => ({ data: url.includes("schedule-overlays") ? {} : {
+    vi.mocked(API.get).mockImplementation(async (_url: string, config: any) => ({ data: {
         tasks: config?.params?.undated ? [] : [
             { ...span, start_date: null, due_date: "2026-11-09", capabilities: { can: { edit: { allowed: false, reason: "READ_ONLY_ROLE" } } } },
             { ...undated, start_date: "2026-11-11", capabilities: { can: { edit: { allowed: false, reason: "PROJECT_ARCHIVED" } } } },

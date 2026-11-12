@@ -1,7 +1,7 @@
 /**
  * The single builder for a set of tasks.
  *
- * Backlog, board and schedule all obtain their task sets here so the filter,
+ * Backlog, board and date-based work lists all obtain their task sets here so the filter,
  * ordering and completed rules cannot drift apart. Callers supply the scope
  * (which container they are looking at) and the user's visibility; everything
  * else is shared.
@@ -17,29 +17,18 @@ export type { TaskVisibility };
  *  - `list`     — every ticket in the selected project, regardless of dates.
  *  - `calendar` — open date spans overlapping a range, or undated open work.
  *
- * Compatibility collection scopes remain for older callers until retirement:
- *  - `backlog`   — no sprint; dates never decide membership.
- *  - `scheduled` — no sprint, a start date (a legacy date-filtered read only).
- *  - `board`     — one sprint.
- *  - `schedule`  — the legacy day/range lookup used by the planner and calendar.
+ *  - `backlog`  — no sprint; dates never decide membership.
+ *  - `board`    — one sprint.
+ *  - `daily`    — a date-based work list, filtered by start_date.
  *
  * A due date used to win over the backlog too, so a ticket created from the
  * Backlog with a deadline vanished into Scheduled (and, on a sprint team whose
  * Scheduled tab is hidden, into nowhere). It is now metadata: it sorts, it
  * renders on the card, and it is never a reason to leave the backlog.
  */
-export type TaskCollectionScope = "backlog" | "board" | "schedule" | "scheduled" | "list" | "calendar";
-
-/** Completed scheduled work older than this drops out of the Scheduled tab. */
-export const SCHEDULED_HISTORY_DAYS = 30;
+export type TaskCollectionScope = "backlog" | "board" | "daily" | "list" | "calendar";
 
 const UNSPRINTED = "t.sprint_id IS NULL";
-
-function isoDaysBefore(iso: string, days: number): string {
-    const d = new Date(`${iso}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - days);
-    return d.toISOString().slice(0, 10);
-}
 
 export interface TaskCollectionFilters {
     assignee?: string;
@@ -59,7 +48,7 @@ export interface TaskCollectionFilters {
      * not adopted the completed rule yet keep their existing behaviour.
      */
     completed?: "all" | "incomplete" | "completed";
-    /** Schedule scope: also match tasks whose due date is the requested day. */
+    /** Date-based work list: also match tasks whose due date is the requested day. */
     includeDue?: boolean;
     key?: string;
     title?: string;
@@ -74,13 +63,11 @@ export interface TaskCollectionInput {
     filters?: TaskCollectionFilters;
     /** Board scope only: the sprint whose tasks are being listed. */
     sprintId?: number;
-    /** Schedule scope only: inclusive planned-date range. */
+    /** Date-based work list only: inclusive start-date range. */
     startDate?: string;
     endDate?: string;
-    /** Schedule scope only: a single planned date. */
+    /** Date-based work list only: a single start date. */
     date?: string;
-    /** Scheduled scope only: the caller's local today (YYYY-MM-DD). */
-    today?: string;
     undated?: boolean;
     sort?: string;
     direction?: string;
@@ -113,8 +100,7 @@ const ORDER_BY: Record<TaskCollectionScope, string> = {
     // applies without touching it.
     backlog: "t.rank ASC NULLS LAST, t.created_at DESC",
     board: "t.created_at ASC",
-    scheduled: `COALESCE(t.start_date, t.due_date) ASC, ${PRIORITY_ORDER}, t.created_at ASC`,
-    schedule: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
+    daily: `${PRIORITY_ORDER}, ${STATUS_ORDER}, t.created_at ASC`,
     list: "t.ticket_key ASC, t.id ASC",
     calendar: "COALESCE(t.start_date, t.due_date) ASC, t.id ASC",
 };
@@ -165,14 +151,6 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     } else if (input.scope === "backlog") {
         conditions.push(PLANNING_PARENT_SQL);
         conditions.push(UNSPRINTED);
-    } else if (input.scope === "scheduled") {
-        conditions.push(UNSPRINTED, "t.start_date IS NOT NULL");
-        if (input.today) {
-            push(
-                `(t.completed_at IS NULL OR t.completed_at >= $${pi})`,
-                isoDaysBefore(input.today, SCHEDULED_HISTORY_DAYS),
-            );
-        }
     } else if (input.scope === "board") {
         push(`t.sprint_id = $${pi}`, input.sprintId);
     } else {
@@ -204,9 +182,7 @@ export function buildTaskCollection(input: TaskCollectionInput): TaskCollectionQ
     }
 
     // ── Visibility ─────────────────────────────────────────────────────────
-    // One predicate builder for every surface (see tasks.policy). `team`
-    // anchors on the ticket's own team; `legacy-team` is the flag-off
-    // creator-team rule; org admins add no restriction.
+    // One predicate builder for every surface (see tasks.policy).
     const visibility = buildVisibilityPredicate(input.visibility, pi);
     if (visibility.sql) {
         conditions.push(visibility.sql);

@@ -14,6 +14,7 @@ import { createRateLimiters } from "./http/middleware/rateLimits";
 import { mountWebhookRoutes, mountApiRoutes, mountPublicClientVersionRoutes } from "./http/routes";
 import { createClientVersionGate } from "./modules/clientVersions/clientVersions.middleware";
 import { readClientVersionConfig } from "./modules/clientVersions/clientVersions.config";
+import { createProjectTypesRemoval } from "./modules/projectTypesRemoval/projectTypesRemoval";
 import { mountHealthRoutes } from "./http/health";
 import { installSecurity } from "./http/middleware/security";
 import { installCors } from "./http/middleware/cors";
@@ -47,6 +48,10 @@ function buildApp() {
     app.use(express.json({ limit: "100kb" }));
     app.use(express.urlencoded({ limit: "100kb", extended: true }));
     app.use(requestLogger);
+    app.use(createProjectTypesRemoval({ verifyOwnership: async () => {
+        const { verifyPlatformProjectOwnership } = require("./modules/projectTypesRemoval/projectTypesRemoval.platform");
+        await verifyPlatformProjectOwnership();
+    } }));
     // After requestLogger so `req.id` exists; the duration is measured on
     // `finish`, by which point resolveTenant has populated the tenant label.
     installHttpMetrics(app);

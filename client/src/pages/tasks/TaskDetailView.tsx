@@ -60,7 +60,7 @@ export default function TaskDetailView({
             <div className={s["detail-main"]}>
                 <header className={s["detail-hero"]}>
                     <div className={s["detail-hero-meta"]}>
-                        {task.issue_key ? (
+                        {task.ticket_key ? (
                             <span
                                 className={s["backlog-ticket-id"]}
                                 title={task.project?.name || "Project issue key"}
@@ -72,7 +72,7 @@ export default function TaskDetailView({
                                     fontWeight: 700,
                                 }}
                             >
-                                {task.issue_key}
+                                {task.ticket_key}
                             </span>
                         ) : (
                             <span className={s["backlog-ticket-id"]}>#{task.id}</span>

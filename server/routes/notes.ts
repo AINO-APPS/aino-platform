@@ -378,7 +378,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Verify the requesting user is the report's manager (or higher)
         const report = (await req.db!.query(
-            `SELECT id, full_name, team_id, manager_id FROM users WHERE id = $1`,
+            `SELECT id, full_name, org_id, team_id, manager_id FROM users WHERE id = $1`,
             [reportId],
         )).rows[0];
         if (!report) return res.status(404).json({ error: "User not found" });
@@ -396,7 +396,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Recent tasks (last 2 weeks)
         const tasks = (await req.db!.query(
-            `SELECT t.*, ws.key AS status, t.start_date AS date
+            `SELECT t.*, ws.key AS status
              FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
@@ -413,13 +413,16 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
             [reportId, twoWeeksAgo.toISOString().split("T")[0]],
         )).rows;
 
-        // Sprint progress (if in a team with active sprint)
+        // Sprint progress for the report's project, if it has an active sprint.
         let sprint = null;
         if (report.team_id) {
             const activeSprint = (await req.db!.query(
-                `SELECT id, name, start_date, end_date, goal FROM sprints
-                 WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-                [report.team_id],
+                `SELECT s.id, s.name, s.start_date, s.end_date, s.goal FROM sprints s
+                 JOIN projects p ON p.id = s.project_id
+                 WHERE p.origin_team_id = $1 AND p.org_id IS NOT DISTINCT FROM $2
+                   AND s.status = 'active'
+                 ORDER BY s.id LIMIT 1`,
+                [report.team_id, report.org_id],
             )).rows[0];
             if (activeSprint) {
                 const sprintTasks = (await req.db!.query(
@@ -540,14 +543,17 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
         // Get user's org_id
-        const userRow = (await req.db!.query("SELECT org_id, team_id FROM users WHERE id = $1", [req.userId])).rows[0];
+        const userRow = (await req.db!.query("SELECT org_id FROM users WHERE id = $1", [req.userId])).rows[0];
 
-        // Find active sprint for the user's team (if any)
+        // Find an active sprint for the org's general project, if one exists.
         let sprintId = null;
-        if (userRow?.team_id) {
+        if (userRow?.org_id) {
             const sprint = (await req.db!.query(
-                `SELECT id FROM sprints WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-                [userRow.team_id],
+                `SELECT s.id FROM sprints s
+                 JOIN projects p ON p.id = s.project_id
+                 WHERE p.org_id = $1 AND p.is_general AND s.status = 'active'
+                 ORDER BY s.id LIMIT 1`,
+                [userRow.org_id],
             )).rows[0];
             if (sprint) sprintId = sprint.id;
         }
@@ -555,7 +561,7 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
         // A note ticket starts today, independently of its optional sprint.
         const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) => {
             const id = await insertNoteTicket(client, {
-                userId: req.userId!, orgId: userRow?.org_id || null, teamId: userRow?.team_id || null, title: title.trim(),
+                userId: req.userId!, orgId: userRow?.org_id || null, title: title.trim(),
             });
             const dated = await setTicketStartDate(client, { id }, dateStr, req.userId!);
             if (!sprintId) return dated;
@@ -587,13 +593,15 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
 
 router.get("/sprint-embed", async (req: Request, res: Response) => {
     try {
-        const userRow = (await req.db!.query("SELECT team_id FROM users WHERE id = $1", [req.userId])).rows[0];
-        if (!userRow?.team_id) return res.json({ sprint: null, tasks: [] });
+        const userRow = (await req.db!.query("SELECT org_id FROM users WHERE id = $1", [req.userId])).rows[0];
+        if (!userRow?.org_id) return res.json({ sprint: null, tasks: [] });
 
         const sprint = (await req.db!.query(
-            `SELECT id, name, goal, status, start_date, end_date FROM sprints
-             WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-            [userRow.team_id],
+            `SELECT s.id, s.name, s.goal, s.status, s.start_date, s.end_date
+             FROM sprints s JOIN projects p ON p.id = s.project_id
+             WHERE p.org_id = $1 AND p.is_general AND s.status = 'active'
+             ORDER BY s.id LIMIT 1`,
+            [userRow.org_id],
         )).rows[0];
         if (!sprint) return res.json({ sprint: null, tasks: [] });
 

@@ -8,8 +8,6 @@ export async function sprintProjectIds(actor: TaskActor, query: Record<string, u
     const parse = (value: unknown) => value == null ? null : Number(value);
     const visibility = await resolveTaskVisibilityForRequest(actor, {
         projectId: parse(query.project_id),
-        teamId: parse(query.team_id),
-        unassigned: query.unassigned === "1",
     });
     if (visibility.kind === "projects") return visibility.projectIds;
     if (visibility.kind === "project") return [visibility.projectId];
@@ -41,9 +39,6 @@ export async function activeProjectSprint(db: SprintDb, orgId: number | null, pr
 }
 
 export async function canManageSprint(db: SprintDb, sprint: any, actor: TaskActor): Promise<boolean> {
-    if (!actor.projectOwnership) {
-        return require("./tasks.policy").canAccessSprint(sprint, actor);
-    }
     if (!sprint?.project_id) return false;
     const role = await actor.projectAccess?.roleForProject(Number(sprint.project_id));
     if (!role || role === "viewer") return false;
@@ -56,7 +51,6 @@ export async function addSprintManagementCapability(
     sprints: any[],
     actor: TaskActor,
 ): Promise<any[]> {
-    if (!actor.projectOwnership) return sprints;
     const projectAccess = actor.projectAccess;
     const projectIds = [...new Set(sprints
         .map((sprint) => Number(sprint.project_id))
@@ -90,9 +84,7 @@ export async function createProjectSprint(
     actor: TaskActor,
     body: Record<string, any>,
 ) {
-    const projectId = body.project_id == null
-        ? await actor.projectAccess?.projectForTeam(Number(body.team_id ?? actor.teamId))
-        : Number(body.project_id);
+    const projectId = body.project_id == null ? null : Number(body.project_id);
     const role = projectId && Number.isInteger(projectId)
         ? await actor.projectAccess?.roleForProject(projectId) : null;
     if (!role || role === "viewer") {

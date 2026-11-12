@@ -8,7 +8,7 @@
  * (`new Date("2026-11-07T18:30:00.000Z" + "T00:00:00")` is Invalid Date).
  *
  * Every DATE column in the schema is a calendar day the API contract exposes
- * as `YYYY-MM-DD` (`tasks.due_date`, `tasks.planned_date`,
+ * as `YYYY-MM-DD` (`tasks.due_date`, `tasks.start_date`,
  * `sprint_burndown_snapshots.snapshot_date`), so the parser returns the raw
  * string. `TIMESTAMPTZ` is untouched and still arrives as a `Date`.
  */

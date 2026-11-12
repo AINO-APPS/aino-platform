@@ -579,7 +579,6 @@ describe("PUT /api/chat/conversations/:id/group", () => {
             })
             // loadUserContext: team memberships and project ownership
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-            .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 })
             // route conversation lookup
             .mockResolvedValueOnce({ rows: [{ id: 10, is_group: true, org_id: 1 }], rowCount: 1 })
             // loadGroupContext: conversation policy row
@@ -609,7 +608,6 @@ describe("PUT /api/chat/conversations/:id/group", () => {
             })
             // loadUserContext: team memberships and project ownership
             .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-            .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 })
             // 2) route conversation lookup (SELECT * FROM conversations …)
             .mockResolvedValueOnce({ rows: [{ id: 10, is_group: true, org_id: 1 }], rowCount: 1 })
             // 3) loadGroupContext: conversation policy row

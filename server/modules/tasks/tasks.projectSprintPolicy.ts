@@ -10,7 +10,7 @@ export async function assertScrumProject(db: ProjectAccessRepositoryDb, projectI
 }
 
 export async function assertScrumSprintRequest(db: ProjectAccessRepositoryDb, orgId: number | null, input: {
-    sprintId?: unknown; projectId?: unknown; teamId?: unknown;
+    sprintId?: unknown; projectId?: unknown;
 }) {
     if (input.projectId != null) await assertScrumProject(db, Number(input.projectId), orgId);
     if (input.sprintId != null) {
@@ -18,9 +18,5 @@ export async function assertScrumSprintRequest(db: ProjectAccessRepositoryDb, or
             "SELECT s.project_id FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $1 AND p.org_id IS NOT DISTINCT FROM $2", [input.sprintId, orgId],
         )).rows[0];
         if (sprint) await assertScrumProject(db, Number(sprint.project_id), orgId);
-    }
-    if (input.projectId == null && input.sprintId == null && input.teamId != null) {
-        const project = (await db.query("SELECT id FROM projects WHERE origin_team_id = $1 AND org_id = $2", [input.teamId, orgId])).rows[0];
-        if (project) await assertScrumProject(db, Number(project.id), orgId);
     }
 }

@@ -72,7 +72,7 @@ async function enrichTasks(
         findProjectsByIds(db, projectIds),
         findWorkflowStatesByIds(db, stateIds),
     ]);
-    const sharedLifecycle = lifecycle ?? await loadLifecycleContext(db, actor.orgId, actor.projectOwnership ? undefined : null);
+    const sharedLifecycle = lifecycle ?? await loadLifecycleContext(db, actor.orgId);
     const decisionContext = await loadTicketDecisionContext(db, actor, tasks, { lifecycle: sharedLifecycle });
     const decisions = decideTickets(actor, tasks, decisionContext);
 
@@ -101,10 +101,7 @@ async function enrichTasks(
             is_epic: hierarchyById.get(Number(t.id))?.is_epic ?? false,
             parent_key: hierarchyById.get(Number(t.id))?.parent_key ?? null,
             start_date: t.start_date ?? null,
-            planned_date: t.start_date ?? null,
             time_spent_minutes: timeSpent[t.id] ?? 0,
-            logged_minutes: timeSpent[t.id] ?? 0,
-            estimated_minutes: t.original_estimate_minutes ?? null,
             original_estimate_minutes: t.original_estimate_minutes ?? null,
             remaining_estimate_minutes: t.remaining_estimate_minutes ?? null,
             workflow_state_key: state?.key ?? null,
@@ -123,7 +120,6 @@ async function enrichTasks(
             sprint: t.sprint_id ? (sprintMap[t.sprint_id] || null) : null,
             project,
             ticket_key: ticketKey,
-            issue_key: ticketKey,
             key_aliases: aliasesByTaskId[t.id] || [],
             ...decisions[index],
         };
@@ -140,16 +136,12 @@ async function enrichTaskSummaries(
     return tasks.map((task, index) => ({
         ...task,
         start_date: enriched[index].start_date,
-        planned_date: enriched[index].planned_date,
         time_spent_minutes: enriched[index].time_spent_minutes,
-        logged_minutes: enriched[index].logged_minutes,
-        estimated_minutes: enriched[index].estimated_minutes,
         original_estimate_minutes: enriched[index].original_estimate_minutes,
         remaining_estimate_minutes: enriched[index].remaining_estimate_minutes,
         container: enriched[index].container,
         capabilities: enriched[index].capabilities,
         ticket_key: enriched[index].ticket_key,
-        issue_key: enriched[index].issue_key,
         key_aliases: enriched[index].key_aliases,
         project: enriched[index].project,
         is_subtask: enriched[index].is_subtask,
