@@ -12,7 +12,7 @@ import {
     buildCompletedQuery,
 } from "../modules/tasks/tasks.collection";
 
-const visibility = { kind: "team" as const, userId: 7, teamId: 3 };
+const visibility = { kind: "projects" as const, userId: 7, projectIds: [30, 31] };
 
 function backlog(includeCompleted: boolean) {
     return buildTaskCollection({
@@ -43,7 +43,7 @@ describe("completed work leaves the backlog", () => {
         // Same container, tenant and visibility predicates.
         expect(revealed.whereSql).toContain("t.sprint_id IS NULL");
         expect(revealed.whereSql).toContain("t.org_id = $1");
-        expect(revealed.whereSql).toContain("t.team_id = $2");
+        expect(revealed.whereSql).toContain("t.project_id = ANY($2::int[])");
         expect(revealed.params).toEqual(open.params);
 
         // Only the completed rule differs.
@@ -66,7 +66,7 @@ describe("completed work leaves the backlog", () => {
             visibility,
             filters: { completedSince: "2026-09-25" },
         });
-        expect(completed.whereSql).toContain("t.completed_at >= $3");
+        expect(completed.whereSql).toContain("t.completed_at >= $4");
         expect(completed.params).toContain("2026-09-25");
     });
 

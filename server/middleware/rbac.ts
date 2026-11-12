@@ -184,10 +184,6 @@ async function resolveRoleLevel(req: any): Promise<number> {
     return levelForRole(role, rolesMap);
 }
 
-function loadProjectOwnership(req: any): void {
-    req.projectOwnership = true;
-}
-
 async function loadUserTeamIds(req: any): Promise<void> {
     if (!req.userOrgId) {
         req.userTeamIds = [];
@@ -252,7 +248,6 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
 
             if (!cached.is_active) return res.status(403).json({ error: "Account has been deactivated. Contact your administrator." });
             await loadUserTeamIds(req);
-            loadProjectOwnership(req);
             return next();
         }
 
@@ -277,7 +272,6 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
         req.roleLevel = await resolveRoleLevel(req);
 
         await loadUserTeamIds(req);
-        loadProjectOwnership(req);
         next();
     } catch (err) {
         logger.error({ err, userId: req.userId }, "loadUserContext error");

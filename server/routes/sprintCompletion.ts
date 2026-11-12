@@ -40,9 +40,8 @@ router.get("/:id/completion-preview", auth, loadUserContext, requireScrumSprint,
 
         const tasks = await findSprintCarryoverTasks(req.db!, id, req.userOrgId ?? null);
 
-        // Default target: the next planned sprint for this team, else backlog.
-        const nextPlanned = await findNextPlannedSprint(req.db!, sprint.team_id, id, req.userOrgId ?? null,
-            req.projectOwnership ? sprint.project_id : undefined);
+                // Default target: the next planned sprint for this project, else backlog.
+                const nextPlanned = await findNextPlannedSprint(req.db!, sprint.project_id, id, req.userOrgId ?? null);
 
         const plan = planCarryover(tasks, nextPlanned?.id ?? null, selected);
         const defaultPlan = planCarryover(tasks, nextPlanned?.id ?? null);

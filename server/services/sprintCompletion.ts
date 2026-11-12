@@ -22,7 +22,6 @@ export interface CompleteSprintOptions {
     /** Legacy service callers can still express an explicit sprint id or backlog. */
     targetSprintId?: number | null;
     orgId?: number | null;
-    projectOwnership?: boolean;
     actor?: PlacementActor;
     effects: PlacementEffects;
 }
@@ -71,18 +70,17 @@ export async function completeSprint(
         const claimed = await repo.claimSprintCompletion(client, options.sprintId, orgId);
         if (!claimed) return null;
 
-        const team = await repo.findSprintCompletionActor(client, options.sprintId, Number(claimed.team_id), orgId);
+        const projectActor = await repo.findSprintCompletionActor(client, options.sprintId, orgId);
         const actor = options.actor ?? {
-            userId: Number(team?.actor_id ?? 0),
-            orgId: team?.org_id == null ? null : Number(team.org_id),
+            userId: Number(projectActor?.actor_id ?? 0),
+            orgId: projectActor?.org_id == null ? null : Number(projectActor.org_id),
         };
 
         const nextPlanned = await repo.findNextPlannedSprint(
             client,
-            claimed.team_id,
+            Number(claimed.project_id),
             options.sprintId,
             orgId,
-            options.projectOwnership ? Number(claimed.project_id) : undefined,
         );
         const requestedTarget = options.target !== undefined
             ? options.target
@@ -114,8 +112,7 @@ export async function completeSprint(
             if (Number(plan.target) === Number(options.sprintId)) {
                 throw new SprintCompletionError("TARGET_INVALID", "Cannot roll over to the sprint being completed");
             }
-            target = await repo.findRolloverTarget(client, Number(plan.target), Number(claimed.team_id), orgId,
-                options.projectOwnership ? Number(claimed.project_id) : undefined);
+            target = await repo.findRolloverTarget(client, Number(plan.target), Number(claimed.project_id), orgId);
             const selectedNext = String(plan.target) === String(nextPlanned?.id);
             if (!target || target.status === "completed" || (selectedNext && target.status !== "planned")) {
                 throw new SprintCompletionError("TARGET_INVALID", "Target sprint not found or completed");
@@ -146,7 +143,6 @@ export async function completeSprint(
                 afterCommit,
                 actor,
                 effects: options.effects,
-                projectOwnership: options.projectOwnership,
                 cascadeParentIds: new Set(plan.movingParents.map((parent) => Number(parent.id))),
             },
             plan.movingParents.map(parent => Number(parent.id)),

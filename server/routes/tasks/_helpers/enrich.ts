@@ -72,7 +72,7 @@ async function enrichTasks(
         findProjectsByIds(db, projectIds),
         findWorkflowStatesByIds(db, stateIds),
     ]);
-    const sharedLifecycle = lifecycle ?? await loadLifecycleContext(db, actor.orgId, actor.projectOwnership ? undefined : null);
+    const sharedLifecycle = lifecycle ?? await loadLifecycleContext(db, actor.orgId);
     const decisionContext = await loadTicketDecisionContext(db, actor, tasks, { lifecycle: sharedLifecycle });
     const decisions = decideTickets(actor, tasks, decisionContext);
 

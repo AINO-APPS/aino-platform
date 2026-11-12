@@ -9,8 +9,13 @@ backlog, board, sprints, workflow and access; teams can hold grants in any numbe
 of projects and never own a project. Creating a project requires team lead or
 above, grants the creator project-admin and may grant teams member access.
 User-facing guides: [Projects](../../../docs/PROJECTS.md) and
-[Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
-flag-off compatibility policy.
+[Service Desk](../../../docs/SERVICE_DESK.md). Ticket 11 removes team-owned
+task/sprint compatibility; the guarded contraction remains blocked until its
+production gate and organization ownership preflight pass.
+Tenant bootstrap retains the legacy columns required by historical ordered
+migrations; `0035_project_types_contraction.sql` removes them only after the
+guarded runner verifies the client-version minimums and ownership inventory.
+The base schema is not evidence that the contraction has run.
 
 ## Ticket hierarchy (project types, Expand)
 
@@ -83,8 +88,8 @@ Use `sort=key|title|type|status|assignee|priority|start_date|due_date` and
 `undated=1` instead reads open work with neither date. Both scopes require a
 positive project ID and project access, reject sprint scope, and return
 `{ tasks, stats, pagination: { offset, hasMore } }` in pages of 500.
-The calendar client follows all pages; List provides page controls. Legacy
-day/sprint reads retain their behavior and omit pagination.
+The calendar client follows all pages; List provides page controls. Remaining
+backlog and sprint reads retain their behavior and omit pagination.
 
 The web month and Monday-to-Sunday week calendar share range reads, paging,
 overlays, the undated tray and normal `PUT /api/tasks/:id` date edits, not placement.
@@ -99,17 +104,14 @@ placement. `tasks.dateRepository.ts` owns locking, persistence and history SQL;
 `tasks.dates.ts` validates real ISO days and refuses a deadline before
 start with `Due date cannot be earlier than the start date`. Start-date writes
 and their `updated/start_date` history share a transaction. Both creates and the
-full edit accept `start_date`; legacy `planned_date` is an alias, with an explicit
-`start_date` (including null) winning if both are sent. The day-create route also
-accepts legacy `date` and retains its default of today; backlog create is undated
-unless a start date is supplied.
+full edit accept `start_date`; the removed `planned_date` and `date` request
+aliases are not accepted. Backlog creation is undated unless a start date is
+supplied.
 
-The retained schedule/unschedule endpoints set/clear start date only. Search,
-export, Notes, manager/attendance day reads and My Work/dashboard windows read
-start date. Ticket/search/notes summaries and realtime date deltas retain
-`planned_date` equal to start date. The stored legacy placement column is not
-rewritten by date edits: the Scheduled container, carry-forward route and sprint
-due-date bookkeeping remain until their ticket 05/Contract changes.
+Scheduling and unscheduling routes and the Scheduled container are retired.
+Search, export, Notes, manager/attendance day reads and My Work/dashboard windows
+use `start_date`; API responses no longer emit `planned_date` or a `date` alias.
+Sprint membership is independent of task dates.
 
 Migration `0029_tasks_start_date.sql` copies planned days once, preserving
 explicit start dates. Its transactional data marker also prevents direct SQL
@@ -169,20 +171,18 @@ Web settings are available at `/projects` (More → Projects); organization-role
 gates do not hide settings from project admins. The rename control itself uses
 the server-returned `canRenameKey` capability.
 
-When `organizations.project_ownership` is enabled, project lists include only
-accessible projects (all for organization admins). Plan backlog, available
-sprints and sprint lists accept `project_id`; legacy `team_id` resolves only
-to the team's generated project, not all projects granted to the team.
+Project lists include only accessible projects (all for organization admins).
+Plan backlog, available sprints and sprint lists are scoped by `project_id`;
+team-scoped task and sprint queries are rejected.
 The web Plan project selection also scopes agile configuration, so board
 columns and ticket controls use that project's workflow after switching.
 `tasks.sprintProjects.ts` adapts project scopes and sprint management rules.
-Sprint lookup, lifecycle and placement locks use the project's organization;
-`team_id` is nullable compatibility data and team deletion preserves sprints.
-Flag-off requests retain team-scoped behavior and the team-deletion work guard.
+Sprint lookup, lifecycle and placement locks use the owning project and its
+organization.
 
 The web Plan switcher remembers a project per tenant/user, hides Unassigned,
 and narrows both backlog requests and sprint/board selection. `/api/profile`
-exposes `project_ownership` to select this behavior independently of plan flags.
+does not expose an ownership-mode flag.
 Run `npm run test:pg -- projectPlanning --runInBand` from `server` for the
 project planning PostgreSQL route tests.
 
@@ -193,12 +193,11 @@ create project; archived and viewer-only defaults are discarded. No available
 project leaves an explanatory empty picker and disables creation.
 
 `tasks.ownership.ts` resolves create ownership from the explicit request, then
-the sprint's project, then the legacy team project, then General. In project mode
-every resolved destination must be active and writable by a member/project admin
-(or org admin); an invalid or refused explicit project never falls back.
+the sprint's project, then General. Every destination must be active and writable
+by a member/project admin (or org admin); an invalid or refused explicit project
+never falls back.
 Create, edit, bulk and plan placement all refuse a sprint from another project
-with `SPRINT_PROJECT_MISMATCH`. This replaces the legacy team mismatch code;
-flag-off tenants retain their existing team-scoped placement rules.
+with `SPRINT_PROJECT_MISMATCH`.
 
 ## Project-type policy and lifecycle (ADR-018)
 
@@ -297,7 +296,7 @@ Placement — sprint/backlog membership and the sprint exit during project moves
 goes through `tasks.placement.ts` (rules),
 `tasks.placementRepository.ts` (SQL) and `tasks.placementEffects.ts` (realtime
 and notifications). Dates are independent fields (ADR-018); compatibility date
-routes remain until ticket11. `scripts/check-placement-writes.mjs` enforces it.
+routes are retired by ticket 11. `scripts/check-placement-writes.mjs` enforces it.
 
 ### Moving projects (ticket10)
 
@@ -307,24 +306,20 @@ category ordered by `sort_order, id`, then initial state. Preview only reads and
 returns `{ target_project_id, key_format, workflow_state, leaves_sprint }`; its
 key format is not a reservation. The HTTP adapters are
 `POST /api/tasks/:id/move-project/preview` and `POST /api/tasks/:id/move-project`,
-both accepting `{ project_id }`. They require project ownership to be enabled.
+both accepting `{ project_id }`.
 
 The caller supplies one transaction. Placement locks serialize moves, project
 share locks prevent concurrent archive/key changes, and effective personal plus
-primary/secondary-team grants are checked on that transaction's connection.
+project grants are checked on that transaction's connection.
 Commit allocates a target sequence, aliases the old key with reason `move`,
-maps state, and clears a source-project sprint using the ordinary sprint-exit
-due-date rules. A planned day survives. History and audit share the transaction;
-effects run only after commit. In project mode both projects' readers receive
-a payload-free ticket invalidation so source-only readers do not learn the new
-project's key/state. Legacy mode retains field deltas.
+maps state, and clears a source-project sprint. History and audit share the
+transaction; effects run only after commit. Both projects' readers receive a
+payload-free ticket invalidation so source-only readers do not learn the new
+project's key/state.
 
 `canMoveProject` requires member or higher in an active source project; target
-membership is checked by preview/commit. Project moves retain `team_id` for
-emergency switch-back. Legacy `/transfer` keeps its envelope and uses the same
-move operation against the target team's generated project; only flag-off
-transfers update legacy team ownership. After switch-over a retained team ID
-does not stop a transfer back into that team's generated project.
+membership is checked by preview/commit. Legacy `/transfer` is retired; use
+the project-move routes.
 
 Run `npm run test:pg -- tasks.placementRoutes.integration --runInBand -t ticket10`
 for move/preview, workflow mapping, permissions, rollback and legacy coverage.
@@ -336,26 +331,22 @@ for move/preview, workflow mapping, permissions, rollback and legacy coverage.
 The batch result follows input order; each entry is `{ container, capabilities }`.
 The single-ticket form returns the same decision for write-path callers.
 
-Load context once for the whole request. It contains project lifecycles, the
-legacy org-template fallback, a batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
-creator-team lookup. Project metadata is loaded in both ownership modes so containers follow project
-type and never dates; project mode additionally uses the actor's effective roles.
+Load context once for the whole request. It contains project lifecycles and a
+batch-loaded sprint lookup. Project metadata supplies container type and
+project roles govern ticket capabilities.
 Pass an already loaded lifecycle as the loader's
 `{ lifecycle }` option to reuse it. Both decide forms are synchronous and perform
 no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.
-Flag-off authorization still evaluates migrated project state IDs against their
-project graph; tickets retaining real legacy template state IDs use the org graph.
-
 The optional `{ targetSprintId }` loader option evaluates `placeInSprint` against
 a specific destination, including access, freeze and project ownership. Without a
 destination it describes the general placement action, not permission to enter
 every sprint. A requested destination that is missing or inaccessible denies
-access. Placement's exported `placementRefusal` shares its existing freeze,
-ownership and in-sprint scheduling rules with decisions; the shared predicates
+access. Placement's exported `placementRefusal` shares its freeze and ownership
+rules with decisions; the shared predicates
 live in `tasks.placementRules.ts` to keep decision loading independent of writes.
 
-Containers use sprint, then planned day, then backlog; deadlines never decide.
+Containers use sprint, then backlog; dates do not decide.
 Transitions include every other active state. Cancelled is terminal even when
 access or freeze would also refuse a move. Otherwise access precedes freeze,
 then cancellation permission/completion and transition legality. `changeState`
@@ -380,21 +371,16 @@ ticket's target transition, then enforces WIP as the final check. The graph and
 context loader remain exported from `tasks.workflow.ts`; shared implementation
 lives in `tasks.workflowRules.ts` so the decision module cannot depend on guards.
 
-User placement contexts carry `ticketActor`; `placeTickets` and `transferTicket`
-consult the corresponding decision against locked sprint rows before writing.
+User placement contexts carry `ticketActor`; `placeTickets` consults the
+corresponding decision against locked sprint rows before writing.
 Sprint lifecycle maintenance deliberately has no ticket actor: it moves a whole
 sprint's membership as a system operation, not as individual ticket edits.
 Sprint-target adapters retain their existing 400 status for an invalid or
 inaccessible destination; capability refusals carry the decision reason.
 
-The PostgreSQL matrix checks every actor/state/container row against action and
-transition guards, user scheduling, destination-specific placement and transfer.
-HTTP integration tests preserve access, freeze and org-isolation status codes.
-Response enrichment, contracts and client rendering remain separate rollout work.
-
-Run `cd server; npm run test:pg -- tasks.capabilities.integration --runInBand`
-with Docker, or set `TASKS_SCHEMA_TEST_DATABASE_URL` and run the suite with Jest.
-It skips when that URL is unset.
+Project capability and placement tests cover access, freeze, destination-specific
+placement and organization isolation. Contracts and Android endpoint coverage
+must remain aligned with these response fields.
 
 ## Notes ticket responses
 

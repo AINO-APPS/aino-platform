@@ -12,14 +12,12 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             work_days           TEXT NOT NULL DEFAULT '1,2,3,4,5',
             timezone            TEXT NOT NULL DEFAULT 'UTC',
             fiscal_year_start   INTEGER NOT NULL DEFAULT 1,
-            project_ownership    BOOLEAN NOT NULL DEFAULT FALSE,
             service_desk_project_id INTEGER,
             created_by          INTEGER,
             created_at          TIMESTAMPTZ DEFAULT NOW(),
             updated_at          TIMESTAMPTZ DEFAULT NOW()
         )
     `);
-    await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS project_ownership BOOLEAN NOT NULL DEFAULT FALSE`);
     await q(`ALTER TABLE organizations ADD COLUMN IF NOT EXISTS service_desk_project_id INTEGER`);
 
     // Migration: minimum hours an employee must log on a working day to be
@@ -123,7 +121,7 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             UNIQUE(org_id, name)
         )
     `);
-    // Migration: sprint automation mode + pause flag for existing tenants.
+
     await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_mode TEXT NOT NULL DEFAULT 'manual'`);
     await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_paused BOOLEAN NOT NULL DEFAULT FALSE`);
 
@@ -265,13 +263,14 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
             assigned_to  INTEGER REFERENCES users(id) ON DELETE SET NULL,
             due_date     DATE,
             start_date   DATE,
+            project_id   INTEGER,
             sprint_id    INTEGER,
             original_estimate_minutes INTEGER CONSTRAINT tasks_original_estimate_nonnegative CHECK (original_estimate_minutes >= 0),
             remaining_estimate_minutes INTEGER CONSTRAINT tasks_remaining_estimate_nonnegative CHECK (remaining_estimate_minutes >= 0)
         )
     `);
-    // The planner-day indexes are created by migration 0015, after
-    // `planned_date` exists. The legacy `date` column is gone (ticket 28).
+    // Historical migrations may add compatibility columns on existing tenants;
+    // new schemas use project ownership and start_date only.
     // Migration: add org_id to tasks for tenant isolation
     await q(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL`);
     await q(`CREATE INDEX IF NOT EXISTS idx_tasks_org ON tasks(org_id)`);
@@ -318,21 +317,26 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
         CREATE TABLE IF NOT EXISTS sprints (
             id         SERIAL PRIMARY KEY,
             team_id    INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            project_id INTEGER NOT NULL,
             name       TEXT NOT NULL,
             start_date TEXT NOT NULL,
             end_date   TEXT NOT NULL,
             status     TEXT NOT NULL DEFAULT 'planned' CHECK(status IN ('planned','active','paused','completed')),
             goal       TEXT,
+            auto_managed BOOLEAN NOT NULL DEFAULT FALSE,
+            sprint_number INTEGER,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE(team_id, name)
         )
     `);
-    // Migration: lifecycle + auto-management columns for the sprint scheduler.
+    // Historical tenant migrations require these compatibility fields until
+    // the guarded project-types contraction runs after its global preflight.
+    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS auto_managed BOOLEAN NOT NULL DEFAULT FALSE`);
+    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS sprint_number INTEGER`);
+    // Migration: sprint lifecycle columns.
     //   - started_at / completed_at / velocity_points pre-date this change but
     //     are recreated here defensively for older tenants.
     //   - paused_at        — when an active sprint was paused (NULL otherwise).
-    //   - auto_managed      — TRUE for sprints created/rotated by the scheduler.
-    //   - sprint_number     — running index within a team for auto sprints.
     //   - carried_from_sprint_id — origin link when a sprint inherits rolled-
     //     over (incomplete) tickets from the previous sprint, surfaced in the
     //     Sprint Insights "Carried Forward" panel.
@@ -340,8 +344,6 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
     await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ`);
     await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS velocity_points NUMERIC(8,2)`);
     await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS paused_at TIMESTAMPTZ`);
-    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS auto_managed BOOLEAN NOT NULL DEFAULT FALSE`);
-    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS sprint_number INTEGER`);
     await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS carried_from_sprint_id INTEGER`);
     // Migration: relax the status CHECK to include 'paused' on existing tenants.
     await q(`
@@ -366,7 +368,6 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
     `);
     // Unique running number per team for auto-managed sprints (lets the
     // scheduler upsert the current window without creating duplicates).
-    await q(`CREATE UNIQUE INDEX IF NOT EXISTS uq_sprints_team_number ON sprints(team_id, sprint_number) WHERE sprint_number IS NOT NULL`);
 
     // Deferred FK from tasks -> sprints
     await q(`

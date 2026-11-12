@@ -138,8 +138,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
         const limit = Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10) || 50));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
-        const accessibleIds = req.projectOwnership
-            ? await projectAccessForRequest(req).accessibleProjectIds() : null;
+        const accessibleIds = await projectAccessForRequest(req).accessibleProjectIds();
         const listParams = [req.userOrgId, accessibleIds];
         const baseWhere = `WHERE p.org_id = $1
             AND ($2::int[] IS NULL OR p.id = ANY($2::int[]))

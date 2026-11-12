@@ -4,7 +4,6 @@ import type { Request } from "express";
 const { enrichTaskSummaries } = require("../../tasks/_helpers/enrich");
 const { taskActorFromRequest, taskActorFromUser } = require("../../../modules/tasks/tasks.policy");
 const { searchTasksForLinking } = require("../../../modules/tasks/tasks.notes");
-const { isFeatureEnabled } = require("../../../utils/planCatalog");
 
 async function linkedTickets(links: any[], ticketsById: Map<number, any>, req: Request): Promise<any[]> {
     const tickets = await enrichTaskSummaries(
@@ -16,10 +15,8 @@ async function linkedTickets(links: any[], ticketsById: Map<number, any>, req: R
         id: ticket.id,
         title: ticket.title,
         start_date: ticket.start_date,
-        planned_date: ticket.planned_date,
         status: ticket.status,
         priority: ticket.priority,
-        date: ticket.date,
         due_date: ticket.due_date,
         sprint_id: ticket.sprint_id,
         container: ticket.container,
@@ -35,7 +32,6 @@ async function dailyTasks(tasks: any[], req: Request): Promise<any[]> {
         id: task.id,
         title: task.title,
         start_date: task.start_date,
-        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
         container: task.container,
@@ -48,10 +44,8 @@ async function oneOnOneTasks(tasks: any[], req: Request): Promise<any[]> {
         id: task.id,
         title: task.title,
         start_date: task.start_date,
-        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
-        date: task.date,
         completed_at: task.completed_at,
         container: task.container,
         capabilities: task.capabilities,
@@ -64,8 +58,6 @@ async function convertedTask(placed: any, req: Request): Promise<any> {
         id: placed.id,
         title: placed.title,
         start_date: enriched[0].start_date,
-        planned_date: enriched[0].planned_date,
-        date: placed.start_date ?? null,
         priority: placed.priority,
         sprint_id: placed.sprint_id ?? null,
         container: enriched[0].container,
@@ -90,8 +82,7 @@ async function sprintEmbed(sprint: any, tasks: any[], req: Request): Promise<any
         tasks: (await enrichTaskSummaries(tasks, req.db, taskActorFromRequest(req))).map((task: any) => ({
             id: task.id,
             title: task.title,
-        start_date: task.start_date,
-        planned_date: task.planned_date,
+            start_date: task.start_date,
             status: task.status,
             status_category: task.status_category,
             priority: task.priority,
@@ -105,22 +96,15 @@ async function sprintEmbed(sprint: any, tasks: any[], req: Request): Promise<any
 }
 
 async function searchTasks(userRow: any, q: string | undefined, req: Request): Promise<any[]> {
-    const actor = taskActorFromUser(
-        userRow,
-        isFeatureEnabled((req as any).tenant ?? null, "team_visibility"),
-        req.db,
-        (req as any).projectOwnership === true,
-    );
+    const actor = taskActorFromUser(userRow, req.db);
     const rows = await searchTasksForLinking(req.db!, actor, q);
     const tasks = await enrichTaskSummaries(rows, req.db, actor);
     return tasks.map((task: any) => ({
         id: task.id,
         title: task.title,
         start_date: task.start_date,
-        planned_date: task.planned_date,
         status: task.status,
         priority: task.priority,
-        date: task.date,
         container: task.container,
         capabilities: task.capabilities,
     }));

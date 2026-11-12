@@ -8,7 +8,6 @@ export async function requireScrumSprint(req: Request, res: Response, next: Next
         await assertScrumSprintRequest(req.db!, req.userOrgId ?? null, {
             sprintId,
             projectId: req.body?.project_id ?? req.query.project_id,
-            teamId: req.body?.team_id ?? req.query.team_id ?? (sprintId == null && req.method === "POST" && req.path === "/" ? req.userTeamId : undefined),
         });
         next();
     } catch (err) {

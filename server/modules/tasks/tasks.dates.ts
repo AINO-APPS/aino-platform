@@ -6,7 +6,6 @@ export const DUE_BEFORE_START = "Due date cannot be earlier than the start date"
 
 export function requestedStartDate(body: Record<string, unknown>, fallback?: unknown): unknown {
     if (body.start_date !== undefined) return body.start_date;
-    if (body.planned_date !== undefined) return body.planned_date;
     return fallback;
 }
 

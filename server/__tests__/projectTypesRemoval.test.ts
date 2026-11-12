@@ -158,6 +158,7 @@ describe("guarded project-types API removal boundary", () => {
         expect((await request(app).get("/api/tasks/schedule-overlays")).body).toEqual({ leave: [], holidays: [], meetings: [] });
         expect((await request(app).get("/api/tasks?team_id=2")).status).toBe(400);
         expect((await request(app).put("/api/tasks/1").send({ planned_date: "2026-11-12" })).status).toBe(400);
+        expect((await request(app).put("/api/tasks/1").send({ date: "2026-11-12" })).status).toBe(400);
         expect((await request(app).put("/api/tasks/1").send({ start_date: "2026-11-12" })).body).toEqual({ start_date: "2026-11-12" });
         expect(verifyOwnership).toHaveBeenCalled();
     });

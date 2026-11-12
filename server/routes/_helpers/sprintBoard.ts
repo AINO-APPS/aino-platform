@@ -1,10 +1,7 @@
 import type { Request, Response } from "express";
 const { loadLifecycleContext } = require("../../modules/tasks/tasks.workflow");
-const { buildSprintBoardColumns } = require("../../modules/tasks/tasks.board");
 const { buildProjectBoardColumns, readProjectBoard } = require("../../modules/tasks/tasks.board");
-const { findSprintBoardCounts } = require("../../modules/tasks/tasks.sprintRepository");
-const { resolveTaskVisibilityForRequest, taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
-const { listSprintTasks } = require("../../modules/tasks/tasks.collection");
+const { taskActorFromRequest } = require("../../modules/tasks/tasks.policy");
 const { enrichTasks } = require("../tasks/_helpers/enrich");
 
 type SprintAccess = (req: Request, res: Response, id: number) => Promise<any>;
@@ -18,35 +15,20 @@ function getSprintBoard(loadAccessibleSprint: SprintAccess) {
             if (!sprint) return;
 
             const actor = taskActorFromRequest(req);
-            if (actor.projectOwnership && sprint.project_id != null) {
-                const result = await readProjectBoard(req.db!, {
-                    userId: actor.userId, orgId: actor.orgId, orgRole: actor.role,
-                    teamIds: (req as any).userTeamIds ?? (actor.teamId == null ? [] : [actor.teamId]),
-                }, Number(sprint.project_id), id);
-                const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, sprint.project_id);
-                return res.json({
-                    sprint,
-                    columns: buildProjectBoardColumns(lifecycle, result.project, result.tickets),
-                    tickets: (await enrichTasks(result.tickets, req.db!, actor, lifecycle))
-                        .map((ticket: any) => ({ ...ticket, sprint_end_date: sprint.end_date })),
-                });
+            const projectId = Number(sprint.project_id);
+            if (!Number.isInteger(projectId) || projectId < 1) {
+                return res.status(409).json({ error: "Sprint is not associated with a project" });
             }
+            const result = await readProjectBoard(req.db!, {
+                userId: actor.userId, orgId: actor.orgId, orgRole: actor.role,
+                teamIds: (req as any).userTeamIds ?? (actor.teamId == null ? [] : [actor.teamId]),
+            }, projectId, id);
             const lifecycle = await loadLifecycleContext(req.db!, actor.orgId, sprint.project_id);
-            const visibility = await resolveTaskVisibilityForRequest(actor, {
-                teamId: sprint.team_id,
-                projectId: sprint.project_id,
-            });
-            const [tickets, counts] = await Promise.all([
-                listSprintTasks(req.db!, actor.orgId, id, visibility),
-                findSprintBoardCounts(req.db!, actor.orgId),
-            ]);
-            const boardSprint = { ...sprint };
-            delete boardSprint.org_id;
-            delete boardSprint.team_name;
             return res.json({
-                sprint: boardSprint,
-                columns: buildSprintBoardColumns(lifecycle, counts),
-                tickets: await enrichTasks(tickets, req.db!, actor, lifecycle),
+                sprint,
+                columns: buildProjectBoardColumns(lifecycle, result.project, result.tickets),
+                tickets: (await enrichTasks(result.tickets, req.db!, actor, lifecycle))
+                    .map((ticket: any) => ({ ...ticket, sprint_end_date: sprint.end_date })),
             });
         } catch (err) {
             req.log.error({ err }, "Error fetching sprint board:");

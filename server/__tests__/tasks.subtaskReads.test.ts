@@ -23,7 +23,7 @@ test("parent detail keeps own effort separate from subtask totals and counts don
         rows: sql.includes("parent_task_id") ? children : [{ id: 1, minutes: 20 }, { id: 2, minutes: 40 }, { id: 3, minutes: 10 }],
         rowCount: 0,
     }) };
-    const detail = await getTicketHierarchy(db, ticket, { orgId: 1, role: "super_admin", projectOwnership: true } as TaskActor);
+    const detail = await getTicketHierarchy(db, ticket, { userId: 1, orgId: 1, teamId: null, role: "super_admin" } as TaskActor);
     expect(detail).toMatchObject({
         subtask_summary: { total: 2, done: 1 },
         effort: {

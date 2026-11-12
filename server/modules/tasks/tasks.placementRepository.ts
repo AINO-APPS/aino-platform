@@ -48,79 +48,6 @@ export async function lockSprints(db: PlacementDb, ids: number[], orgId: number 
     )).rows;
 }
 
-export async function findTeamInOrg(db: PlacementDb, teamId: number, orgId: number | null): Promise<{ id: number } | null> {
-    return (await db.query(
-        "SELECT id FROM teams WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
-        [teamId, orgId],
-    )).rows[0] ?? null;
-}
-
-export async function ensureTeamProject(
-    db: PlacementDb,
-    teamId: number,
-    orgId: number | null,
-): Promise<{ id: number; key: string } | null> {
-    await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`aino:team-project:${orgId ?? "null"}`]);
-    const existing = (await db.query(
-        `SELECT id, key FROM projects WHERE org_id IS NOT DISTINCT FROM $1 AND origin_team_id = $2`,
-        [orgId, teamId],
-    )).rows[0];
-    if (existing) return existing;
-
-    const team = (await db.query(
-        `SELECT tm.name, tm.lead_id,
-                EXISTS (SELECT 1 FROM sprints s WHERE s.team_id = tm.id) AS has_sprints
-           FROM teams tm
-          WHERE tm.id = $1 AND tm.org_id IS NOT DISTINCT FROM $2`,
-        [teamId, orgId],
-    )).rows[0];
-    if (!team) return null;
-
-    let baseKey = String(team.name || "TEAM").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!baseKey) baseKey = "TEAM";
-    if (!/^[A-Z]/.test(baseKey)) baseKey = `T${baseKey}`;
-    if (baseKey.length === 1) baseKey += "T";
-    baseKey = baseKey.slice(0, 10);
-    let key = baseKey;
-    for (let suffix = 1; ; suffix++) {
-        const collision = (await db.query(
-            `SELECT 1 FROM projects WHERE org_id IS NOT DISTINCT FROM $1 AND key = $2
-             UNION ALL
-             SELECT 1 FROM reserved_project_keys WHERE org_id IS NOT DISTINCT FROM $1 AND key = $2
-             LIMIT 1`,
-            [orgId, key],
-        )).rows[0];
-        if (!collision) break;
-        key = `${baseKey.slice(0, 10 - String(suffix).length)}${suffix}`;
-    }
-
-    const project = (await db.query(
-        `INSERT INTO projects (org_id, key, name, type, lead_user_id, origin_team_id, key_published)
-         VALUES ($1, $2, $3, $4, $5, $6, FALSE)
-         RETURNING id, key`,
-        [orgId, key, team.name, team.has_sprints ? "scrum" : "task_list", team.lead_id, teamId],
-    )).rows[0];
-    await db.query(
-        `INSERT INTO reserved_project_keys (org_id, key, reason) VALUES ($1, $2, 'generated')
-         ON CONFLICT (org_id, key) DO NOTHING`,
-        [orgId, key],
-    );
-    await db.query(
-        `INSERT INTO project_members (project_id, team_id, role)
-         VALUES ($1, $2, 'member') ON CONFLICT (project_id, team_id) DO NOTHING`,
-        [project.id, teamId],
-    );
-    if (team.lead_id) {
-        await db.query(
-            `INSERT INTO project_members (project_id, user_id, role)
-             VALUES ($1, $2, 'project_admin')
-             ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'project_admin'`,
-            [project.id, team.lead_id],
-        );
-    }
-    return project;
-}
-
 export async function reserveProjectTicketNumber(db: PlacementDb, projectId: number): Promise<number> {
     const row = (await db.query(
         `UPDATE projects
@@ -151,22 +78,6 @@ export async function insertTicketKeyAlias(
          ON CONFLICT (org_id, key) DO NOTHING`,
         [orgId, key, taskId, projectId, reason],
     );
-}
-
-export async function setTeamAndProject(
-    db: PlacementDb,
-    id: number,
-    teamId: number,
-    projectId: number,
-    taskNumber: number,
-    ticketKey: string,
-    alsoLeaveSprint: boolean,
-): Promise<any> {
-    return (await db.query(
-        `UPDATE tasks SET team_id = $1, project_id = $2, task_number = $3, ticket_key = $4
-          ${alsoLeaveSprint ? `, ${LEAVE_SPRINT}` : ""} WHERE id = $5 RETURNING *`,
-        [teamId, projectId, taskNumber, ticketKey, id],
-    )).rows[0];
 }
 
 export async function findMoveProjects(db: PlacementDb, ids: number[], orgId: number | null, lock = false): Promise<any[]> {
@@ -205,58 +116,35 @@ export async function findMoveStates(db: PlacementDb, sourceStateId: number | nu
 
 export async function setProject(
     db: PlacementDb, id: number, projectId: number, taskNumber: number, ticketKey: string,
-    stateId: number, clearSprint: boolean, teamId?: number,
+    stateId: number, clearSprint: boolean,
 ): Promise<any> {
     return (await db.query(
         `UPDATE tasks SET project_id = $1, task_number = $2, ticket_key = $3, workflow_state_id = $4,
-          team_id = CASE WHEN $6::int IS NULL THEN team_id ELSE $6 END
-          ${clearSprint ? `, ${LEAVE_SPRINT}` : ""} WHERE id = $5 RETURNING *`,
-        [projectId, taskNumber, ticketKey, stateId, id, teamId ?? null],
+          ${clearSprint ? `sprint_id = NULL` : "sprint_id = sprint_id"} WHERE id = $5 RETURNING *`,
+        [projectId, taskNumber, ticketKey, stateId, id],
     )).rows[0];
 }
-
-// Leaving a sprint clears legacy bookkeeping only; ticket dates are independent.
-const LEAVE_SPRINT = `
-    sprint_id = NULL,
-    pre_sprint_due_date = NULL`;
 
 /** Join a sprint without changing the ticket's own due date. */
 export async function joinSprint(
     db: PlacementDb,
     id: number,
     sprint: { id: number },
-    teamId: number | null,
 ): Promise<any> {
     return (await db.query(
-        `UPDATE tasks SET sprint_id = $1, team_id = $2
-          WHERE id = $3 RETURNING *`,
-        [sprint.id, teamId, id],
+        `UPDATE tasks SET sprint_id = $1 WHERE id = $2 RETURNING *`,
+        [sprint.id, id],
     )).rows[0];
 }
 
-/** Leave any sprint; legacy planned-date metadata is kept. */
+/** Leave any sprint without changing ticket dates. */
 export async function leaveSprint(db: PlacementDb, id: number): Promise<any> {
-    return (await db.query(`UPDATE tasks SET ${LEAVE_SPRINT} WHERE id = $1 RETURNING *`, [id])).rows[0];
+    return (await db.query("UPDATE tasks SET sprint_id = NULL WHERE id = $1 RETURNING *", [id])).rows[0];
 }
 
-/** Back to the backlog: out of any sprint and clear legacy planned-date metadata. */
+/** Return to the backlog without changing ticket dates. */
 export async function returnToBacklog(db: PlacementDb, id: number): Promise<any> {
-    return (await db.query(
-        `UPDATE tasks SET ${LEAVE_SPRINT}, planned_date = NULL WHERE id = $1 RETURNING *`,
-        [id],
-    )).rows[0];
-}
-
-export async function setPlannedDay(db: PlacementDb, id: number, day: string): Promise<any> {
-    return (await db.query("UPDATE tasks SET planned_date = $1 WHERE id = $2 RETURNING *", [day, id])).rows[0];
-}
-
-/** Change the owner team, leaving the sprint too when `leaveSprint` is set. */
-export async function setTeam(db: PlacementDb, id: number, teamId: number, alsoLeaveSprint: boolean): Promise<any> {
-    return (await db.query(
-        `UPDATE tasks SET team_id = $1${alsoLeaveSprint ? `, ${LEAVE_SPRINT}` : ""} WHERE id = $2 RETURNING *`,
-        [teamId, id],
-    )).rows[0];
+    return (await db.query("UPDATE tasks SET sprint_id = NULL WHERE id = $1 RETURNING *", [id])).rows[0];
 }
 
 export interface HistoryRow {

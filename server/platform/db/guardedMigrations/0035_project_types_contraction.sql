@@ -33,6 +33,8 @@ BEGIN
     END IF;
 END $$;
 
+ALTER TABLE tasks ALTER COLUMN project_id SET NOT NULL;
+ALTER TABLE sprints ALTER COLUMN project_id SET NOT NULL;
 DROP TABLE IF EXISTS task_timers;
 ALTER TABLE tasks
     DROP COLUMN IF EXISTS planned_date,

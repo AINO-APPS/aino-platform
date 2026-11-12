@@ -13,14 +13,13 @@ const { notifyTaskAssigned } = require('../../utils/taskNotifications');
 const { buildTaskCollection, buildCompletedQuery } = require('../../modules/tasks/tasks.collection');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal } = require('./_helpers/placement');
-const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { resolveTicketDates, setTicketStartDate, editTicketStartDate } = require('../../modules/tasks/tasks.dates');
 
 const { logHistory } = require('./_helpers/logHistory');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
 const { ticketActionConflict, ticketCreationConflict, denyTaskAccess } = require('./_helpers/access');
 const {
-    rejectsForeignTeamRequest,
     resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
@@ -61,17 +60,9 @@ router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
         const actor = taskActorFromRequest(req);
-        const requestedTeamId = req.query.team_id ? parseInt(String(req.query.team_id), 10) : null;
-        if (!actor.projectOwnership && rejectsForeignTeamRequest(actor, requestedTeamId)) {
-            return res.status(403).json({ error: 'Access denied' });
-        }
         const visibility = await resolveTaskVisibilityForRequest(actor, {
             scope: req.query.scope === 'personal' ? 'personal' : undefined,
-            teamId: Number.isNaN(requestedTeamId as number)
-                ? (actor.projectOwnership && req.query.team_id != null ? -1 : null)
-                : requestedTeamId,
             projectId: project_id ? Number.parseInt(project_id, 10) : null,
-            unassigned: req.query.unassigned === '1' || req.query.unassigned === 'true',
         });
 
         // Completed work leaves the open list. `include_completed=1` reveals it
@@ -159,7 +150,7 @@ async function createBacklogTicket(req: Request, res: Response) {
         if (!await prepareHierarchyCreate(req, res)) return;
         const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
-            acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
+            acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
@@ -181,11 +172,7 @@ async function createBacklogTicket(req: Request, res: Response) {
         const validDueDate = dates.dueDate;
 
         let validSprintId = null;
-        let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
-        // Sprint assignment is part of the Agile feature bundle — when the
-        // tenant's "Agile & Sprints" flag is off (plan default or feature
-        // override) silently ignore any sprint_id so a stale client can't
-        // sneak a backlog ticket into a sprint.
+        // Sprint assignment is resolved against the destination project.
         if (sprint_id) {
             const { resolveSprintTarget } = require("../../modules/tasks/tasks.sprintAssignment");
             const target = await resolveSprintTarget(req.db!, {
@@ -195,22 +182,14 @@ async function createBacklogTicket(req: Request, res: Response) {
             const sprint = target.sprint;
             if (sprint) {
                 validSprintId = sprint.id;
-                sprintRow = sprint;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
         }
 
-        const owner = await resolveCreateTeamId(req.db!, {
-            actor: taskActorFromRequest(req),
-            orgId: req.userOrgId || null,
-            explicitTeamId: team_id,
-            sprint: sprintRow,
-        });
-        if (owner.error) return res.status(owner.error.status).json(owner.error.body);
         const project = await resolveCreateProjectId(req.db!, {
             actor: taskActorFromRequest(req), explicitProjectId: project_id,
-            sprintId: validSprintId, teamId: owner.teamId,
+            sprintId: validSprintId,
         });
         if (project.error) return res.status(project.error.status).json(project.error.body);
         const validProjectId = project.projectId;
@@ -238,7 +217,7 @@ async function createBacklogTicket(req: Request, res: Response) {
         // issue key.
         // The ticket is inserted with no container; joining a sprint is a
         // placement in the same transaction (ADR-015), so its own due date is
-        // remembered exactly as for any other sprint entry.
+        // unchanged as the ticket enters the sprint.
         const taskId = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const hierarchy = await assertTicketHierarchy(client, {
                 org_id: req.userOrgId ?? null, project_id: validProjectId,
@@ -259,13 +238,13 @@ async function createBacklogTicket(req: Request, res: Response) {
             const insertRes = await client.query(
                 `INSERT INTO tasks
                     (user_id, title, description, priority, assigned_to, due_date,
-                     org_id, team_id, story_points, work_item_type_id, workflow_state_id,
+                     org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16)
                  RETURNING id`,
                 [req.userId, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, req.userOrgId || null, owner.teamId,
+                    assignedTo, validDueDate, req.userOrgId || null,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );

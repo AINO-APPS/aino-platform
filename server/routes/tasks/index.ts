@@ -1,7 +1,7 @@
 // Router orchestrator for /api/tasks.
 //
 // Mount order matters: routers that own static paths (e.g. /labels/manage,
-// /backlog, /search, /available-sprints, /carry-forward, /lookup/...) must
+// /backlog, /search, /available-sprints, /lookup/...) must
 // be registered before the generic CRUD router which owns /:id/* patterns,
 // otherwise Express may match a static segment as an :id parameter.
 //

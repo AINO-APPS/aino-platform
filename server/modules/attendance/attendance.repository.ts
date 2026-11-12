@@ -543,7 +543,7 @@ export async function listTaskWorklogsForDateRange(
 ): Promise<any[]> {
     return (await db.query(
         `SELECT w.task_id, w.day_worked, w.minutes,
-                t.title AS task_title, t.ticket_key, t.ticket_key AS issue_key
+                t.title AS task_title, t.ticket_key
            FROM task_worklogs w
            JOIN tasks t ON t.id = w.task_id
            JOIN users u ON u.id = w.author_id AND t.org_id IS NOT DISTINCT FROM u.org_id

@@ -5,39 +5,10 @@
  * Routes and helpers call these instead of holding SQL, so the sprint queries
  * live next to the rules they serve.
  */
-import { findDefaultTicketProject } from "./tasks.repository";
 import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
-
-/**
- * Scheduled container: unsprinted tickets carrying a planned day.
- *
- * Completed history is trimmed to the window the client shows, so a finished
- * ticket stays visible for `SCHEDULED_HISTORY_DAYS` and then drops out.
- */
-export async function listScheduledTasks(db: SprintDb, whereSql: string, params: unknown[]) {
-    return (await db.query(
-        `SELECT t.* FROM tasks t WHERE ${whereSql} ORDER BY COALESCE(t.start_date, t.due_date) ASC LIMIT 1000`,
-        params,
-    )).rows;
-}
 
 export interface SprintDb {
     query(sql: string, params?: unknown[]): Promise<{ rows: any[]; rowCount: number | null }>;
-}
-
-export async function createSprintForTeam(
-    db: SprintDb,
-    orgId: number | null,
-    teamId: number,
-    input: { name: string; startDate: string; endDate: string; goal: string | null },
-) {
-    const projectId = await findDefaultTicketProject(db, orgId, null, teamId);
-    if (!projectId) throw new Error("No default project exists for this organization");
-    const result = await db.query(
-        "INSERT INTO sprints (team_id, project_id, name, start_date, end_date, goal, status) VALUES ($1, $2, $3, $4, $5, $6, 'planned') RETURNING id",
-        [teamId, projectId, input.name, input.startDate, input.endDate, input.goal],
-    );
-    return (await db.query("SELECT * FROM sprints WHERE id = $1", [result.rows[0].id])).rows[0];
 }
 
 /** One sprint, scoped to the requester's org. */
@@ -58,32 +29,6 @@ export async function findSprintStatusInOrg(db: SprintDb, sprintId: unknown, org
     )).rows[0] ?? null;
 }
 
-/** Every sprint in an org, optionally narrowed to one team (admin view). */
-export async function findSprintsForOrg(db: SprintDb, orgId: unknown, teamId?: number | null) {
-    return (await db.query(
-        `SELECT s.* FROM sprints s
-           JOIN teams t ON t.id = s.team_id
-          WHERE t.org_id IS NOT DISTINCT FROM $1
-            AND ($2::int IS NULL OR s.team_id = $2::int)
-          ORDER BY
-              CASE s.status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
-              s.start_date DESC`,
-        [orgId, teamId ?? null],
-    )).rows;
-}
-
-/** Every sprint belonging to one team (member view). */
-export async function findSprintsForTeam(db: SprintDb, teamId: unknown) {
-    return (await db.query(
-        `SELECT * FROM sprints
-          WHERE team_id = $1
-          ORDER BY
-              CASE status WHEN 'active' THEN 1 WHEN 'planned' THEN 2 WHEN 'completed' THEN 3 END,
-              start_date DESC`,
-        [teamId],
-    )).rows;
-}
-
 /** Every sprint whose project the actor can access. */
 export async function findSprintsForProjects(db: SprintDb, orgId: unknown, projectIds: number[]) {
     if (projectIds.length === 0) return [];
@@ -99,7 +44,7 @@ export async function findSprintsForProjects(db: SprintDb, orgId: unknown, proje
 }
 
 /** One sprint joined with its project's org, for access checks. */
-export async function findSprintWithTeam(db: SprintDb, sprintId: unknown) {
+export async function findSprintWithProject(db: SprintDb, sprintId: unknown) {
     return (await db.query(
         `SELECT s.*, p.org_id
            FROM sprints s JOIN projects p ON p.id = s.project_id
@@ -191,24 +136,23 @@ export async function findSprintCarryoverTasks(db: SprintDb, sprintId: unknown, 
     )).rows;
 }
 
-/** The next planned sprint for a project, or legacy team scope, excluding the source. */
+/** The next planned sprint for a project, excluding the source. */
 export async function findNextPlannedSprint(
     db: SprintDb,
-    teamId: unknown,
+    projectId: unknown,
     excludeSprintId: unknown,
     orgId: number | null,
-    projectId?: number,
 ) {
     return (await db.query(
         `SELECT s.id, s.name, s.start_date, s.end_date, s.status FROM sprints s
            JOIN projects tm ON tm.id = s.project_id
-          WHERE ${projectId == null ? "s.team_id" : "s.project_id"} = $1
+          WHERE s.project_id = $1
             AND s.status = 'planned'
             AND s.id <> $2
             AND tm.org_id IS NOT DISTINCT FROM $3
           ORDER BY s.start_date ASC, s.id ASC
           LIMIT 1`,
-        [projectId ?? teamId, excludeSprintId, orgId],
+        [projectId, excludeSprintId, orgId],
     )).rows[0] || null;
 }
 
@@ -236,27 +180,6 @@ export async function createCarryoverSprint(
          RETURNING *`,
         [projectId, orgId, name, startDate, endDate],
     )).rows[0] ?? null;
-}
-
-/**
- * The start date of the team's most recently completed sprint.
- *
- * The completed section shows the last 30 days or the last closed sprint,
- * whichever reaches further back (D17), so this is the floor that keeps a
- * long-running sprint's finished work visible.
- */
-export async function findLastCompletedSprintStart(
-    db: SprintDb,
-    teamId: unknown,
-): Promise<string | null> {
-    const row = (await db.query(
-        `SELECT start_date FROM sprints
-          WHERE team_id = $1 AND status = 'completed' AND start_date IS NOT NULL
-          ORDER BY completed_at DESC NULLS LAST, end_date DESC
-          LIMIT 1`,
-        [teamId],
-    )).rows[0];
-    return row?.start_date ?? null;
 }
 
 /** Points and terminal flags for a sprint's burndown snapshot. */
@@ -340,49 +263,34 @@ export async function claimSprintCompletion(db: SprintDb, sprintId: number, orgI
 export async function findSprintCompletionActor(
     db: SprintDb,
     sprintId: number,
-    teamId: number,
     orgId: number | null,
 ): Promise<any | null> {
     return (await db.query(
-        `SELECT tm.org_id,
-                COALESCE(
-                    (SELECT u.id FROM users u
-                      WHERE u.id = tm.lead_id AND u.team_id = tm.id
-                        AND u.org_id IS NOT DISTINCT FROM $3
-                      LIMIT 1),
-                    (SELECT u.id FROM users u
-                      WHERE u.team_id = tm.id AND u.org_id IS NOT DISTINCT FROM $3
-                        AND u.is_active = TRUE ORDER BY u.id LIMIT 1),
-                    (SELECT t.user_id FROM tasks t
-                      WHERE t.sprint_id = $1 AND t.team_id = tm.id
-                        AND t.org_id IS NOT DISTINCT FROM $3
-                      ORDER BY t.id LIMIT 1)
-                ) AS actor_id
-           FROM teams tm
-           JOIN sprints s ON s.team_id = tm.id
-          WHERE s.id = $1
-            AND tm.id = $2
-            AND tm.org_id IS NOT DISTINCT FROM $3`,
-        [sprintId, teamId, orgId],
+        `SELECT p.org_id,
+                (SELECT t.user_id FROM tasks t
+                  WHERE t.sprint_id = s.id AND t.org_id IS NOT DISTINCT FROM $2
+                  ORDER BY t.id LIMIT 1) AS actor_id
+           FROM sprints s JOIN projects p ON p.id = s.project_id
+          WHERE s.id = $1 AND p.org_id IS NOT DISTINCT FROM $2`,
+        [sprintId, orgId],
     )).rows[0] ?? null;
 }
 
 export async function findRolloverTarget(
     db: SprintDb,
     targetSprintId: number,
-    teamId: number,
+    projectId: number,
     orgId: number | null,
-    projectId?: number,
 ): Promise<any | null> {
     return (await db.query(
         `SELECT s.id, s.name, s.status, s.start_date, s.end_date, s.project_id
            FROM sprints s
            JOIN projects tm ON tm.id = s.project_id
           WHERE s.id = $1
-            AND ${projectId == null ? "s.team_id" : "s.project_id"} = $2
+            AND s.project_id = $2
             AND tm.org_id IS NOT DISTINCT FROM $3
           FOR SHARE OF s`,
-        [targetSprintId, projectId ?? teamId, orgId],
+        [targetSprintId, projectId, orgId],
     )).rows[0] ?? null;
 }
 
@@ -496,7 +404,6 @@ export async function lockSprintForDeletion(
 export async function pauseSprintForOrg(
     db: SprintDb,
     sprintId: number | string,
-    teamId: number | string | null,
     orgId: number | null,
 ): Promise<boolean> {
     const updated = await db.query(
@@ -507,12 +414,7 @@ export async function pauseSprintForOrg(
       RETURNING s.id`,
         [sprintId, orgId],
     );
-    if (!updated.rowCount) return false;
-    await db.query(
-        "UPDATE teams SET sprint_paused = TRUE WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2",
-        [teamId, orgId],
-    );
-    return true;
+    return !!updated.rowCount;
 }
 
 export async function findSprintMemberIds(db: SprintDb, sprintId: number | string, orgId: number | null): Promise<number[]> {

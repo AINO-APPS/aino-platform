@@ -1,6 +1,4 @@
 import type { CapabilityReason } from "./tasks.capabilities";
-import { sprintProjectMismatchBody } from "./tasks.ownership";
-
 export const CAPABILITY_DENIAL_MESSAGES: Record<CapabilityReason, string> = {
     ACCESS_DENIED: "Access denied",
     READ_ONLY_ROLE: "Your project role allows reading and commenting only.",
@@ -13,6 +11,5 @@ export const CAPABILITY_DENIAL_MESSAGES: Record<CapabilityReason, string> = {
     CANCELLED_TERMINAL: "This ticket is cancelled and cannot change state.",
     INVALID_TRANSITION: "This ticket cannot perform that action in its current state.",
     PROJECT_HAS_NO_SPRINTS: "Sprints are only available in Scrum projects.",
-    IN_SPRINT: "This ticket is in a sprint. Take it out of the sprint before planning it onto a day.",
-    SPRINT_PROJECT_MISMATCH: String(sprintProjectMismatchBody().error),
+    SPRINT_PROJECT_MISMATCH: "A ticket may only join a sprint in its own project.",
 };

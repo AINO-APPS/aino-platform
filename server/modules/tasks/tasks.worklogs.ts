@@ -44,7 +44,7 @@ async function validateAuthor(db: TasksDb, input: Partial<LogWorkInput>, orgId: 
 }
 
 async function notifyWorklogChange(db: TasksDb, taskId: number,
-    task: { project_id?: number | null; team_id?: number | null; user_id?: number | null; assigned_to?: number | null },
+    task: { project_id?: number | null; user_id?: number | null; assigned_to?: number | null },
     actor: TaskActor, tenantId?: number | null) {
     const members = await findEffortReaders(db, task, actor);
     emitTaskUpdated(tenantId, taskId, 'updated', [task.user_id, task.assigned_to, actor.userId, ...members]);
@@ -88,7 +88,7 @@ export async function editWorklog(db: TasksDb & Pick<DbContext, 'transaction'>, 
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        const project = actor.projectOwnership ? await worklogProjectContext(tx, taskId, actor) : undefined;
+        const project = await worklogProjectContext(tx, taskId, actor);
         if (!decideWorklog(actor, before, project).canEdit)
             return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author, this project\'s admin or an org admin can edit it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input) || !Object.keys(input).length)
@@ -124,7 +124,7 @@ export async function deleteWorklog(db: TasksDb & Pick<DbContext, 'transaction'>
         if (access && access.body.code !== 'SPRINT_FROZEN') return { conflict: access };
         const before = await repository.lockWorklog(tx, taskId, worklogId, actor.orgId);
         if (!before) return { conflict: { status: 404, body: { error: 'Worklog not found' } } };
-        const project = actor.projectOwnership ? await worklogProjectContext(tx, taskId, actor) : undefined;
+        const project = await worklogProjectContext(tx, taskId, actor);
         if (!decideWorklog(actor, before, project).canDelete)
             return { conflict: { status: 403, body: { code: 'ACCESS_DENIED', error: 'Only the worklog author, this project\'s admin or an org admin can delete it.' } } };
         if (!input || typeof input !== 'object' || Array.isArray(input)
@@ -144,8 +144,7 @@ export const getTimeSpent = repository.readTimeSpent;
 
 export async function getTicketWorklogs(db: TasksDb, taskId: number, orgId: number | null, actor?: TaskActor) {
     const rows = await repository.listWorklogs(db, taskId, orgId);
-    const project = actor?.projectOwnership
-        ? await worklogProjectContext(db, taskId, actor) : undefined;
+    const project = actor ? await worklogProjectContext(db, taskId, actor) : undefined;
     const worklogs = rows.map(({ username, full_name, avatar, logged_by_username, logged_by_name, logged_by_avatar, source_timer_id: _source, ...row }) => ({
         ...row,
         ...decideWorklog(actor, row, project),
