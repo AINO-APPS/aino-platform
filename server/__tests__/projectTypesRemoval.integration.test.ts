@@ -3,7 +3,7 @@ import express from "express";
 import request from "supertest";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { createProjectTypesRemoval } from "../modules/projectTypesRemoval/projectTypesRemoval";
-import { verifyProjectOwnership } from "../modules/projectTypesRemoval/projectTypesRemoval.repository";
+import { verifyProjectOwnership } from "../platform/projectTypesRemoval";
 
 jest.setTimeout(120_000);
 jest.mock("../middleware/auth", () => (req: any, _res: any, next: any) => { req.userId = 1; next(); });

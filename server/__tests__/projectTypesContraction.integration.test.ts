@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { runProjectTypesContraction } from "../modules/projectTypesRemoval/projectTypesRemoval.migrate";
-import { verifyProjectOwnership } from "../modules/projectTypesRemoval/projectTypesRemoval.repository";
+import { verifyProjectOwnership } from "../platform/projectTypesRemoval";
 
 jest.setTimeout(120_000);
 
