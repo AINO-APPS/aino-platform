@@ -619,5 +619,7 @@ push, PR, tag, version bump, production deployment or database operation.
   default-branch push was used. All new commits include the Copilot trailer.
 - Named verification downloads and the portable verifier/tool were removed
   after successful checksum/signature/package proof. Release worktrees are
-  removed only after their commits are retained. The old unregistered Android
-  residue paths remain separately reported; no broad/forced deletion is used.
+  removed only after their commits are retained. Both old unregistered Android
+  residue directories were subsequently inspected and removed using exact
+  extended-length Windows paths, without force. Their absence was verified;
+  unrelated worktrees and retained branches were untouched.
