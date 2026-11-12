@@ -4,9 +4,11 @@
 
 **Blocked by:** 05: Scrum planning without Scheduled or auto sprints; 06: Enforce ticket hierarchy and create subtasks.
 
-**Status:** implemented (platform/web + Android); project lifecycle permission path verified
+**Status:** resolved
 
-**Platform acceptance:** accepted for integration. The non-PostgreSQL validation passed; the PostgreSQL-backed HTTP integration test was added but remains unverified because its configured disposable database URL timed out during connection. This is an outstanding validation gate, not a passing test; no database service was started or modified.
+**Platform acceptance:** resolved. The earlier PostgreSQL connection failure
+is historical; later whole-parent completion and full-suite validation are
+recorded in the closeout comment. No earlier skipped test is counted as passed.
 
 **Android acceptance:** completion preview, destination selection and server-decided lifecycle permissions are integrated. The initial focused 58-test JVM run and five guardrails passed; the later integrated 113-test run also passed, including the capability decoder/authorization regression.
 
@@ -22,3 +24,12 @@
 - [x] Project-scoped sprint rows expose the server-decided `can_manage` capability, and both clients use it for lifecycle controls.
 
 **Validation:** Server and client typechecks passed; focused server tests (14 passed, including one route snapshot) and SprintCompletionDialog tests (6 passed) passed. Contracts and all repository guardrails passed. The PostgreSQL HTTP integration scenario was added but could not be run: the specified disposable URL `postgresql://postgres:test@127.0.0.1:44677/aino_test` timed out during connection. No database service was started or managed. See [platform evidence](../evidence-08-platform.md).
+
+## Comments
+
+2026-11-12 closeout: ticket 07 verified real PostgreSQL whole-parent completion
+HTTP cases. Ticket 09 subsequently passed full platform/Android release CI;
+ticket 10 passed all 506 PostgreSQL tests across 24 suites with zero skips,
+plus 2,055 non-PostgreSQL tests. These later runs close the original connection
+blocker. Android completion/capability cases passed the merged 113-test planning
+run and full release CI. No live gate or ownership rollout is inferred.
