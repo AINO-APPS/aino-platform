@@ -313,7 +313,6 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
             [req.userId, startOfDay.toISOString(), endOfDay.toISOString()],
         )).rows;
 
-        // Calculate hours worked
         let totalMinutes = 0;
         let clockIn: Date | null = null;
         let breakStart: Date | null = null;
