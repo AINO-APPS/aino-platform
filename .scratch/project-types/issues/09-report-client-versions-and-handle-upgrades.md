@@ -465,3 +465,24 @@ push, PR, tag, version bump, production deployment or database operation.
 - Publication remains stopped: no source push, PR, tag, version bump, release,
   deploy, production SQL, restore, plan/schedule/gate change or ownership
   operation occurred. Ticket **09 remains claimed** and **10/11** are untouched.
+
+### Operator waiver for disposable internal-test data (2026-11-12)
+
+- Operator clarification: **"the app is not yet publically releases, all data
+  are added for internal testings, so if tthe ticket lost in plans doesnt have
+  any issues"**.
+- Scope: the operator represents **all current application data as disposable
+  internal-testing data**, not production customer data, and explicitly accepts
+  the known `0032` date/planning migration risk, including planned-ticket/sprint
+  loss. The pre-release backup condition is waived for this publication only.
+- Prior failed snapshot and local-backup attempts remain accurate: **no backup
+  exists and no recovery verification is claimed**. No Railway plan, network,
+  public TCP proxy, SSH, backup schedule or storage configuration is changed.
+- Proceed only through reviewed feature PRs, green CI and the existing
+  server/web production pipeline; native/desktop publication follows healthy
+  EXPAND APIs. Only standard deployment migrations may change database data.
+  CI, published-assets/feed checks and post-deployment verification are **not**
+  waived.
+- REPORT/enforcement and project-ownership switches remain unapproved and
+  unchanged. Compatibility API removal remains ticket 11. Ticket 09 stays
+  **claimed** until both current client releases are published and verified.
