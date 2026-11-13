@@ -18,3 +18,11 @@ reintroduce compatibility columns during subsequent pre-deploy migrations.
 A tenant provisioned after the ownership switch was retired is created
 project-owned (`platform/db/tenantOrganization.ts`). Left unswitched, it would
 fail the all-organization verification and take every other tenant's API down.
+
+On a fresh installation, deployment migrations also create empty legacy tenant
+tables in the master database. That initialized legacy master may have zero
+organizations, provided its project-owned data checks pass. Cataloged tenant
+databases still require at least one switched organization, and any unswitched
+organization, missing table or unreadable database still blocks the API. This
+allows platform-admin sign-in and first-tenant creation without bypassing the
+gate configuration or weakening checks on existing tenant data.

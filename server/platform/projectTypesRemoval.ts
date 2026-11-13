@@ -15,12 +15,17 @@ export async function verifyAllProjectOwnership(options: {
         if (typeof tenant.db_name !== "string" || !tenant.db_name) throw new Error("Incomplete ownership inventory");
         await verifyProjectOwnership(await options.tenantQuery(tenant.db_name, tenant.db_host ?? null));
     }
-    if (legacy.rows[0]?.present === true) await verifyProjectOwnership(options.masterQuery);
+    if (legacy.rows[0]?.present === true) {
+        await verifyProjectOwnership(options.masterQuery, { allowEmptyOrganizations: true });
+    }
     const after = await options.masterQuery("SELECT db_name, db_host FROM tenants ORDER BY id");
     if (JSON.stringify(catalog.rows) !== JSON.stringify(after.rows)) throw new Error("Ownership inventory changed during verification");
 }
 
-export async function verifyProjectOwnership(query: Query): Promise<void> {
+export async function verifyProjectOwnership(
+    query: Query,
+    options: { allowEmptyOrganizations?: boolean } = {},
+): Promise<void> {
     const schema = await query(`SELECT table_name || '.' || column_name AS column_name
         FROM information_schema.columns
         WHERE table_schema = current_schema()
@@ -40,7 +45,8 @@ export async function verifyProjectOwnership(query: Query): Promise<void> {
         COUNT(*) FILTER (WHERE project_ownership IS NOT TRUE OR project_ownership_switched_at IS NULL)::int AS unswitched
         FROM organizations`);
     const row = result.rows[0];
-    if (!row || !Number.isInteger(row.organizations) || row.organizations < 1 || row.unswitched !== 0) {
+    if (!row || !Number.isInteger(row.organizations)
+        || row.organizations < (options.allowEmptyOrganizations ? 0 : 1) || row.unswitched !== 0) {
         throw new Error("Project ownership is not verified for every organization");
     }
     await verifyProjectOwnedData(query);

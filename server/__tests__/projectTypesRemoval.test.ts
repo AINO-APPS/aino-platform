@@ -60,7 +60,7 @@ describe("guarded project-types API removal boundary", () => {
         await expect(verifyAllProjectOwnership({ ...inventory, tenantQuery: async () => { changed = true; return query; } })).rejects.toThrow("changed");
     });
 
-    test("empty organization ownership inventory is not treated as verified", async () => {
+    test("empty initialized legacy master is allowed, but an empty catalog tenant is not", async () => {
         const query = async (sql: string) => {
             if (sql.includes("FROM tenants")) return { rows: [] };
             if (sql.includes("to_regclass")) return { rows: [{ present: true }] };
@@ -72,6 +72,13 @@ describe("guarded project-types API removal boundary", () => {
             return { rows: [] };
         };
         await expect(verifyAllProjectOwnership({ masterQuery: query, tenantQuery: async () => query }))
+            .resolves.toBeUndefined();
+        await expect(verifyAllProjectOwnership({
+            masterQuery: sql => sql.includes("FROM tenants")
+                ? Promise.resolve({ rows: [{ db_name: "empty_tenant_test", db_host: null }] })
+                : query(sql),
+            tenantQuery: async () => query,
+        }))
             .rejects.toThrow("Project ownership is not verified for every organization");
     });
 
