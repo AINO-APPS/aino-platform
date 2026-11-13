@@ -9,6 +9,7 @@
 // unchanged (e.g. POST /api/tasks/backlog, GET /api/tasks/:id/detail).
 
 import express from "express";
+import { hasRetiredProjectTypesInput, isRetiredProjectTypesPath } from "../../modules/projectTypesRemoval/projectTypesRemoval.http";
 const { requireTenant } = require('../../middleware/tenant');
 
 const metaRouter = require('./meta');
@@ -34,6 +35,14 @@ const crudRouter = require('./crud');
 
 const router = express.Router();
 router.use(requireTenant);
+router.use((req, res, next) => {
+    const path = req.originalUrl.split("?")[0];
+    if (isRetiredProjectTypesPath(path)) return res.status(404).json({ error: "Not found" });
+    if (hasRetiredProjectTypesInput(path, req.query, req.body)) {
+        return res.status(400).json({ code: "LEGACY_PROJECT_TYPES_INPUT_REMOVED" });
+    }
+    return next();
+});
 
 // Static-path-first sub-routers
 router.use('/', metaRouter);          // /assignable-users, /labels (GET)

@@ -116,6 +116,27 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (1, 1, 'Alpha'), (2, 1, 'Beta')");
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'alice', 'x', 'Alice', 1, 1), (2, 'admin', 'x', 'Admin', 1, 1)`);
+        await pool.query(`
+            INSERT INTO projects (org_id, key, name, type, origin_team_id, key_published)
+            SELECT org_id, 'TEAM' || id, name, 'task_list', id, FALSE
+              FROM teams WHERE org_id = 1
+            ON CONFLICT (org_id, origin_team_id) WHERE origin_team_id IS NOT NULL DO NOTHING
+        `);
+        await pool.query(`
+            INSERT INTO project_members (project_id, team_id, role)
+            SELECT id, origin_team_id, CASE WHEN origin_team_id = 1 THEN 'project_admin' ELSE 'member' END
+              FROM projects
+             WHERE org_id = 1 AND origin_team_id IS NOT NULL
+            ON CONFLICT (project_id, team_id) DO NOTHING
+        `);
+        await pool.query(`
+            INSERT INTO project_members (project_id, user_id, role)
+            SELECT id, 1, 'project_admin'
+              FROM projects
+             WHERE org_id = 1 AND is_general
+            ON CONFLICT (project_id, user_id) DO UPDATE SET role = EXCLUDED.role
+        `);
+        await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
         await pool.query("UPDATE projects SET type = 'scrum' WHERE org_id = 1");
         await pool.query(
             "INSERT INTO sprints (id, team_id, name, start_date, end_date, status) VALUES (10, 1, 'Alpha 1', '2026-11-01', '2026-11-14', 'planned')",
@@ -125,12 +146,12 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     });
 
     async function row(id: number) {
-        return (await pool.query("SELECT sprint_id, planned_date, due_date, pre_sprint_due_date FROM tasks WHERE id = $1", [id])).rows[0];
+        return (await pool.query("SELECT sprint_id, start_date, due_date FROM tasks WHERE id = $1", [id])).rows[0];
     }
 
     test("ticket10 preview and project move agree, preserve the old key and leave the source sprint", async () => {
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
-        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 AND origin_team_id = 1")).rows[0];
         const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
         await pool.query("UPDATE projects SET type = 'scrum' WHERE id = $1", [source.id]);
@@ -150,7 +171,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(sendToUser).not.toHaveBeenCalled();
         const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
         expect(move.status).toBe(200);
-        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-14", start_date: "2026-11-10", planned_date: "2026-11-10", team_id: 1 });
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1", workflow_state_id: to.id, sprint_id: null, due_date: "2026-11-14", start_date: "2026-11-10" });
         expect(sendToUser).toHaveBeenCalledWith(1, 1, "task_updated", { taskId: ticket.id, action: "updated" });
         const alias = await request(app).get(`/api/tasks/by-key/${ticket.ticket_key}`);
         expect(alias.status).toBe(200);
@@ -163,8 +184,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
     async function projectMoveFixture() {
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
-        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
-        const target = (await pool.query("INSERT INTO projects (org_id, key, name, origin_team_id) VALUES (1, 'DEST', 'Destination', 2) RETURNING *")).rows[0];
+        const source = (await pool.query("SELECT * FROM projects WHERE org_id = 1 AND origin_team_id = 1")).rows[0];
+        const target = (await pool.query("INSERT INTO projects (org_id, key, name) VALUES (1, 'DEST', 'Destination') RETURNING *")).rows[0];
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member'), ($2, 1, 'member') ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'member'", [source.id, target.id]);
         const from = (await pool.query("INSERT INTO workflow_states (org_id, project_id, key, name, category) VALUES (1, $1, 'source_review', 'Source review', 'in_review') RETURNING *", [source.id])).rows[0];
         const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, team_id, project_id, workflow_state_id) VALUES ('Move fixture', 1, 1, 1, $1, $2) RETURNING *", [source.id, from.id])).rows[0];
@@ -214,19 +235,14 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         },
     );
 
-    test("ticket10 member capability and legacy transfer use the generated project without changing legacy team ownership after switch", async () => {
+    test("ticket10 project moves remain available while the retired team transfer route is absent", async () => {
         const { target, ticket } = await projectMoveFixture();
         const detail = await request(app).get(`/api/tasks/${ticket.id}/detail`);
         expect(detail.body.capabilities.can.canMoveProject).toEqual({ allowed: true });
-        const move = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 2 });
+        expect((await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 2 })).status).toBe(404);
+        const move = await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
         expect(move.status).toBe(200);
-        expect(move.body).toMatchObject({ transferred: true, from_team_id: 1, to_team_id: 2, cleared_sprint: null, task: { project_id: target.id, team_id: 1 } });
-        expect(move.body.task.workflow_state_id).not.toBe(ticket.workflow_state_id);
-        const back = await request(app).post(`/api/tasks/${ticket.id}/transfer`).send({ team_id: 1 });
-        expect(back.status).toBe(200);
-        expect(back.body.task.project_id).not.toBe(target.id);
-        expect(back.body.task.team_id).toBe(1);
-        await request(app).post(`/api/tasks/${ticket.id}/move-project`).send({ project_id: target.id });
+        expect(move.body.task).toMatchObject({ project_id: target.id, ticket_key: "DEST-1" });
         await pool.query("UPDATE project_members SET role = 'viewer' WHERE project_id = $1", [target.id]);
         expect((await request(app).get(`/api/tasks/${ticket.id}/detail`)).body.capabilities.can.canMoveProject).toEqual({ allowed: false, reason: "READ_ONLY_ROLE" });
     });
@@ -264,7 +280,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
 
     test("ticket07 project viewers may comment but cannot edit or rank; archived tickets remain readable", async () => {
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
-        const project = (await pool.query("SELECT id FROM projects WHERE org_id = 1 ORDER BY id LIMIT 1")).rows[0];
+        const project = (await pool.query("SELECT id FROM projects WHERE org_id = 1 AND origin_team_id = 1")).rows[0];
         await pool.query("DELETE FROM project_members WHERE project_id = $1", [project.id]);
         await pool.query("INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'viewer')", [project.id]);
         const ticket = (await pool.query("INSERT INTO tasks (title, user_id, org_id, project_id) VALUES ('Read only', 2, 1, $1) RETURNING *", [project.id])).rows[0];
@@ -286,7 +302,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const archivedCreate = await request(app).post("/api/tasks/backlog").send({ title: "Archived create", project_id: project.id });
         expect(archivedCreate.body.code).toBe("PROJECT_ARCHIVED");
         for (const [method, suffix, body] of [
-            ["put", "", { title: "Archived" }], ["post", "/timer/start", {}],
+            ["put", "", { title: "Archived" }],
             ["patch", "/block", { is_blocked: true }], ["patch", "/rank", {}],
         ] as const) {
             const result = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
@@ -300,6 +316,7 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const search = await request(app).get("/api/search").query({ q: ticket.ticket_key });
         expect(search.body.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: ticket.id })]));
         expect((await request(app).post(`/api/tasks/${ticket.id}/comments`).send({ content: "Still commenting" })).status).toBe(200);
+        expect((await request(app).post(`/api/tasks/${ticket.id}/timer/start`).send({})).status).toBe(404);
     });
 
     function expectTicketDecision(ticket: any) {
@@ -311,17 +328,15 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
                     edit: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     changeState: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     cancel: expect.objectContaining({ allowed: expect.any(Boolean) }),
-                    transfer: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     delete: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     placeInSprint: expect.objectContaining({ allowed: expect.any(Boolean) }),
-                    schedule: expect.objectContaining({ allowed: expect.any(Boolean) }),
                 },
             },
         });
     }
 
     test("creating straight into a sprint keeps its own due date without saved-date bookkeeping", async () => {
-        const res = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, due_date: "2026-11-20" });
+        const res = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, start_date: null, due_date: "2026-11-20" });
 
         expect(res.status).toBe(200);
         expect(res.body).toMatchObject({
@@ -332,28 +347,12 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
                     edit: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     changeState: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     cancel: expect.objectContaining({ allowed: expect.any(Boolean) }),
-                    transfer: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     delete: expect.objectContaining({ allowed: expect.any(Boolean) }),
                     placeInSprint: expect.objectContaining({ allowed: expect.any(Boolean) }),
-                    schedule: expect.objectContaining({ allowed: expect.any(Boolean) }),
                 },
             },
         });
-        expect(await row(res.body.id)).toEqual({
-            sprint_id: 10, planned_date: null, due_date: "2026-11-20", pre_sprint_due_date: null,
-        });
-    });
-
-    test("a ticket created while ownership is off still returns its stored sprint-project key", async () => {
-        const res = await request(app)
-            .post("/api/tasks")
-            .send({ title: "Stored key", sprint_id: 10 });
-
-        expect(res.status).toBe(200);
-        expect(res.body.ticket_key).toBeTruthy();
-        expect(res.body).not.toHaveProperty("issue_key");
-        expect(res.body.project_id).toBe((await pool.query("SELECT project_id FROM sprints WHERE id = 10")).rows[0].project_id);
-        expect((await pool.query("SELECT project_ownership FROM organizations WHERE id = 1")).rows[0].project_ownership).toBe(false);
+        expect(await row(res.body.id)).toEqual({ sprint_id: 10, start_date: null, due_date: "2026-11-20" });
     });
 
     test("opening a ticket by its current key or alias returns its current key and former keys", async () => {
@@ -446,23 +445,25 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         ]));
     });
 
-    test("ticket creation honors a requested project, otherwise the team project", async () => {
-        const teamProject = (await pool.query(
-            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
-             VALUES (1, 'ALPHA', 'Alpha', 1, FALSE) RETURNING id`,
+    test("ticket creation defaults to General and honors an explicit project", async () => {
+        const generalProject = (await pool.query(
+            "SELECT id FROM projects WHERE org_id = 1 AND is_general",
         )).rows[0].id;
-        const teamCreated = await request(app).post("/api/tasks").send({ title: "Team project" });
+        const teamCreated = await request(app).post("/api/tasks").send({ title: "General project" });
         expect(teamCreated.status).toBe(200);
-        expect(teamCreated.body.project_id).toBe(teamProject);
-        expect(teamCreated.body.ticket_key).toBe("ALPHA-1");
+        expect(teamCreated.body.project_id).toBe(generalProject);
+        expect(teamCreated.body.ticket_key).toBe("GEN-1");
 
         const explicitProject = (await pool.query(
             "INSERT INTO projects (org_id, key, name) VALUES (1, 'EXPLICIT', 'Explicit') RETURNING id",
         )).rows[0].id;
+        await pool.query(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'project_admin')",
+            [explicitProject],
+        );
         const explicitCreated = await request(app).post("/api/tasks").send({
             title: "Explicit project",
             project_id: explicitProject,
-            sprint_id: 10,
         });
         expect(explicitCreated.status).toBe(200);
         expect(explicitCreated.body.project_id).toBe(explicitProject);
@@ -473,17 +474,14 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 1");
         await pool.query("UPDATE users SET team_id = 2 WHERE id = 2");
         await pool.query("INSERT INTO teams (id, org_id, name) VALUES (3, 1, 'Gamma')");
-        const projects = (await pool.query(
-            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
-             VALUES (1, 'PERSONAL', 'Personal grant', 1, FALSE),
-                    (1, 'TEAM', 'Team grant', 2, FALSE),
-                    (1, 'PRIVATE', 'No grant', 3, FALSE)
-             RETURNING id, origin_team_id`,
-        )).rows;
-        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        const projectByTeam = new Map((await pool.query(
+            "SELECT id, origin_team_id FROM projects WHERE org_id = 1 AND origin_team_id IN (1, 2)",
+        )).rows.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        const privateProject = Number((await pool.query(
+            "INSERT INTO projects (org_id, key, name, origin_team_id, key_published) VALUES (1, 'PRIVATE', 'No grant', 3, FALSE) RETURNING id",
+        )).rows[0].id);
         const personalProject = projectByTeam.get(1)!;
         const teamProject = projectByTeam.get(2)!;
-        const privateProject = projectByTeam.get(3)!;
 
         await pool.query(
             `INSERT INTO project_members (project_id, user_id, role)
@@ -492,7 +490,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         );
         await pool.query(
             `INSERT INTO project_members (project_id, team_id, role)
-             VALUES ($1, 1, 'project_admin'), ($2, 1, 'member')`,
+             VALUES ($1, 1, 'project_admin'), ($2, 1, 'member')
+             ON CONFLICT (project_id, team_id) DO UPDATE SET role = EXCLUDED.role`,
             [personalProject, teamProject],
         );
         const { createProjectAccess } = require("../modules/tasks/tasks.projectAccess");
@@ -530,12 +529,11 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(projectScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
 
         const legacyTeamScope = await request(app).get("/api/tasks/backlog?team_id=2");
-        expect(legacyTeamScope.status).toBe(200);
-        expect(legacyTeamScope.body.tasks.map((ticket: any) => ticket.title)).toEqual(["Team project ticket"]);
+        expect(legacyTeamScope.status).toBe(400);
+        expect(legacyTeamScope.body.code).toBe("LEGACY_PROJECT_TYPES_INPUT_REMOVED");
 
         const unassigned = await request(app).get("/api/tasks/backlog?unassigned=1");
-        expect(unassigned.status).toBe(200);
-        expect(unassigned.body.tasks).toEqual([]);
+        expect(unassigned.status).toBe(400);
 
         expect((await request(app).get(`/api/tasks/${ticketId("Personal project ticket")}/detail`)).status).toBe(200);
         expect((await request(app).get(`/api/tasks/${ticketId("Private reporter ticket")}/detail`)).status).toBe(200);
@@ -549,15 +547,6 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .set("x-test-role", "hr_admin");
         expect(admin.status).toBe(200);
 
-        await pool.query("UPDATE organizations SET project_ownership = FALSE WHERE id = 1");
-        const flagOff = await request(app).get("/api/tasks/backlog").set("x-test-user", "1");
-        expect(flagOff.status).toBe(200);
-        expect(flagOff.body.tasks.map((ticket: any) => ticket.title)).toEqual(expect.arrayContaining([
-            "Personal project ticket",
-            "Team project ticket",
-            "Private reporter ticket",
-            "Private assigned ticket",
-        ]));
     });
 
     test("project grants from every persisted team membership expose tickets across projects", async () => {
@@ -567,17 +556,16 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         await pool.query(
             "INSERT INTO user_team_memberships (user_id, team_id) VALUES (1, 2), (1, 3)",
         );
-        const projects = (await pool.query(
-            `INSERT INTO projects (org_id, key, name, origin_team_id, key_published)
-             VALUES (1, 'ALPHA', 'Alpha project', 1, FALSE),
-                    (1, 'BETA', 'Beta project', 2, FALSE),
-                    (1, 'GAMMA', 'Gamma project', 3, FALSE)
-             RETURNING id, origin_team_id`,
-        )).rows;
-        const projectByTeam = new Map(projects.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        const projectByTeam = new Map((await pool.query(
+            "SELECT id, origin_team_id FROM projects WHERE org_id = 1 AND origin_team_id IN (1, 2)",
+        )).rows.map((project: any) => [Number(project.origin_team_id), Number(project.id)]));
+        projectByTeam.set(3, Number((await pool.query(
+            "INSERT INTO projects (org_id, key, name, origin_team_id, key_published) VALUES (1, 'GAMMA', 'Gamma project', 3, FALSE) RETURNING id",
+        )).rows[0].id));
         await pool.query(
             `INSERT INTO project_members (project_id, team_id, role)
-             VALUES ($1, 1, 'viewer'), ($2, 2, 'member'), ($3, 3, 'project_admin')`,
+             VALUES ($1, 1, 'viewer'), ($2, 2, 'member'), ($3, 3, 'project_admin')
+             ON CONFLICT (project_id, team_id) DO UPDATE SET role = EXCLUDED.role`,
             [projectByTeam.get(1), projectByTeam.get(2), projectByTeam.get(3)],
         );
         const stateId = (await pool.query(
@@ -604,27 +592,14 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(outsiderList.body.tasks).toEqual([]);
     });
 
-    test("a team transfer changes the project and key while preserving the previous key as an alias", async () => {
+    test("the retired team transfer route is not registered", async () => {
         const created = await request(app).post("/api/tasks").send({ title: "Transfer me" });
         expect(created.status).toBe(200);
-        const oldKey = created.body.ticket_key;
-
         const transferred = await request(app)
             .post(`/api/tasks/${created.body.id}/transfer`)
             .set("x-test-role", "super_admin")
             .send({ team_id: 2 });
-
-        expect(transferred.status).toBe(200);
-        expect(transferred.body.task.ticket_key).not.toBe(oldKey);
-        expect(transferred.body.task).not.toHaveProperty("issue_key");
-        expect((await pool.query(
-            "SELECT key, reason FROM ticket_key_aliases WHERE task_id = $1",
-            [created.body.id],
-        )).rows).toEqual([{ key: oldKey, reason: "move" }]);
-        expect((await pool.query(
-            "SELECT origin_team_id FROM projects WHERE id = $1",
-            [transferred.body.task.project_id],
-        )).rows[0].origin_team_id).toBe(2);
+        expect(transferred.status).toBe(404);
     });
 
     test("read surfaces return fresh capabilities for the requesting actor", async () => {
@@ -633,11 +608,10 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expectTicketDecision(created.body);
 
         const tomorrow = (await pool.query("SELECT (CURRENT_DATE + 1)::text AS date")).rows[0].date;
-        const scheduled = await request(app).post("/api/tasks").send({
-            title: "Scheduled capability",
-            date: tomorrow,
+        const dated = await request(app).post("/api/tasks").send({
+            title: "Dated capability",
+            start_date: tomorrow,
         });
-        const scheduledList = await request(app).get("/api/tasks/scheduled");
         const dailyList = await request(app).get(`/api/tasks?date=${tomorrow}`);
         const sprintTicket = await request(app).post("/api/tasks").send({
             title: "Sprint capability",
@@ -651,6 +625,10 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const projectId = (await pool.query(
             "INSERT INTO projects (org_id, key, name, created_by) VALUES (1, 'CAP', 'Capabilities', 1) RETURNING id",
         )).rows[0].id;
+        await pool.query(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'member')",
+            [projectId],
+        );
         const stateId = (await pool.query(
             "SELECT id FROM workflow_states WHERE org_id = 1 AND is_initial = TRUE ORDER BY id LIMIT 1",
         )).rows[0].id;
@@ -664,15 +642,16 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expect(search.status).toBe(200);
         expect(quicksearch.status).toBe(200);
         expect(backlog.status).toBe(200);
-        expect(scheduled.status).toBe(200);
-        expect(scheduledList.status).toBe(200);
         expect(dailyList.status).toBe(200);
         expect(sprintTicket.status).toBe(200);
         expect(sprintList.status).toBe(200);
         expect(detail.status).toBe(200);
-        expectTicketDecision(scheduled.body);
-        expectTicketDecision(scheduledList.body.tasks.find((ticket: any) => ticket.id === scheduled.body.id));
-        expectTicketDecision(dailyList.body.tasks.find((ticket: any) => ticket.id === scheduled.body.id));
+        expect(dated.status).toBe(200);
+        expectTicketDecision(dated.body);
+        expect(dated.body).not.toHaveProperty("planned_date");
+        expect(dailyList.body.tasks.map((ticket: any) => ticket.id)).toContain(dated.body.id);
+        expectTicketDecision(dailyList.body.tasks.find((ticket: any) => ticket.id === dated.body.id));
+        expect((await request(app).get("/api/tasks/scheduled")).status).toBe(404);
         expectTicketDecision(sprintList.body.tasks.find((ticket: any) => ticket.id === sprintTicket.body.id));
         expectTicketDecision(search.body.find((ticket: any) => ticket.id === created.body.id));
         expectTicketDecision(quicksearch.body.tasks.find((ticket: any) => ticket.id === created.body.id));
@@ -694,8 +673,8 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .set("x-test-role", "super_admin");
         const memberTicket = member.body.find((ticket: any) => ticket.id === created.body.id);
         const adminTicket = admin.body.find((ticket: any) => ticket.id === created.body.id);
-        expect(memberTicket.capabilities.can.transfer).toEqual({ allowed: false, reason: "ACCESS_DENIED" });
-        expect(adminTicket.capabilities.can.transfer).toEqual({ allowed: true });
+        expect(memberTicket.capabilities.can).not.toHaveProperty("transfer");
+        expect(adminTicket.capabilities.can).not.toHaveProperty("transfer");
     });
 
     test("My Work and dashboard ticket lists include actor capabilities", async () => {
@@ -730,17 +709,21 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .toEqual({ allowed: false, reason: "CANCELLED_TERMINAL" });
     });
 
-    test("flag-off project workflow mutation responses carry fresh decisions after every placement and state change", async () => {
+    test("project workflow mutation responses carry fresh decisions after state and placement changes", async () => {
         const project = (await pool.query(
-            "INSERT INTO projects (org_id, key, name) VALUES (1, 'MUT', 'Mutation workflow') RETURNING id",
+            "INSERT INTO projects (org_id, key, name, type) VALUES (1, 'MUT', 'Mutation workflow', 'scrum') RETURNING id",
         )).rows[0];
+        await pool.query(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, 1, 'project_admin')",
+            [project.id],
+        );
         const created = await request(app).post("/api/tasks/backlog").send({ title: "Mutation capability", project_id: project.id });
         expectTicketDecision(created.body);
 
         const edited = await request(app).put(`/api/tasks/${created.body.id}`).send({
             title: "Mutation capability updated",
             sprint_id: null,
-            planned_date: null,
+            start_date: "2026-11-05",
         });
         expect(edited.status).toBe(200);
         expectTicketDecision(edited.body);
@@ -758,16 +741,17 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         expectTicketDecision(status.body);
 
         const tomorrow = (await pool.query("SELECT (CURRENT_DATE + 1)::text AS date")).rows[0].date;
-        const scheduled = await request(app).patch(`/api/tasks/${created.body.id}/schedule`)
-            .send({ date: tomorrow });
-        expect(scheduled.status).toBe(200);
-        expectTicketDecision(scheduled.body);
-        const unscheduled = await request(app).patch(`/api/tasks/${created.body.id}/unschedule`).send({});
-        expect(unscheduled.status).toBe(200);
-        expectTicketDecision(unscheduled.body);
+        const dated = await request(app).put(`/api/tasks/${created.body.id}`).send({ start_date: tomorrow });
+        expect(dated.status).toBe(200);
+        expectTicketDecision(dated.body);
 
+        const sprint = (await pool.query(
+            `INSERT INTO sprints (project_id, name, start_date, end_date)
+             VALUES ($1, 'Mutation sprint', '2026-11-01', '2026-11-14') RETURNING id`,
+            [project.id],
+        )).rows[0];
         const joined = await request(app).patch(`/api/tasks/${created.body.id}/assign-sprint`)
-            .send({ sprint_id: 10 });
+            .send({ sprint_id: sprint.id });
         expect(joined.status).toBe(200);
         expectTicketDecision(joined.body);
         const left = await request(app).patch(`/api/tasks/${created.body.id}/assign-sprint`)
@@ -779,40 +763,34 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
             .set("x-test-user", "2")
             .set("x-test-role", "super_admin")
             .send({ team_id: 2 });
-        expect(transferred.status).toBe(200);
-        expectTicketDecision(transferred.body.task);
-        expect(transferred.body.task.team_id).toBe(2);
+        expect(transferred.status).toBe(404);
     });
 
-    test("leaving a sprint with an explicit due date keeps the typed date over the restored one", async () => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "New", sprint_id: 10, due_date: "2026-11-20" });
+    test("leaving a sprint preserves explicit start and due dates", async () => {
+        const created = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, start_date: null, due_date: "2026-11-20" });
 
         const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: null, due_date: "2026-12-01" });
 
         expect(res.status).toBe(200);
-        expect(await row(created.body.id)).toEqual({
-            sprint_id: null, planned_date: null, due_date: "2026-12-01", pre_sprint_due_date: null,
-        });
+        expect(await row(created.body.id)).toEqual({ sprint_id: null, start_date: null, due_date: "2026-12-01" });
     });
 
-    test("scheduling edits start date without moving a sprint ticket", async () => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "New", sprint_id: 10 });
+    test("canonical date edits change a sprint ticket's start date without moving it", async () => {
+        const created = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10 });
         const before = await row(created.body.id);
 
-        const res = await request(app).patch(`/api/tasks/${created.body.id}/schedule`).send({ date: "2026-11-06" });
+        const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ start_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
         expect(res.body.start_date).toBe("2026-11-06");
-        expect(await row(created.body.id)).toEqual(before);
+        expect(await row(created.body.id)).toEqual({ ...before, start_date: "2026-11-06" });
     });
 
     const guardedWrites = [
         ["patch", "/status", { status: "in_progress" }],
         ["put", "", { title: "Edited" }],
         ["delete", "", {}],
-        ["patch", "/schedule", { date: "2026-11-06" }],
         ["patch", "/assign-sprint", { sprint_id: 10 }],
-        ["post", "/transfer", { team_id: 2 }],
     ] as const;
 
     test.each(guardedWrites)("%s %s refuses another team's ticket with the decision reason", async (method, suffix, body) => {
@@ -821,16 +799,16 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const response = await request(app)[method](`/api/tasks/${ticket.id}${suffix}`).send(body);
 
         expect(response.status).toBe(403);
-        expect(response.body.code).toBe("ACCESS_DENIED");
+        expect(response.body.code).toBe("READ_ONLY_ROLE");
     });
 
     test.each(guardedWrites)("%s %s preserves the frozen sprint denial status", async (method, suffix, body) => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "Frozen", sprint_id: 10 });
+        const created = await request(app).post("/api/tasks").send({ title: "Frozen", sprint_id: 10 });
         await pool.query("UPDATE sprints SET status = 'completed' WHERE id = 10");
         const response = await request(app)[method](`/api/tasks/${created.body.id}${suffix}`).send(body);
 
-        expect(response.status).toBe(method === "post" ? 403 : 409);
-        expect(response.body.code).toBe(method === "post" ? "ACCESS_DENIED" : "SPRINT_FROZEN");
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe("SPRINT_FROZEN");
     });
 
     test.each(guardedWrites)("%s %s hides a different organization's ticket", async (method, suffix, body) => {
@@ -846,15 +824,15 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
     test("the detail editor's full save (sprint_id: null) still plans the day", async () => {
         const created = await request(app).post("/api/tasks/backlog").send({ title: "New" });
 
-        const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: null, planned_date: "2026-11-06" });
+        const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: null, start_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
         expect(res.body.start_date).toBe("2026-11-06");
-        expect((await row(created.body.id)).planned_date).toBeNull();
+        expect((await row(created.body.id)).start_date).toBe("2026-11-06");
     });
 
     test("editing the due date of a sprinted ticket while resending its sprint keeps the typed date", async () => {
-        const created = await request(app).post("/api/tasks/backlog").send({ title: "New", sprint_id: 10 });
+        const created = await request(app).post("/api/tasks").send({ title: "New", sprint_id: 10, start_date: "2026-11-01" });
 
         const res = await request(app).put(`/api/tasks/${created.body.id}`).send({ sprint_id: 10, due_date: "2026-11-12" });
 
@@ -889,26 +867,15 @@ postgresDescribe("ticket routes place through the module (PostgreSQL)", () => {
         const res = await request(app).post("/api/notes/convert-to-task").send({ title: "From note" });
 
         expect(res.status).toBe(200);
-        expect(res.body.task).toMatchObject({ title: "From note", sprint_id: null, date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+        expect(res.body.task).toMatchObject({ title: "From note", sprint_id: null, start_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+        expect(res.body.task).not.toHaveProperty("date");
         expectTicketDecision(res.body.task);
         expect((await pool.query("SELECT org_id FROM tasks WHERE id = $1", [res.body.task.id])).rows[0].org_id).toBe(1);
     });
 
-    test("carry-forward compatibility records a start-date history row per copy", async () => {
-        await pool.query("UPDATE users SET timezone = 'UTC' WHERE id = 1").catch(() => undefined);
-        const yesterday = (await pool.query("SELECT (CURRENT_DATE - 1)::text AS d")).rows[0].d;
-        const created = await request(app).post("/api/tasks").send({ title: "Yesterday", date: yesterday });
-        expect(created.status).toBe(200);
-
+    test("the retired carry-forward route is not registered", async () => {
         const res = await request(app).post("/api/tasks/carry-forward").send({});
-
-        expect(res.status).toBe(200);
-        const copies = (await pool.query("SELECT id FROM tasks WHERE title = 'Yesterday' AND id <> $1", [created.body.id])).rows;
-        expect(copies).toHaveLength(1);
-        const history = (await pool.query(
-            "SELECT action, field FROM task_history WHERE task_id = $1 AND field = 'start_date'", [copies[0].id],
-        )).rows;
-        expect(history).toHaveLength(1);
+        expect(res.status).toBe(404);
     });
 
     test("a refused sprint move on PUT rolls back the other fields too", async () => {

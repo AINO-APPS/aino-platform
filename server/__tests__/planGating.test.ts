@@ -156,26 +156,11 @@ describe("getEffectiveFeatures — fail-closed semantics", () => {
             }
         });
 
-        test("team_visibility is ON by default on every plan that has Tasks", () => {
-            // Team-owned tickets shipped with the backfill in migration 0016; the
-            // flag is on by default so teammates can see their team's work. It
-            // stays overridable per org for a reversible rollout.
-            for (const plan of ["standard", "pro", "enterprise"]) {
-                expect(getEffectiveFeatures(plan, {}).team_visibility).toBe(true);
-            }
-        });
-
-        test("team_visibility can still be turned OFF with a per-tenant override", () => {
-            const f = getEffectiveFeatures("enterprise", { team_visibility: false });
-            expect(f.team_visibility).toBe(false);
-            expect(getEffectiveFeatures("standard", { team_visibility: false }).team_visibility).toBe(false);
-        });
-
-        test("team_visibility turns on with a per-tenant override", () => {
-            const f = getEffectiveFeatures("enterprise", { team_visibility: true });
-            expect(f.team_visibility).toBe(true);
-            expect(getEffectiveFeatures("standard", { team_visibility: true }).team_visibility).toBe(true);
-        });
+    test.each(["standard", "pro", "enterprise"])("%s ignores retired team-visibility overrides", plan => {
+        for (const overrides of [{}, { team_visibility: false }, { team_visibility: true }]) {
+            expect(getEffectiveFeatures(plan, overrides)).not.toHaveProperty("team_visibility");
+        }
+    });
 
     test("per-tenant override turns a plan default OFF", () => {
         const f = getEffectiveFeatures("pro", { chat: false });

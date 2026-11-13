@@ -4,6 +4,8 @@ import { createProjectTypesRemoval } from "../modules/projectTypesRemoval/projec
 import { runProjectTypesContraction } from "../modules/projectTypesRemoval/projectTypesRemoval.migrate";
 import { verifyAllProjectOwnership, verifyProjectOwnership } from "../platform/projectTypesRemoval";
 
+jest.unmock("../modules/projectTypesRemoval/projectTypesRemoval");
+
 describe("guarded project-types API removal boundary", () => {
     test("contraction refuses before issuing SQL unless the released minimums and global ownership preflight pass", async () => {
         const query = jest.fn(async (_sql: string, _params?: unknown[]) => ({ rows: [] }));
@@ -92,21 +94,18 @@ describe("guarded project-types API removal boundary", () => {
         expect(organizationCount).not.toMatch(/WHERE\s+org_id/i);
     });
 
-    test("an explicit opt-in with an OFF gate refuses without retiring existing routes", async () => {
+    test.each([{}, { PROJECT_TYPES_REMOVAL: "off" }, { PROJECT_TYPES_REMOVAL: "api" }])(
+        "unready configuration cannot bypass the removal preflight: %j", async env => {
         const verifyOwnership = jest.fn(async () => undefined);
         const app = express();
         app.use(createProjectTypesRemoval({
-            env: () => ({ PROJECT_TYPES_REMOVAL: "api" }), verifyOwnership,
+            env: () => env, verifyOwnership,
         }));
         app.get("/api/tasks/scheduled", (_req, res) => res.json({ tasks: [] }));
         const refused = await request(app).get("/api/tasks/scheduled");
         expect(refused.status).toBe(503);
         expect(refused.body.code).toBe("PROJECT_TYPES_REMOVAL_NOT_READY");
         expect(verifyOwnership).not.toHaveBeenCalled();
-        const retained = express();
-        retained.use(createProjectTypesRemoval({ env: () => ({}), verifyOwnership }));
-        retained.get("/api/tasks/scheduled", (_req, res) => res.json({ tasks: [] }));
-        expect((await request(retained).get("/api/tasks/scheduled")).body).toEqual({ tasks: [] });
     });
 
     test.each([

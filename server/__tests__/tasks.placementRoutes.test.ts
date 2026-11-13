@@ -190,7 +190,7 @@ describe("creating a ticket", () => {
     });
 
     test("POST / with no sprint sets start date without placement", async () => {
-        const res = await request(app).post("/api/tasks").send({ title: "New", date: "2026-11-06" });
+        const res = await request(app).post("/api/tasks").send({ title: "New", start_date: "2026-11-06" });
 
         expect(res.status).toBe(200);
         expect(mockPlaceTickets).not.toHaveBeenCalled();
@@ -255,28 +255,28 @@ describe("PUT /:id", () => {
         expect(lastPlacement()).toMatchObject({ ids: [5], target: { sprint: 50 } });
     });
 
-    test("a legacy planned day edits start date without placement", async () => {
+    test("a legacy planned day is refused without placement", async () => {
         const res = await request(app).put("/api/tasks/5").send({ planned_date: "2026-11-06" });
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(400);
         expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 
-    test("clearing the legacy date does not place the ticket", async () => {
+    test("clearing the legacy date is refused without placement", async () => {
         rows[5] = { ...TICKET, planned_date: "2026-11-06" };
 
         const res = await request(app).put("/api/tasks/5").send({ planned_date: null });
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(400);
         expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 
-    test("a legacy date on a sprinted ticket does not move it", async () => {
+    test("a legacy date on a sprinted ticket is refused without moving it", async () => {
         rows[5] = { ...TICKET, sprint_id: 50, due_date: "2026-11-14" };
 
         const res = await request(app).put("/api/tasks/5").send({ planned_date: "2026-11-06", title: "Renamed" });
 
-        expect(res.status).toBe(200);
+        expect(res.status).toBe(400);
         expect(mockPlaceTickets).not.toHaveBeenCalled();
     });
 

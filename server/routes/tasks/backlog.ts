@@ -55,6 +55,10 @@ const router = Object.assign(express.Router(), { createBacklogTicket });
 // We push the label filter into SQL via EXISTS.
 router.get('/backlog', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
+        if (req.query.team_id != null || req.query.unassigned != null) {
+            res.status(400).json({ error: "Legacy team filters are no longer supported" });
+            return;
+        }
         const { assignee, label, priority, status, search, project_id, include_completed, completed_since } = req.query as Record<string, string>;
         const limit = Math.max(1, Math.min(500, parseInt(String(req.query.limit), 10) || 100));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);

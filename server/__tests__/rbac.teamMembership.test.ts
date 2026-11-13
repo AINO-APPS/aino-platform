@@ -43,7 +43,7 @@ describe("loadUserContext team memberships", () => {
 
         expect(next).toHaveBeenCalledTimes(1);
         expect(req.userTeamIds).toEqual([11, 12, 13]);
-        expect(req.projectOwnership).toBe(true);
+        expect(req).not.toHaveProperty("projectOwnership");
         expect(query.mock.calls.some(([sql]) => String(sql).includes("project_ownership"))).toBe(false);
     });
 
@@ -65,7 +65,7 @@ describe("loadUserContext team memberships", () => {
 
         expect(next).toHaveBeenCalledTimes(1);
         expect(req.userTeamIds).toEqual([11, 13]);
-        expect(req.projectOwnership).toBe(true);
+        expect(req).not.toHaveProperty("projectOwnership");
         expect(query.mock.calls.some(([sql]) => String(sql).includes("project_ownership"))).toBe(false);
     });
 });

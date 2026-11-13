@@ -13,7 +13,6 @@ jest.mock("../middleware/rbac", () => ({
         req.userOrgId = 1;
         req.userTeamId = 1;
         req.userRole = req.get("x-role") || "team_lead";
-        req.projectOwnership = req.get("x-legacy") !== "1";
         next();
     },
     requireRole: () => (req: any, res: any, next: any) =>
@@ -70,42 +69,34 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("INSERT INTO project_members (project_id, team_id, role) VALUES (10, 1, 'member'), (20, 1, 'member')");
     });
 
-    test.each(["project", "compatibility"])("%s Scrum backlog includes dated migrated work and never serializes Scheduled", async mode => {
+    test("Scrum backlog includes dated work without serializing removed fields or Scheduled", async () => {
         const dated = (await request(app).post("/api/tasks/backlog").send({
             title: "Dated migration", project_id: 10, start_date: "2026-11-09", due_date: "2026-11-12",
         }).expect(200)).body;
-        // Expanded production rows retain this legacy storage until ticket 11.
-        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
-        const headers = mode === "compatibility" ? { "x-legacy": "1" } : {};
-        const backlog = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
-        const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
+        const backlog = await request(app).get("/api/tasks/backlog?project_id=10").expect(200);
+        const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).expect(200);
         expect({
             ids: backlog.body.tasks.map((task: any) => task.id),
             container: detail.body.container,
         }).toEqual({ ids: [dated.id], container: "backlog" });
         expect(backlog.body.tasks[0]).toMatchObject({
-            start_date: "2026-11-09", planned_date: "2026-11-09", container: "backlog",
+            start_date: "2026-11-09", container: "backlog",
         });
-        const scheduled = await request(app).get("/api/tasks/scheduled?team_id=1").set(headers).expect(200);
-        expect(scheduled.body.tasks).toEqual(expect.arrayContaining([
-            expect.objectContaining({ id: dated.id, container: "backlog" }),
-        ]));
+        expect(backlog.body.tasks[0]).not.toHaveProperty("planned_date");
+        await request(app).get("/api/tasks/scheduled").expect(404);
     });
 
     test.each([
         ["kanban", false, "board"], ["kanban", true, "backlog"], ["task_list", false, "board"],
-    ])("%s backlog setting %s determines dated ticket containers in both ownership modes", async (type, backlog, expected) => {
+    ])("%s backlog setting %s determines dated ticket containers", async (type, backlog, expected) => {
         await pool.query("UPDATE projects SET type = $1, kanban_backlog_enabled = $2 WHERE id = 10", [type, backlog]);
         const dated = (await request(app).post("/api/tasks/backlog").send({
             title: "Dated project work", project_id: 10, start_date: "2026-11-09",
         }).expect(200)).body;
-        await pool.query("UPDATE tasks SET planned_date = '2026-11-09', team_id = 1 WHERE id = $1", [dated.id]);
-        for (const headers of [{}, { "x-legacy": "1" }]) {
-            const read = await request(app).get("/api/tasks/backlog?project_id=10").set(headers).expect(200);
-            expect(read.body.tasks).toEqual([expect.objectContaining({ id: dated.id, container: expected })]);
-            const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).set(headers).expect(200);
-            expect(detail.body.container).toBe(expected);
-        }
+        const read = await request(app).get("/api/tasks/backlog?project_id=10").expect(200);
+        expect(read.body.tasks).toEqual([expect.objectContaining({ id: dated.id, container: expected })]);
+        const detail = await request(app).get(`/api/tasks/${dated.id}/detail`).expect(200);
+        expect(detail.body.container).toBe(expected);
     });
 
     test("my projects picker includes only active projects where the actor can create tickets", async () => {
@@ -132,7 +123,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(selected.body.sprints.map((sprint: any) => sprint.id)).toEqual([created.body.sprint.id]);
     });
 
-    test.each(["/api/tasks", "/api/tasks/backlog"])("%s resolves request, sprint, team and General ownership and refuses invalid projects", async (path) => {
+    test.each(["/api/tasks", "/api/tasks/backlog"])("%s resolves request, sprint and General ownership and refuses invalid projects", async (path) => {
         await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date) VALUES
             (200, 20, 'Second', '2026-11-01', '2026-11-14')`);
         const create = (body: any) => request(app).post(path).send({ title: "New ticket", ...body });
@@ -142,10 +133,8 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         const sprint = await create({ sprint_id: 200 });
         expect(sprint.status).toBe(200);
         expect(sprint.body).toMatchObject({ project_id: 20, sprint_id: 200 });
-        const legacy = await create({});
-        expect(legacy.status).toBe(200);
-        expect(legacy.body.project_id).toBe(10);
-        await pool.query("UPDATE projects SET origin_team_id = NULL WHERE id = 10");
+        const ungrantedGeneral = await create({});
+        expect(ungrantedGeneral.status).toBe(403);
         const general = await request(app).post(path).set("x-role", "super_admin").send({ title: "General fallback" });
         expect(general.status).toBe(200);
         expect(general.body.project_id).toBe(1);
@@ -187,7 +176,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(detail.body.tasks).toEqual([expect.objectContaining({ id, title: "Keep here", sprint_id: null, project_id: 10 })]);
     });
 
-    test("project backlog, sprint board and plan isolate streams and legacy team scope maps to its generated project", async () => {
+    test("project backlog, sprint board and plan isolate streams and reject legacy team scope", async () => {
         await pool.query(`INSERT INTO sprints (id, project_id, name, start_date, end_date, status) VALUES
             (100, 10, 'First', '2026-11-01', '2026-11-14', 'active'),
             (200, 20, 'Second', '2026-11-01', '2026-11-14', 'active')`);
@@ -214,14 +203,15 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(available.status).toBe(200);
         expect(available.body.map((sprint: any) => sprint.id)).toEqual([200]);
         const legacy = await request(app).get("/api/sprints?team_id=1");
-        expect(legacy.body.sprints.map((sprint: any) => sprint.id)).toEqual([100]);
+        expect(legacy.status).toBe(400);
         const active = await request(app).get("/api/sprints/active?project_id=20");
         expect(active.body.sprint.id).toBe(200);
         const hidden = await request(app).get("/api/sprints?project_id=30");
         expect(hidden.body.sprints).toEqual([]);
         const placed = await request(app).patch("/api/tasks/2/assign-sprint").send({ sprint_id: 200 });
         expect(placed.status).toBe(200);
-        expect(placed.body).toMatchObject({ sprint_id: 200, project_id: 20, team_id: 1 });
+        expect(placed.body).toMatchObject({ sprint_id: 200, project_id: 20 });
+        expect(placed.body).not.toHaveProperty("team_id");
         const crossProject = await request(app).patch("/api/tasks/2/assign-sprint").send({ sprint_id: 100 });
         expect(crossProject.status).toBe(409);
         expect(crossProject.body.code).toBe("SPRINT_PROJECT_MISMATCH");
@@ -236,11 +226,9 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect(paginated.body.pagination.total).toBe(2);
         const admin = await request(app).get("/api/projects").set("x-role", "super_admin");
         expect(admin.body.map((project: any) => project.id).sort((a: number, b: number) => a - b)).toEqual([1, 10, 20, 30]);
-        const legacy = await request(app).get("/api/projects").set("x-legacy", "1");
-        expect(legacy.body).toHaveLength(4);
     });
 
-    test("team deletion preserves project tickets and sprints, removes grants, and remains guarded before switch-over", async () => {
+    test("team deletion preserves project tickets and sprints and removes team grants", async () => {
         await pool.query(`INSERT INTO sprints (id, team_id, project_id, name, start_date, end_date)
             VALUES (100, 1, 10, 'Keep sprint', '2026-11-01', '2026-11-14')`);
         await pool.query(`INSERT INTO tasks (id, user_id, org_id, team_id, project_id, sprint_id, title)
@@ -248,13 +236,12 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query(`UPDATE tasks SET workflow_state_id = (
             SELECT id FROM workflow_states WHERE project_id = 10 AND is_initial = TRUE LIMIT 1
         ) WHERE id = 1`);
-        const refused = await request(app).delete("/api/organization/teams/1").set("x-legacy", "1").set("x-role", "super_admin");
-        expect(refused.status).toBe(409);
         const deleted = await request(app).delete("/api/organization/teams/1").set("x-role", "super_admin");
         expect(deleted.status).toBe(200);
         const board = await request(app).get("/api/sprints/100/board").set("x-role", "super_admin");
         expect(board.status).toBe(200);
-        expect(board.body.sprint).toMatchObject({ project_id: 10, team_id: null });
+        expect(board.body.sprint).toMatchObject({ project_id: 10 });
+        expect(board.body.sprint).not.toHaveProperty("team_id");
         expect(board.body.tickets.map((task: any) => task.id)).toEqual([1]);
         const members = await request(app).get("/api/projects/10/members").set("x-role", "super_admin");
         expect(members.status).toBe(200);

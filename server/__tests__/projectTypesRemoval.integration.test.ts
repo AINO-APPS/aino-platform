@@ -3,7 +3,10 @@ import express from "express";
 import request from "supertest";
 import { createTestDatabase } from "../test-support/pgTestDatabase";
 import { createProjectTypesRemoval } from "../modules/projectTypesRemoval/projectTypesRemoval";
+import { runProjectTypesContraction } from "../modules/projectTypesRemoval/projectTypesRemoval.migrate";
 import { verifyProjectOwnership } from "../platform/projectTypesRemoval";
+
+jest.unmock("../modules/projectTypesRemoval/projectTypesRemoval");
 
 jest.setTimeout(120_000);
 jest.mock("../middleware/auth", () => (req: any, _res: any, next: any) => { req.userId = 1; next(); });
@@ -58,18 +61,10 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
     });
     afterAll(async () => { await pool?.end(); await database?.drop(); });
 
-    test("one unswitched organization refuses globally; normal migrations and EXPAND routes preserve legacy storage", async () => {
-        expect((await request(app).get("/api/tasks/scheduled")).status).toBe(503);
-        env = {};
-        const created = await request(app).post("/api/tasks/backlog").send({ project_id: 10, title: "Keep", start_date: "2026-11-12" });
-        expect(created.status).toBe(200);
-        expect(created.body).toMatchObject({ planned_date: "2026-11-12", issue_key: "TEST-1", team_id: 1 });
-        expect((await request(app).get("/api/tasks/scheduled")).body.tasks.map((t: any) => t.id)).toContain(created.body.id);
-        const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
-        expect((await require("../platform/db/migrations").runTenantMigrations(query)).applied).toEqual([]);
-        expect((await request(app).get(`/api/tasks/${created.body.id}/detail`)).body).toMatchObject({ ticket_key: "TEST-1", start_date: "2026-11-12" });
-        const storage = await pool.query("SELECT team_id, planned_date, pre_sprint_due_date, logged_minutes FROM tasks WHERE id = $1", [created.body.id]);
-        expect(storage.rows).toHaveLength(1);
+    test("an unswitched organization blocks guarded requests with 503", async () => {
+        const refused = await request(app).get("/api/tasks/scheduled");
+        expect(refused.status).toBe(503);
+        expect(refused.body.code).toBe("PROJECT_TYPES_REMOVAL_NOT_READY");
     });
 
     test("after every organization is verified, real ticket/sprint reads and writes keep data while legacy routes return 404", async () => {
@@ -92,7 +87,7 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect((await request(app).get(`/api/tasks/${created.body.id}/detail`)).body).toMatchObject({ title: "Edited", ticket_key: "TEST-1", sprint_id: sprint.body.sprint.id });
     });
 
-    test("published timestamp is not proof after a switch-back, and inventory errors never retire routes", async () => {
+    test("published timestamp is not proof after a switch-back, and retired routes stay absent", async () => {
         await pool.query("UPDATE organizations SET project_ownership_switched_at = NOW() WHERE id = 2");
         expect((await request(app).get("/api/tasks/scheduled")).status).toBe(503);
         await pool.query("UPDATE organizations SET project_ownership = TRUE WHERE id = 2");
@@ -100,6 +95,86 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         await pool.query("UPDATE organizations SET project_ownership = FALSE WHERE id = 2");
         expect((await request(app).get("/api/tasks/scheduled")).status).toBe(503);
         env = {};
-        expect((await request(app).get("/api/tasks/scheduled")).status).toBe(200);
+        expect((await request(app).get("/api/tasks/scheduled")).status).toBe(503);
+    });
+
+    test("step-D contraction removes compatibility while retaining project-owned tickets and sprints", async () => {
+        await pool.query("UPDATE organizations SET project_ownership = TRUE, project_ownership_switched_at = NOW()");
+        const sprint = await request(app).post("/api/sprints").send({
+            project_id: 10, name: "Retained sprint", start_date: "2026-11-12", end_date: "2026-11-25",
+        });
+        expect(sprint.status).toBe(200);
+        const created = await request(app).post("/api/tasks/backlog").send({
+            project_id: 10, title: "Retained ticket", start_date: "2026-11-12",
+            due_date: "2026-11-20", sprint_id: sprint.body.sprint.id,
+        });
+        expect(created.status).toBe(200);
+
+        const query = (sql: string, params: unknown[] = []) => pool.query(sql, params as any[]);
+        const client = await pool.connect();
+        const contracted = await runProjectTypesContraction({
+            env: () => env,
+            verifyOwnership: () => verifyProjectOwnership(query),
+            tenantQueries: [{
+                name: "project_types_removal",
+                transaction: async (run) => {
+                    try {
+                        await client.query("BEGIN");
+                        const result = await run((sql, params = []) => client.query(sql, params as any[]));
+                        await client.query("COMMIT");
+                        return result;
+                    } catch (error) {
+                        await client.query("ROLLBACK");
+                        throw error;
+                    } finally {
+                        client.release();
+                    }
+                },
+            }],
+        });
+        expect(contracted).toEqual(["project_types_removal"]);
+
+        const detail = await request(app).get(`/api/tasks/${created.body.id}/detail`);
+        expect(detail.status).toBe(200);
+        expect(detail.body).toMatchObject({
+            ticket_key: "TEST-1", project_id: 10, sprint_id: sprint.body.sprint.id, due_date: "2026-11-20",
+        });
+        for (const field of ["team_id", "issue_key", "planned_date", "pre_sprint_due_date", "logged_minutes", "estimated_minutes"]) {
+            expect(detail.body).not.toHaveProperty(field);
+        }
+
+        const taskRow = await pool.query(
+            "SELECT id, project_id, sprint_id, ticket_key, title FROM tasks WHERE id = $1", [created.body.id],
+        );
+        expect(taskRow.rows).toEqual([{
+            id: created.body.id, project_id: 10, sprint_id: sprint.body.sprint.id,
+            ticket_key: "TEST-1", title: "Retained ticket",
+        }]);
+        const sprintRow = await pool.query(
+            "SELECT id, project_id, name FROM sprints WHERE id = $1", [sprint.body.sprint.id],
+        );
+        expect(sprintRow.rows).toEqual([{
+            id: sprint.body.sprint.id, project_id: 10, name: "Retained sprint",
+        }]);
+
+        const after = await request(app).post("/api/tasks/backlog").send({
+            project_id: 10, title: "Created after contraction", start_date: "2026-11-13",
+        });
+        expect(after.status).toBe(200);
+        expect(after.body).toMatchObject({ ticket_key: "TEST-2", project_id: 10, start_date: "2026-11-13" });
+        const edited = await request(app).put(`/api/tasks/${created.body.id}`).send({
+            title: "Edited after contraction", due_date: "2026-11-21",
+        });
+        expect(edited.status).toBe(200);
+        expect(edited.body).toMatchObject({
+            ticket_key: "TEST-1", sprint_id: sprint.body.sprint.id, due_date: "2026-11-21",
+        });
+        const nextSprint = await request(app).post("/api/sprints").send({
+            project_id: 10, name: "Created after contraction", start_date: "2026-11-26", end_date: "2026-12-09",
+        });
+        expect(nextSprint.status).toBe(200);
+        expect(nextSprint.body.sprint).toMatchObject({ project_id: 10, name: "Created after contraction" });
+        expect((await request(app).get("/api/tasks/scheduled")).status).toBe(404);
+        expect((await request(app).get(`/api/tasks/${created.body.id}/timer`)).status).toBe(404);
     });
 });

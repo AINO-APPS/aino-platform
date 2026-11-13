@@ -33,6 +33,46 @@ BEGIN
     END IF;
 END $$;
 
+CREATE OR REPLACE FUNCTION fill_task_project_and_key()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    resolved_project_id INTEGER;
+    resolved_key TEXT;
+    allocated_number INTEGER;
+BEGIN
+    SELECT COALESCE(NEW.org_id, u.org_id) INTO NEW.org_id FROM users u WHERE u.id = NEW.user_id;
+    resolved_project_id := NEW.project_id;
+    IF resolved_project_id IS NULL AND NEW.sprint_id IS NOT NULL THEN
+        SELECT project_id INTO resolved_project_id FROM sprints WHERE id = NEW.sprint_id;
+    END IF;
+    IF resolved_project_id IS NULL THEN
+        SELECT id INTO resolved_project_id FROM projects
+         WHERE org_id = NEW.org_id AND is_general ORDER BY id LIMIT 1;
+    END IF;
+    IF resolved_project_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM projects WHERE id = resolved_project_id AND org_id = NEW.org_id
+    ) THEN
+        RAISE EXCEPTION 'A project in the ticket organization is required';
+    END IF;
+    NEW.project_id := resolved_project_id;
+    IF NEW.task_number IS NULL THEN
+        UPDATE projects SET next_task_number = next_task_number + 1, updated_at = NOW()
+         WHERE id = resolved_project_id RETURNING next_task_number - 1 INTO allocated_number;
+        NEW.task_number := allocated_number;
+    END IF;
+    IF NEW.ticket_key IS NULL THEN
+        SELECT key INTO resolved_key FROM projects WHERE id = resolved_project_id;
+        NEW.ticket_key := resolved_key || '-' || NEW.task_number;
+    END IF;
+    RETURN NEW;
+END
+$function$;
+
+DROP TRIGGER IF EXISTS sprints_fill_project ON sprints;
+DROP FUNCTION IF EXISTS fill_sprint_project();
+
 ALTER TABLE tasks ALTER COLUMN project_id SET NOT NULL;
 ALTER TABLE sprints ALTER COLUMN project_id SET NOT NULL;
 DROP TABLE IF EXISTS task_timers;

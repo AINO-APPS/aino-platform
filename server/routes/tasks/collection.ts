@@ -23,7 +23,7 @@ router.get("/", auth, loadUserContext, async (req, res) => {
                 res.status(400).json({ error: "A project_id, valid offset and no sprint_id are required for project views" });
                 return;
             }
-            const dates = [date, start_date, end_date, req.query.due_on];
+            const dates = [date, start_date, end_date, req.query.start_on, req.query.due_on];
             if (dates.some(value => value !== undefined && resolveTicketDates({}, { start_date: value }).error)
                 || (start_date && end_date && start_date > end_date)
                 || (scope === "calendar" && req.query.undated !== "1" && !date && !(start_date && end_date))) {
@@ -48,6 +48,7 @@ router.get("/", auth, loadUserContext, async (req, res) => {
             filters: {
                 assignee, label, priority, status, search, projectId: project_id, includeDue: include_due === "1",
                 workItemTypeId: req.query.work_item_type_id as string, key: req.query.key as string, title: req.query.title as string,
+                startOn: req.query.start_on as string,
                 dueOn: req.query.due_on as string,
             },
         });

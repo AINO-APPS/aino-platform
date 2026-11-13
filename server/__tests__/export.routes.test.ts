@@ -200,7 +200,7 @@ describe("GET /api/export/my-tasks", () => {
         setupAuth();
         const tasks = [
             {
-                date: "2024-03-01",
+                start_date: "2024-03-01",
                 title: "Fix auth bug",
                 status: "done",
                 priority: "high",
@@ -208,7 +208,9 @@ describe("GET /api/export/my-tasks", () => {
                 assigned_to_name: null,
             },
         ];
-        mockQuery.mockResolvedValueOnce({ rows: tasks, rowCount: 1 });
+        mockQuery.mockImplementation(async (sql: string) => /FROM tasks t/.test(sql)
+            ? { rows: tasks, rowCount: tasks.length }
+            : { rows: [], rowCount: 0 });
 
         const res = await request(app).get("/api/export/my-tasks").set("Cookie", authCookie());
 

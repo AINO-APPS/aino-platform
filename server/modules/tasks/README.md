@@ -16,6 +16,9 @@ Tenant bootstrap retains the legacy columns required by historical ordered
 migrations; `0035_project_types_contraction.sql` removes them only after the
 guarded runner verifies the client-version minimums and ownership inventory.
 The base schema is not evidence that the contraction has run.
+This step-D server refuses API requests when its removal configuration or
+prerequisites are unready; leaving the removal setting off does not restore old
+routes. Health and client-version recovery reads remain exempt.
 
 ## Ticket hierarchy (project types, Expand)
 

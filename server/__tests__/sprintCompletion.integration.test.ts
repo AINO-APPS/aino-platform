@@ -70,22 +70,20 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         sprintId: number;
         workflowStateId: number;
         dueDate?: string | null;
-        preSprintDueDate?: string | null;
-        plannedDate?: string | null;
+        startDate?: string | null;
         storyPoints?: number;
     }): Promise<number> {
         return Number((await pool.query(
             `INSERT INTO tasks
-                (user_id, title, org_id, team_id, sprint_id, workflow_state_id, due_date, planned_date, story_points, pre_sprint_due_date)
-             VALUES (1, 'Ticket', 1, 1, $1, $2, $3, $4, $5, $6)
+                (user_id, title, org_id, team_id, sprint_id, workflow_state_id, due_date, start_date, story_points)
+             VALUES (1, 'Ticket', 1, 1, $1, $2, $3, $4, $5)
              RETURNING id`,
             [
                 options.sprintId,
                 options.workflowStateId,
                 options.dueDate ?? null,
-                options.plannedDate ?? null,
+                options.startDate ?? null,
                 options.storyPoints ?? null,
-                options.preSprintDueDate ?? null,
             ],
         )).rows[0].id);
     }
@@ -100,7 +98,7 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
             sprintId: 10,
             workflowStateId: openStateId,
             dueDate: "2026-11-14",
-            preSprintDueDate: "2026-12-10",
+            startDate: "2026-11-07",
         });
         const doneId = await ticket({ sprintId: 10, workflowStateId: doneStateId, storyPoints: 3 });
 
@@ -118,13 +116,13 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
             rolledOver: 1,
         });
         const moved = (await pool.query(
-            "SELECT sprint_id, due_date, pre_sprint_due_date, carried_over_from_sprint_id FROM tasks WHERE id = $1",
+            "SELECT sprint_id, due_date, start_date, carried_over_from_sprint_id FROM tasks WHERE id = $1",
             [id],
         )).rows[0];
         expect(moved).toMatchObject({
             sprint_id: 11,
             due_date: "2026-11-14",
-            pre_sprint_due_date: "2026-12-10",
+            start_date: "2026-11-07",
             carried_over_from_sprint_id: 10,
         });
         expect((await pool.query("SELECT status FROM sprints WHERE id = 10")).rows[0].status).toBe("completed");
@@ -165,26 +163,24 @@ postgresDescribe("sprint completion on PostgreSQL", () => {
         expect((await pool.query("SELECT id FROM task_history WHERE task_id = $1 AND field = 'sprint'", [id])).rows).toHaveLength(1);
     });
 
-    test("completion moves unfinished tickets out while preserving their due date and planned day", async () => {
+    test("completion moves unfinished tickets out while preserving their due date and start date", async () => {
         const id = await ticket({
             sprintId: 10,
             workflowStateId: openStateId,
             dueDate: "2026-11-14",
-            preSprintDueDate: "2026-12-10",
-            plannedDate: "2026-11-07",
+            startDate: "2026-11-07",
         });
 
         await completeSprint(db, { sprintId: 10, targetSprintId: null, actor, effects });
 
         const moved = (await pool.query(
-            "SELECT sprint_id, planned_date, due_date, pre_sprint_due_date FROM tasks WHERE id = $1",
+            "SELECT sprint_id, start_date, due_date FROM tasks WHERE id = $1",
             [id],
         )).rows[0];
         expect(moved).toMatchObject({
             sprint_id: null,
-            planned_date: "2026-11-07",
+            start_date: "2026-11-07",
             due_date: "2026-11-14",
-            pre_sprint_due_date: null,
         });
     });
 

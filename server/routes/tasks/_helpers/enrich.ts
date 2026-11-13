@@ -17,6 +17,7 @@ import type { TaskActor } from "../../../modules/tasks/tasks.policy";
 import type { LifecycleContext } from "../../../modules/tasks/tasks.workflow";
 import { getTicketSubtasks } from "../../../modules/tasks/tasks.hierarchy";
 import { canReadProjectTask } from "../../../modules/tasks/tasks.policy";
+import { supportedProjectTypesPayload } from "../../../modules/projectTypesRemoval/projectTypesRemoval.http";
 
 interface DbLike {
     query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number }>;
@@ -96,7 +97,7 @@ async function enrichTasks(
         const ticketKey = t.ticket_key ?? null;
         const state = t.workflow_state_id ? (stateMap[t.workflow_state_id] || null) : null;
         return {
-            ...t,
+            ...supportedProjectTypesPayload(t),
             is_subtask: hierarchyById.get(Number(t.id))?.is_subtask ?? false,
             is_epic: hierarchyById.get(Number(t.id))?.is_epic ?? false,
             parent_key: hierarchyById.get(Number(t.id))?.parent_key ?? null,
@@ -134,7 +135,7 @@ async function enrichTaskSummaries(
 ): Promise<any[]> {
     const enriched = await enrichTasks(tasks, db, actor, lifecycle);
     return tasks.map((task, index) => ({
-        ...task,
+        ...supportedProjectTypesPayload(task),
         start_date: enriched[index].start_date,
         time_spent_minutes: enriched[index].time_spent_minutes,
         original_estimate_minutes: enriched[index].original_estimate_minutes,

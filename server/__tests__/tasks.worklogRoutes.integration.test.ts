@@ -45,7 +45,6 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         app.use((req: any, _res: any, next: any) => {
             req.tenant = { id: 1, features: { team_visibility: true, agile: true } };
             req.tenantId = 1;
-            req.projectOwnership = req.get("x-test-project-mode") === "on";
             req.db = { query: makePoolQuery(pool), transaction: makePoolTransaction(pool) };
             req.log = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
             next();
@@ -62,7 +61,18 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         await pool.query(`INSERT INTO users (id, username, password, full_name, org_id, team_id) VALUES
             (1, 'alice', 'unused', 'Alice', 1, 1), (2, 'bob', 'unused', 'Bob', 1, 2), (3, 'carol', 'unused', 'Carol', 2, 3)`);
         await require("../platform/db/agileDefaults").seedAgileDefaults((sql: string, params: unknown[] = []) => pool.query(sql, params));
+        await pool.query(`INSERT INTO project_members (project_id, team_id, role)
+            SELECT id, 1, 'member' FROM projects WHERE org_id = 1 AND is_general`);
     });
+
+    async function cancelTicket(id: number) {
+        await pool.query(`INSERT INTO workflow_states (org_id, project_id, key, name, category, is_terminal)
+            SELECT org_id, project_id, 'cancelled', 'Cancelled', 'done', TRUE FROM tasks WHERE id = $1
+            ON CONFLICT DO NOTHING`, [id]);
+        await pool.query(`UPDATE tasks t SET sprint_id = NULL, workflow_state_id = (
+            SELECT id FROM workflow_states WHERE project_id = t.project_id AND key = 'cancelled'
+        ) WHERE t.id = $1`, [id]);
+    }
 
     test('ticket14 worklog changes invalidate readers from another project team after commit', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Cross-team forecast' })).body.id;
@@ -87,7 +97,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         }
         expect((await request(app).post(`/api/tasks/${id}/worklogs`)
             .send({ day_worked: '2026-11-01', time_spent: '30m' })).status).toBe(201);
-        expect(sendToUser).not.toHaveBeenCalledWith(1, 2, 'task_updated', expect.anything());
+        expect(sendToUser).toHaveBeenCalledWith(1, 2, 'task_updated', { taskId: id, action: 'updated' });
     });
 
     test('worklog list includes both persisted estimates, including explicit zero and null', async () => {
@@ -241,7 +251,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([row]);
     });
 
-    test('sets duration estimates, seeds an empty forecast, clears explicitly and preserves the legacy alias', async () => {
+    test('sets duration estimates, seeds an empty forecast and clears explicitly', async () => {
         const id = (await request(app).post('/api/tasks/backlog').send({ title: 'Forecast' })).body.id;
         const endpoint = `/api/tasks/${id}/estimates`;
         const saved = await request(app).patch(endpoint).send({ original_estimate: '2h' });
@@ -319,8 +329,7 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         await pool.query("INSERT INTO sprints(id,team_id,name,status,start_date,end_date) VALUES(50,1,'Frozen','completed','2026-10-01','2026-10-14')");
         await pool.query('UPDATE tasks SET sprint_id=50 WHERE id=$1',[id]);
         expect((await request(app).patch(endpoint).send({original_estimate:'1h'})).status).toBe(409);
-        await pool.query("INSERT INTO workflow_states(org_id,key,name,category,is_terminal) VALUES(1,'cancelled','Cancelled','done',TRUE) ON CONFLICT DO NOTHING");
-        await pool.query("UPDATE tasks SET sprint_id=NULL,workflow_state_id=(SELECT id FROM workflow_states WHERE org_id=1 AND key='cancelled') WHERE id=$1",[id]);
+        await cancelTicket(id);
         expect((await request(app).patch(endpoint).send({original_estimate:'1h'})).status).toBe(403);
     });
 
@@ -758,10 +767,9 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         }
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs).toEqual([worklog]);
         expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => ['worklog_updated', 'worklog_deleted'].includes(h.action))).toEqual([]);
-        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'done') WHERE id = $1", [id]);
+        await pool.query("UPDATE tasks t SET workflow_state_id = (SELECT id FROM workflow_states WHERE project_id = t.project_id AND key = 'done') WHERE t.id = $1", [id]);
         expect((await request(app).patch(endpoint).send({ comment: 'After Done' })).status).toBe(200);
-        await pool.query("INSERT INTO workflow_states (org_id, key, name, category, is_terminal) VALUES (1, 'cancelled', 'Cancelled', 'done', TRUE) ON CONFLICT DO NOTHING");
-        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'cancelled') WHERE id = $1", [id]);
+        await cancelTicket(id);
         expect((await request(app).get(`/api/tasks/${id}/worklogs`)).body.worklogs[0]).toMatchObject({ canEdit: true, canDelete: true });
         expect((await request(app).patch(endpoint).send({ comment: 'After cancellation' })).status).toBe(200);
         expect((await request(app).delete(endpoint)).status).toBe(200);
@@ -854,12 +862,11 @@ pgDescribe("ticket worklogs through HTTP (PostgreSQL)", () => {
         expect((await request(app).get(`/api/tasks/${id}/history`)).body.filter((h: any) => h.action === 'worklog_added')).toEqual([]);
         expect((await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-org', '2').send({ day_worked: '2026-11-01', time_spent: '1h' })).status).toBe(404);
         expect((await request(app).post(`/api/tasks/${id}/worklogs`).set('x-test-user', '2').set('x-test-team', '2').send({ day_worked: '2026-11-01', time_spent: '1h' })).status).toBe(403);
-        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'done') WHERE id = $1", [id]);
+        await pool.query("UPDATE tasks t SET workflow_state_id = (SELECT id FROM workflow_states WHERE project_id = t.project_id AND key = 'done') WHERE t.id = $1", [id]);
         const done = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' });
         expect(done.status).toBe(201);
         expect(done.body.worklog).toMatchObject({ minutes: 60, start_time: null, comment: null });
-        await pool.query("INSERT INTO workflow_states (org_id, key, name, category, is_terminal) VALUES (1, 'cancelled', 'Cancelled', 'done', TRUE) ON CONFLICT DO NOTHING");
-        await pool.query("UPDATE tasks SET workflow_state_id = (SELECT id FROM workflow_states WHERE org_id = 1 AND key = 'cancelled') WHERE id = $1", [id]);
+        await cancelTicket(id);
         const cancelled = await request(app).post(`/api/tasks/${id}/worklogs`).send({ day_worked: '2026-11-01', time_spent: '1h' });
         expect(cancelled.status).toBe(403);
         expect(cancelled.body.code).toBe('WORKLOG_CANCELLED');

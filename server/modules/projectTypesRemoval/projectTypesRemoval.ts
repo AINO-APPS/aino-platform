@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import { readClientVersionConfig } from "../clientVersions/clientVersions.config";
 import { compareVersions } from "../clientVersions/clientVersions.version";
 import { hasRetiredProjectTypesInput, isRetiredProjectTypesPath, supportedProjectTypesPayload } from "./projectTypesRemoval.http";
+import { logger } from "../../utils/logger";
 
 export async function assertProjectTypesRemovalReady(
     env: NodeJS.ProcessEnv,
@@ -28,7 +29,6 @@ export function createProjectTypesRemoval(options: {
         const path = req.originalUrl.split("?")[0];
         if (!path.startsWith("/api/") || /^\/api\/(?:health|client-versions)\/?$/.test(path)) return next();
         const env = (options.env ?? (() => process.env))();
-        if (!env.PROJECT_TYPES_REMOVAL || env.PROJECT_TYPES_REMOVAL === "off") return next();
         try {
             await assertProjectTypesRemovalReady(env, options.verifyOwnership);
             req.projectTypesApiRemoval = true;
@@ -39,7 +39,8 @@ export function createProjectTypesRemoval(options: {
             const json = res.json.bind(res);
             res.json = body => json(supportedProjectTypesPayload(body));
             return next();
-        } catch {
+        } catch (err) {
+            (req.log ?? logger).error({ err }, "Project-types removal preflight failed");
             return res.status(503).set("Cache-Control", "no-store").json({ code: "PROJECT_TYPES_REMOVAL_NOT_READY" });
         }
     };

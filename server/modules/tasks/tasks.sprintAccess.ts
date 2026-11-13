@@ -6,6 +6,7 @@
 
 import { canReadProjectSprint, type TaskActor } from "./tasks.policy";
 import { findSprintWithProject } from "./tasks.sprintRepository";
+import { supportedProjectTypesPayload } from "../projectTypesRemoval/projectTypesRemoval.http";
 
 interface SprintAccessOutcome {
     sprint?: any;
@@ -25,7 +26,7 @@ async function loadSprintForActor(
     if (!await canReadProjectSprint(sprint, actor)) {
         return { error: { status: 403, body: { error: "Access denied" } } };
     }
-    return { sprint };
+    return { sprint: supportedProjectTypesPayload(sprint) };
 }
 
 export = { loadSprintForActor };
