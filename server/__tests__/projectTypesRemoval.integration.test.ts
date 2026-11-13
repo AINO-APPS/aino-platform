@@ -12,7 +12,7 @@ jest.setTimeout(120_000);
 jest.mock("../middleware/auth", () => (req: any, _res: any, next: any) => { req.userId = 1; next(); });
 jest.mock("../middleware/rbac", () => ({
     loadUserContext: (req: any, _res: any, next: any) => {
-        req.userOrgId = 1; req.userTeamId = 1; req.userRole = "super_admin"; req.projectOwnership = true; next();
+        req.userOrgId = 1; req.userTeamId = 1; req.userRole = req.get("x-test-role") || "super_admin"; next();
     },
     requireRole: () => (_req: any, _res: any, next: any) => next(),
     ROLE_LEVEL: { employee: 1, team_lead: 2, hr_admin: 4, super_admin: 5, platform_admin: 6 },
@@ -174,6 +174,21 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         });
         expect(nextSprint.status).toBe(200);
         expect(nextSprint.body.sprint).toMatchObject({ project_id: 10, name: "Created after contraction" });
+        for (const [table, reason] of [
+            ["task_hierarchy_repairs", "Invalid parent detached"],
+            ["task_hierarchy_repair_corrections", "Eligible leaf recovered"],
+        ]) {
+            await pool.query(`INSERT INTO ${table} (task_id, org_id, reason, before_value, after_value)
+                VALUES ($1, 1, $2, '{"parent_task_id":123}', '{"parent_task_id":null}'),
+                       (999, 2, 'Other organization', '{}', '{}')`, [created.body.id, reason]);
+        }
+        const repairs = await request(app).get("/api/projects/hierarchy-repairs");
+        expect(repairs.status).toBe(200);
+        expect(repairs.body.hierarchy_repairs).toEqual([
+            expect.objectContaining({ task_id: created.body.id, ticket_key: "TEST-1", stage: "original", reason: "Invalid parent detached" }),
+            expect.objectContaining({ task_id: created.body.id, ticket_key: "TEST-1", stage: "correction", reason: "Eligible leaf recovered" }),
+        ]);
+        expect((await request(app).get("/api/projects/hierarchy-repairs").set("x-test-role", "employee")).status).toBe(403);
         expect((await request(app).get("/api/tasks/scheduled")).status).toBe(404);
         expect((await request(app).get(`/api/tasks/${created.body.id}/timer`)).status).toBe(404);
     });

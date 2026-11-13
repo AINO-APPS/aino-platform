@@ -111,6 +111,26 @@ export interface TicketCapabilities {
   can: TicketCapabilitiesCan;
 }
 
+export interface HierarchyRepairValue {
+  parent_task_id: number | null;
+  work_item_type_id: number | null;
+  project_id: number | null;
+  sprint_id: number | null;
+  story_points: number | null;
+}
+
+export type HierarchyRepairStage = "original" | "correction";
+
+export interface HierarchyRepair {
+  task_id: number;
+  ticket_key: string | null;
+  stage: HierarchyRepairStage;
+  reason: string;
+  repaired_at: string;
+  before: HierarchyRepairValue;
+  after: HierarchyRepairValue;
+}
+
 export interface Task {
   id: number;
   ticket_key: string;

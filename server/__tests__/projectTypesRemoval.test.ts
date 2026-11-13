@@ -102,9 +102,11 @@ describe("guarded project-types API removal boundary", () => {
             env: () => env, verifyOwnership,
         }));
         app.get("/api/tasks/scheduled", (_req, res) => res.json({ tasks: [] }));
-        const refused = await request(app).get("/api/tasks/scheduled");
-        expect(refused.status).toBe(503);
-        expect(refused.body.code).toBe("PROJECT_TYPES_REMOVAL_NOT_READY");
+        for (const path of ["/api/tasks/scheduled", "/API/tasks/scheduled", "/Api/tasks/scheduled"]) {
+            const refused = await request(app).get(path);
+            expect(refused.status).toBe(503);
+            expect(refused.body.code).toBe("PROJECT_TYPES_REMOVAL_NOT_READY");
+        }
         expect(verifyOwnership).not.toHaveBeenCalled();
     });
 

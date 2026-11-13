@@ -1278,13 +1278,13 @@
     },
     {
       "id": "project-migration-review",
-      "name": "ADR-017 generated-project and immutable hierarchy repair review, with one-time ownership publication",
+      "name": "Read-only immutable hierarchy repair and correction review after ownership publication",
       "decision": "D45",
       "phase": 2,
-      "web": { "status": "waived", "waiver": "The project-ownership migration review is no longer a supported product API surface in step D; this code-only implementation does not claim organizations have completed switch-over. The guarded contraction remains blocked until its ownership preflight passes." },
-      "desktop": { "status": "waived", "waiver": "The project-ownership migration review is no longer a supported product API surface in step D; this code-only implementation does not claim organizations have completed switch-over. The guarded contraction remains blocked until its ownership preflight passes." },
-      "android": { "status": "waived", "waiver": "Migration review and switch-over are web-only administration per ADR-017 and projects-own-tickets ticket 12." },
-      "ios": { "status": "waived", "waiver": "Administration uses the web app; native clients cannot call migration review or switch endpoints." }
+      "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/HierarchyRepairsReview.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/__tests__/HierarchyRepairsReview.test.tsx" },
+      "android": { "status": "waived", "waiver": "Immutable hierarchy repair review is web-only organization administration; ownership switch operations are retired in step D." },
+      "ios": { "status": "waived", "waiver": "Organization administrators use the web app for the read-only hierarchy repair audit." }
     },
     {
       "id": "project-key-rename",

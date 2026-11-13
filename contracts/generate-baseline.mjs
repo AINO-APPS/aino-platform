@@ -62,9 +62,9 @@ Object.assign(details,{
  "PUT /api/projects/:id/workflow-transitions":["Replace a project's allowed workflow transitions","WorkflowTransitionWrite","WorkflowTransitions"],
  "GET /api/tasks/scheduled":["GET /api/tasks/backlog",0,"FreeFormValue"],
  "GET /api/tasks/by-key/:key":["Resolve a current or former ticket key",0,"TaskByKey"],
- "GET /api/sprints":["List project sprints; legacy team scope maps to its generated project when ownership is enabled",0,"SprintList"],
- "POST /api/sprints":["Create a sprint owned by the selected project; flag-off callers retain team ownership","CreateSprintRequest","SprintResponse"],
- "GET /api/sprints/active":["Read a project's active sprint; flag-off callers retain team scope",0,"ActiveSprintResponse"],
+ "GET /api/sprints":["List project-owned sprints",0,"SprintList"],
+ "POST /api/sprints":["Create a sprint owned by the selected Scrum project","CreateSprintRequest","SprintResponse"],
+ "GET /api/sprints/active":["Read a project's active sprint",0,"ActiveSprintResponse"],
  "GET /api/sprints/:id/tasks":["Read the sprint project's tickets for the Plan view",0,"SprintTasksResponse"],
  "GET /api/sprints/:id/board":["Read a sprint board with column WIP status",0,"SprintBoard"]
 });
@@ -89,7 +89,7 @@ for(const e of endpoints.filter(e=>covered(e)||baselineExceptions.has(`${e.metho
  if(d[1])op.requestBody={required:true,content:content(R(d[1]))};
  if(key==="GET /api/projects/mine")op.description="Returns only non-archived projects with canCreateTickets, resolved from the actor's effective personal/team role and organization-admin override.";
  if(key==="POST /api/tasks"||key==="POST /api/tasks/backlog"){
-  op.description="Resolve ownership from the request project, then the sprint project, then the legacy team project, then General. project_id is required in the web picker but optional for older clients. Refused explicit projects never fall back.";
+  op.description="Resolve ownership from the request project, then the sprint project, then General. The web picker requires project_id. Refused explicit projects never fall back.";
   op.responses["403"]=err("READ_ONLY_ROLE: the actor must be a project member or project admin");
   op.responses["409"]={description:"PROJECT_ARCHIVED or SPRINT_PROJECT_MISMATCH",content:{"application/json":{schema:R("Error"),examples:{archived:{value:{error:"This project is archived and its tickets are read-only.",code:"PROJECT_ARCHIVED"}},mismatch:{value:{error:"A ticket may only join a sprint in its own project.",code:"SPRINT_PROJECT_MISMATCH"}}}}}};
  }

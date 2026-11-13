@@ -27,7 +27,7 @@ export function createProjectTypesRemoval(options: {
 }): RequestHandler {
     return async (req, res, next) => {
         const path = req.originalUrl.split("?")[0];
-        if (!path.startsWith("/api/") || /^\/api\/(?:health|client-versions)\/?$/.test(path)) return next();
+        if (!/^\/api(?:\/|$)/i.test(path) || /^\/api\/(?:health|client-versions)\/?$/i.test(path)) return next();
         const env = (options.env ?? (() => process.env))();
         try {
             await assertProjectTypesRemovalReady(env, options.verifyOwnership);

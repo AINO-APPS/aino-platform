@@ -11,3 +11,6 @@ The HTTP guard never executes destructive SQL. The separate guarded contraction
 runner migrates storage only after the same preflight; it is excluded from the
 automatic tenant migration sweep. Do not deploy this runtime before the rollout
 prerequisites have been verified.
+
+Schema bootstrap recognizes the completed contraction marker and does not
+reintroduce compatibility columns during subsequent pre-deploy migrations.

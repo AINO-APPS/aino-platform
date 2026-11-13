@@ -1,8 +1,8 @@
 const retired = [
-    /^\/api\/tasks\/(?:scheduled|carry-forward)\/?$/,
-    /^\/api\/tasks\/[^/]+\/(?:schedule|unschedule|transfer|timer(?:\/start|\/stop)?)\/?$/,
-    /^\/api\/org\/teams\/[^/]+\/sprint-config\/?$/,
-    /^\/api\/projects\/migration(?:\/|$)/,
+    /^\/api\/tasks\/(?:scheduled|carry-forward)\/?$/i,
+    /^\/api\/tasks\/[^/]+\/(?:schedule|unschedule|transfer|timer(?:\/start|\/stop)?)\/?$/i,
+    /^\/api\/org\/teams\/[^/]+\/sprint-config\/?$/i,
+    /^\/api\/projects\/migration(?:\/|$)/i,
 ];
 const fields = new Set([
     "planned_date", "pre_sprint_due_date", "issue_key", "logged_minutes", "estimated_minutes",
@@ -16,7 +16,7 @@ export function isRetiredProjectTypesPath(path: string): boolean {
 }
 
 export function hasRetiredProjectTypesInput(path: string, query: Record<string, unknown>, body: unknown): boolean {
-    if (!/^\/api\/(?:tasks|sprints)(?:\/|$)/.test(path)) return false;
+    if (!/^\/api\/(?:tasks|sprints)(?:\/|$)/i.test(path)) return false;
     const retiredInput = (value: Record<string, unknown>, retiredFields: Set<string>) => Object.keys(value)
         .some(key => retiredFields.has(key) || key === "team_id" || key === "unassigned");
     return retiredInput(query, retiredInputFields) || (!!body && typeof body === "object" && !Array.isArray(body)

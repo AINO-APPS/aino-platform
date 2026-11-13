@@ -54,6 +54,10 @@ clears points and records immutable corrections/system history without changing
 0031 or its original records. Human hierarchy/placement/points edits and missing
 or ambiguous evidence are preserved for review. The complete ordered-chain and
 already-applied-0031 upgrade/replay seam is `hierarchyLeafRecovery.integration`.
+The web Projects page retains an administrator-only, read-only repair ledger.
+`GET /api/projects/hierarchy-repairs` lists original repairs and corrections for
+the current organization, including records for tickets later removed. It does
+not expose an ownership switch or emergency switch-back.
 
 Parent placement and project moves cascade through `getTicketSubtasks` under the
 organization placement lock. Every member gets transactional placement history,

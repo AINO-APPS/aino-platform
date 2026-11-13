@@ -1,4 +1,5 @@
 import ProjectForm from "./ProjectForm";
+import HierarchyRepairsReview from "./HierarchyRepairsReview";
 import { projectTypeLabel } from "../components/tasks/ProjectTypeControl";
 // Project administration, key management, and workflow settings.
 import { useEffect, useState } from "react";
@@ -162,6 +163,7 @@ export default function Projects() {
           )}
         </div>
       </header>
+      <HierarchyRepairsReview role={user?.role ?? ""} />
       {loading ? (
         <div style={styles.empty}>Loading…</div>
       ) : projects.length === 0 ? (

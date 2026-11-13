@@ -416,6 +416,7 @@ exports[`route inventory snapshot matches the committed route snapshot 1`] = `
   "PUT    /api/projects/:id/workflow-states/reorder",
   "GET    /api/projects/:id/workflow-transitions",
   "PUT    /api/projects/:id/workflow-transitions",
+  "GET    /api/projects/hierarchy-repairs",
   "GET    /api/projects/mine",
   "GET    /api/projects/types",
   "GET    /api/public/branding",

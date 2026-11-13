@@ -85,6 +85,8 @@ const databaseUrl = process.env.TASKS_SCHEMA_TEST_DATABASE_URL;
         expect((await query("SELECT id, key, name FROM projects WHERE id = 10")).rows).toEqual([
             { id: 10, key: "KEEP", name: "Keep" },
         ]);
+        await require("../platform/db/tenantSchema").initTenantSchema(query);
+        expect((await require("../platform/db/migrations").runTenantMigrations(query)).applied).toEqual([]);
         const remaining = await query(`SELECT table_name, column_name FROM information_schema.columns
             WHERE table_schema = current_schema() AND (
                 (table_name = 'tasks' AND column_name IN ('planned_date', 'pre_sprint_due_date', 'team_id', 'logged_minutes', 'estimated_minutes'))

@@ -13,11 +13,12 @@ test("the my-projects picker is a capability-filtered array of active projects",
     assert.equal(list.type, "array");
     assert.equal(list.items.$ref, "#/components/schemas/Project");
 });
-test("both create routes accept legacy omission, describe project resolution, and document stable refusals", () => {
+test("both create routes resolve project ownership without team fallback and document stable refusals", () => {
     for (const path of ["/api/tasks", "/api/tasks/backlog"]) {
         const operation = api.paths[path].post;
         assert.equal(operation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/CreateTicketRequest");
-        assert.match(operation.description, /request.*sprint.*team.*General/);
+        assert.match(operation.description, /request.*sprint.*General/);
+        assert.doesNotMatch(operation.description, /team/);
         assert.match(JSON.stringify(operation.responses["409"]), /SPRINT_PROJECT_MISMATCH/);
         assert.match(JSON.stringify(operation.responses["409"]), /PROJECT_ARCHIVED/);
         assert.match(JSON.stringify(operation.responses["403"]), /READ_ONLY_ROLE/);

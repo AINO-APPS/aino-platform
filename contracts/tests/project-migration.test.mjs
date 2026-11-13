@@ -22,10 +22,15 @@ test("ticket 11 removes project migration operations and their retired response 
       endpoint.method === method && endpoint.path === path && endpoint.deprecated && endpoint.retiredBy === "ticket-11"));
   }
   for (const name of ["ProjectOwnershipState", "ProjectMigrationGrant", "ProjectMigrationProject",
-    "ProjectMigrationMove", "ProjectMigrationReview", "HierarchyRepair", "HierarchyRepairStage", "HierarchyRepairValue"]) {
+    "ProjectMigrationMove", "ProjectMigrationReview"]) {
     assert.equal(api.components.schemas[name], undefined, `${name} remains in the supported contract`);
   }
   for (const name of ["Task", "SearchTask"]) {
     assert.deepEqual(api.components.schemas[name].properties.container.enum, ["sprint", "backlog", "board"]);
   }
+  const review = api.paths["/api/projects/hierarchy-repairs"].get;
+  assert.deepEqual(review.security, [{ cookieAuth: [] }]);
+  assert.equal(review.responses["200"].content["application/json"].schema.properties.hierarchy_repairs.items.$ref,
+    "#/components/schemas/HierarchyRepair");
+  assert.deepEqual(api.components.schemas.HierarchyRepairStage.enum, ["original", "correction"]);
 });

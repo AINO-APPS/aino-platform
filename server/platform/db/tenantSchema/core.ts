@@ -1,6 +1,6 @@
 import type { SchemaQuery } from "../schemaTypes";
 
-async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
+async function initializeCoreTenantSchema(q: SchemaQuery, projectTypesContracted = false): Promise<void> {
 
     await q(`
         CREATE TABLE IF NOT EXISTS organizations (
@@ -122,8 +122,10 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
         )
     `);
 
-    await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_mode TEXT NOT NULL DEFAULT 'manual'`);
-    await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_paused BOOLEAN NOT NULL DEFAULT FALSE`);
+    if (!projectTypesContracted) {
+        await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_mode TEXT NOT NULL DEFAULT 'manual'`);
+        await q(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS sprint_paused BOOLEAN NOT NULL DEFAULT FALSE`);
+    }
 
     // Add deferred FK from users -> teams and users -> departments
     await q(`
@@ -331,8 +333,10 @@ async function initializeCoreTenantSchema(q: SchemaQuery): Promise<void> {
     `);
     // Historical tenant migrations require these compatibility fields until
     // the guarded project-types contraction runs after its global preflight.
-    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS auto_managed BOOLEAN NOT NULL DEFAULT FALSE`);
-    await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS sprint_number INTEGER`);
+    if (!projectTypesContracted) {
+        await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS auto_managed BOOLEAN NOT NULL DEFAULT FALSE`);
+        await q(`ALTER TABLE sprints ADD COLUMN IF NOT EXISTS sprint_number INTEGER`);
+    }
     // Migration: sprint lifecycle columns.
     //   - started_at / completed_at / velocity_points pre-date this change but
     //     are recreated here defensively for older tenants.

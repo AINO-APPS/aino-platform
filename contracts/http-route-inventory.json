@@ -8,8 +8,8 @@
   "scopeNote": "Mounted routes are inventoried from the route snapshot. Ticket 11 removals remain as deprecated retirement history, excluded from the supported OpenAPI contract.",
   "totals": {
     "routerMounts": 36,
-    "concreteEndpoints": 526,
-    "openApiOperations": 266
+    "concreteEndpoints": 527,
+    "openApiOperations": 267
   },
   "standaloneRoutes": [
     {
@@ -260,7 +260,7 @@
       "mountPath": "/api/projects",
       "source": "server/routes/projects.ts",
       "coverage": "baseline",
-      "endpointCount": 25
+      "endpointCount": 26
     },
     {
       "id": "integrations",
@@ -2355,6 +2355,11 @@
     {
       "method": "PUT",
       "path": "/api/projects/:id/workflow-transitions",
+      "coverage": "operation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/hierarchy-repairs",
       "coverage": "operation"
     },
     {
