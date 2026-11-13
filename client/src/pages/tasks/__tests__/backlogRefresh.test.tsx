@@ -87,7 +87,7 @@ describe("backlog background refresh", () => {
 
     test("quick create sends the current project and remembers it for the required picker", async () => {
         const { result } = renderBacklog({
-            projectOwnership: true, scopeParams: { project_id: 20 }, createProjectUserKey: "1.1",
+            scopeParams: { project_id: 20 }, createProjectUserKey: "1.1",
             createProjects: [{ id: 20, capabilities: { canCreateTickets: true } }],
         });
         await act(async () => { await result.current.quickAdd("Project ticket"); });
@@ -97,7 +97,7 @@ describe("backlog background refresh", () => {
 
     test("create submits the selected project and surfaces the stable sprint mismatch message", async () => {
         const { result } = renderBacklog({
-            projectOwnership: true, scopeParams: { project_id: 20 },
+            scopeParams: { project_id: 20 },
             createProjects: [{ id: 20, capabilities: { canCreateTickets: true } }],
         });
         act(() => result.current.setBacklogTitle("Project form ticket"));

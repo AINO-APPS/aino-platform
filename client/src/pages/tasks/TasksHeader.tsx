@@ -8,7 +8,6 @@ import { useTaskCtx } from "./TaskContext";
 import { useFeatures } from "../../FeaturesContext";
 import { CalendarDays, Package, Search, Headset, BarChart3 } from "../../constants/icons";
 import { Link } from "react-router-dom";
-import type { TeamScope } from "./hooks/useTeamScope";
 import PlanningTabs from "./PlanningTabs";
 import s from "./TasksHeader.module.css";
 
@@ -46,12 +45,6 @@ interface TasksHeaderProps {
     setSprintImportOpen: (value: boolean | ((o: boolean) => boolean)) => void;
     fetchBacklog: () => void;
     clearFilters: () => void;
-    /** Org admins only: the teams they may switch between. */
-    teams?: any[];
-    selectedTeamId?: TeamScope | null;
-    onTeamChange?: (value: TeamScope) => void;
-    showTeamSwitcher?: boolean;
-    projectOwnership?: boolean;
     projects?: any[];
     selectedProjectId?: number | null;
     onProjectChange?: (id: number) => void;
@@ -92,11 +85,6 @@ export default function TasksHeader({
     setSprintImportOpen,
     fetchBacklog,
     clearFilters,
-    teams = [],
-    selectedTeamId = null,
-    onTeamChange,
-    showTeamSwitcher = false,
-    projectOwnership = false,
     projects = [],
     selectedProjectId = null,
     onProjectChange,
@@ -106,27 +94,13 @@ export default function TasksHeader({
         useTaskCtx() as any;
     const { hasFeature } = useFeatures() as any;
     const selectedProject = projects.find((project) => project.id === selectedProjectId);
-    const hasSprints = projectOwnership ? selectedProject?.hasSprints === true : hasFeature("agile");
-    const projectBoard = projectOwnership && (activeTab === "board" || activeTab === "backlog" && !hasSprints);
-    const datedProjectView = projectOwnership && (activeTab === "list" || activeTab === "calendar");
+    const hasSprints = selectedProject?.hasSprints === true;
+    const projectBoard = activeTab === "board" || activeTab === "backlog" && !hasSprints;
+    const datedProjectView = activeTab === "list" || activeTab === "calendar";
     const currentSprint =
         availableSprints.find((sp: any) => sp.id === selectedSprintId)
         || availableSprints.find((sp: any) => sp.id === currentSprintId);
-    // The selected team (admin switcher) wins; otherwise the user's own team
-    // from GET /profile, then the sprint's team for an admin browsing it.
-    const selectedTeam = teams.find(
-        (team: any) =>
-            selectedTeamId !== "unassigned"
-            && selectedTeamId != null
-            && Number(team.id) === Number(selectedTeamId),
-    );
-    const teamName = projectOwnership
-        ? projects.find((project) => project.id === selectedProjectId)?.name ?? "Project"
-        : selectedTeam?.name
-        || (selectedTeamId === "unassigned" ? "Unassigned" : null)
-        || currentUser?.team_name
-        || currentSprint?.team_name
-        || "Your team";
+    const teamName = selectedProject?.name ?? "Project";
     // The sprint's number, not its stored name: the tab already says "Sprint",
     // so repeating it ("Payments — Sprint 1") wastes the heading. Sprints
     // created before `sprint_number` existed fall back to the trailing digits
@@ -233,47 +207,23 @@ export default function TasksHeader({
                 </div>
 
                 <div className={s["tasks-header-actions"]}>
-                    {/* Super admin and above pick one team at a time; its sprint
-                        state drives the tabs. Others never see this control. */}
-                    {projectOwnership && (
-                        <select
-                            value={selectedProjectId ?? ""}
-                            onChange={(event) => onProjectChange?.(Number(event.target.value))}
-                            className={s["date-input"]}
-                            aria-label="Project"
-                            title="Show a project's planning views"
-                        >
-                            {selectedProjectId == null && <option value="" disabled>Select a project</option>}
-                            {projects.map((project) => (
-                                <option key={project.id} value={project.id}>{project.key} — {project.name} · {projectTypeLabel(project.type)}</option>
-                            ))}
-                        </select>
-                    )}
-                    {!projectOwnership && showTeamSwitcher && (
-                        <select
-                            value={selectedTeamId == null ? "" : String(selectedTeamId)}
-                            onChange={(event) => {
-                                const value = event.target.value;
-                                onTeamChange?.(value === "unassigned" ? value : Number(value));
-                            }}
-                            className={s["date-input"]}
-                            aria-label="Team"
-                            title="Show another team's planning views"
-                        >
-                            {selectedTeamId == null && <option value="" disabled>Select a team</option>}
-                            {teams.map((team: any) => (
-                                <option key={team.id} value={team.id}>
-                                    {team.name}
-                                </option>
-                            ))}
-                            <option value="unassigned">Unassigned</option>
-                        </select>
-                    )}
+                    <select
+                        value={selectedProjectId ?? ""}
+                        onChange={(event) => onProjectChange?.(Number(event.target.value))}
+                        className={s["date-input"]}
+                        aria-label="Project"
+                        title="Show a project's planning views"
+                    >
+                        {selectedProjectId == null && <option value="" disabled>Select a project</option>}
+                        {projects.map((project) => (
+                            <option key={project.id} value={project.id}>{project.key} — {project.name} · {projectTypeLabel(project.type)}</option>
+                        ))}
+                    </select>
 
                     <PlanningTabs
                         activeTab={activeTab}
                         setActiveTab={setActiveTab}
-                        planTabs={projectOwnership ? selectedProject?.planTabs : undefined}
+                        planTabs={selectedProject?.planTabs}
                         agileEnabled={hasSprints}
                         backlogCount={backlogTasks.length}
                         currentSprintId={currentSprintId}

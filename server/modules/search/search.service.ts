@@ -62,7 +62,7 @@ export function createSearchService(deps: SearchDependencies) {
             const events = await repository.searchEvents(db, actor.userId, pattern);
             const leaves = await repository.searchLeaves(db, actor.userId, pattern);
             const projectIds = await actor.projectAccess?.accessibleProjectIds() ?? [];
-            const sprints = await repository.searchSprints(db, projectIds, pattern);
+            const sprints = await repository.searchSprints(db, actor.orgId, projectIds, pattern);
             const logs = actor.canReadAuditLogs && actor.orgId
                 ? await repository.searchAuditLogs(db, actor.orgId, pattern) : [];
             const results = { tasks, notes, users, events, leaves, sprints, logs };

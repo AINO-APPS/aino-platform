@@ -139,7 +139,7 @@ router.put("/:id", auth, loadUserContext, requireScrumSprint, sprintManagementRo
         if (status !== undefined && ["planned", "active", "paused", "completed"].includes(status)) {
             // Activating through an edit must respect one-active-per-team too.
             if (status === "active" && sprint.status !== "active") {
-                const running = await findOtherActiveSprint(req.db!, sprint.project_id, sprint.id);
+                const running = await findOtherActiveSprint(req.db!, sprint.project_id, sprint.id, req.userOrgId ?? null);
                 if (running) return sprintAlreadyActive(res, running);
             }
             updates.push(`status = $${pi++}`); params.push(status);
@@ -479,7 +479,7 @@ router.post("/:id/resume", auth, loadUserContext, requireScrumSprint, sprintMana
         if (!sprint) return res.status(404).json({ error: "Sprint not found" });
         if (!await canManageSprint(req.db!, sprint, taskActorFromRequest(req))) return res.status(403).json({ error: "Access denied" });
         if (sprint.status !== "paused") return res.status(400).json({ error: "Only a paused sprint can be resumed" });
-        const running = await findOtherActiveSprint(req.db!, sprint.project_id, sprint.id);
+        const running = await findOtherActiveSprint(req.db!, sprint.project_id, sprint.id, req.userOrgId ?? null);
         if (running) return sprintAlreadyActive(res, running);
 
         const newEnd = resumedEndDate(sprint.end_date, sprint.paused_at);

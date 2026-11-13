@@ -12,12 +12,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-const session = vi.hoisted(() => ({ project_ownership: false }));
 vi.mock("../../../AuthContext", () => ({
     AuthProvider: ({ children }: { children: ReactNode }) => children,
     useAuth: () => ({
         isAuthenticated: true,
-        user: { id: 1, tenant_id: 1, team_id: 1, role: "employee", ...session },
+        user: { id: 1, tenant_id: 1, team_id: 1, role: "employee" },
     }),
     hasTenantContext: () => true,
 }));
@@ -77,6 +76,7 @@ vi.mock("../../../api/tasks", () => ({
     getAssignableUsers: vi.fn().mockResolvedValue({ data: [] }),
     getTaskLabels: vi.fn().mockResolvedValue({ data: [] }),
     getProjects: vi.fn().mockResolvedValue({ data: [] }),
+    getMyProjects: vi.fn().mockResolvedValue({ data: [] }),
     getSprints: vi.fn().mockResolvedValue({ data: { sprints: [], currentSprintId: null } }),
     getEpics: vi.fn().mockResolvedValue({ data: { epics: [] } }),
     carryForwardTasks: vi.fn().mockResolvedValue({ data: { carried: 0 } }),
@@ -116,7 +116,6 @@ function renderAt(path: string) {
 describe("Tasks first render from the URL", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        session.project_ownership = true;
         vi.mocked(getProjects).mockResolvedValue({ data: [
             { id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] },
         ] } as any);
@@ -127,19 +126,14 @@ describe("Tasks first render from the URL", () => {
         localStorage.clear();
     });
 
-    test("an unswitched tenant never falls back to retired team-scope planning requests", async () => {
-        session.project_ownership = false;
+    test("a canonical profile without the retired ownership flag opens project planning", async () => {
         renderAt("/tasks/backlog");
-        expect(screen.getByText("Project planning is not available yet")).toBeInTheDocument();
-        await new Promise(resolve => setTimeout(resolve, 10));
-        expect(getAvailableSprints).not.toHaveBeenCalled();
-        expect(getSprints).not.toHaveBeenCalled();
-        expect(getBacklog).not.toHaveBeenCalled();
-        expect(getTasks).not.toHaveBeenCalled();
+        expect(await screen.findByTestId("backlog-tab")).toBeVisible();
+        expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("10");
+        expect(screen.queryByText("Project planning is not available yet")).not.toBeInTheDocument();
     });
 
     test("the project switcher drives scoped backlog and board requests without Team or Unassigned", async () => {
-        session.project_ownership = true;
         vi.mocked(getProjects).mockResolvedValueOnce({ data: [
             { id: 10, key: "ONE", name: "One" }, { id: 20, key: "TWO", name: "Two" },
         ] } as any);

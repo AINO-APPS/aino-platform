@@ -159,10 +159,13 @@ export async function findOtherActiveSprint(
     db: SprintDbLike,
     projectId: unknown,
     exceptSprintId: unknown,
+    orgId: number | null,
 ): Promise<RunningSprint | null> {
     const rows = (await db.query(
-        "SELECT id, name FROM sprints WHERE project_id = $1 AND status = 'active' AND id != $2 LIMIT 1",
-        [projectId, exceptSprintId],
+        `SELECT s.id, s.name FROM sprints s JOIN projects p ON p.id = s.project_id
+          WHERE s.project_id = $1 AND s.status = 'active' AND s.id != $2
+            AND p.org_id IS NOT DISTINCT FROM $3 LIMIT 1`,
+        [projectId, exceptSprintId, orgId],
     )).rows;
     return rows[0] ?? null;
 }
@@ -246,7 +249,7 @@ export async function startSprint(
     if (!current) return { error: { status: 404, body: { error: "Sprint not found" } } };
     const refusal = activationRefusal(current);
     if (refusal) return { error: refusal };
-    const running = await findOtherActiveSprint(deps.db, sprint.project_id, sprint.id);
+    const running = await findOtherActiveSprint(deps.db, sprint.project_id, sprint.id, deps.orgId);
     if (running) return { error: { status: 409, body: sprintAlreadyActiveBody(running) } };
     await activateSprint(deps.db, sprint.id, deps.commit);
     await deps.snapshotBurndown(deps.db, parseInt(String(sprint.id), 10));

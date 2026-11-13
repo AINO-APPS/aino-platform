@@ -44,7 +44,6 @@ import { usePlanningScope } from "./tasks/hooks/usePlanningScope";
 import { useTeamSwitchNavigation } from "./tasks/hooks/useTeamSwitchNavigation";
 import { useSprintBoardActions } from "./tasks/hooks/useSprintBoardActions";
 import { useTaskQuickActions, useSummaryFilters, toggleLabelId } from "./tasks/hooks/useTaskQuickActions";
-import TeamFallbackBanner from "./tasks/TeamFallbackBanner";
 import { useTasksPalette } from "./tasks/hooks/useTasksPalette";
 import { useTicketLifecycle } from "./tasks/hooks/useTicketLifecycle";
 import TasksOverlays from "./tasks/TasksOverlays";
@@ -55,17 +54,11 @@ import s from "./Tasks.module.css";
 
 const EMPTY: any[] = [];
 export default function Tasks() {
-  const { user } = useAuth() as any;
-  if (user?.project_ownership !== true) return <section className="card">
-    <h2>Project planning is not available yet</h2>
-    <p>Your organization’s project migration must be completed before using this version of planning. Contact your administrator.</p>
-  </section>;
   return <ProjectTasks />;
 }
 
 function ProjectTasks() {
   const { user: currentUser } = useAuth() as any;
-  const projectOwnership = currentUser?.project_ownership === true;
   const { hasFeature } = useFeatures();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,7 +92,6 @@ function ProjectTasks() {
   const team = usePlanningScope({ currentUser, projects: availableProjects, projectsLoaded: projectsFetched, availableSprints: EMPTY, setSelectedSprintId, agileEnabled: hasFeature("agile") });
   const sprintsLoaded = team.currentSprintLoaded;
   const { showTeamSwitcher, orgTeams, selectedTeamId, setSelectedTeamId, visibleSprints, teamScopeParams } = team;
-  const teamVisibility = hasFeature("team_visibility");
 
   const { sprintStats, refreshSprintStats } = useSprintStats(activeTab, selectedSprintId, tasks.length, stats.done);
   const { unitLabel, features, initialState, terminalStates, workflowStates } = useAgileConfig() as any;
@@ -162,9 +154,9 @@ function ProjectTasks() {
   const backlog = useBacklog({
     activeTab,
     backlogFilters: filters.backlogFilters,
-    /** Team scope from the admin switcher (team_id or unassigned). */
+    /** Scope from the project switcher. */
     scopeParams: teamScopeParams,
-    projectOwnership, createProjects,
+    createProjects,
     createProjectUserKey: `${currentUser?.tenant_id}.${currentUser?.id}`,
     selectedSprintId,
     showConfirm,
@@ -213,7 +205,7 @@ function ProjectTasks() {
 
   // Landing on the bare /tasks entry point opens the server-selected current sprint.
   useSprintLanding({
-    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
+    planTabs: team.selectedProject?.planTabs,
     pathname: location.pathname,
     search: location.search,
     currentSprintId: team.currentSprintId, sprintsLoaded: sprintsLoaded && team.currentSprintLoaded && (!showTeamSwitcher || selectedTeamId !== null),
@@ -224,7 +216,7 @@ function ProjectTasks() {
   // The URL is the source of truth for the view. Legacy `?tab=` links are
   // redirected to their route so old bookmarks keep working.
   useTasksRouteSync({
-    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
+    planTabs: team.selectedProject?.planTabs,
     route: tasksRoute.route,
     searchParams,
     navigate,
@@ -234,7 +226,7 @@ function ProjectTasks() {
   });
 
   useTeamSwitchNavigation({
-    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
+    planTabs: team.selectedProject?.planTabs,
     selectedTeamId,
     currentSprintId: team.currentSprintId, currentSprintLoaded: team.currentSprintLoaded,
     activeTab: tasksRoute.route.view,
@@ -303,7 +295,7 @@ function ProjectTasks() {
   // One keyboard entry point for tasks, views and actions, plus the `?` help
   // overlay that documents the complete shortcut set.
   const tasksPalette = useTasksPalette({
-    planTabs: projectOwnership ? team.selectedProject?.planTabs : undefined,
+    planTabs: team.selectedProject?.planTabs,
     sprintId: selectedSprintId,
     currentSprintId: team.currentSprintId,
     agileEnabled: hasFeature("agile"),
@@ -381,18 +373,11 @@ function ProjectTasks() {
           setSprintImportOpen={setSprintImportOpen}
           fetchBacklog={backlog.fetchBacklog}
           clearFilters={filters.clearFilters}
-          teams={orgTeams}
-          selectedTeamId={selectedTeamId}
-          onTeamChange={(value) => setSelectedTeamId(value)}
-          showTeamSwitcher={showTeamSwitcher}
-          projectOwnership={projectOwnership}
           projects={availableProjects}
           selectedProjectId={team.selectedProjectId}
           onProjectChange={team.changeProject}
           onPlanSprint={sprintActions.planSprint}
         />
-
-        {!projectOwnership && <TeamFallbackBanner user={currentUser} teamVisibility={teamVisibility} />}
 
         {activeTab === "sprint" && selectedSprintId == null && <section className="card"><h3>No current sprint</h3><p>Plan your next sprint from the backlog.</p><button className="btn btn-secondary" onClick={() => changeTab("backlog")}>Open backlog</button></section>}
         {activeTab === "sprint" && selectedSprintId != null && (
@@ -440,12 +425,12 @@ function ProjectTasks() {
           />
         )}
 
-        {projectOwnership && team.selectedProject && (activeTab === "board" || activeTab === "backlog" && !team.selectedProject.hasSprints) && (
+        {team.selectedProject && (activeTab === "board" || activeTab === "backlog" && !team.selectedProject.hasSprints) && (
           <ProjectBoard key={`${team.selectedProject.id}:${activeTab}`} project={team.selectedProject} backlog={activeTab === "backlog"}
             updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail}
             onOpenComments={(id) => detail.openTaskDetail({ id })} showConfirm={showConfirm} closeConfirm={closeConfirm} />
         )}
-        {activeTab === "backlog" && (!projectOwnership || team.selectedProject?.hasSprints) && (
+        {activeTab === "backlog" && team.selectedProject?.hasSprints && (
           <BacklogTab
             {...backlog}
             {...backlogTabHandlers(backlog)}
@@ -471,10 +456,10 @@ function ProjectTasks() {
           />
         )}
 
-        {projectOwnership && team.selectedProject?.type === "task_list" && activeTab === "list" && (
+        {team.selectedProject?.type === "task_list" && activeTab === "list" && (
           <TaskListView key={team.selectedProject.id} project={team.selectedProject} updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail} />
         )}
-        {projectOwnership && team.selectedProject?.type === "task_list" && activeTab === "calendar" && (
+        {team.selectedProject?.type === "task_list" && activeTab === "calendar" && (
           <TaskCalendar key={team.selectedProject.id} project={team.selectedProject} updatedTicket={detail.detailTask} onOpenDetail={detail.openTaskDetail} />
         )}
         {activeTab === "reports" && <SprintInsights projectId={team.selectedProjectId} />}

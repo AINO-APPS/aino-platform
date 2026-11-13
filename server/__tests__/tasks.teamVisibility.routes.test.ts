@@ -108,7 +108,7 @@ function fixtureQuery(sql: string, params: unknown[] = []): { rows: any[]; rowCo
         return { rows: ids.map((id) => TASKS[id]).filter(Boolean), rowCount: ids.length };
     }
     // Placement writes return the moved row.
-    match = text.match(/^UPDATE tasks SET .* WHERE id = \$(\d+) RETURNING \*/);
+    match = text.match(/^UPDATE tasks SET .* WHERE id = \$(\d+)(?: AND org_id IS NOT DISTINCT FROM \$\d+)? RETURNING \*/);
     if (match) {
         const id = Number(params[Number(match[1]) - 1]);
         return { rows: TASKS[id] ? [{ ...TASKS[id] }] : [], rowCount: 1 };

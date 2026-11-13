@@ -116,12 +116,13 @@ export async function findMoveStates(db: PlacementDb, sourceStateId: number | nu
 
 export async function setProject(
     db: PlacementDb, id: number, projectId: number, taskNumber: number, ticketKey: string,
-    stateId: number, clearSprint: boolean,
+    stateId: number, clearSprint: boolean, orgId: number | null,
 ): Promise<any> {
     return (await db.query(
         `UPDATE tasks SET project_id = $1, task_number = $2, ticket_key = $3, workflow_state_id = $4,
-          ${clearSprint ? `sprint_id = NULL` : "sprint_id = sprint_id"} WHERE id = $5 RETURNING *`,
-        [projectId, taskNumber, ticketKey, stateId, id],
+          ${clearSprint ? `sprint_id = NULL` : "sprint_id = sprint_id"}
+          WHERE id = $5 AND org_id IS NOT DISTINCT FROM $6 RETURNING *`,
+        [projectId, taskNumber, ticketKey, stateId, id, orgId],
     )).rows[0];
 }
 
@@ -130,21 +131,20 @@ export async function joinSprint(
     db: PlacementDb,
     id: number,
     sprint: { id: number },
+    orgId: number | null,
 ): Promise<any> {
     return (await db.query(
-        `UPDATE tasks SET sprint_id = $1 WHERE id = $2 RETURNING *`,
-        [sprint.id, id],
+        `UPDATE tasks SET sprint_id = $1 WHERE id = $2 AND org_id IS NOT DISTINCT FROM $3 RETURNING *`,
+        [sprint.id, id, orgId],
     )).rows[0];
 }
 
 /** Leave any sprint without changing ticket dates. */
-export async function leaveSprint(db: PlacementDb, id: number): Promise<any> {
-    return (await db.query("UPDATE tasks SET sprint_id = NULL WHERE id = $1 RETURNING *", [id])).rows[0];
-}
-
-/** Return to the backlog without changing ticket dates. */
-export async function returnToBacklog(db: PlacementDb, id: number): Promise<any> {
-    return (await db.query("UPDATE tasks SET sprint_id = NULL WHERE id = $1 RETURNING *", [id])).rows[0];
+export async function leaveSprint(db: PlacementDb, id: number, orgId: number | null): Promise<any> {
+    return (await db.query(
+        "UPDATE tasks SET sprint_id = NULL WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 RETURNING *",
+        [id, orgId],
+    )).rows[0];
 }
 
 export interface HistoryRow {

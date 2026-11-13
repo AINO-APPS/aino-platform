@@ -1,15 +1,9 @@
 /**
- * The Sprint tab header names the team and numbers the sprint.
+ * The Sprint tab header names the selected project and numbers the sprint.
  *
- * Two things were wrong with the old header:
- *   1. It printed the literal word "Team" whenever the profile had no
- *      `team_name`, so every user saw "Team — Sprint 1" instead of their own
- *      team's name.
- *   2. It printed the sprint's stored `name` ("Sprint 1"), which duplicates the
- *      word "Sprint" already in the heading and hides the sprint number.
- *
- * The heading must read "<Team name> — #<n>", with the number taken from the
- * sprint's `sprint_number` (falling back to the trailing digits of its name).
+ * The heading must read "<Project name> — #<n>", with the number taken from the
+ * sprint's `sprint_number` (falling back to the trailing digits of its name),
+ * never the sprint's stored `name`, which repeats the word "Sprint".
  */
 import { describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -87,14 +81,12 @@ function renderHeader(
 }
 
 describe("Sprint tab header", () => {
-    test("project ownership replaces Team and Unassigned with accessible projects", () => {
+    test("the project switcher lists accessible projects and offers no Team or Unassigned choice", () => {
         const change = vi.fn();
         renderHeader({ id: 1 }, sprint.id, sprint.id, {
-            projectOwnership: true,
             projects: [{ id: 10, key: "ONE", name: "One" }, { id: 20, key: "TWO", name: "Two" }],
             selectedProjectId: 10,
             onProjectChange: change,
-            showTeamSwitcher: true,
         });
         const picker = screen.getByRole("combobox", { name: "Project" });
         expect(picker).toHaveTextContent("ONE — One");
@@ -106,42 +98,30 @@ describe("Sprint tab header", () => {
         expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("One");
     });
 
-    test("the team switcher stays available with project ownership off", () => {
-        renderHeader({ id: 1 }, sprint.id, sprint.id, {
-            teams: [{ id: 1, name: "Team One" }], selectedTeamId: 1, showTeamSwitcher: true,
-        });
-        expect(screen.getByRole("combobox", { name: "Team" })).toHaveTextContent("Team One");
-        expect(screen.queryByRole("combobox", { name: "Project" })).not.toBeInTheDocument();
-    });
-    test("names the user's team and numbers the sprint", () => {
-        renderHeader({ id: 1, role: "employee", team_id: 1, team_name: "Payments" });
+    const payments = { projects: [{ id: 10, key: "PAY", name: "Payments" }], selectedProjectId: 10 };
+
+    test("names the selected project and numbers the sprint", () => {
+        renderHeader({ id: 1, role: "employee" }, sprint.id, sprint.id, payments);
 
         const heading = screen.getByRole("heading", { level: 2 });
         expect(heading).toHaveTextContent("Payments — #3");
-        expect(heading).not.toHaveTextContent("Team —");
         expect(heading).not.toHaveTextContent("Sprint 3");
     });
 
     test("falls back to the sprint number in the name when sprint_number is absent", () => {
-        renderHeader({ id: 1, role: "employee", team_id: 1, team_name: "Payments" });
+        renderHeader({ id: 1, role: "employee" }, sprint.id, sprint.id, payments);
 
-        const heading = screen.getByRole("heading", { level: 2 });
-        expect(heading).toHaveTextContent("#3");
+        expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("#3");
     });
 
     test("never prints the placeholder word Team", () => {
-        renderHeader({ id: 1, role: "employee", team_id: 1 });
+        renderHeader({ id: 1, role: "employee" }, sprint.id, sprint.id, payments);
 
-        const heading = screen.getByRole("heading", { level: 2 });
-        expect(heading).not.toHaveTextContent("Team —");
+        expect(screen.getByRole("heading", { level: 2 })).not.toHaveTextContent("Team —");
     });
 
     test("uses currentSprintId while the selected sprint is not initialized", () => {
-        renderHeader(
-            { id: 1, role: "employee", team_id: 1, team_name: "Payments" },
-            null,
-            sprint.id,
-        );
+        renderHeader({ id: 1, role: "employee" }, null, sprint.id, payments);
 
         expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Payments — #3");
     });

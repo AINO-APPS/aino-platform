@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const { loadUserContext, requireRole, requireSameOrg, ROLE_LEVEL, ORG_ROLES, SYSTEM_ROLE_LEVEL, DEFAULT_TENANT_ROLES, getRoleLabels } = require("../middleware/rbac");
 const redisClient = require("../redis");
 const { logAction } = require("../utils/audit");
+const { markOrganizationProjectOwned } = require("../platform/db/tenantOrganization");
 const { logger } = require("../utils/logger");
 const redis = require("../redis");
 const { removeTeam } = require("../modules/organization/teamOwnership");
@@ -46,6 +47,7 @@ router.post("/", requireRole("super_admin"), async (req: Request, res: Response)
             [name.trim(), slug, req.userId]
         );
         const orgId = result.rows[0].id;
+        await markOrganizationProjectOwned(req.db!.query, orgId);
 
         await req.db!.query("UPDATE users SET org_id = $1, role = $2 WHERE id = $3", [orgId, "super_admin", req.userId]);
         await redis.invalidateUserContext(req.tenantId, req.userId);

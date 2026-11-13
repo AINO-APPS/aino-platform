@@ -5,7 +5,7 @@ const multer = require("multer");
 const { masterQuery } = require("../services/masterDatabase");
 const auth = require("../middleware/auth");
 const { loadUserContext, requireRole, requireSameOrg, canManageUser, getTenantRolesMap, levelForRole, resolveAssignableTenantRole, ROLE_LEVEL } = require("../middleware/rbac");
-const { logAction, queryLogs } = require("../utils/audit");
+const { logAction, queryLogs } = require("../utils/audit"); const { markOrganizationProjectOwned } = require("../platform/db/tenantOrganization");
 const { validatePassword, validateUsername, BCRYPT_ROUNDS } = require("../utils/password");
 const { getOffsetMin, getTzModifier } = require("../utils/timezone");
 const { logger } = require("../utils/logger");
@@ -96,7 +96,7 @@ router.post('/organizations', requireRole('platform_admin'), async (req: Request
             'INSERT INTO organizations (name, slug, created_by, work_hours_per_day, work_days, timezone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
             [trimmedName, slug, req.userId, whpd, validatedWorkDays, timezone || 'UTC']
         );
-        const newId = result.rows[0].id;
+        const newId = result.rows[0].id; await markOrganizationProjectOwned(req.db!.query, newId);
         logAction(req, 'admin_create', 'organization', newId, { name: trimmedName });
         res.json({ id: newId, name: trimmedName, slug, message: 'Organization created successfully' });
     } catch (err) {

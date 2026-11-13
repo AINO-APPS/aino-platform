@@ -152,7 +152,7 @@ export async function placeTickets(
         let parentAfter = before;
         for (const ticket of [before, ...subtasks.filter(row => Number(row.parent_task_id) === id).map(row => tickets.get(Number(row.id)))]) {
             if (alreadyThere(ticket, target)) continue;
-            const after = await write(ctx.db, Number(ticket.id), targetSprint);
+            const after = await write(ctx.db, Number(ticket.id), targetSprint, ctx.actor.orgId);
             await record(ctx, "place", ticket, after, historyFor(ticket, after, sprints));
             if (Number(ticket.id) === id) parentAfter = after;
         }
@@ -254,7 +254,7 @@ async function writeProjectMove(
     if (before.ticket_key && before.org_id != null) {
         await repo.insertTicketKeyAlias(ctx.db, Number(before.org_id), before.ticket_key, ticketId, before.project_id, "move");
     }
-    const after = await repo.setProject(ctx.db, ticketId, projectId, number, key, stateId, before.sprint_id != null);
+    const after = await repo.setProject(ctx.db, ticketId, projectId, number, key, stateId, before.sprint_id != null, ctx.actor.orgId);
     const history: HistoryRow[] = [
         { action: "transferred", field: "project", from: String(before.project_id), to: String(projectId) },
         { action: "transferred", field: "ticket_key", from: before.ticket_key, to: key },
@@ -280,9 +280,9 @@ function alreadyThere(ticket: any, target: PlacementTarget): boolean {
     return same(ticket.sprint_id, target.sprint);
 }
 
-async function write(db: PlacementDb, id: number, targetSprint: any): Promise<any> {
-    if (targetSprint) return repo.joinSprint(db, id, targetSprint);
-    return repo.leaveSprint(db, id);
+async function write(db: PlacementDb, id: number, targetSprint: any, orgId: number | null): Promise<any> {
+    if (targetSprint) return repo.joinSprint(db, id, targetSprint, orgId);
+    return repo.leaveSprint(db, id, orgId);
 }
 
 /** History and audit in the transaction; the change is announced after COMMIT. */

@@ -14,3 +14,7 @@ prerequisites have been verified.
 
 Schema bootstrap recognizes the completed contraction marker and does not
 reintroduce compatibility columns during subsequent pre-deploy migrations.
+
+A tenant provisioned after the ownership switch was retired is created
+project-owned (`platform/db/tenantOrganization.ts`). Left unswitched, it would
+fail the all-organization verification and take every other tenant's API down.

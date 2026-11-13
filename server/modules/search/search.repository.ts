@@ -68,12 +68,14 @@ export async function searchLeaves(db: SearchDb, userId: number, pattern: string
     )).rows;
 }
 
-export async function searchSprints(db: SearchDb, projectIds: number[], pattern: string) {
+export async function searchSprints(db: SearchDb, orgId: number | null, projectIds: number[], pattern: string) {
     if (projectIds.length === 0) return [];
     return (await db.query(
-        `SELECT id, name, goal, status, start_date, end_date FROM sprints
-         WHERE project_id = ANY($1::int[]) AND (name ILIKE $2 OR COALESCE(goal, '') ILIKE $2)
-         ORDER BY start_date DESC LIMIT 7`, [projectIds, pattern],
+        `SELECT s.id, s.name, s.goal, s.status, s.start_date, s.end_date
+           FROM sprints s JOIN projects p ON p.id = s.project_id
+          WHERE s.project_id = ANY($1::int[]) AND p.org_id IS NOT DISTINCT FROM $3
+            AND (s.name ILIKE $2 OR COALESCE(s.goal, '') ILIKE $2)
+          ORDER BY s.start_date DESC LIMIT 7`, [projectIds, pattern, orgId],
     )).rows;
 }
 

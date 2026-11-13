@@ -14,7 +14,6 @@ vi.mock("../AuthContext", () => ({
         user: {
             id: 1, tenant_id: 1, org_id: 1, team_id: 1, role: "employee",
             must_change_password: auth.mustChangePassword,
-            project_ownership: true,
         },
     }),
     hasTenantContext: () => true,
