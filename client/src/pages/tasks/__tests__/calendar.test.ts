@@ -43,9 +43,9 @@ describe("calendar maths", () => {
 
     test("tasks group by their planned day", () => {
         const groups = groupByDay([
-            { id: 1, planned_date: "2026-10-25" },
-            { id: 2, planned_date: "2026-10-25" },
-            { id: 3, planned_date: "2026-10-26" },
+            { id: 1, start_date: "2026-10-25" },
+            { id: 2, start_date: "2026-10-25" },
+            { id: 3, start_date: "2026-10-26" },
             { id: 4 },
         ]);
         expect(groups.get("2026-10-25")?.map((task) => task.id)).toEqual([1, 2]);
@@ -63,26 +63,26 @@ describe("calendar maths", () => {
 
     test("overdue work is planned before today and unfinished", () => {
         const overdue = overdueTasks([
-            { id: 1, planned_date: "2026-10-20" },
-            { id: 2, planned_date: "2026-10-20", completed_at: "2026-10-21T00:00:00Z" },
-            { id: 3, planned_date: "2026-10-25" },
+            { id: 1, start_date: "2026-10-20" },
+            { id: 2, start_date: "2026-10-20", completed_at: "2026-10-21T00:00:00Z" },
+            { id: 3, start_date: "2026-10-25" },
         ], "2026-10-25");
         expect(overdue.map((task) => task.id)).toEqual([1]);
     });
 
     test("the planned day is the only scheduling field", () => {
-        expect(plannedDay({ id: 1, planned_date: "2026-10-25" })).toBe("2026-10-25");
+        expect(plannedDay({ id: 1, start_date: "2026-10-25" })).toBe("2026-10-25");
         expect(plannedDay({ id: 1 })).toBeNull();
     });
 
-    test("start dates take precedence while omitted dates retain legacy compatibility", () => {
+    test("start dates take precedence over due dates", () => {
         const groups = groupByDay([
-            { id: 1, start_date: "2026-10-26", planned_date: "2026-10-25" },
-            { id: 2, start_date: null, planned_date: "2026-10-25" },
-            { id: 3, planned_date: "2026-10-25" },
+            { id: 1, start_date: "2026-10-26", due_date: "2026-10-25" },
+            { id: 2, start_date: null, due_date: "2026-10-25" },
+            { id: 3, due_date: "2026-10-25" },
         ]);
         expect(groups.get("2026-10-26")?.map((task) => task.id)).toEqual([1]);
-        expect(groups.get("2026-10-25")?.map((task) => task.id)).toEqual([3]);
+        expect(groups.get("2026-10-25")?.map((task) => task.id)).toEqual([2, 3]);
         expect(groups.size).toBe(2);
     });
 });

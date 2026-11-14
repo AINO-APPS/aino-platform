@@ -84,11 +84,12 @@ describe("project route characterization", () => {
                 canChangeType: false,
             },
         }]);
-        expect(mockQuery.mock.calls[0][0]).toContain("p.is_archived = FALSE");
+        expect(mockQuery.mock.calls.some(([sql]) => sql.includes("p.is_archived = FALSE"))).toBe(true);
     });
 
     test("clamps paginated list limits and can include archived projects", async () => {
         mockQuery
+            .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [{ total: 3 }], rowCount: 1 })
             .mockResolvedValueOnce({ rows: [], rowCount: 0 });
@@ -97,8 +98,8 @@ describe("project route characterization", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.pagination).toEqual({ limit: 200, offset: 0, total: 3, hasMore: true });
-        expect(mockQuery.mock.calls[0][0]).not.toContain("p.is_archived = FALSE");
-        expect(mockQuery.mock.calls[0][1]).toEqual([3, null, 200, 0]);
+        expect(mockQuery.mock.calls[1][0]).not.toContain("p.is_archived = FALSE");
+        expect(mockQuery.mock.calls[1][1]).toEqual([3, [1], 200, 0]);
     });
 
     test("returns the established empty shape when no organization is assigned", async () => {

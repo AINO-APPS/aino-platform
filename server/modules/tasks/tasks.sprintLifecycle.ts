@@ -12,7 +12,7 @@ import { SPRINT_POINT_TICKET_SQL } from "./tasks.points";
 export interface SprintLike {
     id: number | string;
     status?: string | null;
-    team_id?: number | string | null;
+    project_id?: number | string | null;
 }
 
 /** A sprint that accepts no task writes. */
@@ -31,8 +31,8 @@ export function displaySprintStatus(sprint: SprintLike | null | undefined): stri
     return isSprintActive(sprint) ? "active" : (sprint.status ?? "unknown");
 }
 
-export function sprintListResponse<T extends SprintLike>(sprints: T[], teamScoped = true) {
-    const current = teamScoped
+export function sprintListResponse<T extends SprintLike>(sprints: T[], projectScoped = true) {
+    const current = projectScoped
         ? sprints.find((sprint) => sprint.status === "active")
             ?? sprints.find((sprint) => sprint.status === "paused")
         : null;
@@ -149,7 +149,7 @@ export interface SprintDbLike {
 }
 
 /**
- * One active sprint per team.
+ * One active sprint per project.
  *
  * `start`, `PUT status=active` and `resume` all activate a sprint, so they all
  * ask here first. A paused sprint is not running, so it never blocks another
@@ -157,13 +157,15 @@ export interface SprintDbLike {
  */
 export async function findOtherActiveSprint(
     db: SprintDbLike,
-    teamId: unknown,
+    projectId: unknown,
     exceptSprintId: unknown,
-    projectOwnership = false,
+    orgId: number | null,
 ): Promise<RunningSprint | null> {
     const rows = (await db.query(
-        `SELECT id, name FROM sprints WHERE ${projectOwnership ? "project_id" : "team_id"} = $1 AND status = 'active' AND id != $2 LIMIT 1`,
-        [teamId, exceptSprintId],
+        `SELECT s.id, s.name FROM sprints s JOIN projects p ON p.id = s.project_id
+          WHERE s.project_id = $1 AND s.status = 'active' AND s.id != $2
+            AND p.org_id IS NOT DISTINCT FROM $3 LIMIT 1`,
+        [projectId, exceptSprintId, orgId],
     )).rows;
     return rows[0] ?? null;
 }
@@ -218,8 +220,7 @@ export interface ActivationDeps {
     db: SprintDbLike;
     tenantId: unknown;
     orgId: number | null;
-    projectOwnership?: boolean;
-    invalidateActiveSprint: (tenantId: unknown, teamId: unknown) => Promise<unknown>;
+    invalidateActiveSprint: (tenantId: unknown, projectId: unknown) => Promise<unknown>;
     snapshotBurndown: (db: SprintDbLike, sprintId: number) => Promise<unknown>;
     notifyStarted: (sprint: any) => Promise<unknown>;
     commit: (tasks: Array<{ id: number; story_points: number | null }>) => {
@@ -242,18 +243,17 @@ export function activationRefusal(sprint: { status?: string | null }): { status:
  */
 export async function startSprint(
     deps: ActivationDeps,
-    sprint: { id: unknown; team_id: unknown; project_id?: unknown; status?: string | null },
+    sprint: { id: unknown; project_id: unknown; status?: string | null },
 ): Promise<{ sprint?: any; error?: { status: number; body: Record<string, unknown> } }> {
     const current = await findSprintStatusInOrg(deps.db as any, sprint.id, deps.orgId);
     if (!current) return { error: { status: 404, body: { error: "Sprint not found" } } };
     const refusal = activationRefusal(current);
     if (refusal) return { error: refusal };
-    const running = await findOtherActiveSprint(deps.db,
-        deps.projectOwnership ? sprint.project_id : sprint.team_id, sprint.id, deps.projectOwnership);
+    const running = await findOtherActiveSprint(deps.db, sprint.project_id, sprint.id, deps.orgId);
     if (running) return { error: { status: 409, body: sprintAlreadyActiveBody(running) } };
     await activateSprint(deps.db, sprint.id, deps.commit);
     await deps.snapshotBurndown(deps.db, parseInt(String(sprint.id), 10));
-    await deps.invalidateActiveSprint(deps.tenantId, sprint.team_id);
+    await deps.invalidateActiveSprint(deps.tenantId, sprint.project_id);
     await deps.notifyStarted(sprint);
     return { sprint };
 }

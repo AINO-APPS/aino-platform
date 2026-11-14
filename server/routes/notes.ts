@@ -8,7 +8,10 @@ const auth = require("../middleware/auth");
 const { logger } = require("../utils/logger");
 const { handleMention } = require("../utils/collaboration");
 const { masterQuery } = require("../services/masterDatabase");
-const { findLinkedTask, insertNoteTicket } = require("../modules/tasks/tasks.notes");
+const { findLinkedTask, insertNoteTicket, findGeneralActiveSprint } = require("../modules/tasks/tasks.notes");
+const { resolveCreateProjectId } = require("../modules/tasks/tasks.ownership");
+const { taskActorFromRequest, canReadProjectSprint } = require("../modules/tasks/tasks.policy");
+const { ticketCreationConflict } = require("./tasks/_helpers/access");
 const { setTicketStartDate } = require("../modules/tasks/tasks.dates");
 const { loadUserContext } = require("../middleware/rbac");
 const noteTickets = require("./notes/_helpers/tickets");
@@ -313,7 +316,6 @@ router.get("/daily-prefill", async (req: Request, res: Response) => {
             [req.userId, startOfDay.toISOString(), endOfDay.toISOString()],
         )).rows;
 
-        // Calculate hours worked
         let totalMinutes = 0;
         let clockIn: Date | null = null;
         let breakStart: Date | null = null;
@@ -378,7 +380,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Verify the requesting user is the report's manager (or higher)
         const report = (await req.db!.query(
-            `SELECT id, full_name, team_id, manager_id FROM users WHERE id = $1`,
+            `SELECT id, full_name, org_id, team_id, manager_id FROM users WHERE id = $1`,
             [reportId],
         )).rows[0];
         if (!report) return res.status(404).json({ error: "User not found" });
@@ -396,7 +398,7 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
 
         // Recent tasks (last 2 weeks)
         const tasks = (await req.db!.query(
-            `SELECT t.*, ws.key AS status, t.start_date AS date
+            `SELECT t.*, ws.key AS status
              FROM tasks t
              LEFT JOIN workflow_states ws ON ws.id = t.workflow_state_id
              WHERE (t.user_id = $1 OR t.assigned_to = $1)
@@ -413,13 +415,16 @@ router.get("/oneonone-prefill/:userId", async (req: Request, res: Response) => {
             [reportId, twoWeeksAgo.toISOString().split("T")[0]],
         )).rows;
 
-        // Sprint progress (if in a team with active sprint)
+        // Sprint progress for the report's project, if it has an active sprint.
         let sprint = null;
         if (report.team_id) {
             const activeSprint = (await req.db!.query(
-                `SELECT id, name, start_date, end_date, goal FROM sprints
-                 WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-                [report.team_id],
+                `SELECT s.id, s.name, s.start_date, s.end_date, s.goal FROM sprints s
+                 JOIN projects p ON p.id = s.project_id
+                 WHERE p.origin_team_id = $1 AND p.org_id IS NOT DISTINCT FROM $2
+                   AND s.status = 'active'
+                 ORDER BY s.id LIMIT 1`,
+                [report.team_id, report.org_id],
             )).rows[0];
             if (activeSprint) {
                 const sprintTasks = (await req.db!.query(
@@ -529,7 +534,7 @@ router.get("/time-summary", async (req: Request, res: Response) => {
 
 // ── Convert checklist item → Task ──
 
-router.post("/convert-to-task", async (req: Request, res: Response) => {
+router.post("/convert-to-task", loadUserContext, async (req: Request, res: Response) => {
     try {
         const { title, pageId } = req.body;
         if (!title || !title.trim()) {
@@ -538,32 +543,30 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
 
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const orgId: number | null = req.userOrgId ?? null;
+        if (orgId == null) return res.status(403).json({ error: "Join an organization to create tasks from notes" });
 
-        // Get user's org_id
-        const userRow = (await req.db!.query("SELECT org_id, team_id FROM users WHERE id = $1", [req.userId])).rows[0];
-
-        // Find active sprint for the user's team (if any)
-        let sprintId = null;
-        if (userRow?.team_id) {
-            const sprint = (await req.db!.query(
-                `SELECT id FROM sprints WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-                [userRow.team_id],
-            )).rows[0];
-            if (sprint) sprintId = sprint.id;
-        }
-
-        // A note ticket starts today, independently of its optional sprint.
-        const placed = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) => {
-            const id = await insertNoteTicket(client, {
-                userId: req.userId!, orgId: userRow?.org_id || null, teamId: userRow?.team_id || null, title: title.trim(),
+        // The ticket goes to the org's General project, which the actor must be able to write to.
+        const outcome = await req.db!.transaction!(async (client: any, { afterCommit }: TransactionContext) => {
+            const project = await resolveCreateProjectId(client, {
+                actor: taskActorFromRequest(req), sprintId: null,
             });
+            if (project.error) return { refusal: project.error };
+            const creationRefusal = await ticketCreationConflict(req, project.projectId);
+            if (creationRefusal) return { refusal: creationRefusal };
+            const id = await insertNoteTicket(client, {
+                userId: req.userId!, orgId, projectId: project.projectId, title: title.trim(),
+            });
+            // A note ticket starts today, independently of its optional sprint.
             const dated = await setTicketStartDate(client, { id }, dateStr, req.userId!);
-            if (!sprintId) return dated;
-            return placedOrThrow(await placeTickets(
-                placementContext(req, client, afterCommit, { notify: false, orgId: userRow?.org_id ?? null }), [id], { sprint: sprintId },
-            )).task;
+            const sprint = await findGeneralActiveSprint(client, orgId);
+            if (!sprint) return { placed: dated };
+            return { placed: placedOrThrow(await placeTickets(
+                placementContext(req, client, afterCommit, { notify: false, orgId }), [id], { sprint: sprint.id },
+            )).task };
         });
-        const task = await noteTickets.convertedTask(placed, req);
+        if (outcome.refusal) return res.status(outcome.refusal.status).json(outcome.refusal.body);
+        const task = await noteTickets.convertedTask(outcome.placed, req);
 
         // Also link the task to the note page if pageId is provided
         if (pageId) {
@@ -585,17 +588,16 @@ router.post("/convert-to-task", async (req: Request, res: Response) => {
 
 // ── Sprint board data for embedding in notes ──
 
-router.get("/sprint-embed", async (req: Request, res: Response) => {
+router.get("/sprint-embed", loadUserContext, async (req: Request, res: Response) => {
     try {
-        const userRow = (await req.db!.query("SELECT team_id FROM users WHERE id = $1", [req.userId])).rows[0];
-        if (!userRow?.team_id) return res.json({ sprint: null, tasks: [] });
+        if (req.userOrgId == null) return res.json({ sprint: null, tasks: [] });
 
-        const sprint = (await req.db!.query(
-            `SELECT id, name, goal, status, start_date, end_date FROM sprints
-             WHERE team_id = $1 AND status = 'active' LIMIT 1`,
-            [userRow.team_id],
-        )).rows[0];
-        if (!sprint) return res.json({ sprint: null, tasks: [] });
+        const found = await findGeneralActiveSprint(req.db!, req.userOrgId);
+        // Without a role in the project the embed reveals nothing, not even that a sprint exists.
+        if (!found || !await canReadProjectSprint(found, taskActorFromRequest(req))) {
+            return res.json({ sprint: null, tasks: [] });
+        }
+        const { project_id: _projectId, org_id: _orgId, ...sprint } = found;
 
         // Sort by priority weight (high → medium → low) so the embedded sprint
         // board mirrors the main backlog order. Plain `ORDER BY priority DESC`

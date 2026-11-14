@@ -82,7 +82,7 @@ vi.mock("../../../hooks/useRealtimeEvent", () => ({ default: vi.fn() }));
 vi.mock("../hooks/useVisiblePoll", () => ({ useVisiblePoll: vi.fn() }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: true } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee" } }),
     hasTenantContext: () => true,
 }));
 
@@ -130,7 +130,7 @@ const TICKET = {
     ...ticket,
     id: 7,
     title: "Refund webhook retries",
-    issue_key: "PAY-142",
+    ticket_key: "PAY-142",
     priority: "high",
     workflow_state_key: "pending",
     story_points: 3,

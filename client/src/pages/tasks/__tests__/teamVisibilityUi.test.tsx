@@ -92,7 +92,7 @@ vi.mock("../../../api/organization", () => ({
 }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { project_ownership: true, ...state.user } }),
+    useAuth: () => ({ user: { ...state.user } }),
     hasTenantContext: () => true,
 }));
 

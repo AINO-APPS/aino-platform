@@ -95,7 +95,6 @@ function setupAuthMocks(overrides: Record<string, any> = {}) {
     if (user.org_id) {
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
-            .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
     }
 }
 

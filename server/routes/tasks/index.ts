@@ -1,7 +1,7 @@
 // Router orchestrator for /api/tasks.
 //
 // Mount order matters: routers that own static paths (e.g. /labels/manage,
-// /backlog, /search, /available-sprints, /carry-forward, /lookup/...) must
+// /backlog, /search, /available-sprints, /lookup/...) must
 // be registered before the generic CRUD router which owns /:id/* patterns,
 // otherwise Express may match a static segment as an :id parameter.
 //
@@ -9,6 +9,7 @@
 // unchanged (e.g. POST /api/tasks/backlog, GET /api/tasks/:id/detail).
 
 import express from "express";
+import { hasRetiredProjectTypesInput, isRetiredProjectTypesPath } from "../../modules/projectTypesRemoval/projectTypesRemoval.http";
 const { requireTenant } = require('../../middleware/tenant');
 
 const metaRouter = require('./meta');
@@ -16,7 +17,6 @@ const labelsRouter = require('./labels');
 const backlogRouter = require('./backlog');
 const searchRouter = require('./search');
 const sprintsRouter = require('./sprints');
-const carryForwardRouter = require('./carryForward');
 const commentsRouter = require('./comments');
 const detailRouter = require('./detail');
 const dependenciesRouter = require('./dependencies');
@@ -29,19 +29,25 @@ const bulkRouter = require('./bulk');
 const byKeyRouter = require('./byKey');
 const epicsRouter = require('./epics');
 const scheduleOverlaysRouter = require('./scheduleOverlays');
-const timerRouter = require('./timer');
 const worklogsRouter = require('./worklogs');
-const transferRouter = require('./transfer');
 const cancelRouter = require('./cancel');   // DELETE /:id (cancel, never hard-delete)
 const crudRouter = require('./crud');
 
 const router = express.Router();
 router.use(requireTenant);
+router.use((req, res, next) => {
+    const path = req.originalUrl.split("?")[0];
+    if (isRetiredProjectTypesPath(path)) return res.status(404).json({ error: "Not found" });
+    if (hasRetiredProjectTypesInput(path, req.query, req.body)) {
+        return res.status(400).json({ code: "LEGACY_PROJECT_TYPES_INPUT_REMOVED" });
+    }
+    return next();
+});
 
 // Static-path-first sub-routers
 router.use('/', metaRouter);          // /assignable-users, /labels (GET)
 router.use('/', labelsRouter);        // /labels/manage, /labels (POST), /labels/:id
-router.use('/', backlogRouter);       // /backlog (GET/POST), /:id/schedule, /:id/unschedule
+router.use('/', backlogRouter);       // /backlog (GET/POST)
 router.use('/', searchRouter);        // /search, /lookup/quicksearch
 // Sprint-related task routes are part of the Agile feature bundle — same gate
 // as /api/sprints and /api/agile. The gate is applied PER-ROUTE inside the
@@ -49,7 +55,6 @@ router.use('/', searchRouter);        // /search, /lookup/quicksearch
 // tenant with "Agile & Sprints" disabled still has full access to backlog,
 // CRUD, comments, etc.
 router.use('/', sprintsRouter);       // /available-sprints, /:id/assign-sprint (agile-gated)
-router.use('/', carryForwardRouter);  // /carry-forward (daily planner — NOT agile-gated)
 
 // :id-based sub-routers
 router.use('/', commentsRouter);      // /:id/comments
@@ -63,11 +68,9 @@ router.use('/', rankRouter);          // /:id/rank
 router.use('/', bulkRouter);          // /bulk
 router.use('/', byKeyRouter);         // /by-key/:key
 router.use('/', epicsRouter);         // /epics
-router.use('/', scheduleOverlaysRouter); // /schedule-overlays
-router.use('/', timerRouter);         // /:id/timer/start, /:id/timer/stop
+router.use('/', scheduleOverlaysRouter); // /schedule-overlays (calendar context)
 router.use('/', worklogsRouter);      // /:id/worklogs
 router.use('/', require('./estimates')); // /:id/estimates
-router.use('/', transferRouter);      // /:id/transfer (admin-only ownership move)
 router.use('/', require('./moveProject')); // /:id/move-project and preview
 router.use('/', cancelRouter);        // /:id (DELETE = cancel)
 

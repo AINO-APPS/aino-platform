@@ -47,3 +47,10 @@ The real Notes daily-prefill test adds legacy meeting date columns only to its d
 - Web: **9 suites, 55 tests passed**. Run from `client`: `npm test -- --reporter=dot src/pages/tasks/__tests__/startDateEdit.test.tsx src/pages/tasks/__tests__/detailLayout.test.tsx src/pages/tasks/__tests__/capabilityFreshness.test.tsx src/components/dashboard/MyWorkCard.test.tsx src/pages/tasks/__tests__/ScheduleCalendar.test.tsx src/pages/tasks/__tests__/calendar.test.ts src/pages/tasks/__tests__/bugScheduledHiddenDuringSprint.test.ts src/pages/tasks/__tests__/useTaskDeltas.test.tsx src/__tests__/scheduledTasks.test.ts`.
 - Integration validation initially exposed four calendar fixture failures: spreading the expanded contract fixture supplied `start_date: null`, correctly preventing fallback to the overridden legacy date. Test-only follow-up sets matching start dates and adds coverage for explicit date/null precedence and omitted-field legacy fallback. Production behavior and approved baselines remain unchanged.
 - Server/client/desktop typechecks, server dependency layering, root guardrails, **85 contract tests**, and whitespace checks passed. No pushes, releases, other branch merges or Android changes. **Ticket 02's Android slice remains separately running; this verifies platform integration only, not the entire spec.**
+
+## Comments
+
+2026-11-12 closeout reconciliation: Android start-date changes are integrated
+and included in ticket 09's verified 0.27.18 publication and green full CI.
+The historical platform-only limitation above no longer blocks this ticket.
+Compatibility aliases remain until ticket 11's guarded contraction.

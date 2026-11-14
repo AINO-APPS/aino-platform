@@ -8,6 +8,7 @@ export const getHierarchyType = repo.findHierarchyType;
 export const getHierarchyTicket = repo.findHierarchyTicket;
 export const recordHierarchyHistory = repo.recordHierarchyHistory;
 export const getTicketSubtasks = repo.findHierarchySubtasks;
+export const getHierarchyRepairs = repo.listHierarchyRepairs;
 
 export class HierarchyRefused extends Error {
     readonly code = "INVALID_HIERARCHY";

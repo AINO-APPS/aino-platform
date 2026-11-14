@@ -1,4 +1,6 @@
 import { availableProjectTypes } from "../modules/tasks/tasks.projectTypes";
+import { getHierarchyRepairs } from "../modules/tasks/tasks.hierarchy";
+import { webOnly } from "../middleware/webOnly";
 // Project CRUD — Stage 3.
 //
 //   GET    /api/projects             — list (active by default; `?include_archived=1`)
@@ -36,7 +38,6 @@ import {
 
 const router = express.Router();
 router.use(requireTenant);
-router.use("/migration", require("./projectMigration"));
 router.use(require("./projectBoard"));
 
 interface DbLike {
@@ -109,6 +110,19 @@ router.get("/types", auth, loadUserContext, (req: Request, res: Response) => {
 });
 
 // ─── List projects in the requester's org ─────────────────────────────────
+router.get("/hierarchy-repairs", webOnly, auth, loadUserContext, async (req: Request, res: Response) => {
+    if (!["super_admin", "platform_admin"].includes(req.userRole ?? "")) {
+        return res.status(403).json({ error: "Organization administrator required" });
+    }
+    if (!req.userOrgId) return res.status(404).json({ error: "Organization not found" });
+    try {
+        return res.json({ hierarchy_repairs: await getHierarchyRepairs(req.db!, req.userOrgId) });
+    } catch (err) {
+        req.log.error({ err }, "Hierarchy repair review failed");
+        return res.status(500).json({ error: "Could not load hierarchy repairs" });
+    }
+});
+
 router.get("/mine", auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         if (!req.userOrgId) return res.json([]);
@@ -139,8 +153,7 @@ router.get("/", auth, loadUserContext, async (req: Request, res: Response) => {
         const limit = Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10) || 50));
         const offset = Math.max(0, parseInt(String(req.query.offset), 10) || 0);
 
-        const accessibleIds = req.projectOwnership
-            ? await projectAccessForRequest(req).accessibleProjectIds() : null;
+        const accessibleIds = await projectAccessForRequest(req).accessibleProjectIds();
         const listParams = [req.userOrgId, accessibleIds];
         const baseWhere = `WHERE p.org_id = $1
             AND ($2::int[] IS NULL OR p.id = ANY($2::int[]))

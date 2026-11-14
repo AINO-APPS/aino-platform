@@ -128,6 +128,7 @@ postgresDescribe("task schema expansion on PostgreSQL", () => {
         await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS date TEXT`);
         await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`);
         await query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rank_value NUMERIC(20,10)`);
+        await query("ALTER TABLE sprints ALTER COLUMN project_id DROP NOT NULL");
     }
 
     async function seedLegacyTasks(query: SchemaQuery & QueryFn): Promise<{ pendingId: number; doneId: number }> {

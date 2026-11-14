@@ -43,7 +43,7 @@ const baseTask = {
     ...ticket,
     id: 7,
     title: "Refund webhook retries",
-    issue_key: "PAY-142",
+    ticket_key: "PAY-142",
     priority: "high",
     user_id: 1,
     workflow_state_id: 11,

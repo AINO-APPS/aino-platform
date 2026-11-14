@@ -1,15 +1,21 @@
 # Client versions
 
-Ticket 09 is observation only. The app-wide middleware runs after cookies and
+The app-wide middleware runs after cookies and
 before tenant/authentication middleware. OFF does not inspect identities or
-write anything; REPORT never rejects a request. Explicit unknown client headers
+write anything; REPORT never rejects a request. ENFORCE returns an uncacheable
+426 upgrade contract for recognized versions below their class's minimum.
+Semantic prerelease precedence is honored; build metadata does not affect
+ordering. Missing/invalid client versions have the precedence of `0.0.0`.
+Malformed operator configuration is rejected at app startup, not defaulted away.
+Explicit unknown client headers
 are ignored. Missing or invalid versions on recognized clients count as `0`.
 Legacy `isMobileClient` and `workpulse://app` origin detection apply only when the
 class header is absent.
 
 The public GET `/api/client-versions` is mounted before tenant resolution,
 authentication and maintenance checks. Health probes are exempt. Its response is
-`{ mode: "off" | "report", minimums: { android, desktop, web } }`.
+`{ mode: "off" | "report" | "enforce", minimums: { android, desktop, web } }`.
+GET and HEAD recovery reads, including a trailing slash, are exempt.
 
 Authentication calls the service **after** token-version, session and
 impersonation checks. Only verified, non-impersonated principals are observed.

@@ -64,7 +64,7 @@ export const deleteGitRef = async (db: TasksDb, taskId: number, refId: number) =
 
 export const findChildren = async (db: TasksDb, taskId: number) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.user_id, t.assigned_to,
-            t.team_id, t.org_id, t.sprint_id, t.start_date, t.completed_at,
+            t.org_id, t.sprint_id, t.start_date, t.completed_at,
             t.story_points, t.work_item_type_id, t.priority, t.project_id, t.ticket_key,
             t.parent_task_id, t.original_estimate_minutes, t.remaining_estimate_minutes,
             u.full_name AS assignee_name, u.username AS assignee_username,
@@ -81,7 +81,7 @@ export const findChildren = async (db: TasksDb, taskId: number) => (await db.que
 
 export const findParent = async (db: TasksDb, taskId: number) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
-            t.work_item_type_id, t.user_id, t.assigned_to, t.team_id, t.org_id,
+            t.work_item_type_id, t.user_id, t.assigned_to, t.org_id,
             t.sprint_id, t.start_date, t.completed_at, t.priority, t.project_id, t.ticket_key,
             ws.name AS state_name, ws.color AS state_color,
             wit.name AS type_name, wit.color AS type_color, wit.is_epic, wit.is_subtask
@@ -233,15 +233,10 @@ export const findOrCreateCancelledState = async (
     )).rows[0] || null;
 };
 
-/**
- * Every epic in the org, with its work-item type for the badge colour.
- *
- * `issue_key` is not a column: it is the project key plus the per-project task
- * number, so it is derived here the same way the task enrich step derives it.
- */
+/** Every epic in the org, with its work-item type for the badge colour. */
 export const findEpics = async (db: TasksDb, orgId: number | null) => (await db.query(
     `SELECT t.id, t.title, t.workflow_state_id, t.story_points, t.project_id,
-            t.ticket_key, t.ticket_key AS issue_key,
+            t.ticket_key,
             wit.name AS type_name, wit.color AS type_color
        FROM tasks t
        JOIN work_item_types wit ON wit.id = t.work_item_type_id
@@ -293,19 +288,17 @@ export const findTaskIdsByIssueKeys = async (
     [orgId, projectKeys, taskNumbers],
 )).rows;
 
-/** Project fallback for a ticket create: sprint, team, then General. */
+/** Project fallback for a ticket create: sprint project, then General. */
 export const findDefaultTicketProject = async (
     db: { query(sql: string, params?: unknown[]): Promise<{ rows: any[] }> },
     orgId: number | null,
     sprintId: number | null,
-    teamId: number | null,
 ) => (await db.query(
     `SELECT COALESCE(
         (SELECT s.project_id FROM sprints s JOIN projects p ON p.id = s.project_id WHERE s.id = $2 AND p.org_id = $1),
-        (SELECT id FROM projects WHERE org_id = $1 AND origin_team_id = $3),
         (SELECT id FROM projects WHERE org_id = $1 AND is_general ORDER BY id LIMIT 1)
      ) AS id`,
-    [orgId, sprintId, teamId],
+    [orgId, sprintId],
 )).rows[0]?.id ?? null;
 /** An active project in the caller's org, or none. */
 export const findActiveProject = async (db: TasksDb, projectId: number, orgId: number | null) =>

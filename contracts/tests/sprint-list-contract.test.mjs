@@ -19,11 +19,9 @@ test("the current-sprint fixture matches the sprint-list contract", () => {
   assert.deepEqual(fixture.data, {
     sprints: [{
       id: 31,
-      team_id: null,
       project_id: 7,
       name: "Sprint 12",
       status: "paused",
-      auto_managed: false,
     }],
     currentSprintId: 31,
   });
@@ -31,7 +29,9 @@ test("the current-sprint fixture matches the sprint-list contract", () => {
   assert.deepEqual(fixture.data.sprints[0], fixture.data.sprints.find(
     (sprint) => sprint.id === fixture.data.currentSprintId,
   ));
-  assert.ok(api.components.schemas.Sprint.properties.team_id.type.includes("null"));
+  for (const field of ["team_id", "team_name", "auto_managed", "is_auto", "sprint_number"]) {
+    assert.equal(api.components.schemas.Sprint.properties[field], undefined);
+  }
   assert.ok(api.components.schemas.Sprint.required.includes("project_id"));
 });
 

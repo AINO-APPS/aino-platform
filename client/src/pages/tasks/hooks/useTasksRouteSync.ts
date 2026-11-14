@@ -156,7 +156,7 @@ export function useTaskDeepLink(
         request
             .then((res) => {
                 const task = res.data as any;
-                const currentKey = task.ticket_key || task.issue_key;
+                const currentKey = task.ticket_key || task.ticket_key;
                 if (task.key_alias && currentKey) {
                     if (pathKey) {
                         lastRequest.current = `key:${currentKey}`;

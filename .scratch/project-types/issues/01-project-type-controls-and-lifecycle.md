@@ -6,7 +6,9 @@
 
 **Status:** resolved
 
-**Acceptance scope:** Platform only: server and web/shared desktop renderer. Android remains separately incomplete and is not accepted by this resolution.
+**Acceptance scope:** Platform and Android. The original platform-only
+acceptance below is historical; Android completion and release verification
+are recorded in the closeout comment.
 
 - [x] Project creation and project settings expose the project's type and the types available to the organization.
 - [x] Without the `agile` feature, new projects and type changes are limited to Task list; existing Scrum and Kanban projects continue to work.
@@ -27,3 +29,10 @@ Validation on the merged platform tree:
 - PostgreSQL integration tests used only the disposable local PostgreSQL instance at `127.0.0.1:44677`, with `aino_test` as the test database URL and isolated throwaway suite databases.
 
 No integration-coupled fixes were needed. No Android changes, production changes, push or release were performed. Android acceptance remains outstanding.
+
+## Comments
+
+2026-11-12 status reconciliation: the earlier Android limitation is superseded
+by the integrated project-type planning and ticket 09's verified Android
+0.27.18 publication/full CI at `e66acb3f`. The original platform evidence is
+preserved above; it is not a claim that Android was tested in that earlier run.

@@ -9,8 +9,16 @@ backlog, board, sprints, workflow and access; teams can hold grants in any numbe
 of projects and never own a project. Creating a project requires team lead or
 above, grants the creator project-admin and may grant teams member access.
 User-facing guides: [Projects](../../../docs/PROJECTS.md) and
-[Service Desk](../../../docs/SERVICE_DESK.md). ADR-013 describes only the
-flag-off compatibility policy.
+[Service Desk](../../../docs/SERVICE_DESK.md). Ticket 11 removes team-owned
+task/sprint compatibility; the guarded contraction remains blocked until its
+production gate and organization ownership preflight pass.
+Tenant bootstrap retains the legacy columns required by historical ordered
+migrations; `0035_project_types_contraction.sql` removes them only after the
+guarded runner verifies the client-version minimums and ownership inventory.
+The base schema is not evidence that the contraction has run.
+This step-D server refuses API requests when its removal configuration or
+prerequisites are unready; leaving the removal setting off does not restore old
+routes. Health and client-version recovery reads remain exempt.
 
 ## Ticket hierarchy (project types, Expand)
 
@@ -46,6 +54,10 @@ clears points and records immutable corrections/system history without changing
 0031 or its original records. Human hierarchy/placement/points edits and missing
 or ambiguous evidence are preserved for review. The complete ordered-chain and
 already-applied-0031 upgrade/replay seam is `hierarchyLeafRecovery.integration`.
+The web Projects page retains an administrator-only, read-only repair ledger.
+`GET /api/projects/hierarchy-repairs` lists original repairs and corrections for
+the current organization, including records for tickets later removed. It does
+not expose an ownership switch or emergency switch-back.
 
 Parent placement and project moves cascade through `getTicketSubtasks` under the
 organization placement lock. Every member gets transactional placement history,
@@ -83,8 +95,8 @@ Use `sort=key|title|type|status|assignee|priority|start_date|due_date` and
 `undated=1` instead reads open work with neither date. Both scopes require a
 positive project ID and project access, reject sprint scope, and return
 `{ tasks, stats, pagination: { offset, hasMore } }` in pages of 500.
-The calendar client follows all pages; List provides page controls. Legacy
-day/sprint reads retain their behavior and omit pagination.
+The calendar client follows all pages; List provides page controls. Remaining
+backlog and sprint reads retain their behavior and omit pagination.
 
 The web month and Monday-to-Sunday week calendar share range reads, paging,
 overlays, the undated tray and normal `PUT /api/tasks/:id` date edits, not placement.
@@ -99,17 +111,14 @@ placement. `tasks.dateRepository.ts` owns locking, persistence and history SQL;
 `tasks.dates.ts` validates real ISO days and refuses a deadline before
 start with `Due date cannot be earlier than the start date`. Start-date writes
 and their `updated/start_date` history share a transaction. Both creates and the
-full edit accept `start_date`; legacy `planned_date` is an alias, with an explicit
-`start_date` (including null) winning if both are sent. The day-create route also
-accepts legacy `date` and retains its default of today; backlog create is undated
-unless a start date is supplied.
+full edit accept `start_date`; the removed `planned_date` and `date` request
+aliases are not accepted. Backlog creation is undated unless a start date is
+supplied.
 
-The retained schedule/unschedule endpoints set/clear start date only. Search,
-export, Notes, manager/attendance day reads and My Work/dashboard windows read
-start date. Ticket/search/notes summaries and realtime date deltas retain
-`planned_date` equal to start date. The stored legacy placement column is not
-rewritten by date edits: the Scheduled container, carry-forward route and sprint
-due-date bookkeeping remain until their ticket 05/Contract changes.
+Scheduling and unscheduling routes and the Scheduled container are retired.
+Search, export, Notes, manager/attendance day reads and My Work/dashboard windows
+use `start_date`; API responses no longer emit `planned_date` or a `date` alias.
+Sprint membership is independent of task dates.
 
 Migration `0029_tasks_start_date.sql` copies planned days once, preserving
 explicit start dates. Its transactional data marker also prevents direct SQL
@@ -169,20 +178,18 @@ Web settings are available at `/projects` (More → Projects); organization-role
 gates do not hide settings from project admins. The rename control itself uses
 the server-returned `canRenameKey` capability.
 
-When `organizations.project_ownership` is enabled, project lists include only
-accessible projects (all for organization admins). Plan backlog, available
-sprints and sprint lists accept `project_id`; legacy `team_id` resolves only
-to the team's generated project, not all projects granted to the team.
+Project lists include only accessible projects (all for organization admins).
+Plan backlog, available sprints and sprint lists are scoped by `project_id`;
+team-scoped task and sprint queries are rejected.
 The web Plan project selection also scopes agile configuration, so board
 columns and ticket controls use that project's workflow after switching.
 `tasks.sprintProjects.ts` adapts project scopes and sprint management rules.
-Sprint lookup, lifecycle and placement locks use the project's organization;
-`team_id` is nullable compatibility data and team deletion preserves sprints.
-Flag-off requests retain team-scoped behavior and the team-deletion work guard.
+Sprint lookup, lifecycle and placement locks use the owning project and its
+organization.
 
 The web Plan switcher remembers a project per tenant/user, hides Unassigned,
 and narrows both backlog requests and sprint/board selection. `/api/profile`
-exposes `project_ownership` to select this behavior independently of plan flags.
+does not expose an ownership-mode flag.
 Run `npm run test:pg -- projectPlanning --runInBand` from `server` for the
 project planning PostgreSQL route tests.
 
@@ -193,12 +200,11 @@ create project; archived and viewer-only defaults are discarded. No available
 project leaves an explanatory empty picker and disables creation.
 
 `tasks.ownership.ts` resolves create ownership from the explicit request, then
-the sprint's project, then the legacy team project, then General. In project mode
-every resolved destination must be active and writable by a member/project admin
-(or org admin); an invalid or refused explicit project never falls back.
+the sprint's project, then General. Every destination must be active and writable
+by a member/project admin (or org admin); an invalid or refused explicit project
+never falls back.
 Create, edit, bulk and plan placement all refuse a sprint from another project
-with `SPRINT_PROJECT_MISMATCH`. This replaces the legacy team mismatch code;
-flag-off tenants retain their existing team-scoped placement rules.
+with `SPRINT_PROJECT_MISMATCH`.
 
 ## Project-type policy and lifecycle (ADR-018)
 
@@ -250,40 +256,24 @@ Ticket placement capabilities ask the same pure policy. Migration
 project-row locks and database triggers serialize open-sprint writers with type
 changes, preventing bypass and concurrent orphaning.
 
-Run `npx jest projectTypes.integration tasks.projectTypes tasks.capabilities.integration --runInBand`
+Run `npx jest projectTypes.integration projectTypesRemoval.test tasks.projectCapabilities.test --runInBand`
 with the local test-database variable for pure policy, HTTP and capability seams.
 Ticket 01 does not replace subsequent tickets' planning board contents.
 
-## Migration review and publication
+## Ownership migration history and contraction guard
 
-At `/projects`, **Review project migration** opens the super-admin review.
-`GET /api/projects/migration/review` returns a consistent snapshot of generated
-team/General projects, publication state, types, ticket counts, named grants,
-and migration moves. `hierarchy_repairs` includes organization-scoped original
-repairs and follow-up corrections, with immutable before/after hierarchy fields,
-reason and time. A removed ticket retains its record with a null current key.
-`new_key` follows review renames; `migration_key` retains
-the original migration target. Inline rename reuses the project-key endpoint.
+The pre-ticket-11 review, switch and switch-back endpoints under
+`/api/projects/migration/**` are retired and are not supported API. Historical
+migrations remain in the ordered tenant chain; bootstrap keeps only the
+compatibility columns they require until guarded migration `0035` contracts
+them. The contraction runner refuses unless the released client-version
+minimums are enforced and its global inventory verifies project ownership for
+every organization. Bootstrap/schema presence does not satisfy that preflight.
 
-`tasks.migration.ts` orchestrates review and switch-over; its repository owns SQL.
-`POST /api/projects/migration/switch` requires exactly `super_admin`, locks the
-organization, publishes every project key, enables `project_ownership`, stamps
-the first publication time and inserts an audit entry in one transaction.
-Concurrent/repeated switches return 409. A failed audit rolls everything back.
-`POST /api/projects/migration/switch-back` requires exactly `platform_admin`,
-disables project visibility and audits the emergency action without unpublishing
-keys or clearing the first-publication timestamp. Initial publication cannot
-be repeated after rollback. All three endpoints require web sessions and an
-organization context; HR/project admins cannot administer this switch.
-
-Migration `0023_project_ownership_switch.sql` adds the retained timestamp and
-stamps already-enabled organizations. Run
-`npm run test:pg -- projectsMigration --runInBand` for the HTTP/PostgreSQL seam.
-
-With project ownership enabled, ticket decisions use project roles rather than
-team membership. Viewers, reporters and assignees can comment; only members and
-project admins can write. Project admins can log, edit and delete other people's
-worklogs only within their administered project, including team-derived grants.
+Ticket decisions use project roles rather than team ownership. Viewers, reporters
+and assignees can comment; only members and project admins can write. Project
+admins can log, edit and delete other people's worklogs only within their
+administered project, including team-derived grants.
 Org admins retain on-behalf access throughout their organization. Worklog
 `canEdit`/`canDelete` responses use the same project-role and archive context as
 mutation guards; member/viewer grants never confer on-behalf administration.
@@ -297,7 +287,7 @@ Placement — sprint/backlog membership and the sprint exit during project moves
 goes through `tasks.placement.ts` (rules),
 `tasks.placementRepository.ts` (SQL) and `tasks.placementEffects.ts` (realtime
 and notifications). Dates are independent fields (ADR-018); compatibility date
-routes remain until ticket11. `scripts/check-placement-writes.mjs` enforces it.
+routes are retired by ticket 11. `scripts/check-placement-writes.mjs` enforces it.
 
 ### Moving projects (ticket10)
 
@@ -307,24 +297,20 @@ category ordered by `sort_order, id`, then initial state. Preview only reads and
 returns `{ target_project_id, key_format, workflow_state, leaves_sprint }`; its
 key format is not a reservation. The HTTP adapters are
 `POST /api/tasks/:id/move-project/preview` and `POST /api/tasks/:id/move-project`,
-both accepting `{ project_id }`. They require project ownership to be enabled.
+both accepting `{ project_id }`.
 
 The caller supplies one transaction. Placement locks serialize moves, project
 share locks prevent concurrent archive/key changes, and effective personal plus
-primary/secondary-team grants are checked on that transaction's connection.
+project grants are checked on that transaction's connection.
 Commit allocates a target sequence, aliases the old key with reason `move`,
-maps state, and clears a source-project sprint using the ordinary sprint-exit
-due-date rules. A planned day survives. History and audit share the transaction;
-effects run only after commit. In project mode both projects' readers receive
-a payload-free ticket invalidation so source-only readers do not learn the new
-project's key/state. Legacy mode retains field deltas.
+maps state, and clears a source-project sprint. History and audit share the
+transaction; effects run only after commit. Both projects' readers receive a
+payload-free ticket invalidation so source-only readers do not learn the new
+project's key/state.
 
 `canMoveProject` requires member or higher in an active source project; target
-membership is checked by preview/commit. Project moves retain `team_id` for
-emergency switch-back. Legacy `/transfer` keeps its envelope and uses the same
-move operation against the target team's generated project; only flag-off
-transfers update legacy team ownership. After switch-over a retained team ID
-does not stop a transfer back into that team's generated project.
+membership is checked by preview/commit. Legacy `/transfer` is retired; use
+the project-move routes.
 
 Run `npm run test:pg -- tasks.placementRoutes.integration --runInBand -t ticket10`
 for move/preview, workflow mapping, permissions, rollback and legacy coverage.
@@ -336,26 +322,22 @@ for move/preview, workflow mapping, permissions, rollback and legacy coverage.
 The batch result follows input order; each entry is `{ container, capabilities }`.
 The single-ticket form returns the same decision for write-path callers.
 
-Load context once for the whole request. It contains project lifecycles, the
-legacy org-template fallback, a batch-loaded sprint lookup and, with legacy visibility enabled, a batch-loaded
-creator-team lookup. Project metadata is loaded in both ownership modes so containers follow project
-type and never dates; project mode additionally uses the actor's effective roles.
+Load context once for the whole request. It contains project lifecycles and a
+batch-loaded sprint lookup. Project metadata supplies container type and
+project roles govern ticket capabilities.
 Pass an already loaded lifecycle as the loader's
 `{ lifecycle }` option to reuse it. Both decide forms are synchronous and perform
 no database reads. SQL for the supplementary lookups lives in
 `tasks.capabilitiesRepository.ts`.
-Flag-off authorization still evaluates migrated project state IDs against their
-project graph; tickets retaining real legacy template state IDs use the org graph.
-
 The optional `{ targetSprintId }` loader option evaluates `placeInSprint` against
 a specific destination, including access, freeze and project ownership. Without a
 destination it describes the general placement action, not permission to enter
 every sprint. A requested destination that is missing or inaccessible denies
-access. Placement's exported `placementRefusal` shares its existing freeze,
-ownership and in-sprint scheduling rules with decisions; the shared predicates
+access. Placement's exported `placementRefusal` shares its freeze and ownership
+rules with decisions; the shared predicates
 live in `tasks.placementRules.ts` to keep decision loading independent of writes.
 
-Containers use sprint, then planned day, then backlog; deadlines never decide.
+Containers use sprint, then backlog; dates do not decide.
 Transitions include every other active state. Cancelled is terminal even when
 access or freeze would also refuse a move. Otherwise access precedes freeze,
 then cancellation permission/completion and transition legality. `changeState`
@@ -380,21 +362,16 @@ ticket's target transition, then enforces WIP as the final check. The graph and
 context loader remain exported from `tasks.workflow.ts`; shared implementation
 lives in `tasks.workflowRules.ts` so the decision module cannot depend on guards.
 
-User placement contexts carry `ticketActor`; `placeTickets` and `transferTicket`
-consult the corresponding decision against locked sprint rows before writing.
+User placement contexts carry `ticketActor`; `placeTickets` consults the
+corresponding decision against locked sprint rows before writing.
 Sprint lifecycle maintenance deliberately has no ticket actor: it moves a whole
 sprint's membership as a system operation, not as individual ticket edits.
 Sprint-target adapters retain their existing 400 status for an invalid or
 inaccessible destination; capability refusals carry the decision reason.
 
-The PostgreSQL matrix checks every actor/state/container row against action and
-transition guards, user scheduling, destination-specific placement and transfer.
-HTTP integration tests preserve access, freeze and org-isolation status codes.
-Response enrichment, contracts and client rendering remain separate rollout work.
-
-Run `cd server; npm run test:pg -- tasks.capabilities.integration --runInBand`
-with Docker, or set `TASKS_SCHEMA_TEST_DATABASE_URL` and run the suite with Jest.
-It skips when that URL is unset.
+Project capability and placement tests cover access, freeze, destination-specific
+placement and organization isolation. Contracts and Android endpoint coverage
+must remain aligned with these response fields.
 
 ## Notes ticket responses
 
@@ -406,29 +383,28 @@ context; links to another organization's tickets return no details.
 
 ## Manual worklogs (ADR-019)
 
-Web/desktop and Android record ticket time only through manual worklogs; there is
-no ticket Start/Stop UI. The attendance timer is unrelated and unchanged. Both
-clients render server capabilities, author/logged-by attribution, inline original
-and remaining estimates, all three remaining choices, and post-save warnings.
-Deprecated server timer routes remain available for older-client compatibility.
+Ticket time is recorded only through manual worklogs; the attendance timer is
+unrelated and unchanged. Clients render server capabilities, author/logged-by
+attribution, inline original and remaining estimates, all three remaining
+choices, and post-save warnings. Ticket timer routes are retired.
 
 `tasks.worklogs.ts` is the worklog interface; `tasks.worklogRepository.ts` owns
 its SQL. `getTicketWorklogs` returns non-deleted entries newest day worked first
 (with creation time/id tie-breaks), author/logged-by identities, and
 `time_spent_minutes`, `original_estimate_minutes` and `remaining_estimate_minutes`.
 Clients must refresh all three values from this envelope, including null and zero.
-`getTimeSpent` batches sums for ticket read surfaces;
-`logged_minutes` in responses is a legacy alias, never the stored ticket column.
+`getTimeSpent` batches sums for ticket read surfaces. Legacy `logged_minutes`
+and `estimated_minutes` aliases are not part of the supported response.
 
 `logWork` is the manual write seam (`POST /api/tasks/:id/worklogs`). It accepts
 `day_worked`, `time_spent`, optional `start_time`, `comment` and `author_id`, and returns
-`{ worklog, ticket, warnings }` with authoritative time spent, original/remaining
-estimates, and legacy logged/estimated aliases. It locks the org-scoped ticket, checks `can.logWork` through the
+`{ worklog, ticket, warnings }` with authoritative time spent and
+original/remaining estimates. It locks the org-scoped ticket, checks `can.logWork` through the
 capabilities module, and writes worklog/history/audit in one transaction.
 Realtime `task_updated` reaches the ticket's people and project readers only after
-commit in project mode; flag-off compatibility retains the legacy team audience.
-`tasks.effortAudience.ts` shares this audience rule across worklog create/edit/delete,
-legacy timer-stop and estimate writes, without broadcasting worklog fields.
+commit to project readers. `tasks.effortAudience.ts` shares this audience rule
+across worklog create/edit/delete and estimate writes, without broadcasting
+worklog fields.
 Done is allowed; Cancelled returns 403 `WORKLOG_CANCELLED`; frozen sprints remain
 read-only. Invalid fields return `INVALID_WORKLOG`, invalid durations
 `INVALID_DURATION`, both 400 with no writes. `tasks.duration.ts` is pure: w/d/h/m,
@@ -473,25 +449,18 @@ malformed people return 400 `INVALID_WORKLOG`. Omitting author uses the caller
 on create and keeps the current author on edit. `logged_by_id` always records
 the original logger and never changes on correction; history/audit record the
 current actor. The list shows both identities when they differ. Estimates and
-remaining choices are documented below. All five worklog/estimate routes have
-native coverage; no temporary manual-worklog parity waiver remains.
-
-`stopLegacyTimer` locks the org-scoped ticket and timer in one transaction, records a worklog,
-persists automatic remaining adjustment, and uses the same `worklog_added` history/audit
-semantics and after-commit `task_updated` as manual work. New stops do not duplicate
-that history with `time_logged`; existing legacy history remains readable.
-The timer-stop response shape and compatibility arithmetic are unchanged.
-All estimate, worklog and timer mutations explicitly carry the actor's org filter.
-Concurrent stops record only once. The day/start time use the caller's
-`X-Timezone-Offset` (JavaScript convention); elapsed minutes round up to at least
-one. Start/Stop remain compatibility routes during this rollout. Their legacy time
-summary reads original estimate through the compatibility alias.
+remaining choices are documented below. Ticket 11 removes timer endpoint
+coverage and updates the Android parity snapshot; focused and unfiltered parity
+checks must both pass before merge.
 
 Migration `0026_task_worklogs` stops running timers and converts timer history,
 using the owning organization's timezone (UTC fallback) and the comment
 "Migrated from timer". Unique `source_timer_id` prevents duplicate conversion,
 including SQL replay independently of the migration ledger. New-tenant baseline
 columns, constraints and indexes match. The obsolete total is never written.
+Ticket 11 drops the timer table only through its separately guarded contraction
+after the client-version gate enforces its minimums and every organization is
+verified project-owned. That one-shot path is not automatically run at startup.
 
 Public seams: `tasks.worklogRoutes.integration.test.ts` exercises the mounted
 HTTP router on real PostgreSQL; `tasks.worklogMigration.integration.test.ts`
@@ -506,8 +475,7 @@ accepts `original_estimate` and/or `remaining_estimate` duration strings; empty
 text clears, `0m` sets zero. Setting original seeds a null remaining only when
 remaining is omitted. `can.canEditEstimate` shares `logWork`'s decision.
 The endpoint records `estimate_changed` history and audit in the write transaction,
-then emits `task_updated` to the same project-reader audience after commit
-(legacy team audience while project ownership is off).
+then emits `task_updated` to the same project-reader audience after commit.
 
 Worklog create/edit/delete accept `remaining_mode` (`auto`, default; `set`; `leave`).
 `set` requires `remaining_estimate`; empty clears. `auto` applies the minutes delta,
@@ -518,8 +486,8 @@ Detail bars use spent / (spent + remaining), hiding unknown forecasts and showin
 zero progress for a zero total. Original still determines the overrun indicator.
 History renders worklog identity, author/logger, day, start time, duration and comment
 from stored before/after metadata; deletions and null/zero estimate changes remain traceable.
-Reads and write summaries expose original/remaining minutes and retain
-`estimated_minutes` as an alias of original for older clients.
+Reads and write summaries expose original/remaining minutes; the legacy
+`estimated_minutes` alias is retired.
 
 Migration `0027_task_estimates` renames the plan, adds nullable nonnegative remaining,
 and backfills from active worklogs. Replaying never resets an edited/cleared forecast.
@@ -529,5 +497,5 @@ bar. Tasks parity points to real web RTL and Android fake-API ticket-view-model
 tests. The platform's read-only native parity gate requires coverage for all five
 manual-worklog/estimate routes without changing unrelated baseline parity debt.
 Tests: `tasks.estimates.test.ts`, `tasks.estimateMigration.integration.test.ts`,
-`tasks.worklogRoutes.integration.test.ts`, `tasks.capabilities.integration.test.ts`
-(real PostgreSQL), and client `Estimates.test.tsx` / `LogWork.test.tsx` (RTL).
+`tasks.worklogRoutes.integration.test.ts` (real PostgreSQL), and client
+`Estimates.test.tsx` / `LogWork.test.tsx` (RTL).

@@ -4,7 +4,7 @@ export function applyClientVersionContract(paths, schemas) {
     const version = { type: "string", description: "Semantic version, including optional prerelease/build metadata." };
     schemas.ClientClass = { type: "string", enum: ["android", "desktop", "web"] };
     schemas.ClientVersionConfig = object({
-        mode: { type: "string", enum: ["off", "report"] },
+        mode: { type: "string", enum: ["off", "report", "enforce"] },
         minimums: object({ android: version, desktop: version, web: version }),
     });
     schemas.ClientVersionAdoption = object({
@@ -19,11 +19,11 @@ export function applyClientVersionContract(paths, schemas) {
         code: { type: "string", const: "CLIENT_UPGRADE_REQUIRED" }, client: ref("ClientClass"),
         min_version: version, current_version: { type: "string" },
     });
-    schemas.ClientUpgradeRequired.description = "Future 426 payload. Ticket 09 never returns 426 or enables enforcement.";
+    schemas.ClientUpgradeRequired.description = "Returned when an enforced minimum client version is not met.";
     const content = schema => ({ "application/json": { schema: ref(schema) } });
     paths["/api/client-versions"] = { get: {
         operationId: "getClientVersions", tags: ["client-versions"], summary: "Public platform-wide version configuration",
-        description: "Available before authentication, tenant resolution and maintenance checks. No-store. OFF by default; only OFF/REPORT supported.",
+        description: "Available before authentication, tenant resolution and maintenance checks. No-store. OFF by default; ENFORCE requires a configured minimum for each client class.",
         security: [], responses: { "200": { description: "Mode and valid semantic minimums", content: content("ClientVersionConfig") } },
     } };
     paths["/api/admin/client-versions"] = { get: {
@@ -43,6 +43,8 @@ export function applyClientVersionContract(paths, schemas) {
                 { $ref: "#/components/parameters/AinoClient" },
                 { $ref: "#/components/parameters/AinoClientVersion" },
             );
+            operation.responses ??= {};
+            operation.responses["426"] = { $ref: "#/components/responses/ClientUpgradeRequired" };
         }
     }
 }

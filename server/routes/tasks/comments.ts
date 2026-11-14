@@ -188,7 +188,6 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                 )).rows;
                 const found = new Set(mentionRows.map((r: any) => r.id));
                 const outsideOrg = [...mentionedIds].filter((uid) => !found.has(uid));
-                const requestActor = taskActorFromRequest(req);
                 if (outsideOrg.length > 0) {
                     req.log.info({ taskId: task.id, userIds: outsideOrg, orgId: req.userOrgId || null }, 'Task mention skipped: user inactive or outside the commenter org');
                 }
@@ -197,9 +196,7 @@ router.post('/:id/comments', auth, loadUserContext, handleUpload, async (req: Re
                     const uid = row.id;
                     const mentionActor = taskActorFromUser(
                         { ...row, id: uid, org_id: row.org_id ?? req.userOrgId },
-                        requestActor.teamVisibility,
                         req.db,
-                        requestActor.projectOwnership,
                     );
                     if (!await canAccessTask(task, mentionActor, req.db)) {
                         req.log.info({ taskId: task.id, userId: uid }, 'Task mention skipped: mentioned user cannot access the task');

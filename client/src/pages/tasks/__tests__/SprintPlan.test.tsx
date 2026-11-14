@@ -7,11 +7,11 @@ import { TaskProvider } from "../TaskContext";
 import ticket from "../../../../../contracts/fixtures/ticket-with-capabilities.json";
 
 const backlogTasks = [
-    { ...ticket, id: 1, issue_key: "PAY-1", title: "Refund webhook", story_points: 5 },
-    { ...ticket, id: 2, issue_key: "PAY-2", title: "Ledger fix", story_points: 3 },
+    { ...ticket, id: 1, ticket_key: "PAY-1", title: "Refund webhook", story_points: 5 },
+    { ...ticket, id: 2, ticket_key: "PAY-2", title: "Ledger fix", story_points: 3 },
 ];
 const sprintTasks = [
-    { ...ticket, container: "sprint", id: 3, issue_key: "PAY-3", title: "Retry backoff", story_points: 8 },
+    { ...ticket, container: "sprint", id: 3, ticket_key: "PAY-3", title: "Retry backoff", story_points: 8 },
 ];
 
 function planProps(overrides: Record<string, unknown> = {}): any {

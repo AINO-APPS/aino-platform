@@ -146,7 +146,7 @@ router.get("/my-tasks", async (req: Request, res: Response) => {
         });
 
         const tasks = (await req.db!.query(`
-            SELECT t.start_date AS date, t.title, ws.key AS status, t.priority, t.due_date,
+            SELECT t.start_date, t.title, ws.key AS status, t.priority, t.due_date,
                    u.full_name AS assigned_to_name
             FROM tasks t
             LEFT JOIN users u ON u.id = t.assigned_to

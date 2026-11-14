@@ -30,6 +30,7 @@ postgresDescribe("projects own tickets expansion (PostgreSQL migration seam)", (
             (100, 1, 'ALPHA', 'Existing', 1, 8), (101, 1, 'GEN', 'Collision', NULL, 2)`);
         // Some historical tenants contain teamless sprints; the old baseline did not allow them.
         await query("ALTER TABLE sprints ALTER COLUMN team_id DROP NOT NULL");
+        await query("ALTER TABLE sprints ALTER COLUMN project_id DROP NOT NULL");
         await query(`INSERT INTO sprints (id, team_id, name, start_date, end_date) VALUES
             (10, 1, 'Mixed', '2026-11-01', '2026-11-14'),
             (11, 2, 'Tie', '2026-11-01', '2026-11-14'),

@@ -118,7 +118,7 @@ or out of it.
 
 The day work on a ticket is expected to begin. A field, never a container.
 
-**Avoid:** "planned day", "scheduled date"; "Scheduled" as a place a ticket lives.
+**Avoid:** "planned day" or using a date as a place a ticket lives.
 
 ## Due date
 
@@ -169,20 +169,16 @@ by `DELETE FROM tasks`), excluded from the board and open backlog, and
 irreversible in the current model. Done must be reopened before it can be
 cancelled.
 
-## Unassigned
-
-The admin-only bucket for legacy tickets whose owning team could not be
-
 ## Worklog
 
 One entry of time someone spent on a ticket: the day worked, the time spent and
 an optional comment. The only way time is recorded against a ticket. See
 [ADR-019](docs/adr/ADR-019-manual-worklogs.md).
-Timesheet
+
+## Timesheet
 
 People's worklogs laid out by day, for a period. A report, never an approval.
 
-## 
 **Avoid:** "timer", "time entry" (attendance owns that term), "effort log".
 
 ## Time spent

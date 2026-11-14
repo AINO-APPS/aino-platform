@@ -21,7 +21,7 @@ export function useTicketProjects(user: any) {
     });
     const { data: createProjects = EMPTY } = useQuery({
         queryKey: ["tasks", "myProjects", user?.tenant_id, user?.id],
-        enabled: user?.project_ownership === true,
+        enabled: user != null,
         queryFn: async () => (await getMyProjects()).data as any[],
     });
     return { availableProjects, projectsFetched, createProjects };

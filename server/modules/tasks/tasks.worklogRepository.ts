@@ -22,10 +22,6 @@ export async function readWorklogEstimates(db: TasksDb, taskId: number, orgId: n
     return (await db.query('SELECT original_estimate_minutes, remaining_estimate_minutes FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2', [taskId, orgId])).rows[0];
 }
 
-export async function lockTicket(db: TasksDb, taskId: number, orgId: number | null) {
-    return (await db.query("SELECT id, original_estimate_minutes, original_estimate_minutes AS estimated_minutes, remaining_estimate_minutes FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2 FOR UPDATE", [taskId, orgId])).rows[0];
-}
-
 export async function lockWorklogTicket(db: TasksDb, taskId: number, orgId: number | null, lock = true) {
     return (await db.query(`SELECT * FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $2${lock ? " FOR UPDATE" : ""}`, [taskId, orgId])).rows[0];
 }
@@ -86,32 +82,3 @@ export async function recordWorklogChange(db: TasksDb, taskId: number, userId: n
         [orgId, userId, action, taskId, JSON.stringify({ before, after }), ip ?? null, userAgent ?? null]);
 }
 
-export async function lockRunningTimer(db: TasksDb, taskId: number, userId: number, orgId: number | null) {
-    return (await db.query(`SELECT tt.id, tt.started_at FROM task_timers tt JOIN tasks t ON t.id = tt.task_id
-        WHERE tt.task_id = $1 AND tt.user_id = $2 AND tt.stopped_at IS NULL
-          AND t.org_id IS NOT DISTINCT FROM $3 ORDER BY tt.id FOR UPDATE OF tt`, [taskId, userId, orgId])).rows[0];
-}
-
-export async function recordTimerWorklog(db: TasksDb, timerId: number, taskId: number, userId: number,
-    stoppedAt: string, minutes: number, dayWorked: string, startTime: string, orgId: number | null) {
-    const stopped = await db.query(`UPDATE task_timers tt SET stopped_at = $1, minutes = $2 FROM tasks t
-        WHERE tt.id = $3 AND tt.task_id = $4 AND tt.user_id = $5 AND t.id = tt.task_id
-        AND t.org_id IS NOT DISTINCT FROM $6 AND tt.stopped_at IS NULL RETURNING tt.id`, [stoppedAt, minutes, timerId, taskId, userId, orgId]);
-    if (!stopped.rows.length) return undefined;
-    return (await db.query(`INSERT INTO task_worklogs (task_id, author_id, logged_by_id, day_worked, start_time, minutes, source_timer_id)
-        SELECT id, $2, $2, $3::date, $4::time, $5, $6 FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $7
-        RETURNING id`, [taskId, userId, dayWorked, startTime, minutes, timerId, orgId])).rows[0].id as number;
-}
-
-export async function findRunningTimer(db: TasksDb, taskId: unknown, userId: number, orgId: number | null) {
-    return (await db.query(`SELECT tt.id, tt.started_at FROM task_timers tt JOIN tasks t ON t.id = tt.task_id
-        WHERE tt.task_id = $1 AND tt.user_id = $2 AND tt.stopped_at IS NULL
-          AND t.org_id IS NOT DISTINCT FROM $3
-        ORDER BY tt.started_at DESC LIMIT 1`, [taskId, userId, orgId])).rows[0] || null;
-}
-
-export async function startTimer(db: TasksDb, taskId: unknown, userId: number, startedAt: string, orgId: number | null): Promise<void> {
-    await db.query(`INSERT INTO task_timers (task_id, user_id, started_at)
-        SELECT id, $2, $3::timestamptz FROM tasks WHERE id = $1 AND org_id IS NOT DISTINCT FROM $4
-        ON CONFLICT (task_id, user_id) WHERE stopped_at IS NULL DO NOTHING`, [taskId, userId, startedAt, orgId]);
-}

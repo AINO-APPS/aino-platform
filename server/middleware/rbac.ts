@@ -184,18 +184,6 @@ async function resolveRoleLevel(req: any): Promise<number> {
     return levelForRole(role, rolesMap);
 }
 
-async function loadProjectOwnership(req: any): Promise<void> {
-    if (!req.userOrgId) {
-        req.projectOwnership = false;
-        return;
-    }
-    const result = await req.db.query(
-        "SELECT project_ownership FROM organizations WHERE id = $1",
-        [req.userOrgId],
-    );
-    req.projectOwnership = result.rows[0]?.project_ownership === true;
-}
-
 async function loadUserTeamIds(req: any): Promise<void> {
     if (!req.userOrgId) {
         req.userTeamIds = [];
@@ -260,7 +248,6 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
 
             if (!cached.is_active) return res.status(403).json({ error: "Account has been deactivated. Contact your administrator." });
             await loadUserTeamIds(req);
-            await loadProjectOwnership(req);
             return next();
         }
 
@@ -285,7 +272,6 @@ async function loadUserContext(req: any, res: Response, next: NextFunction): Pro
         req.roleLevel = await resolveRoleLevel(req);
 
         await loadUserTeamIds(req);
-        await loadProjectOwnership(req);
         next();
     } catch (err) {
         logger.error({ err, userId: req.userId }, "loadUserContext error");

@@ -13,15 +13,12 @@ describe("addSprintManagementCapability", () => {
             orgId: 1,
             teamId: null,
             role: "employee",
-            teamVisibility: true,
-            projectOwnership: true,
             projectAccess: {
                 roleForProject: jest.fn(async () => null),
                 rolesForProjects: jest.fn(async (ids) =>
                     new Map(ids.map((id) => [id, roleByProject.get(id) ?? null])),
                 ),
                 accessibleProjectIds: jest.fn(async () => []),
-                projectForTeam: jest.fn(async () => null),
             },
         };
         const db = {
@@ -48,8 +45,8 @@ describe("addSprintManagementCapability", () => {
         expect(actor.projectAccess?.rolesForProjects).toHaveBeenCalledWith([10, 20, 30]);
     });
 
-    test("does not add project capabilities to legacy team sprints", async () => {
-        const sprints = [{ id: 1, team_id: 2 }];
+    test("a sprint without a project cannot be managed", async () => {
+        const sprints = [{ id: 1 }];
 
         await expect(addSprintManagementCapability(
             { query: jest.fn() },
@@ -59,9 +56,7 @@ describe("addSprintManagementCapability", () => {
                 orgId: 1,
                 teamId: 2,
                 role: "team_lead",
-                teamVisibility: true,
-                projectOwnership: false,
             },
-        )).resolves.toBe(sprints);
+        )).resolves.toEqual([{ id: 1, can_manage: false }]);
     });
 });

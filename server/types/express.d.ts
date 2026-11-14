@@ -19,7 +19,7 @@ declare global {
       userId?: number;
       userOrgId?: number | null;
       userTeamId?: number | null;
-      projectOwnership?: boolean;
+      projectTypesApiRemoval?: boolean;
       userRole?: string;
       roleLevel?: number;
       username?: string;

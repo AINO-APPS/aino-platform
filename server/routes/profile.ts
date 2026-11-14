@@ -159,15 +159,11 @@ router.get("/", auth, async (req: Request, res: Response) => {
 
         // Degrades one optional column at a time; see the module for why a
         // missing column must not fail the session hydration.
-        const { user, sprintEnabledReported } = await loadProfileRow(req.db!, Number(req.userId), (missing, err) =>
+        const { user } = await loadProfileRow(req.db!, Number(req.userId), (missing, err) =>
             req.log.warn({ err }, `GET /profile: ${missing} unavailable, falling back`),
         );
         if (!user) return res.status(404).json({ error: "User not found" });
         user.must_change_password = !!user.must_change_password;
-        // A user with no team has no sprint context at all. When the fallback had
-        // to drop the column, leave it absent: clients distinguish "no sprints"
-        // from "not reported" and infer from the sprint list in the latter case.
-        if (sprintEnabledReported) user.team_sprint_enabled = !!user.team_sprint_enabled;
         user.tenant_id = req.tenantId ?? null;
         if (req.isPlatformUser) user.role = "platform_admin";
         const hasReports = (await req.db!.query("SELECT 1 FROM users WHERE manager_id = $1 AND is_active = TRUE LIMIT 1", [req.userId])).rows[0];

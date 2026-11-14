@@ -12,7 +12,7 @@
  */
 import { masterQuery, masterTransaction, initTenantSchema } from "../db";
 import { runTenantMigrations } from "../platform/db/migrations";
-import { seedAgileDefaults } from "../platform/db/agileDefaults";
+import { provisionTenantOrganization } from "../platform/db/tenantOrganization";
 import { getTenantPool, destroyTenantPool, destroyAllPools, getPoolStats } from "../platform/db/tenantPools";
 import type { PoolEntry } from "../platform/db/tenantPools";
 import { logger } from "./logger";
@@ -207,13 +207,7 @@ async function createTenant(
     }
 
     // 4. Create the organizations row inside the tenant DB (1 org per tenant DB)
-    await db.query(
-        `INSERT INTO organizations (id, name, slug, created_by)
-         VALUES (1, $1, $2, NULL)
-         ON CONFLICT (id) DO NOTHING`,
-        [orgName, slug]
-    );
-    await seedAgileDefaults(db.query);
+    await provisionTenantOrganization(db.query, { orgName, slug });
 
     logger.info({ tenantId: tenant.id, dbName, slug }, "Tenant created");
     return { tenant, db };

@@ -2,8 +2,6 @@
 export function applyHierarchyContract(paths, schemas) {
     const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
     const json = (schema) => ({ "application/json": { schema } });
-    const conflict = { description: "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
-        content: json(ref("Error")) };
     schemas.HierarchyRepairValue = {
         type: "object",
         properties: Object.fromEntries(["parent_task_id", "work_item_type_id", "project_id", "sprint_id", "story_points"]
@@ -23,9 +21,22 @@ export function applyHierarchyContract(paths, schemas) {
         required: ["task_id", "ticket_key", "stage", "reason", "repaired_at", "before", "after"],
         additionalProperties: false,
     };
-    schemas.ProjectMigrationReview.properties.hierarchy_repairs = { type: "array", items: ref("HierarchyRepair"),
-        description: "Organization-scoped immutable original repairs and additive corrections, oldest first; retained even if a ticket was later removed. Web organization super-admin/platform-admin review only." };
-    schemas.ProjectMigrationReview.required.push("hierarchy_repairs");
+    paths["/api/projects/hierarchy-repairs"] = { get: {
+        tags: ["projects"], operationId: "get_api_projects_hierarchy_repairs",
+        summary: "Review immutable hierarchy repairs and corrections for the current organization",
+        security: [{ cookieAuth: [] }],
+        responses: {
+            "200": { description: "Organization-scoped original repairs and corrections, oldest first; web super-admin/platform-admin only.",
+                content: json({ type: "object", properties: { hierarchy_repairs: { type: "array", items: ref("HierarchyRepair") } },
+                    required: ["hierarchy_repairs"], additionalProperties: false }) },
+            "401": { description: "Authentication required", content: json(ref("Error")) },
+            "403": { description: "Web organization administrator required", content: json(ref("Error")) },
+            "404": { description: "Organization not found", content: json(ref("Error")) },
+            "500": { description: "Could not load hierarchy repairs", content: json(ref("Error")) },
+        },
+    } };
+    const conflict = { description: "INVALID_HIERARCHY identifies a violated hierarchy rule; SUBTASK_FOLLOWS_PARENT refuses independent sprint/project placement; CANCELLED_TERMINAL refuses adding a subtask to a Cancelled parent.",
+        content: json(ref("Error")) };
     for (const reason of ["INVALID_HIERARCHY", "SUBTASK_FOLLOWS_PARENT"]) {
         const reasons = schemas.TicketCapability.properties.reason.enum;
         if (!reasons.includes(reason)) reasons.push(reason);

@@ -4,6 +4,13 @@ process.env.DATABASE_URL =
     process.env.DATABASE_URL || "postgresql://test:test@localhost:5432/test";
 process.env.NODE_ENV = "test";
 
+// Route suites isolate domain behavior from the platform rollout inventory.
+// The dedicated removal-boundary suites explicitly unmock this middleware.
+jest.mock("./modules/projectTypesRemoval/projectTypesRemoval", () => ({
+    ...jest.requireActual("./modules/projectTypesRemoval/projectTypesRemoval"),
+    createProjectTypesRemoval: () => (_req: any, _res: any, next: any) => next(),
+}));
+
 // Mock tenant resolution middleware so it passes through to the mocked db module.
 // Each test file mocks ../db with its own mockQuery; resolveTenant would otherwise
 // fail because it calls masterQuery / getTenantPool which are not mocked.

@@ -1,0 +1,24 @@
+.review {
+  margin-bottom: 24px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.review h2 { margin: 0 0 8px; }
+.review button {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: inherit;
+  cursor: pointer;
+}
+.review button:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+.tableScroll { overflow-x: auto; margin-top: 20px; }
+.review table { width: 100%; text-align: left; border-collapse: collapse; }
+.review caption { text-align: left; padding-bottom: 12px; font-size: 13px; }
+.review th, .review td { padding: 12px; vertical-align: top; border-bottom: 1px solid var(--border-color); }
+.review th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.review td ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }

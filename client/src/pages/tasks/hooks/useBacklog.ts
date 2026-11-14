@@ -32,7 +32,6 @@ const EMPTY_SCOPE: Record<string, unknown> = {};
 const EMPTY_PROJECTS: any[] = [];
 
 interface UseBacklogParams {
-    projectOwnership?: boolean;
     createProjects?: any[];
     createProjectUserKey?: string;
     activeTab: string;
@@ -52,7 +51,6 @@ export function useBacklog({
     activeTab,
     backlogFilters,
     scopeParams = EMPTY_SCOPE,
-    projectOwnership = false,
     createProjects = EMPTY_PROJECTS,
     createProjectUserKey = "",
     selectedSprintId,
@@ -91,7 +89,7 @@ export function useBacklog({
     const [backlogWorkItemType, setBacklogWorkItemType] = useState("");
     const [backlogProjectId, setBacklogProjectId] = useState("");
     const createSelection = useCreateProjectSelection({
-        enabled: projectOwnership, projects: createProjects, currentProjectId: scopeParams.project_id,
+        enabled: true, projects: createProjects, currentProjectId: scopeParams.project_id,
         userKey: createProjectUserKey, value: backlogProjectId, onChange: setBacklogProjectId,
     });
     const [backlogSummary, setBacklogSummary] = useState<BacklogSummary>({
@@ -292,7 +290,7 @@ export function useBacklog({
     const handleAddBacklog = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!backlogTitle.trim()) return;
-        if (projectOwnership && !createSelection.projects.some(project => String(project.id) === backlogProjectId)) {
+        if (!createSelection.projects.some(project => String(project.id) === backlogProjectId)) {
             setError("Choose a project where you can create tickets.");
             return;
         }
@@ -335,7 +333,7 @@ export function useBacklog({
      * caller keeps focus, so consecutive entry never needs the mouse.
      */
     const quickAdd = useCallback(async (title: string) => {
-        if (projectOwnership && !createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id))) {
+        if (!createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id))) {
             setError("Choose a project where you can create tickets.");
             return;
         }
@@ -351,7 +349,7 @@ export function useBacklog({
             const error = err as { response?: { data?: { error?: string } } };
             setError(error.response?.data?.error || "Failed to create backlog item");
         }
-    }, [fetchBacklog, setError, scopeKey, projectOwnership, createSelection.projects, createProjectUserKey]);
+    }, [fetchBacklog, setError, scopeKey, createSelection.projects, createProjectUserKey]);
 
     const inlineEdit = useBacklogInlineEdit({ setBacklogTasks, fetchBacklog, setError, undo, onMoved });
 
@@ -444,9 +442,9 @@ export function useBacklog({
     }, [fetchCompleted]);
 
     return {
-        projectRequired: projectOwnership,
+        projectRequired: true,
         createProjects: createSelection.projects,
-        canQuickCreate: !projectOwnership || createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id)),
+        canQuickCreate: createSelection.projects.some(project => String(project.id) === String(scopeParams.project_id)),
         backlogTasks,
         setBacklogTasks,
         backlogLoading,

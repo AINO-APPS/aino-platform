@@ -7,12 +7,12 @@
  */
 import { notifyUser } from "../../realtime/fanout";
 import { describeSprintCompletion, sprintLink } from "../../modules/tasks/tasks.notifications";
-import { findTeamMemberIds } from "../../modules/tasks/tasks.sprintRepository";
+import { findPlacementProjectAudience } from "../../modules/tasks/tasks.repository";
 
 interface SprintLike {
     id: number | string;
     name: string;
-    team_id: number;
+    project_id: number;
 }
 
 interface ReqLike {
@@ -23,24 +23,24 @@ interface ReqLike {
 }
 
 /**
- * Everyone on the sprint's team, minus the person who caused the event.
+ * Everyone with access to the sprint's project, minus the person who caused the event.
  *
- * Sprint events are team-wide, so the audience is the team roster rather than
+ * Sprint events are project-wide, so the audience is the project roster rather than
  * the assignee/creator pair a task event uses.
  */
 async function sprintAudience(
     req: ReqLike,
-    teamId: number,
+    projectId: number,
     actorId: number | null | undefined,
 ): Promise<number[]> {
-    const rows = await findTeamMemberIds(req.db, teamId, req.userOrgId ?? null);
+    const rows = await findPlacementProjectAudience(req.db, [projectId], req.userOrgId ?? null);
     const actor = Number(actorId);
     return rows
         .filter((id: number) => Number.isFinite(id) && id > 0 && id !== actor);
 }
 
 export async function notifySprintStarted(req: ReqLike, sprint: SprintLike): Promise<void> {
-    const audience = await sprintAudience(req, sprint.team_id, req.userId);
+    const audience = await sprintAudience(req, sprint.project_id, req.userId);
     for (const userId of audience) {
         await notifyUser(
             req.db,
@@ -66,7 +66,7 @@ export async function notifySprintCompleted(
         rolloverTarget: string;
     },
 ): Promise<void> {
-    const audience = await sprintAudience(req, sprint.team_id, req.userId);
+    const audience = await sprintAudience(req, sprint.project_id, req.userId);
     const body = describeSprintCompletion(summary);
     for (const userId of audience) {
         await notifyUser(

@@ -2,10 +2,11 @@
 // cumulative flow, cycle time, retrospectives).
 //
 // Reads require the same boundary as every other sprint surface: same org and,
-// for non-admins, the same team.
+// for non-admins, project membership.
 
 import { canReadProjectSprint, type TaskActor } from "./tasks.policy";
-import { findSprintWithTeam } from "./tasks.sprintRepository";
+import { findSprintWithProject } from "./tasks.sprintRepository";
+import { supportedProjectTypesPayload } from "../projectTypesRemoval/projectTypesRemoval.http";
 
 interface SprintAccessOutcome {
     sprint?: any;
@@ -17,7 +18,7 @@ async function loadSprintForActor(
     sprintId: number,
     actor: TaskActor,
 ): Promise<SprintAccessOutcome> {
-    const sprint = await findSprintWithTeam(db as any, sprintId);
+    const sprint = await findSprintWithProject(db as any, sprintId);
     if (!sprint || (actor.orgId != null && sprint.org_id != null
         && Number(sprint.org_id) !== Number(actor.orgId))) {
         return { error: { status: 404, body: { error: "Sprint not found" } } };
@@ -25,7 +26,7 @@ async function loadSprintForActor(
     if (!await canReadProjectSprint(sprint, actor)) {
         return { error: { status: 403, body: { error: "Access denied" } } };
     }
-    return { sprint };
+    return { sprint: supportedProjectTypesPayload(sprint) };
 }
 
 export = { loadSprintForActor };

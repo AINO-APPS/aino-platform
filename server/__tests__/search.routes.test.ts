@@ -62,7 +62,6 @@ function setupAuth(role = "employee", extra: Record<string, any> = {}) {
         .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [{ role, org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true, ...extra }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 });
 }
 
 // ─── Auth gate ─────────────────────────────────────────────────────────────
@@ -132,19 +131,14 @@ describe("GET /api/search - results grouping", () => {
     test("returns tasks, notes, users, events, leaves, sprints grouped", async () => {
         setupAuth();
 
-        const taskRow = { id: 1, title: "Fix bug", description: "Needs fixing", status: "open", priority: "high", date: "2024-01-01", due_date: null, sprint_id: null, snippet: "Fix bug" };
-        // tasks query
-        mockQuery.mockResolvedValueOnce({ rows: [taskRow], rowCount: 1 });
-        // notebooks query (no notebook)
-        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-        // users query
-        mockQuery.mockResolvedValueOnce({ rows: [{ id: 2, username: "alice", full_name: "Alice Smith", email: "alice@test.com", avatar: null, role: "employee" }], rowCount: 1 });
-        // events query
-        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-        // leaves query
-        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-        // sprints query
-        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        const taskRow = { id: 1, title: "Fix bug", description: "Needs fixing", status: "open", priority: "high", start_date: "2024-01-01", due_date: null, sprint_id: null, snippet: "Fix bug" };
+        mockQuery.mockImplementation(async (sql: string) => {
+            if (/FROM tasks t/.test(sql)) return { rows: [taskRow], rowCount: 1 };
+            if (/FROM users/.test(sql) && /ILIKE/.test(sql)) {
+                return { rows: [{ id: 2, username: "alice", full_name: "Alice Smith", email: "alice@test.com", avatar: null, role: "employee" }], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+        });
 
         const res = await request(app)
             .get("/api/search?q=fix")

@@ -1,6 +1,6 @@
 export type Client = "android" | "desktop" | "web";
 export interface VersionConfig {
-    mode: "off" | "report";
+    mode: "off" | "report" | "enforce";
     minimums: Record<Client, string>;
 }
 export interface Observation { client: Client; version: string }

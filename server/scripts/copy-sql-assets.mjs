@@ -35,6 +35,13 @@ const pairs = [
     ext: ".sql",
     required: true,
   },
+  {
+    // Ticket 11 is deliberately excluded from the automatic tenant migration sweep.
+    from: path.join(serverRoot, "platform/db/guardedMigrations"),
+    to: path.join(serverRoot, "dist/platform/db/guardedMigrations"),
+    ext: ".sql",
+    required: true,
+  },
 ];
 
 let copiedTotal = 0;

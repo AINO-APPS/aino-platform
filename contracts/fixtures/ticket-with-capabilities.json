@@ -1,14 +1,12 @@
 {
   "id": 42,
   "ticket_key": "OPS-42",
-  "issue_key": "OPS-42",
   "title": "Review the release plan",
   "priority": "high",
   "workflow_state_id": 102,
   "workflow_state_key": "in_progress",
   "workflow_state_name": "In Progress",
   "workflow_state_category": "in_progress",
-  "planned_date": null,
   "start_date": null,
   "due_date": null,
   "completed_at": null,
@@ -36,10 +34,6 @@
       "cancel": {
         "allowed": true
       },
-      "transfer": {
-        "allowed": false,
-        "reason": "ACCESS_DENIED"
-      },
       "delete": {
         "allowed": true
       },
@@ -49,9 +43,6 @@
       "comment": { "allowed": true },
       "logWork": { "allowed": true },
       "logWorkForOthers": { "allowed": false, "reason": "ACCESS_DENIED" },
-      "schedule": {
-        "allowed": true
-      },
       "logWork": {
         "allowed": true
       },
@@ -71,7 +62,6 @@
       }
     }
   },
-  "team_id": 7,
   "project_id": 3,
   "rank": null,
   "is_blocked": false

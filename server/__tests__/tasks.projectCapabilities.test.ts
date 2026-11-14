@@ -1,7 +1,7 @@
 import { decideTicket, type TicketDecisionContext } from "../modules/tasks/tasks.capabilities";
 import type { TaskActor } from "../modules/tasks/tasks.policy";
 
-const actor: TaskActor = { userId: 1, orgId: 1, teamId: null, role: "employee", teamVisibility: true, projectOwnership: true };
+const actor: TaskActor = { userId: 1, orgId: 1, teamId: null, role: "employee" };
 const ticket = { id: 1, org_id: 1, project_id: 10, user_id: 2, assigned_to: 3, workflow_state_id: 101 };
 const context = (role: string | null, archived = false): TicketDecisionContext => ({
     lifecycle: { states: [{ id: 101, key: "todo" }, { id: 102, key: "progress" }], stateById: new Map(),
@@ -24,8 +24,9 @@ test.each(["member", "project_admin"])("a project %s can edit without sharing th
 
 test.each(["viewer", null])("a project %s cannot log work or change estimates", (role) => {
     const can = decideTicket({ ...actor, userId: 2 }, ticket, context(role)).capabilities.can;
-    for (const action of ["logWork", "canEditEstimate", "logWorkForOthers"] as const)
+    for (const action of ["logWork", "canEditEstimate"] as const)
         expect(can[action]).toEqual({ allowed: false, reason: "READ_ONLY_ROLE" });
+    expect(can.logWorkForOthers).toEqual({ allowed: false, reason: "WORKLOG_FOR_OTHERS_DENIED" });
 });
 
 test("archived projects refuse changes even for org admins but keep comments", () => {

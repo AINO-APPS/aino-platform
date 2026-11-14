@@ -60,7 +60,7 @@ export default function BacklogCard({
     const status =
         currentStatusOption(task, workflowStates, statusOptions(workflowStates)) ||
         statusOptions(workflowStates)[0];
-    const issueKey = task.issue_key || `#${task.id}`;
+    const issueKey = task.ticket_key || `#${task.id}`;
     const selected = selection?.isSelected(task.id) ?? false;
     const canReorder = Boolean(reorder) && actionDecision(task, "edit").allowed;
     const titleSlot = editingTitle && actionDecision(task, "edit").allowed ? (

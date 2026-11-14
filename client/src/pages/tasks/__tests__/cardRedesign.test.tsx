@@ -20,7 +20,7 @@ const task = {
     ...ticket,
     id: 7,
     title: "Refund webhook retries",
-    issue_key: "PAY-142",
+    ticket_key: "PAY-142",
     priority: "high",
     story_points: 5,
     workflow_state_key: "in_progress",

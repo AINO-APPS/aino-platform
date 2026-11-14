@@ -8,7 +8,7 @@ import s from "./Analytics.module.css";
 interface TaskTimeEntry {
     task_id: number;
     title: string;
-    issue_key: string | null;
+    ticket_key: string | null;
     date: string;
     minutes: number;
 }
@@ -84,9 +84,9 @@ export default function TaskTimeTable({ from, to }: { from: string; to: string }
                                                 : ""}
                                         </td>
                                         <td>
-                                            {entry.issue_key && (
+                                            {entry.ticket_key && (
                                                 <span className={s["task-time-key"]}>
-                                                    {entry.issue_key}
+                                                    {entry.ticket_key}
                                                 </span>
                                             )}{" "}
                                             {entry.title}

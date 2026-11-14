@@ -11,8 +11,8 @@ vi.mock("../../../AgileConfigContext", () => ({
 }));
 
 test("backlog nests navigable children without independent selection, ranking or placement controls", () => {
-    const child = { ...ticket, id: 8, title: "Nested piece", issue_key: "PAY-143", is_subtask: true, parent_task_id: 7 };
-    const parent = { ...ticket, id: 7, title: "Parent story", issue_key: "PAY-142", subtasks: [child] };
+    const child = { ...ticket, id: 8, title: "Nested piece", ticket_key: "PAY-143", is_subtask: true, parent_task_id: 7 };
+    const parent = { ...ticket, id: 7, title: "Parent story", ticket_key: "PAY-142", subtasks: [child] };
     const open = vi.fn();
     render(<MemoryRouter><ToastProvider><TaskProvider
         assignableUsers={[]} orgLabels={[]} availableSprints={[]} availableProjects={[]} currentUser={null} activeTab="backlog">

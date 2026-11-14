@@ -1,6 +1,6 @@
 export interface TaskTime {
-    estimated_minutes?: number | null;
-    logged_minutes?: number | null;
+    original_estimate_minutes?: number | null;
+    time_spent_minutes?: number | null;
 }
 
 export interface TimeSummary {
@@ -18,8 +18,8 @@ function minutes(value: unknown): number {
 
 /** Logged against estimated, with the overrun made explicit. */
 export function summariseTime(task: TaskTime): TimeSummary {
-    const estimated = minutes(task.estimated_minutes);
-    const logged = minutes(task.logged_minutes);
+    const estimated = minutes(task.original_estimate_minutes);
+    const logged = minutes(task.time_spent_minutes);
     return {
         estimated,
         logged,

@@ -82,9 +82,9 @@ export default function ProjectTasksPanel({ project, users, teams, onClose }: Pr
                     <Link
                       to={`/tasks?task=${task.id}`}
                       style={styles.taskLink}
-                      title={`Open ${task.issue_key || `#${task.id}`}`}
+                      title={`Open ${task.ticket_key || `#${task.id}`}`}
                     >
-                      <code>{task.issue_key || `#${task.id}`}</code>
+                      <code>{task.ticket_key || `#${task.id}`}</code>
                     </Link>
                   </td>
                   <td style={styles.td}>

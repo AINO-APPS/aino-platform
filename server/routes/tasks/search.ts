@@ -11,7 +11,6 @@ const { loadUserContext } = require('../../middleware/rbac');
 const { enrichTasks, enrichTaskSummaries } = require('./_helpers/enrich');
 const {
     buildVisibilityPredicate,
-    resolveTaskVisibility,
     resolveTaskVisibilityForRequest,
     taskActorFromRequest,
 } = require('../../modules/tasks/tasks.policy');
@@ -37,19 +36,13 @@ router.get('/search', auth, loadUserContext, async (req: Request, res: Response)
             scope.push('t.org_id IS NULL');
         }
 
-        // The same visibility boundary as every other list: a member searches
-        // the team's tickets, an admin the org, a no-team user their own.
-        // With the flag off, search keeps its original personal scope.
+        // Search uses the same project visibility boundary as task lists.
         const actor = taskActorFromRequest(req);
         const projectId = req.query.project_id != null
             ? Number.parseInt(String(req.query.project_id), 10)
             : null;
         const visibility = buildVisibilityPredicate(
-            actor.projectOwnership
-                ? await resolveTaskVisibilityForRequest(actor, { projectId })
-                : actor.teamVisibility
-                    ? resolveTaskVisibility(actor)
-                : { kind: "personal", userId: actor.userId },
+            await resolveTaskVisibilityForRequest(actor, { projectId }),
             pi,
         );
         if (visibility.sql) scope.push(visibility.sql);
@@ -103,24 +96,18 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
         // is the canonical column), the task disappeared from search. Filter
         // on `t.org_id` directly. We still join users only to keep the column
         // list compatible for future enrichment, but it's no longer the gate.
-        // The dependency picker must not leak another team's ticket titles.
-        // Flag off keeps the historical personal scope (it was org-wide, which
-        // leaked — tightening it is the safer reading of "old behaviour").
+        // The dependency picker must respect the same project scope as task lists.
         const actor = taskActorFromRequest(req);
         const projectId = req.query.project_id != null
             ? Number.parseInt(String(req.query.project_id), 10)
             : null;
         const visibility = buildVisibilityPredicate(
-            actor.projectOwnership
-                ? await resolveTaskVisibilityForRequest(actor, { projectId })
-                : actor.teamVisibility
-                    ? resolveTaskVisibility(actor)
-                : { kind: "personal", userId: actor.userId },
+            await resolveTaskVisibilityForRequest(actor, { projectId }),
             4,
         );
         const rows = (await req.db!.query(
             `SELECT t.id, t.title, t.workflow_state_id, t.is_blocked, t.story_points,
-                    t.work_item_type_id, t.user_id, t.assigned_to, t.team_id, t.org_id,
+                    t.work_item_type_id, t.user_id, t.assigned_to, t.org_id,
                     t.sprint_id, t.start_date, t.completed_at
                FROM tasks t
               WHERE t.org_id = $1
@@ -139,7 +126,6 @@ router.get('/lookup/quicksearch', auth, loadUserContext, async (req: Request, re
                 id: task.id,
                 title: task.title,
                 start_date: task.start_date,
-                planned_date: task.planned_date,
                 workflow_state_id: task.workflow_state_id,
                 is_blocked: task.is_blocked,
                 story_points: task.story_points,

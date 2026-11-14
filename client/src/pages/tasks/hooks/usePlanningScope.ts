@@ -14,7 +14,7 @@ export function usePlanningScope(options: {
     agileEnabled: boolean;
 }) {
     const { currentUser, projects, projectsLoaded, setSelectedSprintId, agileEnabled } = options;
-    const enabled = currentUser?.project_ownership === true;
+    const enabled = currentUser != null;
     const project = useProjectScope({
         projects, projectsLoaded, enabled, agileEnabled,
         userKey: `${currentUser?.tenant_id}:${currentUser?.id}`, setSelectedSprintId,

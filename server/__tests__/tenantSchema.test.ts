@@ -31,7 +31,7 @@ describe("tenant schema composition", () => {
     });
 
     test("runs every schema phase in the historical dependency order", async () => {
-        const query = jest.fn();
+        const query = jest.fn().mockResolvedValue({ rows: [] });
 
         await initTenantSchema(query);
 

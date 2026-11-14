@@ -23,7 +23,7 @@
         "owner_tests": [
           { "path": "client/src/__tests__/ClientUpgradeBoundary.test.tsx", "name": "desktop automatically uses the existing updater and offers restart only after download" }
         ] },
-      "android": { "status": "waived", "waiver": "Android ticket09 and installed release proof are independently owned. Shared public GET /api/client-versions returns off/report plus three semantic minimums; this platform ticket does not claim native completion." },
+      "android": { "status": "waived", "waiver": "Android ticket09 and installed release proof are independently owned. Shared public GET /api/client-versions returns off/report/enforce plus three semantic minimums; this platform ticket does not claim native completion." },
       "ios": { "status": "waived", "waiver": "The scoped webview inherits bundled web headers and blocking reload. Native enforcement remains outside ticket09." }
     },
     {
@@ -37,7 +37,7 @@
         "owner_tests": [
           { "path": "client/src/pages/tasks/__tests__/taskListViews.test.tsx", "name": "every list field forwards its filter and sort, and a second sort reverses direction" },
           { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "dragging shifts a span together and dates undated work, without changing project or workflow" },
-          { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "week view uses Monday-to-Sunday bounds across a year boundary with inclusive spans, overlays and undated work" },
+          { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "week view uses Monday-to-Sunday bounds across a year boundary with inclusive spans and undated work" },
           { "path": "client/src/pages/tasks/__tests__/taskCalendar.test.tsx", "name": "week drag and keyboard edits share month date validation and keep the undated tray" },
           { "path": "client/src/pages/tasks/__tests__/tasksPageWiring.test.tsx", "name": "Task list %s route renders its real project-scoped surface" }
         ]
@@ -637,11 +637,11 @@
       "phase": 1,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "android": {
         "status": "shipped",
@@ -745,14 +745,8 @@
       "name": "Read-only leave, holiday and meeting overlays",
       "decision": "D51",
       "phase": 2,
-      "web": {
-        "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts"
-      },
-      "desktop": {
-        "status": "shipped",
-        "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts"
-      },
+      "web": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/tasks/__tests__/overlays.test.ts" },
       "android": {
         "status": "shipped",
         "owner_test": "app/src/test/java/app/aino/mobile/feature/tasks/TaskNextGenTest.kt"
@@ -1043,11 +1037,11 @@
       "phase": 2,
       "web": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "desktop": {
         "status": "shipped",
-        "owner_test": "server/__tests__/tasks.teamMode.test.ts"
+        "owner_test": "server/__tests__/projectTypesRemoval.test.ts"
       },
       "android": {
         "status": "waived",
@@ -1284,13 +1278,13 @@
     },
     {
       "id": "project-migration-review",
-      "name": "ADR-017 generated-project and immutable hierarchy repair review, with one-time ownership publication",
+      "name": "Read-only immutable hierarchy repair and correction review after ownership publication",
       "decision": "D45",
       "phase": 2,
-      "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
-      "desktop": { "status": "shipped", "owner_test": "client/src/pages/__tests__/ProjectMigrationReview.test.tsx" },
-      "android": { "status": "waived", "waiver": "Migration review and switch-over are web-only administration per ADR-017 and projects-own-tickets ticket 12." },
-      "ios": { "status": "waived", "waiver": "Administration uses the web app; native clients cannot call migration review or switch endpoints." }
+      "web": { "status": "shipped", "owner_test": "client/src/pages/__tests__/HierarchyRepairsReview.test.tsx" },
+      "desktop": { "status": "shipped", "owner_test": "client/src/pages/__tests__/HierarchyRepairsReview.test.tsx" },
+      "android": { "status": "waived", "waiver": "Immutable hierarchy repair review is web-only organization administration; ownership switch operations are retired in step D." },
+      "ios": { "status": "waived", "waiver": "Organization administrators use the web app for the read-only hierarchy repair audit." }
     },
     {
       "id": "project-key-rename",

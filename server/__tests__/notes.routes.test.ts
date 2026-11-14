@@ -278,7 +278,9 @@ describe("GET /api/notes/history/snapshot/:id", () => {
                                 // The auth middleware issues its own lookups, so route the mocks by the
                                 // SQL the route actually sends rather than by call order.
                                 mockQuery.mockImplementation(async (sql: string) => {
-                                    if (/FROM users WHERE id/.test(sql)) return { rows: [{ team_id: 3 }], rowCount: 1 };
+                                    if (/FROM users WHERE id/.test(sql)) {
+                                        return { rows: [{ org_id: 1, role: "super_admin", is_active: true }], rowCount: 1 };
+                                    }
                                     if (/FROM sprints/.test(sql)) {
                         return { rows: [{ id: 24, name: "Sprint 24", goal: null, status: "active" }], rowCount: 1 };
                                     }

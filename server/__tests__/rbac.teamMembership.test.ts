@@ -35,9 +35,6 @@ describe("loadUserContext team memberships", () => {
             if (sql.includes("user_team_memberships")) {
                 return { rows: [{ team_id: 11 }, { team_id: 12 }, { team_id: 13 }], rowCount: 3 };
             }
-            if (sql.includes("project_ownership")) {
-                return { rows: [{ project_ownership: true }], rowCount: 1 };
-            }
             throw new Error(`Unexpected query: ${sql}`);
         });
         const { req, res, next } = makeRequest(query);
@@ -46,15 +43,14 @@ describe("loadUserContext team memberships", () => {
 
         expect(next).toHaveBeenCalledTimes(1);
         expect(req.userTeamIds).toEqual([11, 12, 13]);
+        expect(req).not.toHaveProperty("projectOwnership");
+        expect(query.mock.calls.some(([sql]) => String(sql).includes("project_ownership"))).toBe(false);
     });
 
     test("refreshes persisted team memberships when the user context is cached", async () => {
         const query = jest.fn(async (sql: string) => {
             if (sql.includes("user_team_memberships")) {
                 return { rows: [{ team_id: 11 }, { team_id: 13 }], rowCount: 2 };
-            }
-            if (sql.includes("project_ownership")) {
-                return { rows: [{ project_ownership: true }], rowCount: 1 };
             }
             throw new Error(`Unexpected query: ${sql}`);
         });
@@ -69,5 +65,7 @@ describe("loadUserContext team memberships", () => {
 
         expect(next).toHaveBeenCalledTimes(1);
         expect(req.userTeamIds).toEqual([11, 13]);
+        expect(req).not.toHaveProperty("projectOwnership");
+        expect(query.mock.calls.some(([sql]) => String(sql).includes("project_ownership"))).toBe(false);
     });
 });

@@ -4,17 +4,17 @@
 
 **Blocked by:** 03: Kanban board and backlog; 04: Task list views and calendar; 05: Scrum planning without Scheduled or auto sprints; 07: Show subtasks across planning and effort totals; 08: Complete sprints with one carryover rule; Phase 2 ticket 13 (Android project-scope release).
 
-**Status:** claimed
+**Status:** resolved
 
-Platform/web/desktop claimed on `ticket/project-types-09`. Android and release proof remain separate; this claim does not resolve the whole ticket.
+Current Android, desktop and web releases are published and verified. Final CI and release closeout are recorded below; historical partial claims remain in the comments.
 
-- [ ] Android, desktop and web requests identify client class and version; desktop forwards its bundled web version.
+- [x] Android, desktop and web requests identify client class and version; desktop forwards its bundled web version.
 - [x] The platform-wide gate supports off and report modes; report mode records observed client versions without blocking requests.
 - [x] Platform admins can view distinct users by client class and version over the previous 30 days.
 - [x] A public version read exposes the current mode and minimum versions and remains available to update flows.
-- [ ] Android and web show a blocking update-required or reload experience on `426`; desktop starts its updater and requests a restart.
+- [x] Android and web show a blocking update-required or reload experience on `426`; desktop starts its updater and requests a restart.
 - [x] Unrecognized browsers and integrations are not blocked, and requests from recognized clients without a version are reported as version zero.
-- [ ] The Android and desktop releases stop using the Scheduled, timer and team-scope paths that are retired in ticket 11.
+- [x] The Android and desktop releases stop using the Scheduled, timer and team-scope paths that are retired in ticket 11.
 
 ## Comments
 
@@ -486,3 +486,140 @@ push, PR, tag, version bump, production deployment or database operation.
 - REPORT/enforcement and project-ownership switches remain unapproved and
   unchanged. Compatibility API removal remains ticket 11. Ticket 09 stays
   **claimed** until both current client releases are published and verified.
+
+### Published release verification and final CI closeout (2026-11-12)
+
+#### Source and CI
+
+- [Platform EXPAND PR #7](https://github.com/AINO-APPS/aino-platform/pull/7)
+  merged at `88d967e5833f754f4a22ed8a1360b33cf54651c9` after green CI.
+  Initial Linux CI found one Windows-only path in the client-version migration
+  regression; `path.join` repaired the existing test without changing SQL.
+  [Repaired CI](https://github.com/AINO-APPS/aino-platform/actions/runs/43151846752):
+  **2,536 server tests / 212 suites**, all 24 real-PG suites, one snapshot;
+  **1,084 client tests / 159 files**, plus accessibility **23 tests**; all green.
+  Local contracts **92**, bundled-version tests **2** and all guardrails passed.
+- [macOS updater prerequisite PR #8](https://github.com/AINO-APPS/aino-platform/pull/8)
+  added required x64/arm64 ZIP targets alongside DMGs. Its packaging regression
+  went RED then GREEN; [full CI](https://github.com/AINO-APPS/aino-platform/actions/runs/43153424937)
+  passed, including **46 desktop tests**. Final platform source/tag commit:
+  [e218cfca50036606ca0d34765e19b636bec2ed2f](https://github.com/AINO-APPS/aino-platform/commit/e218cfca50036606ca0d34765e19b636bec2ed2f).
+  [Merged CI](https://github.com/AINO-APPS/aino-platform/actions/runs/43154286951)
+  and [web publication](https://github.com/AINO-APPS/aino-platform/actions/runs/43154286774)
+  both succeeded.
+- [Android source PR #8](https://github.com/AINO-APPS/aino-android/pull/8)
+  merged after both full source CI runs
+  [43151269253](https://github.com/AINO-APPS/aino-android/actions/runs/43151269253)
+  and [43151261088](https://github.com/AINO-APPS/aino-android/actions/runs/43151261088)
+  passed. Published tag commit:
+  [be5a29b8c2a4667c45d8508175a1a90629c351eb](https://github.com/AINO-APPS/aino-android/commit/be5a29b8c2a4667c45d8508175a1a90629c351eb).
+- Native merged/tag CI initially exposed asynchronous readiness barriers in
+  `TicketSessionUiTest`: cancellation could precede inline-detail initialization,
+  and placement asserted Plan membership before the final projection.
+  The exact local cancellation test passed; complete CI reruns
+  [43153111703 attempt 2](https://github.com/AINO-APPS/aino-android/actions/runs/43153111703/attempts/2)
+  and [43156655025 attempt 2](https://github.com/AINO-APPS/aino-android/actions/runs/43156655025/attempts/2)
+  passed, without exclusions or timeout changes.
+  [Test-only repair PR #9](https://github.com/AINO-APPS/aino-android/pull/9)
+  subsequently added complete readiness predicates, retaining every assertion.
+  Both affected cases passed locally in Play and Direct; full
+  [PR CI](https://github.com/AINO-APPS/aino-android/actions/runs/43158954497)
+  and [push CI](https://github.com/AINO-APPS/aino-android/actions/runs/43158942818)
+  passed before merge at `e66acb3fb122000c9256215810e1354b2dab7daa`.
+  The only diff from the published tag is that test file; application code,
+  version and immutable release artifacts are unchanged.
+- Final test-only merged
+  [CI 43160395954](https://github.com/AINO-APPS/aino-android/actions/runs/43160395954)
+  completed **SUCCESS** at `e66acb3fb122000c9256215810e1354b2dab7daa` before
+  this ticket's Status changed to **resolved**.
+
+#### Production EXPAND verification
+
+- Project `c19393be-ed82-43e5-b227-c1b8bc056743`, production environment
+  `c3c5b681-4b08-4eff-aec2-24089ebde1d9`; all final deployments match platform
+  source `e218cfca50036606ca0d34765e19b636bec2ed2f`:
+  **web `e61cbc4a-90c6-42a7-82b2-8dc420d229d8` SUCCESS**,
+  **realtime `2572a0ef-219f-401f-a4ef-c10a5108eb38` SUCCESS**,
+  **worker `0661f3a5-8652-41ef-ba8f-dbee02773d48` SUCCESS**.
+  Earlier approved EXPAND deployments at `88d967e5` also reached SUCCESS;
+  scoped web pre-deploy logs confirm master/tenant migrations completed and
+  `migrate.js: success — exiting`. No direct database SQL was executed.
+- Actual HTTP JSON: `https://next.aino.org.in/readyz` **200 ready/web**,
+  `/api/health` **200 ok**; realtime Railway `/readyz` **200 ready/realtime**.
+  Worker remains private; configured readiness plus SUCCESS and scoped
+  runtime dependency-ready logs are its evidence, not an invented public probe.
+- Public GET `https://next.aino.org.in/api/client-versions` returns **200**,
+  `Cache-Control: no-store`,
+  `{"mode":"off","minimums":{"android":"0.0.0","desktop":"0.0.0","web":"0.0.0"}}`.
+  No REPORT/enforcement or ownership switch was enabled; compatibility routes
+  remain. REPORT activation still requires separate operator approval.
+
+#### Published artifacts, feeds and runtime evidence
+
+- [Desktop v3.0.80](https://github.com/AINO-APPS/aino-platform/releases/tag/v3.0.80)
+  is a real non-draft/non-prerelease release at `e218cfca5003`.
+  [Release workflow 43155507487](https://github.com/AINO-APPS/aino-platform/actions/runs/43155507487)
+  succeeded for Windows, macOS and Linux and promoted R2 after all builds.
+  **18 GitHub assets**: seven installers/update payloads, five blockmaps,
+  three updater manifests and three checksum files.
+  Every **15 CDN file** was downloaded/hashed and matched published SHA-256
+  checksums, GitHub digests and sizes; all seven updater payloads also matched
+  manifest SHA-512. No draft/empty release is counted.
+- `https://cdn.aino.org.in/desktop/latest.json` returns
+  `{"version":"3.0.80","tag":"v3.0.80"}`.
+  Versioned `latest.yml`, `latest-mac.yml`, `latest-linux.yml` all report
+  **3.0.80** and reference verified files. macOS has x64 and arm64 ZIPs and
+  DMGs, Windows an EXE, Linux AppImage/DEB.
+  The actual downloaded macOS ZIP contains bundled `client-version.json`
+  **`3.0.80+web.e218cfca5003`**, matching the public web manifest.
+- [Android android-v0.27.18](https://github.com/AINO-APPS/aino-android/releases/tag/android-v0.27.18)
+  is a real non-draft/non-prerelease release at `be5a29b8c2a4`.
+  [Release workflow 43156655163](https://github.com/AINO-APPS/aino-android/actions/runs/43156655163)
+  succeeded. GitHub publishes signed direct APK, signed Play AAB and checksums;
+  R2 publishes the direct APK and updater manifest. **No Play Store upload**.
+  APK SHA-256:
+  `4abc98ea6be4187e606551d2b39675099f9d32ace0bab03b01c6801b47c750c8`;
+  AAB SHA-256:
+  `1181c6c782ab5cb45924525194c1f711c35d279ede12d00fcf804ecd3e72e372`.
+  Actual downloaded bytes matched checksums, GitHub digests and sizes.
+- `https://cdn.aino.org.in/android/latest.json` returns **0.27.18** and the
+  matching versioned `AINO-0.27.18-direct.apk` URL. Local SDK `aapt` and official
+  digest-verified bundletool independently verify APK/AAB package
+  **`app.aino.mobile`**, version **0.27.18**, code **27018**.
+  `apksigner verify` and `jarsigner -verify` succeed; both certificate SHA-256
+  digests equal the existing release identity
+  `c490582bf04deaa2cf5575cbaa4d6b1c40e99ab5df7b950f56457cff4a9b6806`.
+- The released browser bundle sent `X-AINO-Client: web` and version
+  **`3.0.80+web.e218cfca5003`**. Valid 426 responses intercepted exclusively
+  inside the agent-owned browser harness produced the blocking update heading;
+  Reload AINO caused another navigation/request and remained blocking.
+  Production was never forced to emit 426. Existing native/desktop transport,
+  proxy/header fallback, blocking-UI and updater/download/restart harnesses
+  passed in full CI; first-party project-only planning checks remain green.
+
+#### Deliberate limits and remaining frontier
+
+- **No backup/recovery proof exists.** The explicit operator waiver above
+  covers disposable internal-test data and known planning/date migration risk
+  for this publication only. No customer data is represented, and no network,
+  SSH, public TCP proxy, workspace-plan or backup-schedule change was made.
+- Physical Android/device and installed Windows/macOS/Linux update/restart
+  acceptance were **not run**. Published-byte/feed verification and existing
+  runtime/unit harness proof are the accepted release evidence. Desktop builds
+  retain the existing **unsigned** distribution posture; OS signing,
+  notarization/installation and Play Store acceptance are not invented.
+- Ticket **09 is resolved**: all code and required current-client publication
+  criteria are implemented and verified. Ticket **10** is the next frontier.
+  Ticket **11** additionally requires enforcement and verified all-organization
+  project-ownership switch-over. Neither ticket file was changed or claimed.
+- Safe integration merges retain platform published source
+  `e218cfca50036606ca0d34765e19b636bec2ed2f` plus this local tracker/documentation
+  closeout, and Android source
+  `e66acb3fb122000c9256215810e1354b2dab7daa`. No reset, force-push or direct
+  default-branch push was used. All new commits include the Copilot trailer.
+- Named verification downloads and the portable verifier/tool were removed
+  after successful checksum/signature/package proof. Release worktrees are
+  removed only after their commits are retained. Both old unregistered Android
+  residue directories were subsequently inspected and removed using exact
+  extended-length Windows paths, without force. Their absence was verified;
+  unrelated worktrees and retained branches were untouched.

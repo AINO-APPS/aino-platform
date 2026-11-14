@@ -92,7 +92,6 @@ function setupAuth(role = "employee", extra: Record<string, any> = {}) {
         .mockResolvedValueOnce({ rows: [{ token_version: 0 }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [{ role, org_id: 1, team_id: 1, department_id: 1, manager_id: null, is_active: true, ...extra }], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // user teams
-        .mockResolvedValueOnce({ rows: [{ project_ownership: false }], rowCount: 1 }); // org project ownership
 }
 
 function setupAuthOnly() {
@@ -240,12 +239,12 @@ describe("GET /api/profile", () => {
         expect(mockQuery.mock.calls.some(([sql]) => /FROM users u/.test(sql))).toBe(false);
     });
 
-    test("reports the team's sprint config so clients can pick their planning surface", async () => {
+    test("does not expose team sprint configuration or project ownership in the profile", async () => {
         setupAuthOnly();
         const userRow = {
             id: 1, username: "testuser", full_name: "Test User", email: "test@test.com",
             avatar: null, role: "employee", org_id: 1, team_id: 1, department_id: 1,
-            must_change_password: false, team_name: "Dev", team_sprint_enabled: true,
+            must_change_password: false, team_name: "Dev",
         };
         mockQuery.mockResolvedValueOnce({ rows: [userRow], rowCount: 1 });
         mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
@@ -253,36 +252,18 @@ describe("GET /api/profile", () => {
         const res = await request(app).get("/api/profile").set("Cookie", authCookie());
 
         expect(res.status).toBe(200);
-        expect(res.body.team_sprint_enabled).toBe(true);
-        expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("t.sprint_start_date"))).toBe(true);
-    });
-
-    test("a user with no team reports no sprint config, never null", async () => {
-        setupAuthOnly();
-        const userRow = {
-            id: 1, username: "testuser", full_name: "Test User", email: "test@test.com",
-            avatar: null, role: "employee", org_id: 1, team_id: null, department_id: null,
-            must_change_password: false, team_name: null, team_sprint_enabled: null,
-        };
-        mockQuery.mockResolvedValueOnce({ rows: [userRow], rowCount: 1 });
-        mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-
-        const res = await request(app).get("/api/profile").set("Cookie", authCookie());
-
-        expect(res.status).toBe(200);
-        expect(res.body.team_sprint_enabled).toBe(false);
+        expect(res.body.team_sprint_enabled).toBeUndefined();
+        expect(res.body.project_ownership).toBeUndefined();
+        expect(mockQuery.mock.calls.some(([sql]) => /sprint_start_date|project_ownership/.test(String(sql)))).toBe(false);
     });
 
     test("an older tenant DB without the optional columns still returns a profile", async () => {
-        // A DB created before `notification_prefs` and `teams.sprint_start_date`
-        // existed must degrade, not 500: a failed profile fetch leaves both
-        // clients on a degraded session.
+        // A DB created before `notification_prefs` existed must degrade, not
+        // 500: a failed profile fetch leaves both clients on a degraded session.
         setupAuthOnly();
         mockQuery.mockImplementation(((sql: string) => {
             if (String(sql).includes("token_version")) return Promise.resolve({ rows: [{ token_version: 0 }] });
-            if (String(sql).includes("notification_prefs") || String(sql).includes("sprint_start_date")) {
-                return Promise.reject(new Error('column "notification_prefs" does not exist'));
-            }
+            if (String(sql).includes("notification_prefs")) return Promise.reject(new Error('column "notification_prefs" does not exist'));
             if (String(sql).includes("FROM users u")) {
                 return Promise.resolve({ rows: [{ id: 1, username: "testuser", role: "employee", team_id: 1, must_change_password: false, team_name: "Dev" }], rowCount: 1 });
             }
@@ -293,7 +274,6 @@ describe("GET /api/profile", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.username).toBe("testuser");
-        // Absent, not false: clients must be able to tell "unknown" from "no sprints".
         expect(res.body.team_sprint_enabled).toBeUndefined();
     });
 

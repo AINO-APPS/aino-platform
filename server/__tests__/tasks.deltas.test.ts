@@ -39,14 +39,13 @@ describe("task field deltas", () => {
         });
     });
 
-    test("a project transfer broadcasts the new stored key under both API names", () => {
+    test("a project move broadcasts the canonical key and destination", () => {
         expect(diffTask(
             { project_id: 1, ticket_key: "ALPHA-7" },
             { project_id: 2, ticket_key: "BETA-1" },
         )).toEqual({
             project_id: 2,
             ticket_key: "BETA-1",
-            issue_key: "BETA-1",
         });
     });
 

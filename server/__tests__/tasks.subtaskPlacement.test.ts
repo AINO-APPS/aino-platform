@@ -17,14 +17,14 @@ test("placing a parent publishes a move and sprint history for both tickets", as
         else if (text.includes("FROM sprints")) rows = [{ id: 10, project_id: 10, status: "planned", name: "First" }];
         else if (text.includes("is_subtask") && text.includes("FROM tasks")) rows = tickets.filter(t => t.is_subtask && params[0].includes(t.id));
         else if (text.startsWith("UPDATE tasks")) {
-            const ticket = tickets.find(t => t.id === params[params.length - 1])!;
+            const ticket = tickets.find(t => t.id === params[1])!;
             ticket.sprint_id = params[0];
             rows = [{ ...ticket }];
         } else if (text.includes("INSERT INTO task_history")) history.push(params);
         return { rows: rows.map(row => ({ ...row })), rowCount: rows.length };
     } };
     const result = await placeTickets({
-        db, actor: { userId: 1, orgId: 1 }, projectOwnership: true,
+        db, actor: { userId: 1, orgId: 1 },
         afterCommit: fn => { callbacks.push(fn); },
         effects: { changed: change => { changes.push(change); } },
     }, [1], { sprint: 10 });

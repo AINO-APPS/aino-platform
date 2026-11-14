@@ -1,7 +1,7 @@
 // Status-change side effects shared by every write path.
 //
 // A move has two audiences with different jobs:
-//   * the owning team gets the realtime `task_updated` frame, so a card moves
+//   * the owning project gets the realtime `task_updated` frame, so a card moves
 //     on everyone's board without a refetch;
 //   * the assignee and the reporter (never the actor, never the whole team)
 //     get an in-app notification telling them what moved.
@@ -11,7 +11,7 @@
 
 import type { Request } from "express";
 
-const { findTeamMemberIds } = require("../../../modules/tasks/tasks.repository");
+const { findPlacementProjectAudience } = require("../../../modules/tasks/tasks.repository");
 const { describeStatusChanged } = require("../../../modules/tasks/tasks.notifications");
 const { emitTaskUpdated } = require("../../../utils/taskNotifications");
 const { notifyUser } = require("../../../realtime/fanout");
@@ -25,7 +25,7 @@ interface DbLike {
 interface TaskLike {
     id: number;
     title?: string;
-    team_id?: number | null;
+    project_id?: number | null;
     org_id?: number | null;
     assigned_to?: number | null;
     user_id?: number | null;
@@ -38,28 +38,30 @@ interface StateLike {
 
 /**
  * Everyone who should receive the realtime frame: the ticket's people, the
- * actor, and — for a status move — every member of its owning team.
+ * actor, and — for a status move — every member of its owning project.
  */
 export async function realtimeAudience(
     db: DbLike,
     task: TaskLike,
     extra: Array<number | string | null | undefined> = [],
-    includeTeam = true,
+    includeProject = true,
 ): Promise<Array<number | string | null | undefined>> {
-    const members = includeTeam ? await findTeamMemberIds(db, task.team_id, task.org_id) : [];
+    const members = includeProject && task.project_id != null
+        ? await findPlacementProjectAudience(db as any, [Number(task.project_id)], task.org_id ?? null)
+        : [];
     return [task.assigned_to, task.user_id, ...extra, ...members];
 }
 
-/** Send `task_updated` to the ticket's people and, optionally, its team. */
+/** Send `task_updated` to the ticket's people and, optionally, its project. */
 export async function broadcastTaskUpdated(
     req: Request,
     task: TaskLike,
     action: string,
     delta?: { fields: Record<string, unknown>; actor: { id: number; name?: string | null } | null },
     extra: Array<number | string | null | undefined> = [],
-    includeTeam = true,
+    includeProject = true,
 ): Promise<void> {
-    const audience = await realtimeAudience(req.db as DbLike, task, [req.userId, ...extra], includeTeam);
+    const audience = await realtimeAudience(req.db as DbLike, task, [req.userId, ...extra], includeProject);
     emitTaskUpdated(req.tenantId, task.id, action, audience, delta);
 }
 
@@ -110,8 +112,8 @@ export interface StatusMove {
     fields?: Record<string, unknown>;
     /** Extra recipients, e.g. the previous assignee. */
     extra?: Array<number | string | null | undefined>;
-    /** Only status transitions fan out to the owning team. */
-    includeTeam?: boolean;
+    /** Only status transitions fan out to the owning project. */
+    includeProject?: boolean;
 }
 
 /**
@@ -137,6 +139,6 @@ export async function announceStatusMove(req: Request, move: StatusMove): Promis
             actor: { id: req.userId!, name: move.name },
         },
         move.extra ?? [],
-        move.includeTeam !== false,
+        move.includeProject !== false,
     );
 }

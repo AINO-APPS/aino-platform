@@ -14,7 +14,6 @@ vi.mock("../AuthContext", () => ({
         user: {
             id: 1, tenant_id: 1, org_id: 1, team_id: 1, role: "employee",
             must_change_password: auth.mustChangePassword,
-            project_ownership: true,
         },
     }),
     hasTenantContext: () => true,
@@ -186,7 +185,6 @@ describe.each(["web", "desktop"])("%s Tasks navigation through the app router", 
             data: {
                 id: 17,
                 ticket_key: "ALPHA-17",
-                issue_key: "ALPHA-17",
                 key_alias: true,
                 requested_key: "OLD-17",
             },

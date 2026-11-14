@@ -221,7 +221,7 @@ export default function TaskDetailModal({
                             fontWeight: 700,
                         }}
                     >
-                        {detailTask.issue_key || `#${detailTask.id}`}
+                        {detailTask.ticket_key || `#${detailTask.id}`}
                     </span>
                     <span
                         className={s["task-priority-badge"]}
@@ -431,7 +431,7 @@ export default function TaskDetailModal({
                                                 title="Project assignment is permanent (it would invalidate the issue key)"
                                             >
                                                 <Folder size={12} />
-                                                {detailTask.issue_key ||
+                                                {detailTask.ticket_key ||
                                                     detailTask.project?.key ||
                                                     "—"}
                                             </div>

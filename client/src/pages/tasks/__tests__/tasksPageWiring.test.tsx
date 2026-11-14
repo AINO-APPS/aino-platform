@@ -17,7 +17,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { getTasks } from "../../../api/tasks";
 
 const captured: { props: Record<string, any> | null } = { props: null };
-const scope = vi.hoisted(() => ({ projectOwnership: false, projects: [] as any[] }));
+const scope = vi.hoisted(() => ({ projects: [] as any[] }));
 
 vi.mock("../BacklogTab", () => ({
     default: (props: Record<string, any>) => {
@@ -85,7 +85,7 @@ vi.mock("../../../api/organization", () => ({
 }));
 
 vi.mock("../../../AuthContext", () => ({
-    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee", project_ownership: scope.projectOwnership } }),
+    useAuth: () => ({ user: { id: 1, team_id: 1, role: "employee" } }),
     hasTenantContext: () => true,
 }));
 
@@ -131,7 +131,6 @@ function renderPage(path = "/tasks/backlog") {
 describe("Tasks page → Backlog tab wiring", () => {
     beforeEach(() => {
         captured.props = null;
-        scope.projectOwnership = true;
         scope.projects = [{ id: 10, key: "ONE", name: "One", hasSprints: true, planTabs: ["backlog", "sprint", "reports"] }];
     });
 
@@ -158,7 +157,6 @@ describe("Tasks page → Backlog tab wiring", () => {
     });
 
     test.each([["list", "Project task list"], ["calendar", "Project calendar"]])("Task list %s route renders its real project-scoped surface", async (view, name) => {
-        scope.projectOwnership = true;
         scope.projects = [{ id: 10, name: "Operations", key: "OPS", type: "task_list", hasSprints: false, planTabs: ["list", "board", "calendar"] }];
         renderPage(`/tasks/${view}`);
         expect(await screen.findByRole("region", { name }, { timeout: 10_000 })).toBeInTheDocument();

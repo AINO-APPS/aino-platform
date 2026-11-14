@@ -33,10 +33,10 @@ const { announceStatusMove, broadcastTaskUpdated } = require('./_helpers/statusE
 const { assertLifecycleMove, stateOf } = require('../../modules/tasks/tasks.workflow');
 const { loadTicketDecisionContext } = require('../../modules/tasks/tasks.capabilities');
 const { findActorName } = require('../../modules/tasks/tasks.repository');
-const { resolveCreateTeamId, resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
+const { resolveCreateProjectId } = require('../../modules/tasks/tasks.ownership');
 const { diffTask } = require('../../modules/tasks/tasks.deltas');
 const { validateCreatedFields } = require('./_helpers/validateCreate');
-const { resolveSprintTarget, editPlacement } = require('../../modules/tasks/tasks.sprintAssignment');
+const { resolveSprintTarget } = require('../../modules/tasks/tasks.sprintAssignment');
 const { requestedStartDate, resolveTicketDates, setTicketStartDate, lockTicketDates, recordDateHistory } = require('../../modules/tasks/tasks.dates');
 const { placeTickets } = require('../../modules/tasks/tasks.placement');
 const { placementContext, placedOrThrow, sendPlacementRefusal, PlacementRefused } = require('./_helpers/placement');
@@ -62,14 +62,14 @@ router.use(require("./collection"));
 router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
     try {
         if (!await prepareHierarchyCreate(req, res)) return;
-        const { title, description, priority, date, assigned_to, due_date, label_ids, sprint_id,
+        const { title, description, priority, assigned_to, due_date, label_ids, sprint_id,
             story_points, work_item_type_id, workflow_state_id, parent_task_id,
-            acceptance_criteria, is_blocked, blocked_reason, project_id, team_id } = req.body;
+            acceptance_criteria, is_blocked, blocked_reason, project_id } = req.body;
 
         const invalid = validateCreatedFields({ title, description });
         if (invalid) return res.status(invalid.status).json(invalid.body);
 
-        const targetDate = requestedStartDate(req.body, date || getLocalToday(req));
+        const targetDate = requestedStartDate(req.body, getLocalToday(req));
         const validPriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
 
         let assignedTo = null;
@@ -87,39 +87,25 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
         let validDueDate = created.dueDate;
 
         let validSprintId = null;
-        let sprintRow: { id: number; team_id: number | null; end_date: string } | null = null;
         // Sprint assignment follows the destination project, not its feature flag.
         if (sprint_id) {
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
-                actorTeamId: req.userTeamId ?? null,
-                isAdmin: isOrgAdmin(req.userRole),
                 actor: taskActorFromRequest(req),
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             const sprint = target.sprint;
             if (sprint) {
                 validSprintId = sprint.id;
-                sprintRow = sprint;
             } else {
                 return res.status(400).json({ error: 'Invalid sprint or sprint does not belong to your team' });
             }
         }
 
-        // Ownership: explicit team (admins only), else the sprint's team, else
-        // the creator's team. A sprint assignment that contradicts the ticket's
-        // team is rejected so ownership never changes as a side effect.
-        const owner = await resolveCreateTeamId(req.db!, {
-            actor: taskActorFromRequest(req),
-            orgId: req.userOrgId || null,
-            explicitTeamId: team_id,
-            sprint: sprintRow,
-        });
-        if (owner.error) return res.status(owner.error.status).json(owner.error.body);
         const project = await resolveCreateProjectId(req.db!, {
             actor: taskActorFromRequest(req), explicitProjectId: project_id,
-            sprintId: validSprintId, teamId: owner.teamId,
+            sprintId: validSprintId,
         });
         if (project.error) return res.status(project.error.status).json(project.error.body);
         const validProjectId = project.projectId;
@@ -166,13 +152,13 @@ router.post('/', auth, loadUserContext, async (req: Request, res: Response) => {
             const insertRes = await client.query(
                 `INSERT INTO tasks
                     (user_id, title, description, priority, assigned_to, due_date,
-                     org_id, team_id, story_points, work_item_type_id, workflow_state_id,
+                     org_id, story_points, work_item_type_id, workflow_state_id,
                      parent_task_id, acceptance_criteria, is_blocked, blocked_reason, lead_started_at,
                      project_id, task_number)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16)
                  RETURNING id`,
                 [req.userId, title.trim(), description?.trim() || null, validPriority,
-                    assignedTo, validDueDate, req.userOrgId || null, owner.teamId,
+                    assignedTo, validDueDate, req.userOrgId || null,
                     sp, witId, wsId, parentTaskId, ac ? JSON.stringify(ac) : null, isBlocked, blockedReason,
                     validProjectId, taskNumber]
             );
@@ -398,21 +384,15 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
             const target = await resolveSprintTarget(req.db!, {
                 sprintId: sprint_id,
                 orgId: req.userOrgId || null,
-                actorTeamId: req.userTeamId ?? null,
-                isAdmin: isOrgAdmin(req.userRole),
                 ticket: task,
                 actor,
             });
             if (target.error) return res.status(target.error.status).json(target.error.body);
             requestedSprint = target.sprint ?? null;
         }
-        const move = editPlacement({
-            requestedSprint,
-            requestedPlannedDate: undefined,
-            currentSprintId: task.sprint_id,
-            currentPlannedDate: task.planned_date ?? null,
-        });
-        const placementTarget = move.target;
+        const placementTarget = sprint_id !== undefined
+            ? { sprint: requestedSprint?.id ?? null }
+            : null;
 
         // Ticket 05 retains ownership of the legacy sprint deadline override.
         const dueDateRequested = due_date !== undefined;
@@ -478,9 +458,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
         if (blocked_reason !== undefined) {
             newBlockedReason = blocked_reason ? String(blocked_reason).slice(0, 500) : null;
         }
-        // One transaction: the move first (placement owns sprint, planned day and
-        // the due-date bookkeeping), then the plain fields. A due date the user
-        // typed is applied after the move, so it wins over a restored one.
+        // One transaction: the move first, then the plain fields.
         const placedRow = await (req.db as DbLike).transaction(async (client, { afterCommit }) => {
             const hierarchy = await assertTicketHierarchy(client, {
                 id, org_id: req.userOrgId ?? null,
@@ -614,7 +592,7 @@ router.put('/:id', auth, loadUserContext, async (req: Request, res: Response) =>
                 action: 'updated',
                 fields,
                 extra: extraAudience,
-                includeTeam: true,
+                includeProject: true,
             });
         } else if (Object.keys(fields).length > 0) {
             await broadcastTaskUpdated(req, updated, 'updated', {
